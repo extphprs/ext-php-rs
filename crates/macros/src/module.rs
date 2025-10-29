@@ -35,11 +35,16 @@ pub fn parser(input: ItemFn) -> Result<TokenStream> {
                 let b = __EXT_PHP_RS_MODULE_STARTUP
                     .lock()
                     .take()
-                    .inspect(|_| ::ext_php_rs::internal::ext_php_rs_startup())
-                    .expect("Module startup function has already been called.")
-                    .startup(ty, mod_num)
-                    .map(|_| 0)
-                    .unwrap_or(1);
+                    .map(|startup| {
+                        ::ext_php_rs::internal::ext_php_rs_startup();
+                        startup.startup(ty, mod_num).map(|_| 0).unwrap_or(1)
+                    })
+                    .unwrap_or_else(|| {
+                        // Module already started, call ext_php_rs_startup for idempotent
+                        // initialization (e.g., Closure::build early-returns if already built)
+                        ::ext_php_rs::internal::ext_php_rs_startup();
+                        0
+                    });
                 a | b
             }
 
