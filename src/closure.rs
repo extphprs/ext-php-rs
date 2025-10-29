@@ -115,11 +115,16 @@ impl Closure {
     /// function should only be called once inside your module startup
     /// function.
     ///
+    /// If the class has already been built, this function returns early without
+    /// doing anything. This allows for safe repeated calls in test environments.
+    ///
     /// # Panics
     ///
-    /// Panics if the function is called more than once.
+    /// Panics if the `RustClosure` PHP class cannot be registered.
     pub fn build() {
-        assert!(!CLOSURE_META.has_ce(), "Closure class already built.");
+        if CLOSURE_META.has_ce() {
+            return;
+        }
 
         ClassBuilder::new("RustClosure")
             .method(
