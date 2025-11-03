@@ -9,9 +9,7 @@
 extern crate ext_php_rs;
 
 use ext_php_rs::builders::SapiBuilder;
-use ext_php_rs::embed::{
-    Embed, ext_php_rs_sapi_per_thread_init, ext_php_rs_sapi_shutdown, ext_php_rs_sapi_startup,
-};
+use ext_php_rs::embed::{Embed, ext_php_rs_sapi_shutdown, ext_php_rs_sapi_startup};
 use ext_php_rs::ffi::{
     ZEND_RESULT_CODE_SUCCESS, php_module_shutdown, php_module_startup, php_request_shutdown,
     php_request_startup, sapi_shutdown, sapi_startup,
@@ -19,7 +17,13 @@ use ext_php_rs::ffi::{
 use ext_php_rs::prelude::*;
 use ext_php_rs::zend::try_catch_first;
 use std::ffi::c_char;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
+
+#[cfg(php_zts)]
+use ext_php_rs::embed::ext_php_rs_sapi_per_thread_init;
+#[cfg(php_zts)]
+use std::sync::Arc;
+#[cfg(php_zts)]
 use std::thread;
 
 static mut LAST_OUTPUT: String = String::new();
@@ -119,6 +123,7 @@ pub fn module(module: ModuleBuilder) -> ModuleBuilder {
 }
 
 #[test]
+#[cfg(php_zts)]
 fn test_sapi_multithread() {
     let _guard = SAPI_TEST_MUTEX.lock().unwrap();
 
