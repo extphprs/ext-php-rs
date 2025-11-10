@@ -375,38 +375,63 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
             enums: builder.enums,
         };
 
-        Ok((
-            ModuleEntry {
-                size: mem::size_of::<ModuleEntry>().try_into()?,
-                zend_api: ZEND_MODULE_API_NO,
-                zend_debug: u8::from(PHP_DEBUG),
-                zts: u8::from(PHP_ZTS),
-                ini_entry: ptr::null(),
-                deps: ptr::null(),
-                name,
-                functions,
-                module_startup_func: builder.startup_func,
-                module_shutdown_func: builder.shutdown_func,
-                request_startup_func: builder.request_startup_func,
-                request_shutdown_func: builder.request_shutdown_func,
-                info_func: builder.info_func,
-                version,
-                globals_size: 0,
-                #[cfg(not(php_zts))]
-                globals_ptr: ptr::null_mut(),
-                #[cfg(php_zts)]
-                globals_id_ptr: ptr::null_mut(),
-                globals_ctor: None,
-                globals_dtor: None,
-                post_deactivate_func: builder.post_deactivate_func,
-                module_started: 0,
-                type_: 0,
-                handle: ptr::null_mut(),
-                module_number: 0,
-                build_id: unsafe { ext_php_rs_php_build_id() },
-            },
-            startup,
-        ))
+        #[cfg(not(php_zts))]
+        let module_entry = ModuleEntry {
+            size: mem::size_of::<ModuleEntry>().try_into()?,
+            zend_api: ZEND_MODULE_API_NO,
+            zend_debug: u8::from(PHP_DEBUG),
+            zts: u8::from(PHP_ZTS),
+            ini_entry: ptr::null(),
+            deps: ptr::null(),
+            name,
+            functions,
+            module_startup_func: builder.startup_func,
+            module_shutdown_func: builder.shutdown_func,
+            request_startup_func: builder.request_startup_func,
+            request_shutdown_func: builder.request_shutdown_func,
+            info_func: builder.info_func,
+            version,
+            globals_size: 0,
+            globals_ptr: ptr::null_mut(),
+            globals_ctor: None,
+            globals_dtor: None,
+            post_deactivate_func: builder.post_deactivate_func,
+            module_started: 0,
+            type_: 0,
+            handle: ptr::null_mut(),
+            module_number: 0,
+            build_id: unsafe { ext_php_rs_php_build_id() },
+        };
+
+        #[cfg(php_zts)]
+        let module_entry = ModuleEntry {
+            size: mem::size_of::<ModuleEntry>().try_into()?,
+            zend_api: ZEND_MODULE_API_NO,
+            zend_debug: u8::from(PHP_DEBUG),
+            zts: u8::from(PHP_ZTS),
+            ini_entry: ptr::null(),
+            deps: ptr::null(),
+            name,
+            functions,
+            module_startup_func: builder.startup_func,
+            module_shutdown_func: builder.shutdown_func,
+            request_startup_func: builder.request_startup_func,
+            request_shutdown_func: builder.request_shutdown_func,
+            info_func: builder.info_func,
+            version,
+            globals_size: 0,
+            globals_id_ptr: ptr::null_mut(),
+            globals_ctor: None,
+            globals_dtor: None,
+            post_deactivate_func: builder.post_deactivate_func,
+            module_started: 0,
+            type_: 0,
+            handle: ptr::null_mut(),
+            module_number: 0,
+            build_id: unsafe { ext_php_rs_php_build_id() },
+        };
+
+        Ok((module_entry, startup))
     }
 }
 
