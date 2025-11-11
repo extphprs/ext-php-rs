@@ -20,7 +20,7 @@ use std::ffi::c_char;
 use std::sync::Mutex;
 
 #[cfg(php_zts)]
-use ext_php_rs::embed::ext_php_rs_sapi_per_thread_init;
+use ext_php_rs::embed::{ext_php_rs_sapi_per_thread_init, ext_php_rs_sapi_per_thread_shutdown};
 #[cfg(php_zts)]
 use std::sync::Arc;
 #[cfg(php_zts)]
@@ -177,6 +177,10 @@ fn test_sapi_multithread() {
 
             unsafe {
                 php_request_shutdown(std::ptr::null_mut());
+            }
+
+            unsafe {
+                ext_php_rs_sapi_per_thread_shutdown();
             }
         });
 

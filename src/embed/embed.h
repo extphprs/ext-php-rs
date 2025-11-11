@@ -9,5 +9,6 @@ void* ext_php_rs_embed_callback(int argc, char** argv, void* (*callback)(void *)
 void ext_php_rs_sapi_startup();
 void ext_php_rs_sapi_shutdown();
 void ext_php_rs_sapi_per_thread_init();
+void ext_php_rs_sapi_per_thread_shutdown();
 
 void ext_php_rs_php_error(int type, const char *format, ...);
