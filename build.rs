@@ -268,6 +268,7 @@ enum ApiVersion {
     Php82 = 2022_08_29,
     Php83 = 2023_08_31,
     Php84 = 2024_09_24,
+    Php85 = 2025_09_25,
 }
 
 impl ApiVersion {
@@ -285,7 +286,7 @@ impl ApiVersion {
 
     /// Returns the maximum API version supported by ext-php-rs.
     pub const fn max() -> Self {
-        ApiVersion::Php84
+        ApiVersion::Php85
     }
 
     pub fn versions() -> Vec<Self> {
@@ -295,6 +296,7 @@ impl ApiVersion {
             ApiVersion::Php82,
             ApiVersion::Php83,
             ApiVersion::Php84,
+            ApiVersion::Php85,
         ]
     }
 
@@ -313,6 +315,7 @@ impl ApiVersion {
             ApiVersion::Php82 => "php82",
             ApiVersion::Php83 => "php83",
             ApiVersion::Php84 => "php84",
+            ApiVersion::Php85 => "php85",
         }
     }
 
@@ -323,6 +326,7 @@ impl ApiVersion {
             ApiVersion::Php82 => "EXT_PHP_RS_PHP_82",
             ApiVersion::Php83 => "EXT_PHP_RS_PHP_83",
             ApiVersion::Php84 => "EXT_PHP_RS_PHP_84",
+            ApiVersion::Php85 => "EXT_PHP_RS_PHP_85",
         }
     }
 }
@@ -344,7 +348,10 @@ impl TryFrom<u32> for ApiVersion {
             x if ((ApiVersion::Php83 as u32)..(ApiVersion::Php84 as u32)).contains(&x) => {
                 Ok(ApiVersion::Php83)
             }
-            x if (ApiVersion::Php84 as u32) == x => Ok(ApiVersion::Php84),
+            x if ((ApiVersion::Php84 as u32)..(ApiVersion::Php85 as u32)).contains(&x) => {
+                Ok(ApiVersion::Php84)
+            }
+            x if (ApiVersion::Php85 as u32) == x => Ok(ApiVersion::Php85),
             version => Err(anyhow!(
                 "The current version of PHP is not supported. Current PHP API version: {}, requires a version between {} and {}",
                 version,
@@ -371,7 +378,7 @@ fn check_php_version(info: &PHPInfo) -> Result<()> {
     // The PHP version cfg flags should also stack - if you compile on PHP 8.2 you
     // should get both the `php81` and `php82` flags.
     println!(
-        "cargo::rustc-check-cfg=cfg(php80, php81, php82, php83, php84, php_zts, php_debug, docs)"
+        "cargo::rustc-check-cfg=cfg(php80, php81, php82, php83, php84, php85, php_zts, php_debug, docs)"
     );
 
     if version == ApiVersion::Php80 {
@@ -416,6 +423,7 @@ fn main() -> Result<()> {
         println!("cargo:rustc-cfg=php82");
         println!("cargo:rustc-cfg=php83");
         println!("cargo:rustc-cfg=php84");
+        println!("cargo:rustc-cfg=php85");
         std::fs::copy("docsrs_bindings.rs", out_path)
             .expect("failed to copy docs.rs stub bindings to out directory");
         return Ok(());

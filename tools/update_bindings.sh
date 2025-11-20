@@ -9,5 +9,5 @@ docker buildx build \
   --platform linux/amd64 \
   --target docsrs_bindings \
   -o type=local,dest=. \
-  --build-arg PHP_VERSION=8.4 \
+  --build-arg PHP_VERSION=8.5 \
   .

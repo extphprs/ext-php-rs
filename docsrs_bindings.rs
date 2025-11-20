@@ -172,7 +172,7 @@ pub const IS_STRING_EX: u32 = 262;
 pub const IS_ARRAY_EX: u32 = 775;
 pub const IS_OBJECT_EX: u32 = 776;
 pub const IS_RESOURCE_EX: u32 = 265;
-pub const IS_REFERENCE_EX: u32 = 266;
+pub const IS_REFERENCE_EX: u32 = 778;
 pub const IS_CONSTANT_AST_EX: u32 = 267;
 pub const E_ERROR: u32 = 1;
 pub const E_WARNING: u32 = 2;
@@ -202,6 +202,7 @@ pub const ZEND_ACC_IMMUTABLE: u32 = 128;
 pub const ZEND_ACC_HAS_TYPE_HINTS: u32 = 256;
 pub const ZEND_ACC_TOP_LEVEL: u32 = 512;
 pub const ZEND_ACC_PRELOADED: u32 = 1024;
+pub const ZEND_ACC_DEPRECATED: u32 = 2048;
 pub const ZEND_ACC_PROMOTED: u32 = 256;
 pub const ZEND_ACC_INTERFACE: u32 = 1;
 pub const ZEND_ACC_TRAIT: u32 = 2;
@@ -209,7 +210,7 @@ pub const ZEND_ACC_ANON_CLASS: u32 = 4;
 pub const ZEND_ACC_ENUM: u32 = 268435456;
 pub const ZEND_ACC_LINKED: u32 = 8;
 pub const ZEND_ACC_IMPLICIT_ABSTRACT_CLASS: u32 = 16;
-pub const ZEND_ACC_USE_GUARDS: u32 = 2048;
+pub const ZEND_ACC_USE_GUARDS: u32 = 1073741824;
 pub const ZEND_ACC_CONSTANTS_UPDATED: u32 = 4096;
 pub const ZEND_ACC_NO_DYNAMIC_PROPERTIES: u32 = 8192;
 pub const ZEND_HAS_STATIC_IN_METHODS: u32 = 16384;
@@ -218,7 +219,6 @@ pub const ZEND_ACC_RESOLVED_INTERFACES: u32 = 262144;
 pub const ZEND_ACC_UNRESOLVED_VARIANCE: u32 = 524288;
 pub const ZEND_ACC_NEARLY_LINKED: u32 = 1048576;
 pub const ZEND_ACC_NOT_SERIALIZABLE: u32 = 536870912;
-pub const ZEND_ACC_DEPRECATED: u32 = 2048;
 pub const ZEND_ACC_RETURN_REFERENCE: u32 = 4096;
 pub const ZEND_ACC_HAS_RETURN_TYPE: u32 = 8192;
 pub const ZEND_ACC_VARIADIC: u32 = 16384;
@@ -241,8 +241,12 @@ pub const ZEND_EVAL_CODE: u32 = 4;
 pub const ZEND_ISEMPTY: u32 = 1;
 pub const _ZEND_SEND_MODE_SHIFT: u32 = 25;
 pub const _ZEND_IS_VARIADIC_BIT: u32 = 134217728;
-pub const ZEND_MODULE_API_NO: u32 = 20240924;
+pub const ZEND_MODULE_API_NO: u32 = 20250925;
 pub const USING_ZTS: u32 = 0;
+pub const CONST_CS: u32 = 0;
+pub const CONST_PERSISTENT: u32 = 1;
+pub const CONST_NO_FILE_CACHE: u32 = 2;
+pub const CONST_DEPRECATED: u32 = 4;
 pub const MAY_BE_BOOL: u32 = 12;
 pub const MAY_BE_ANY: u32 = 1022;
 pub const TRACK_VARS_POST: u32 = 0;
@@ -256,10 +260,6 @@ pub const PHP_INI_USER: u32 = 1;
 pub const PHP_INI_PERDIR: u32 = 2;
 pub const PHP_INI_SYSTEM: u32 = 4;
 pub const PHP_INI_ALL: u32 = 7;
-pub const CONST_CS: u32 = 0;
-pub const CONST_PERSISTENT: u32 = 1;
-pub const CONST_NO_FILE_CACHE: u32 = 2;
-pub const CONST_DEPRECATED: u32 = 4;
 pub type __dev_t = ::std::os::raw::c_ulong;
 pub type __uid_t = ::std::os::raw::c_uint;
 pub type __gid_t = ::std::os::raw::c_uint;
@@ -687,73 +687,88 @@ pub const _zend_known_string_id_ZEND_STR_ARGS: _zend_known_string_id = 8;
 pub const _zend_known_string_id_ZEND_STR_UNKNOWN: _zend_known_string_id = 9;
 pub const _zend_known_string_id_ZEND_STR_UNKNOWN_CAPITALIZED: _zend_known_string_id = 10;
 pub const _zend_known_string_id_ZEND_STR_EXIT: _zend_known_string_id = 11;
-pub const _zend_known_string_id_ZEND_STR_EVAL: _zend_known_string_id = 12;
-pub const _zend_known_string_id_ZEND_STR_INCLUDE: _zend_known_string_id = 13;
-pub const _zend_known_string_id_ZEND_STR_REQUIRE: _zend_known_string_id = 14;
-pub const _zend_known_string_id_ZEND_STR_INCLUDE_ONCE: _zend_known_string_id = 15;
-pub const _zend_known_string_id_ZEND_STR_REQUIRE_ONCE: _zend_known_string_id = 16;
-pub const _zend_known_string_id_ZEND_STR_SCALAR: _zend_known_string_id = 17;
-pub const _zend_known_string_id_ZEND_STR_ERROR_REPORTING: _zend_known_string_id = 18;
-pub const _zend_known_string_id_ZEND_STR_STATIC: _zend_known_string_id = 19;
-pub const _zend_known_string_id_ZEND_STR_THIS: _zend_known_string_id = 20;
-pub const _zend_known_string_id_ZEND_STR_VALUE: _zend_known_string_id = 21;
-pub const _zend_known_string_id_ZEND_STR_KEY: _zend_known_string_id = 22;
-pub const _zend_known_string_id_ZEND_STR_MAGIC_INVOKE: _zend_known_string_id = 23;
-pub const _zend_known_string_id_ZEND_STR_PREVIOUS: _zend_known_string_id = 24;
-pub const _zend_known_string_id_ZEND_STR_CODE: _zend_known_string_id = 25;
-pub const _zend_known_string_id_ZEND_STR_MESSAGE: _zend_known_string_id = 26;
-pub const _zend_known_string_id_ZEND_STR_SEVERITY: _zend_known_string_id = 27;
-pub const _zend_known_string_id_ZEND_STR_STRING: _zend_known_string_id = 28;
-pub const _zend_known_string_id_ZEND_STR_TRACE: _zend_known_string_id = 29;
-pub const _zend_known_string_id_ZEND_STR_SCHEME: _zend_known_string_id = 30;
-pub const _zend_known_string_id_ZEND_STR_HOST: _zend_known_string_id = 31;
-pub const _zend_known_string_id_ZEND_STR_PORT: _zend_known_string_id = 32;
-pub const _zend_known_string_id_ZEND_STR_USER: _zend_known_string_id = 33;
-pub const _zend_known_string_id_ZEND_STR_PASS: _zend_known_string_id = 34;
-pub const _zend_known_string_id_ZEND_STR_PATH: _zend_known_string_id = 35;
-pub const _zend_known_string_id_ZEND_STR_QUERY: _zend_known_string_id = 36;
-pub const _zend_known_string_id_ZEND_STR_FRAGMENT: _zend_known_string_id = 37;
-pub const _zend_known_string_id_ZEND_STR_NULL: _zend_known_string_id = 38;
-pub const _zend_known_string_id_ZEND_STR_BOOLEAN: _zend_known_string_id = 39;
-pub const _zend_known_string_id_ZEND_STR_INTEGER: _zend_known_string_id = 40;
-pub const _zend_known_string_id_ZEND_STR_DOUBLE: _zend_known_string_id = 41;
-pub const _zend_known_string_id_ZEND_STR_ARRAY: _zend_known_string_id = 42;
-pub const _zend_known_string_id_ZEND_STR_RESOURCE: _zend_known_string_id = 43;
-pub const _zend_known_string_id_ZEND_STR_CLOSED_RESOURCE: _zend_known_string_id = 44;
-pub const _zend_known_string_id_ZEND_STR_NAME: _zend_known_string_id = 45;
-pub const _zend_known_string_id_ZEND_STR_ARGV: _zend_known_string_id = 46;
-pub const _zend_known_string_id_ZEND_STR_ARGC: _zend_known_string_id = 47;
-pub const _zend_known_string_id_ZEND_STR_ARRAY_CAPITALIZED: _zend_known_string_id = 48;
-pub const _zend_known_string_id_ZEND_STR_BOOL: _zend_known_string_id = 49;
-pub const _zend_known_string_id_ZEND_STR_INT: _zend_known_string_id = 50;
-pub const _zend_known_string_id_ZEND_STR_FLOAT: _zend_known_string_id = 51;
-pub const _zend_known_string_id_ZEND_STR_CALLABLE: _zend_known_string_id = 52;
-pub const _zend_known_string_id_ZEND_STR_ITERABLE: _zend_known_string_id = 53;
-pub const _zend_known_string_id_ZEND_STR_VOID: _zend_known_string_id = 54;
-pub const _zend_known_string_id_ZEND_STR_NEVER: _zend_known_string_id = 55;
-pub const _zend_known_string_id_ZEND_STR_FALSE: _zend_known_string_id = 56;
-pub const _zend_known_string_id_ZEND_STR_TRUE: _zend_known_string_id = 57;
-pub const _zend_known_string_id_ZEND_STR_NULL_LOWERCASE: _zend_known_string_id = 58;
-pub const _zend_known_string_id_ZEND_STR_MIXED: _zend_known_string_id = 59;
-pub const _zend_known_string_id_ZEND_STR_TRAVERSABLE: _zend_known_string_id = 60;
-pub const _zend_known_string_id_ZEND_STR_SLEEP: _zend_known_string_id = 61;
-pub const _zend_known_string_id_ZEND_STR_WAKEUP: _zend_known_string_id = 62;
-pub const _zend_known_string_id_ZEND_STR_CASES: _zend_known_string_id = 63;
-pub const _zend_known_string_id_ZEND_STR_FROM: _zend_known_string_id = 64;
-pub const _zend_known_string_id_ZEND_STR_TRYFROM: _zend_known_string_id = 65;
-pub const _zend_known_string_id_ZEND_STR_TRYFROM_LOWERCASE: _zend_known_string_id = 66;
-pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_SERVER: _zend_known_string_id = 67;
-pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_ENV: _zend_known_string_id = 68;
-pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_REQUEST: _zend_known_string_id = 69;
-pub const _zend_known_string_id_ZEND_STR_COUNT: _zend_known_string_id = 70;
-pub const _zend_known_string_id_ZEND_STR_SENSITIVEPARAMETER: _zend_known_string_id = 71;
-pub const _zend_known_string_id_ZEND_STR_CONST_EXPR_PLACEHOLDER: _zend_known_string_id = 72;
-pub const _zend_known_string_id_ZEND_STR_DEPRECATED_CAPITALIZED: _zend_known_string_id = 73;
-pub const _zend_known_string_id_ZEND_STR_SINCE: _zend_known_string_id = 74;
-pub const _zend_known_string_id_ZEND_STR_GET: _zend_known_string_id = 75;
-pub const _zend_known_string_id_ZEND_STR_SET: _zend_known_string_id = 76;
-pub const _zend_known_string_id_ZEND_STR_LAST_KNOWN: _zend_known_string_id = 77;
+pub const _zend_known_string_id_ZEND_STR_CLONE: _zend_known_string_id = 12;
+pub const _zend_known_string_id_ZEND_STR_EVAL: _zend_known_string_id = 13;
+pub const _zend_known_string_id_ZEND_STR_INCLUDE: _zend_known_string_id = 14;
+pub const _zend_known_string_id_ZEND_STR_REQUIRE: _zend_known_string_id = 15;
+pub const _zend_known_string_id_ZEND_STR_INCLUDE_ONCE: _zend_known_string_id = 16;
+pub const _zend_known_string_id_ZEND_STR_REQUIRE_ONCE: _zend_known_string_id = 17;
+pub const _zend_known_string_id_ZEND_STR_SCALAR: _zend_known_string_id = 18;
+pub const _zend_known_string_id_ZEND_STR_ERROR_REPORTING: _zend_known_string_id = 19;
+pub const _zend_known_string_id_ZEND_STR_STATIC: _zend_known_string_id = 20;
+pub const _zend_known_string_id_ZEND_STR_THIS: _zend_known_string_id = 21;
+pub const _zend_known_string_id_ZEND_STR_VALUE: _zend_known_string_id = 22;
+pub const _zend_known_string_id_ZEND_STR_KEY: _zend_known_string_id = 23;
+pub const _zend_known_string_id_ZEND_STR_MAGIC_INVOKE: _zend_known_string_id = 24;
+pub const _zend_known_string_id_ZEND_STR_PREVIOUS: _zend_known_string_id = 25;
+pub const _zend_known_string_id_ZEND_STR_CODE: _zend_known_string_id = 26;
+pub const _zend_known_string_id_ZEND_STR_MESSAGE: _zend_known_string_id = 27;
+pub const _zend_known_string_id_ZEND_STR_SEVERITY: _zend_known_string_id = 28;
+pub const _zend_known_string_id_ZEND_STR_STRING: _zend_known_string_id = 29;
+pub const _zend_known_string_id_ZEND_STR_TRACE: _zend_known_string_id = 30;
+pub const _zend_known_string_id_ZEND_STR_SCHEME: _zend_known_string_id = 31;
+pub const _zend_known_string_id_ZEND_STR_HOST: _zend_known_string_id = 32;
+pub const _zend_known_string_id_ZEND_STR_PORT: _zend_known_string_id = 33;
+pub const _zend_known_string_id_ZEND_STR_USER: _zend_known_string_id = 34;
+pub const _zend_known_string_id_ZEND_STR_USERNAME: _zend_known_string_id = 35;
+pub const _zend_known_string_id_ZEND_STR_PASS: _zend_known_string_id = 36;
+pub const _zend_known_string_id_ZEND_STR_PASSWORD: _zend_known_string_id = 37;
+pub const _zend_known_string_id_ZEND_STR_PATH: _zend_known_string_id = 38;
+pub const _zend_known_string_id_ZEND_STR_QUERY: _zend_known_string_id = 39;
+pub const _zend_known_string_id_ZEND_STR_FRAGMENT: _zend_known_string_id = 40;
+pub const _zend_known_string_id_ZEND_STR_NULL: _zend_known_string_id = 41;
+pub const _zend_known_string_id_ZEND_STR_BOOLEAN: _zend_known_string_id = 42;
+pub const _zend_known_string_id_ZEND_STR_INTEGER: _zend_known_string_id = 43;
+pub const _zend_known_string_id_ZEND_STR_DOUBLE: _zend_known_string_id = 44;
+pub const _zend_known_string_id_ZEND_STR_ARRAY: _zend_known_string_id = 45;
+pub const _zend_known_string_id_ZEND_STR_RESOURCE: _zend_known_string_id = 46;
+pub const _zend_known_string_id_ZEND_STR_CLOSED_RESOURCE: _zend_known_string_id = 47;
+pub const _zend_known_string_id_ZEND_STR_NAME: _zend_known_string_id = 48;
+pub const _zend_known_string_id_ZEND_STR_ARGV: _zend_known_string_id = 49;
+pub const _zend_known_string_id_ZEND_STR_ARGC: _zend_known_string_id = 50;
+pub const _zend_known_string_id_ZEND_STR_ARRAY_CAPITALIZED: _zend_known_string_id = 51;
+pub const _zend_known_string_id_ZEND_STR_BOOL: _zend_known_string_id = 52;
+pub const _zend_known_string_id_ZEND_STR_INT: _zend_known_string_id = 53;
+pub const _zend_known_string_id_ZEND_STR_FLOAT: _zend_known_string_id = 54;
+pub const _zend_known_string_id_ZEND_STR_CALLABLE: _zend_known_string_id = 55;
+pub const _zend_known_string_id_ZEND_STR_ITERABLE: _zend_known_string_id = 56;
+pub const _zend_known_string_id_ZEND_STR_VOID: _zend_known_string_id = 57;
+pub const _zend_known_string_id_ZEND_STR_NEVER: _zend_known_string_id = 58;
+pub const _zend_known_string_id_ZEND_STR_FALSE: _zend_known_string_id = 59;
+pub const _zend_known_string_id_ZEND_STR_TRUE: _zend_known_string_id = 60;
+pub const _zend_known_string_id_ZEND_STR_NULL_LOWERCASE: _zend_known_string_id = 61;
+pub const _zend_known_string_id_ZEND_STR_MIXED: _zend_known_string_id = 62;
+pub const _zend_known_string_id_ZEND_STR_TRAVERSABLE: _zend_known_string_id = 63;
+pub const _zend_known_string_id_ZEND_STR_SELF: _zend_known_string_id = 64;
+pub const _zend_known_string_id_ZEND_STR_PARENT: _zend_known_string_id = 65;
+pub const _zend_known_string_id_ZEND_STR_SLEEP: _zend_known_string_id = 66;
+pub const _zend_known_string_id_ZEND_STR_WAKEUP: _zend_known_string_id = 67;
+pub const _zend_known_string_id_ZEND_STR_CASES: _zend_known_string_id = 68;
+pub const _zend_known_string_id_ZEND_STR_FROM: _zend_known_string_id = 69;
+pub const _zend_known_string_id_ZEND_STR_TRYFROM: _zend_known_string_id = 70;
+pub const _zend_known_string_id_ZEND_STR_TRYFROM_LOWERCASE: _zend_known_string_id = 71;
+pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_SERVER: _zend_known_string_id = 72;
+pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_ENV: _zend_known_string_id = 73;
+pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_REQUEST: _zend_known_string_id = 74;
+pub const _zend_known_string_id_ZEND_STR_COUNT: _zend_known_string_id = 75;
+pub const _zend_known_string_id_ZEND_STR_SENSITIVEPARAMETER: _zend_known_string_id = 76;
+pub const _zend_known_string_id_ZEND_STR_CONST_EXPR_PLACEHOLDER: _zend_known_string_id = 77;
+pub const _zend_known_string_id_ZEND_STR_DEPRECATED_CAPITALIZED: _zend_known_string_id = 78;
+pub const _zend_known_string_id_ZEND_STR_SINCE: _zend_known_string_id = 79;
+pub const _zend_known_string_id_ZEND_STR_GET: _zend_known_string_id = 80;
+pub const _zend_known_string_id_ZEND_STR_SET: _zend_known_string_id = 81;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_0: _zend_known_string_id = 82;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_1: _zend_known_string_id = 83;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_2: _zend_known_string_id = 84;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_3: _zend_known_string_id = 85;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_4: _zend_known_string_id = 86;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_5: _zend_known_string_id = 87;
+pub const _zend_known_string_id_ZEND_STR_LAST_KNOWN: _zend_known_string_id = 88;
 pub type _zend_known_string_id = ::std::os::raw::c_uint;
+pub const zend_hash_key_type_HASH_KEY_IS_STRING: zend_hash_key_type = 1;
+pub const zend_hash_key_type_HASH_KEY_IS_LONG: zend_hash_key_type = 2;
+pub const zend_hash_key_type_HASH_KEY_NON_EXISTENT: zend_hash_key_type = 3;
+pub type zend_hash_key_type = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn zend_hash_clean(ht: *mut HashTable);
 }
@@ -796,10 +811,11 @@ unsafe extern "C" {
     pub fn zend_hash_find_known_hash(ht: *const HashTable, key: *const zend_string) -> *mut zval;
 }
 unsafe extern "C" {
-    pub fn zend_hash_move_forward_ex(ht: *mut HashTable, pos: *mut HashPosition) -> zend_result;
+    pub fn zend_hash_move_forward_ex(ht: *const HashTable, pos: *mut HashPosition) -> zend_result;
 }
 unsafe extern "C" {
-    pub fn zend_hash_move_backwards_ex(ht: *mut HashTable, pos: *mut HashPosition) -> zend_result;
+    pub fn zend_hash_move_backwards_ex(ht: *const HashTable, pos: *mut HashPosition)
+        -> zend_result;
 }
 unsafe extern "C" {
     pub fn zend_hash_get_current_key_zval_ex(
@@ -810,12 +826,15 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zend_hash_get_current_key_type_ex(
-        ht: *mut HashTable,
-        pos: *mut HashPosition,
-    ) -> ::std::os::raw::c_int;
+        ht: *const HashTable,
+        pos: *const HashPosition,
+    ) -> zend_hash_key_type;
 }
 unsafe extern "C" {
-    pub fn zend_hash_get_current_data_ex(ht: *mut HashTable, pos: *mut HashPosition) -> *mut zval;
+    pub fn zend_hash_get_current_data_ex(
+        ht: *const HashTable,
+        pos: *const HashPosition,
+    ) -> *mut zval;
 }
 unsafe extern "C" {
     pub fn _zend_new_array(size: u32) -> *mut HashTable;
@@ -824,7 +843,7 @@ unsafe extern "C" {
     pub fn zend_array_count(ht: *mut HashTable) -> u32;
 }
 unsafe extern "C" {
-    pub fn zend_array_dup(source: *mut HashTable) -> *mut HashTable;
+    pub fn zend_array_dup(source: *const HashTable) -> *mut HashTable;
 }
 unsafe extern "C" {
     pub fn zend_array_destroy(ht: *mut HashTable);
@@ -846,6 +865,7 @@ pub struct _zend_ast {
     pub lineno: u32,
     pub child: [*mut zend_ast; 1usize],
 }
+pub type zend_op_array = _zend_op_array;
 unsafe extern "C" {
     pub fn zval_ptr_dtor(zval_ptr: *mut zval);
 }
@@ -1293,6 +1313,13 @@ pub type zend_object_dtor_obj_t =
     ::std::option::Option<unsafe extern "C" fn(object: *mut zend_object)>;
 pub type zend_object_clone_obj_t =
     ::std::option::Option<unsafe extern "C" fn(object: *mut zend_object) -> *mut zend_object>;
+pub type zend_object_clone_obj_with_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        object: *mut zend_object,
+        scope: *const zend_class_entry,
+        properties: *const HashTable,
+    ) -> *mut zend_object,
+>;
 pub type zend_object_get_class_name_t =
     ::std::option::Option<unsafe extern "C" fn(object: *const zend_object) -> *mut zend_string>;
 pub type zend_object_compare_t = ::std::option::Option<
@@ -1339,6 +1366,7 @@ pub struct _zend_object_handlers {
     pub free_obj: zend_object_free_obj_t,
     pub dtor_obj: zend_object_dtor_obj_t,
     pub clone_obj: zend_object_clone_obj_t,
+    pub clone_obj_with: zend_object_clone_obj_with_t,
     pub read_property: zend_object_read_property_t,
     pub write_property: zend_object_write_property_t,
     pub read_dimension: zend_object_read_dimension_t,
@@ -1418,6 +1446,7 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn zend_is_true(op: *const zval) -> bool;
 }
+pub type zend_vm_opcode_handler_t = *const ::std::os::raw::c_void;
 pub type zend_op = _zend_op;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -1425,7 +1454,6 @@ pub struct zend_frameless_function_info {
     pub handler: *mut ::std::os::raw::c_void,
     pub num_args: u32,
 }
-pub type zend_op_array = _zend_op_array;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union _znode_op {
@@ -1457,7 +1485,7 @@ pub type zend_file_context = _zend_file_context;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct _zend_op {
-    pub handler: *const ::std::os::raw::c_void,
+    pub handler: zend_vm_opcode_handler_t,
     pub op1: znode_op,
     pub op2: znode_op,
     pub result: znode_op,
@@ -1509,9 +1537,10 @@ pub struct _zend_oparray_context {
     pub last_brk_cont: ::std::os::raw::c_int,
     pub brk_cont_array: *mut zend_brk_cont_element,
     pub labels: *mut HashTable,
-    pub active_property_info: *const zend_property_info,
+    pub active_property_info_name: *mut zend_string,
     pub active_property_hook_kind: zend_property_hook_kind,
     pub in_jmp_frameless_branch: bool,
+    pub has_assigned_to_http_response_header: bool,
 }
 pub type zend_oparray_context = _zend_oparray_context;
 #[repr(C)]
@@ -1806,6 +1835,8 @@ pub struct _zend_executor_globals {
     pub included_files: HashTable,
     pub bailout: *mut sigjmp_buf,
     pub error_reporting: ::std::os::raw::c_int,
+    pub fatal_error_backtrace_on: bool,
+    pub last_fatal_error_backtrace: zval,
     pub exit_status: ::std::os::raw::c_int,
     pub function_table: *mut HashTable,
     pub class_table: *mut HashTable,
@@ -1815,7 +1846,7 @@ pub struct _zend_executor_globals {
     pub vm_stack: zend_vm_stack,
     pub vm_stack_page_size: usize,
     pub current_execute_data: *mut _zend_execute_data,
-    pub fake_scope: *mut zend_class_entry,
+    pub fake_scope: *const zend_class_entry,
     pub jit_trace_num: u32,
     pub current_observed_frame: *mut zend_execute_data,
     pub ticks_count: ::std::os::raw::c_int,
@@ -1943,6 +1974,50 @@ pub struct _zend_module_dep {
     pub rel: *const ::std::os::raw::c_char,
     pub version: *const ::std::os::raw::c_char,
     pub type_: ::std::os::raw::c_uchar,
+}
+#[repr(C)]
+pub struct _zend_constant {
+    pub value: zval,
+    pub name: *mut zend_string,
+    pub filename: *mut zend_string,
+    pub attributes: *mut HashTable,
+}
+pub type zend_constant = _zend_constant;
+unsafe extern "C" {
+    pub fn zend_register_bool_constant(
+        name: *const ::std::os::raw::c_char,
+        name_len: usize,
+        bval: bool,
+        flags: ::std::os::raw::c_int,
+        module_number: ::std::os::raw::c_int,
+    ) -> *mut zend_constant;
+}
+unsafe extern "C" {
+    pub fn zend_register_long_constant(
+        name: *const ::std::os::raw::c_char,
+        name_len: usize,
+        lval: zend_long,
+        flags: ::std::os::raw::c_int,
+        module_number: ::std::os::raw::c_int,
+    ) -> *mut zend_constant;
+}
+unsafe extern "C" {
+    pub fn zend_register_double_constant(
+        name: *const ::std::os::raw::c_char,
+        name_len: usize,
+        dval: f64,
+        flags: ::std::os::raw::c_int,
+        module_number: ::std::os::raw::c_int,
+    ) -> *mut zend_constant;
+}
+unsafe extern "C" {
+    pub fn zend_register_string_constant(
+        name: *const ::std::os::raw::c_char,
+        name_len: usize,
+        strval: *const ::std::os::raw::c_char,
+        flags: ::std::os::raw::c_int,
+        module_number: ::std::os::raw::c_int,
+    ) -> *mut zend_constant;
 }
 unsafe extern "C" {
     pub fn zend_lookup_class_ex(
@@ -2128,10 +2203,11 @@ pub type php_stream_notification_func = ::std::option::Option<
 >;
 pub type php_stream_notifier = _php_stream_notifier;
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct _php_stream_notifier {
     pub func: php_stream_notification_func,
     pub dtor: ::std::option::Option<unsafe extern "C" fn(notifier: *mut php_stream_notifier)>,
-    pub ptr: zval,
+    pub ptr: *mut ::std::os::raw::c_void,
     pub mask: ::std::os::raw::c_int,
     pub progress: usize,
     pub progress_max: usize,
@@ -2152,8 +2228,8 @@ pub struct _php_stream_bucket {
     pub brigade: *mut php_stream_bucket_brigade,
     pub buf: *mut ::std::os::raw::c_char,
     pub buflen: usize,
-    pub own_buf: u8,
-    pub is_persistent: u8,
+    pub own_buf: bool,
+    pub is_persistent: bool,
     pub refcount: ::std::os::raw::c_int,
 }
 #[repr(C)]
@@ -2760,6 +2836,7 @@ pub struct _php_core_globals {
     pub unserialize_callback_func: *mut ::std::os::raw::c_char,
     pub serialize_precision: zend_long,
     pub memory_limit: zend_long,
+    pub max_memory_limit: zend_long,
     pub max_input_time: zend_long,
     pub error_log: *mut ::std::os::raw::c_char,
     pub doc_root: *mut ::std::os::raw::c_char,
@@ -2807,13 +2884,13 @@ pub struct _php_core_globals {
     pub last_error_message: *mut zend_string,
     pub last_error_file: *mut zend_string,
     pub php_sys_temp_dir: *mut ::std::os::raw::c_char,
-    pub disable_classes: *mut ::std::os::raw::c_char,
     pub max_input_nesting_level: zend_long,
     pub max_input_vars: zend_long,
     pub user_ini_filename: *mut ::std::os::raw::c_char,
     pub user_ini_cache_ttl: zend_long,
     pub request_order: *mut ::std::os::raw::c_char,
     pub mail_log: *mut ::std::os::raw::c_char,
+    pub mail_cr_lf_mode: *mut zend_string,
     pub mail_x_header: bool,
     pub mail_mixed_lf_and_crlf: bool,
     pub in_error_log: bool,
@@ -2831,8 +2908,8 @@ unsafe extern "C" {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _arg_separators {
-    pub output: *mut ::std::os::raw::c_char,
-    pub input: *mut ::std::os::raw::c_char,
+    pub output: *mut zend_string,
+    pub input: *mut zend_string,
 }
 pub type arg_separators = _arg_separators;
 #[repr(C)]
@@ -2887,6 +2964,7 @@ pub struct _zend_ini_entry {
     pub modifiable: u8,
     pub orig_modifiable: u8,
     pub modified: u8,
+    pub def: *const zend_ini_entry_def,
 }
 unsafe extern "C" {
     pub fn zend_register_ini_entries(
@@ -2908,42 +2986,6 @@ pub type zend_ini_parser_cb_t = ::std::option::Option<
 pub struct _zend_ini_parser_param {
     pub ini_parser_cb: zend_ini_parser_cb_t,
     pub arg: *mut ::std::os::raw::c_void,
-}
-unsafe extern "C" {
-    pub fn zend_register_bool_constant(
-        name: *const ::std::os::raw::c_char,
-        name_len: usize,
-        bval: bool,
-        flags: ::std::os::raw::c_int,
-        module_number: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn zend_register_long_constant(
-        name: *const ::std::os::raw::c_char,
-        name_len: usize,
-        lval: zend_long,
-        flags: ::std::os::raw::c_int,
-        module_number: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn zend_register_double_constant(
-        name: *const ::std::os::raw::c_char,
-        name_len: usize,
-        dval: f64,
-        flags: ::std::os::raw::c_int,
-        module_number: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn zend_register_string_constant(
-        name: *const ::std::os::raw::c_char,
-        name_len: usize,
-        strval: *const ::std::os::raw::c_char,
-        flags: ::std::os::raw::c_int,
-        module_number: ::std::os::raw::c_int,
-    );
 }
 unsafe extern "C" {
     pub fn php_info_print_table_header(num_cols: ::std::os::raw::c_int, ...);
@@ -3176,8 +3218,9 @@ unsafe extern "C" {
 pub const sapi_header_op_enum_SAPI_HEADER_REPLACE: sapi_header_op_enum = 0;
 pub const sapi_header_op_enum_SAPI_HEADER_ADD: sapi_header_op_enum = 1;
 pub const sapi_header_op_enum_SAPI_HEADER_DELETE: sapi_header_op_enum = 2;
-pub const sapi_header_op_enum_SAPI_HEADER_DELETE_ALL: sapi_header_op_enum = 3;
-pub const sapi_header_op_enum_SAPI_HEADER_SET_STATUS: sapi_header_op_enum = 4;
+pub const sapi_header_op_enum_SAPI_HEADER_DELETE_PREFIX: sapi_header_op_enum = 3;
+pub const sapi_header_op_enum_SAPI_HEADER_DELETE_ALL: sapi_header_op_enum = 4;
+pub const sapi_header_op_enum_SAPI_HEADER_SET_STATUS: sapi_header_op_enum = 5;
 pub type sapi_header_op_enum = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -3277,6 +3320,7 @@ pub struct _sapi_module_struct {
     pub ini_entries: *const ::std::os::raw::c_char,
     pub additional_functions: *const zend_function_entry,
     pub input_filter_init: ::std::option::Option<unsafe extern "C" fn() -> ::std::os::raw::c_uint>,
+    pub pre_request_init: ::std::option::Option<unsafe extern "C" fn() -> ::std::os::raw::c_int>,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

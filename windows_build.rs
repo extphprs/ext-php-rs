@@ -114,7 +114,7 @@ fn get_rustc_linker() -> Result<PathBuf> {
         &std::env::var("TARGET").context("`TARGET` environment variable not set")?,
         "link.exe",
     )
-    .context("Failed to retrieve linker tool")?;
+    .ok_or_else(|| anyhow::anyhow!("Failed to retrieve linker tool from Windows registry"))?;
     Ok(link.path().to_owned())
 }
 

@@ -13,6 +13,7 @@ use cfg_if::cfg_if;
 use ext_php_rs::embed::Embed;
 use ext_php_rs::ffi::zend_register_module_ex;
 use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ExecutorGlobals;
 
 #[test]
 fn test_module() {
@@ -22,6 +23,13 @@ fn test_module() {
             if #[cfg(php84)] {
                 // Register as temporary (2) module
                 unsafe { zend_register_module_ex(get_module(), 2) };
+                // When registering temporary modules directly (bypassing dl()),
+                // we must set full_tables_cleanup to ensure proper cleanup of
+                // request-scoped interned strings used as module registry keys.
+                // Without this, the interned string is freed during
+                // zend_interned_strings_deactivate() while module_registry still
+                // references it, causing heap corruption.
+                ExecutorGlobals::get_mut().full_tables_cleanup = true;
             } else {
                 unsafe { zend_register_module_ex(get_module()) };
             }

@@ -1,4 +1,4 @@
-ARG PHP_VERSION=8.4
+ARG PHP_VERSION=8.5
 ARG TS=-zts
 
 FROM php:${PHP_VERSION}${TS}-alpine

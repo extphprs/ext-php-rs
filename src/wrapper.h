@@ -9,6 +9,17 @@
 // the `ZEND_FASTCALL` macro but not before undefining `__clang__` to pretend we
 // are compiling on MSVC.
 #if defined(_MSC_VER) && defined(__clang__)
+// PHP 8.5+ uses safe integer arithmetic functions. For Clang, we define macros
+// to use Clang's built-in overflow detection instead of Windows' intsafe.h.
+// This matches PHP's upstream solution in https://github.com/php/php-src/pull/17472
+#if defined(EXT_PHP_RS_PHP_85)
+#define PHP_HAVE_BUILTIN_SADDL_OVERFLOW 1
+#define PHP_HAVE_BUILTIN_SADDLL_OVERFLOW 1
+#define PHP_HAVE_BUILTIN_SSUBL_OVERFLOW 1
+#define PHP_HAVE_BUILTIN_SSUBLL_OVERFLOW 1
+#define PHP_HAVE_BUILTIN_SMULL_OVERFLOW 1
+#define PHP_HAVE_BUILTIN_SMULLL_OVERFLOW 1
+#endif
 #undef __clang__
 #include "zend_portability.h"
 #define __clang__

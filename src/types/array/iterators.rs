@@ -1,3 +1,4 @@
+use cfg_if::cfg_if;
 use std::{
     convert::TryInto,
     iter::{DoubleEndedIterator, ExactSizeIterator, Iterator},
@@ -14,6 +15,9 @@ use crate::{
     },
     types::Zval,
 };
+
+#[cfg(php85)]
+use crate::ffi::zend_hash_key_type_HASH_KEY_NON_EXISTENT;
 
 /// Immutable iterator upon a reference to a hashtable.
 pub struct Iter<'a> {
@@ -59,12 +63,22 @@ impl<'a> Iter<'a> {
             zend_hash_get_current_key_type_ex(ptr::from_ref(self.ht).cast_mut(), &raw mut self.pos)
         };
 
-        // Key type `-1` is ???
-        // Key type `1` is string
-        // Key type `2` is long
-        // Key type `3` is null meaning the end of the array
-        if key_type == -1 || key_type == 3 {
-            return None;
+        // Key type `1` is string (HASH_KEY_IS_STRING)
+        // Key type `2` is long (HASH_KEY_IS_LONG)
+        // Key type `3` is null/non-existent (HASH_KEY_NON_EXISTENT)
+        // Pre-PHP 8.5 returns int, PHP 8.5+ returns enum u32
+        cfg_if! {
+            if #[cfg(php85)] {
+                if key_type == zend_hash_key_type_HASH_KEY_NON_EXISTENT {
+                    return None;
+                }
+            } else {
+                // Pre-PHP 8.5: function returns signed int (i32)
+                // Check for -1 (defensive) and 3 (HASH_KEY_NON_EXISTENT)
+                if key_type == -1 || key_type == 3 {
+                    return None;
+                }
+            }
         }
 
         let mut key = Zval::new();
@@ -157,8 +171,18 @@ impl DoubleEndedIterator for Iter<'_> {
             zend_hash_get_current_key_type_ex(ptr::from_ref(self.ht).cast_mut(), &raw mut self.pos)
         };
 
-        if key_type == -1 {
-            return None;
+        cfg_if! {
+            if #[cfg(php85)] {
+                if key_type == zend_hash_key_type_HASH_KEY_NON_EXISTENT {
+                    return None;
+                }
+            } else {
+                // Pre-PHP 8.5: function returns signed int (i32)
+                // Check for -1 (defensive) and 3 (HASH_KEY_NON_EXISTENT)
+                if key_type == -1 || key_type == 3 {
+                    return None;
+                }
+            }
         }
 
         let key = Zval::new();

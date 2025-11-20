@@ -95,6 +95,8 @@ impl SapiBuilder {
                 ini_entries: ptr::null_mut(),
                 additional_functions: ptr::null(),
                 input_filter_init: None,
+                #[cfg(php85)]
+                pre_request_init: None,
             },
             executable_location: None,
             php_ini_path_override: None,
@@ -287,6 +289,20 @@ impl SapiBuilder {
         self
     }
 
+    /// Sets the pre-request init function for this SAPI
+    ///
+    /// This function is called before request activation and before POST data is read.
+    /// It is typically used for .user.ini processing.
+    ///
+    /// # Parameters
+    ///
+    /// * `func` - The function to be called before request initialization.
+    #[cfg(php85)]
+    pub fn pre_request_init_function(mut self, func: SapiPreRequestInitFunc) -> Self {
+        self.module.pre_request_init = Some(func);
+        self
+    }
+
     /// Set the `ini_entries` for this SAPI
     ///
     /// # Parameters
@@ -439,6 +455,10 @@ pub type SapiGetUidFunc = extern "C" fn(uid: *mut uid_t) -> c_int;
 /// A function to be called when PHP gets the gid
 pub type SapiGetGidFunc = extern "C" fn(gid: *mut gid_t) -> c_int;
 
+/// A function to be called before request activation (used for .user.ini processing)
+#[cfg(php85)]
+pub type SapiPreRequestInitFunc = extern "C" fn() -> c_int;
+
 extern "C" fn dummy_send_header(_header: *mut sapi_header_struct, _server_context: *mut c_void) {}
 
 #[cfg(test)]
@@ -488,6 +508,10 @@ mod test {
         0
     }
     extern "C" fn test_get_target_gid(_gid: *mut gid_t) -> c_int {
+        0
+    }
+    #[cfg(php85)]
+    extern "C" fn test_pre_request_init() -> c_int {
         0
     }
 
@@ -757,6 +781,22 @@ mod test {
             sapi.get_target_gid
                 .expect("should have get_target_gid function") as usize,
             test_get_target_gid as usize
+        );
+    }
+
+    #[cfg(php85)]
+    #[test]
+    fn test_pre_request_init_function() {
+        let sapi = SapiBuilder::new("test", "Test")
+            .pre_request_init_function(test_pre_request_init)
+            .build()
+            .expect("should build sapi module");
+
+        assert!(sapi.pre_request_init.is_some());
+        assert_eq!(
+            sapi.pre_request_init
+                .expect("should have pre_request_init function") as usize,
+            test_pre_request_init as usize
         );
     }
 
