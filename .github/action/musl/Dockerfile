@@ -1,7 +1,7 @@
 ARG PHP_VERSION=8.5
 ARG TS=-zts
 
-FROM php:${PHP_VERSION}${TS}-alpine
+FROM php:${PHP_VERSION}${TS}-alpine3.22
 
 RUN apk add --no-cache \
     llvm17 \
