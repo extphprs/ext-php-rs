@@ -92,9 +92,35 @@ impl<'a> From<&'a str> for ArrayKey<'a> {
     }
 }
 
+impl<'a> From<i32> for ArrayKey<'a> {
+    fn from(index: i32) -> ArrayKey<'a> {
+        ArrayKey::Long(i64::from(index))
+    }
+}
+
 impl<'a> From<i64> for ArrayKey<'a> {
     fn from(index: i64) -> ArrayKey<'a> {
         ArrayKey::Long(index)
+    }
+}
+
+impl<'a> From<u64> for ArrayKey<'a> {
+    fn from(index: u64) -> ArrayKey<'a> {
+        if let Ok(index) = i64::try_from(index) {
+            ArrayKey::Long(index)
+        } else {
+            ArrayKey::String(index.to_string())
+        }
+    }
+}
+
+impl<'a> From<usize> for ArrayKey<'a> {
+    fn from(index: usize) -> ArrayKey<'a> {
+        if let Ok(index) = i64::try_from(index) {
+            ArrayKey::Long(index)
+        } else {
+            ArrayKey::String(index.to_string())
+        }
     }
 }
 

@@ -11,5 +11,7 @@
 //! - `Vec<T>` and `Vec<(K, V)>` ↔ `ZendHashTable` (via `vec` module)
 
 mod btree_map;
+mod btree_set;
 mod hash_map;
+mod hash_set;
 mod vec;
