@@ -13,7 +13,7 @@ authors = [
 ]
 edition = "2024"
 categories = ["api-bindings"]
-exclude = ["/.github", "/.crates"]
+exclude = ["/.github", "/.crates", "/benches"]
 autotests = false
 
 [dependencies]
@@ -61,7 +61,7 @@ runtime = ["ext-php-rs-bindgen/runtime"]
 static = ["ext-php-rs-bindgen/static"]
 
 [workspace]
-members = ["crates/macros", "crates/cli", "crates/php-build", "tests"]
+members = ["crates/macros", "crates/cli", "crates/php-build", "tests", "benches"]
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docs"]
