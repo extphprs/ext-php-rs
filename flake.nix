@@ -28,12 +28,14 @@
             php-dev
             libclang.lib
             clang
+            valgrind
           ];
 
           nativeBuildInputs = [ pkgs.rust-bin.stable.latest.default ];
 
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+            export GUNGRAUN_VALGRIND_INCLUDE="${pkgs.valgrind.dev}/include"
           '';
         };
       };
