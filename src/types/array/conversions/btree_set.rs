@@ -45,6 +45,17 @@ where
     }
 }
 
+impl<'a, V> FromZval<'a> for BTreeSet<V>
+where
+    V: FromZval<'a> + Ord,
+{
+    const TYPE: DataType = DataType::Array;
+
+    fn from_zval(zval: &'a Zval) -> Option<Self> {
+        zval.array().and_then(|arr| arr.try_into().ok())
+    }
+}
+
 impl<V> IntoZval for BTreeSet<V>
 where
     V: IntoZval,
@@ -56,5 +67,27 @@ where
         let arr = self.try_into()?;
         zv.set_hashtable(arr);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "embed")]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use crate::boxed::ZBox;
+    use crate::embed::Embed;
+    use crate::types::ZendHashTable;
+
+    #[test]
+    fn test_hash_table_try_from_btree_set() {
+        Embed::run(|| {
+            let mut set = BTreeSet::new();
+            set.insert("one");
+            let ht: ZBox<ZendHashTable> = set.try_into().unwrap();
+            assert_eq!(ht.len(), 1);
+            assert!(ht.get(0).is_some());
+        });
     }
 }

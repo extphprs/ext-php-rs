@@ -48,6 +48,18 @@ where
     }
 }
 
+impl<'a, V, H> FromZval<'a> for HashSet<V, H>
+where
+    V: FromZval<'a> + Eq + Hash,
+    H: BuildHasher + Default,
+{
+    const TYPE: DataType = DataType::Array;
+
+    fn from_zval(zval: &'a Zval) -> Option<Self> {
+        zval.array().and_then(|arr| arr.try_into().ok())
+    }
+}
+
 impl<V, H> IntoZval for HashSet<V, H>
 where
     V: IntoZval,
@@ -60,5 +72,27 @@ where
         let arr = self.try_into()?;
         zv.set_hashtable(arr);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "embed")]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::collections::HashSet;
+
+    use crate::boxed::ZBox;
+    use crate::embed::Embed;
+    use crate::types::ZendHashTable;
+
+    #[test]
+    fn test_hash_table_try_from_hash_set() {
+        Embed::run(|| {
+            let mut set = HashSet::new();
+            set.insert("one");
+            let ht: ZBox<ZendHashTable> = set.try_into().unwrap();
+            assert_eq!(ht.len(), 1);
+            assert!(ht.get(0).is_some());
+        });
     }
 }
