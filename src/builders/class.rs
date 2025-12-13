@@ -99,21 +99,13 @@ impl ClassBuilder {
         self
     }
 
-    /// Adds a property to the class. The initial type of the property is given
-    /// by the type of the given default. Note that the user can change the
-    /// type.
+    /// Adds a property to the class.
     ///
     /// # Parameters
     ///
     /// * `name` - The name of the property to add to the class.
-    /// * `default` - The default value of the property.
     /// * `flags` - Flags relating to the property. See [`PropertyFlags`].
     /// * `docs` - Documentation comments for the property.
-    ///
-    /// # Panics
-    ///
-    /// Function will panic if the given `default` cannot be converted into a
-    /// [`Zval`].
     pub fn property<T: Into<String>>(
         mut self,
         name: T,
