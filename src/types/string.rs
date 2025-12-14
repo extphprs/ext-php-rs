@@ -21,7 +21,6 @@ use crate::{
         zend_string_init_interned,
     },
     flags::DataType,
-    macros::try_from_zval,
     types::Zval,
 };
 
