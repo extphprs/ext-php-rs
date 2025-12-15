@@ -4,14 +4,13 @@ use std::{
 };
 
 use gungraun::{
-    BinaryBenchmarkConfig, Callgrind, FlamegraphConfig, binary_benchmark, binary_benchmark_group,
-    main,
+    binary_benchmark, binary_benchmark_group, main, BinaryBenchmarkConfig, Callgrind,
+    FlamegraphConfig,
 };
 
 static BUILD: Once = Once::new();
 static EXT_TARGET_DIR: LazyLock<String> = LazyLock::new(|| {
     let mut dir = std::env::current_dir().expect("Could not get cwd");
-    dir.pop();
     dir.push("target");
     dir.push("release");
     dir.display().to_string()

@@ -18,6 +18,7 @@ static = ["ext-php-rs/static"]
 
 [lib]
 crate-type = ["cdylib"]
+bench = false
 
 [[bench]]
 name = "binary_bench"
