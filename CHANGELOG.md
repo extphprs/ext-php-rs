@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.2...ext-php-rs-v0.15.3) - 2025-12-15
+
+### Added
+- *(types)* Argument coercion into HashSet/BTreeSet #493 ([#598](https://github.com/extphprs/ext-php-rs/pull/598)) (by @kakserpom) [[#493](https://github.com/davidcole1340/ext-php-rs/issues/493)] [[#598](https://github.com/davidcole1340/ext-php-rs/issues/598)] 
+
+### Fixed
+- *(ci)* Disable TS build for embed tests ([#600](https://github.com/extphprs/ext-php-rs/pull/600)) (by @ptondereau) [[#600](https://github.com/davidcole1340/ext-php-rs/issues/600)] 
+- *(clippy)* Default hasher for ArrayKey ([#608](https://github.com/extphprs/ext-php-rs/pull/608)) (by @ptondereau) [[#608](https://github.com/davidcole1340/ext-php-rs/issues/608)] 
+- *(clippy)* Clippy v1.92.0 ([#605](https://github.com/extphprs/ext-php-rs/pull/605)) (by @ptondereau) [[#605](https://github.com/davidcole1340/ext-php-rs/issues/605)] 
 ## [0.15.2](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.1...ext-php-rs-v0.15.2) - 2025-12-06
 
 ### Added

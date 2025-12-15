@@ -4,7 +4,7 @@ description = "Derive macros for ext-php-rs."
 repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
-version = "0.11.5"
+version = "0.11.6"
 authors = [
     "Xenira <xenira@php.rs>",
     "David Cole <david.cole1340@gmail.com>",

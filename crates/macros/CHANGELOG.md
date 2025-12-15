@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.5...ext-php-rs-derive-v0.11.6) - 2025-12-15
+
+### Fixed
+- *(clippy)* Clippy v1.92.0 ([#605](https://github.com/extphprs/ext-php-rs/pull/605)) (by @ptondereau) [[#605](https://github.com/davidcole1340/ext-php-rs/issues/605)] 
+
+### Other
+- *(deps)* Update darling requirement from 0.21 to 0.23 ([#596](https://github.com/extphprs/ext-php-rs/pull/596)) (by @dependabot[bot]) [[#596](https://github.com/davidcole1340/ext-php-rs/issues/596)] 
 ## [0.11.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.4...ext-php-rs-derive-v0.11.5) - 2025-12-06
 
 ### Added
