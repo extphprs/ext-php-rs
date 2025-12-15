@@ -70,14 +70,33 @@ fn function_calls(path: &str, cnt: usize) -> gungraun::Command {
         .build()
 }
 
+#[binary_benchmark]
+#[bench::single_callback_call(args = ("benches/callback_call.php", 1))]
+#[bench::multiple_callback_calls(args = ("benches/callback_call.php", 10))]
+#[bench::lots_of_callback_calls(args = ("benches/callback_call.php", 100_000))]
+fn callback_calls(path: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}/libbenches.so", *EXT_TARGET_DIR))
+        .arg(path)
+        .arg(cnt.to_string())
+        .build()
+}
+
 binary_benchmark_group!(
     name = function;
     benchmarks = function_calls
+);
+
+binary_benchmark_group!(
+    name = callback;
+    benchmarks = callback_calls
 );
 
 main!(
     config = BinaryBenchmarkConfig::default()
         .tool(Callgrind::with_args(["--instr-atstart=no", "--I1=32768,8,64", "--D1=32768,8,64", "--LL=67108864,16,64"])
         .flamegraph(FlamegraphConfig::default()));
-    binary_benchmark_groups = function
+    binary_benchmark_groups = function, callback
 );
