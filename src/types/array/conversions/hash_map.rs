@@ -66,9 +66,10 @@ where
     }
 }
 
-impl<'a, V> FromZval<'a> for HashMap<ArrayKey<'a>, V>
+impl<'a, V, H> FromZval<'a> for HashMap<ArrayKey<'a>, V, H>
 where
     V: FromZval<'a>,
+    H: BuildHasher + Default,
 {
     const TYPE: DataType = DataType::Array;
 
