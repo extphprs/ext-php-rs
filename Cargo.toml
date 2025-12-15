@@ -54,7 +54,8 @@ runtime = ["bindgen/runtime"]
 static = ["bindgen/static"]
 
 [workspace]
-members = ["crates/macros", "crates/cli", "tests", "benches"]
+members = ["crates/macros", "crates/cli", "tests"]
+exclude = ["benches"]
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docs"]
