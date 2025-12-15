@@ -15,11 +15,15 @@ pub fn bench_function(n: u64) -> u64 {
 }
 
 #[php_function]
-pub fn bench_callback_function(callback: ZendCallable) -> Zval {
+pub fn bench_callback_function(callback: ZendCallable, n: usize) {
     // Call the provided PHP callable with a fixed argument
-    callback
-        .try_call(vec![&42])
-        .expect("Failed to call function")
+    start_instrumentation();
+    for i in 0..n {
+        callback
+            .try_call(vec![&i])
+            .expect("Failed to call function");
+    }
+    stop_instrumentation();
 }
 
 #[php_function]
