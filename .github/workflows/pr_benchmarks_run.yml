@@ -21,12 +21,12 @@ jobs:
           )
           cargo binstall --no-confirm gungraun-runner --version $version
       - name: Run Benchmarks
-        run: cargo bench --manifest-path ./benches/Cargo.toml -- --output-format json | jq -s > benchmark_results.json
+        run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
       - name: Upload Benchmark Results
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark_results.json
-          path: ./benchmark_results.json
+          name: benchmark_results.txt
+          path: ./benchmark_results.txt
       - name: Upload Pull Request Event
         uses: actions/upload-artifact@v4
         with:
