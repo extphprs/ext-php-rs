@@ -7,7 +7,6 @@ use crate::{
     error::{Error, Result},
     ffi::zend_long,
     flags::DataType,
-    macros::{into_zval, try_from_zval},
     types::Zval,
 };
 

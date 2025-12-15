@@ -82,8 +82,9 @@ mod tests {
     use std::collections::HashSet;
 
     use crate::boxed::ZBox;
+    use crate::convert::FromZval;
     use crate::embed::Embed;
-    use crate::types::ZendHashTable;
+    use crate::types::{ZendHashTable, Zval};
 
     #[test]
     fn test_hash_table_try_from_hash_set() {
@@ -93,6 +94,24 @@ mod tests {
             let ht: ZBox<ZendHashTable> = set.try_into().unwrap();
             assert_eq!(ht.len(), 1);
             assert!(ht.get(0).is_some());
+        });
+    }
+
+    #[test]
+    fn test_hash_set_try_from_hash_table() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            ht.insert(0, "value1").unwrap();
+            ht.insert(1, "value2").unwrap();
+            ht.insert(2, "value3").unwrap();
+            let mut zval = Zval::new();
+            zval.set_hashtable(ht);
+
+            let map = HashSet::<String>::from_zval(&zval).unwrap();
+            assert_eq!(map.len(), 3);
+            assert!(map.contains("value1"));
+            assert!(map.contains("value2"));
+            assert!(map.contains("value3"));
         });
     }
 }

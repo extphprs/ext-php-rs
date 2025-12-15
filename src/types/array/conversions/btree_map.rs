@@ -122,7 +122,7 @@ mod tests {
     use crate::types::{ArrayKey, ZendHashTable, Zval};
 
     #[test]
-    fn test_hash_table_try_from_btree_mab() {
+    fn test_hash_table_try_from_btree_map() {
         Embed::run(|| {
             let mut map = BTreeMap::new();
             map.insert("key1", "value1");

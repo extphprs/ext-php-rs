@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display};
 
 /// Represents the key of a PHP array, which can be either a long or a string.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ArrayKey<'a> {
     /// A numerical key.
     /// In Zend API it's represented by `u64` (`zend_ulong`), so the value needs

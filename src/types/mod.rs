@@ -23,7 +23,7 @@ pub use object::{PropertyQuery, ZendObject};
 pub use string::ZendStr;
 pub use zval::Zval;
 
-use crate::{convert::FromZval, flags::DataType, macros::into_zval};
+use crate::{convert::FromZval, flags::DataType};
 
 into_zval!(f32, set_double, Double);
 into_zval!(f64, set_double, Double);
