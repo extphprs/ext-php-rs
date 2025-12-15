@@ -19,7 +19,7 @@ jobs:
           )
           cargo binstall --no-confirm gungraun-runner --version $version
       - name: Run Benchmarks
-        run: cd ./benches && cargo bench -- --output-format json | jq -s > benchmark_results.json
+        run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
       - name: Track Benchmarks with Bencher
         run: |
           bencher run \
@@ -27,8 +27,8 @@ jobs:
           --project ext-php-rs \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch master \
-          --testbed ubuntu-latest \
+          --testbed "$(php --version | head -n 1)" \
           --err \
           --adapter rust_gungraun \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
-          --file "./benches/benchmark_results.json"
+          --file "./benchmark_results.txt"
