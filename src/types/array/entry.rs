@@ -675,7 +675,7 @@ mod tests {
                 .or_insert(0i64);
 
             assert!(result.is_ok());
-            assert_eq!(ht.get("counter").and_then(|v| v.long()), Some(6));
+            assert_eq!(ht.get("counter").and_then(Zval::long), Some(6));
         });
     }
 
@@ -693,7 +693,7 @@ mod tests {
                 .or_insert(42i64);
 
             assert!(result.is_ok());
-            assert_eq!(ht.get("key").and_then(|v| v.long()), Some(42));
+            assert_eq!(ht.get("key").and_then(Zval::long), Some(42));
         });
     }
 
@@ -704,7 +704,7 @@ mod tests {
             let _ = ht.insert("key", "old");
 
             if let Entry::Occupied(mut entry) = ht.entry("key") {
-                let old = entry.insert("new").unwrap();
+                let old = entry.insert("new").expect("insert should succeed");
                 assert_eq!(old.str(), Some("old"));
             }
             assert_eq!(ht.get("key").and_then(|v| v.str()), Some("new"));
@@ -718,7 +718,7 @@ mod tests {
             let _ = ht.insert("key", "value");
 
             if let Entry::Occupied(entry) = ht.entry("key") {
-                let value = entry.remove().unwrap();
+                let value = entry.remove().expect("remove should succeed");
                 assert_eq!(value.str(), Some("value"));
             }
             assert!(ht.get("key").is_none());
