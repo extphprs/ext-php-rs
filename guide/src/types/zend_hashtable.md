@@ -20,6 +20,7 @@ in-place.
 # extern crate ext_php_rs;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
 
 #[php_function]
 pub fn create_array() -> ZBox<ZendHashTable> {
@@ -76,6 +77,7 @@ exists. This is similar to Rust's `std::collections::hash_map::Entry` API.
 # extern crate ext_php_rs;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
 
 #[php_function]
 pub fn entry_example() -> ZBox<ZendHashTable> {
@@ -119,6 +121,7 @@ The `entry()` method returns an `Entry` enum with two variants:
 # extern crate ext_php_rs;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::{ZendHashTable, Entry};
+use ext_php_rs::boxed::ZBox;
 
 #[php_function]
 pub fn match_entry() -> ZBox<ZendHashTable> {
@@ -152,6 +155,7 @@ pub fn match_entry() -> ZBox<ZendHashTable> {
 # extern crate ext_php_rs;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
 
 #[php_function]
 pub fn count_words(words: Vec<String>) -> ZBox<ZendHashTable> {
@@ -175,19 +179,18 @@ pub fn count_words(words: Vec<String>) -> ZBox<ZendHashTable> {
 
 #### Caching computed values
 
+This example demonstrates using `or_insert_with_key` for lazy computation:
+
 ```rust,no_run
-# #![cfg_attr(windows, feature(abi_vectorcall))]
 # extern crate ext_php_rs;
-use ext_php_rs::prelude::*;
 use ext_php_rs::types::ZendHashTable;
 
 fn expensive_computation(key: &str) -> String {
     format!("computed_{}", key)
 }
 
-#[php_function]
-pub fn get_or_compute(cache: &mut ZendHashTable, key: String) -> String {
-    let value = cache.entry(key.as_str())
+fn get_or_compute(cache: &mut ZendHashTable, key: &str) -> String {
+    let value = cache.entry(key)
         .or_insert_with_key(|k| expensive_computation(&k.to_string()))
         .unwrap();
 
@@ -198,15 +201,14 @@ pub fn get_or_compute(cache: &mut ZendHashTable, key: String) -> String {
 
 #### Updating existing values
 
+This example shows how to conditionally update a value only if the key exists:
+
 ```rust,no_run
-# #![cfg_attr(windows, feature(abi_vectorcall))]
 # extern crate ext_php_rs;
-use ext_php_rs::prelude::*;
 use ext_php_rs::types::{ZendHashTable, Entry};
 
-#[php_function]
-pub fn update_if_exists(ht: &mut ZendHashTable, key: String, new_value: String) -> bool {
-    match ht.entry(key.as_str()) {
+fn update_if_exists(ht: &mut ZendHashTable, key: &str, new_value: &str) -> bool {
+    match ht.entry(key) {
         Entry::Occupied(mut entry) => {
             entry.insert(new_value).unwrap();
             true

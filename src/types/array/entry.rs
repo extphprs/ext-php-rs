@@ -596,11 +596,7 @@ fn get_value_mut<'a>(key: &ArrayKey<'_>, ht: &'a mut ZendHashTable) -> Option<&'
 }
 
 /// Helper function to insert a value into the hashtable by key.
-fn insert_value<V: IntoZval>(
-    key: &ArrayKey<'_>,
-    ht: &mut ZendHashTable,
-    value: V,
-) -> Result<()> {
+fn insert_value<V: IntoZval>(key: &ArrayKey<'_>, ht: &mut ZendHashTable, value: V) -> Result<()> {
     let mut val = value.into_zval(false)?;
     match key {
         ArrayKey::Long(index) => {
@@ -620,7 +616,9 @@ fn insert_value<V: IntoZval>(
             };
         }
         ArrayKey::Str(key) => {
-            unsafe { zend_hash_str_update(ht, CString::new(*key)?.as_ptr(), key.len(), &raw mut val) };
+            unsafe {
+                zend_hash_str_update(ht, CString::new(*key)?.as_ptr(), key.len(), &raw mut val)
+            };
         }
     }
     val.release();
