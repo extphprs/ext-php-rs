@@ -20,9 +20,11 @@ use crate::{
 
 mod array_key;
 mod conversions;
+mod entry;
 mod iterators;
 
 pub use array_key::ArrayKey;
+pub use entry::{Entry, OccupiedEntry, VacantEntry};
 pub use iterators::{Iter, Values};
 
 /// A PHP hashtable.
@@ -648,6 +650,55 @@ impl ZendHashTable {
     #[must_use]
     pub fn iter(&self) -> Iter<'_> {
         self.into_iter()
+    }
+
+    /// Gets the given key's corresponding entry in the hashtable for in-place
+    /// manipulation.
+    ///
+    /// This API is similar to Rust's [`std::collections::hash_map::HashMap::entry`].
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - The key to look up in the hashtable.
+    ///
+    /// # Returns
+    ///
+    /// An `Entry` enum that can be used to insert or modify the value at
+    /// the given key.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendHashTable;
+    ///
+    /// let mut ht = ZendHashTable::new();
+    ///
+    /// // Insert a default value if the key doesn't exist
+    /// ht.entry("counter").or_insert(0i64);
+    ///
+    /// // Modify the value if it exists
+    /// ht.entry("counter").and_modify(|v| {
+    ///     if let Some(n) = v.long() {
+    ///         v.set_long(n + 1);
+    ///     }
+    /// });
+    ///
+    /// // Use or_insert_with for lazy initialization
+    /// ht.entry("computed").or_insert_with(|| "computed value");
+    ///
+    /// // Works with numeric keys too
+    /// ht.entry(42i64).or_insert("value at index 42");
+    /// ```
+    pub fn entry<'a, 'k, K>(&'a mut self, key: K) -> Entry<'a, 'k>
+    where
+        K: Into<ArrayKey<'k>>,
+    {
+        let key = key.into();
+        if self.get(key.clone()).is_some() {
+            Entry::Occupied(entry::OccupiedEntry::new(self, key))
+        } else {
+            Entry::Vacant(entry::VacantEntry::new(self, key))
+        }
     }
 
     /// Determines whether this hashtable is immutable.
