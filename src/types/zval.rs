@@ -63,6 +63,14 @@ impl Zval {
         zval
     }
 
+    /// Creates a zval containing an empty array.
+    #[must_use]
+    pub fn new_array() -> Zval {
+        let mut zval = Zval::new();
+        zval.set_hashtable(ZendHashTable::new());
+        zval
+    }
+
     /// Dereference the zval, if it is a reference.
     #[must_use]
     pub fn dereference(&self) -> &Self {
@@ -489,6 +497,18 @@ impl Zval {
         self.get_type() == DataType::Ptr
     }
 
+    /// Returns true if the zval is a scalar value (integer, float, string, or bool),
+    /// false otherwise.
+    ///
+    /// This is equivalent to PHP's `is_scalar()` function.
+    #[must_use]
+    pub fn is_scalar(&self) -> bool {
+        matches!(
+            self.get_type(),
+            DataType::Long | DataType::Double | DataType::String | DataType::True | DataType::False
+        )
+    }
+
     /// Sets the value of the zval as a string. Returns nothing in a result when
     /// successful.
     ///
@@ -850,6 +870,41 @@ mod tests {
         Embed::run(|| {
             let zval = Zval::null();
             assert!(zval.is_null());
+        });
+    }
+
+    #[test]
+    fn test_is_scalar() {
+        Embed::run(|| {
+            // Test scalar types - should return true
+            let mut zval_long = Zval::new();
+            zval_long.set_long(42);
+            assert!(zval_long.is_scalar());
+
+            let mut zval_double = Zval::new();
+            zval_double.set_double(1.5);
+            assert!(zval_double.is_scalar());
+
+            let mut zval_true = Zval::new();
+            zval_true.set_bool(true);
+            assert!(zval_true.is_scalar());
+
+            let mut zval_false = Zval::new();
+            zval_false.set_bool(false);
+            assert!(zval_false.is_scalar());
+
+            let mut zval_string = Zval::new();
+            zval_string
+                .set_string("hello", false)
+                .expect("set_string should succeed");
+            assert!(zval_string.is_scalar());
+
+            // Test non-scalar types - should return false
+            let zval_null = Zval::null();
+            assert!(!zval_null.is_scalar());
+
+            let zval_array = Zval::new_array();
+            assert!(!zval_array.is_scalar());
         });
     }
 }
