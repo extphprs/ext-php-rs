@@ -13,6 +13,13 @@ use crate::ffi::{
 
 /// Implemented on types which can be registered as a constant in PHP.
 pub trait IntoConst: Debug {
+    /// Returns the PHP stub representation of this constant value.
+    ///
+    /// This is used when generating PHP stub files for IDE autocompletion.
+    /// The returned string should be a valid PHP literal (e.g., `"hello"`,
+    /// `42`, `true`).
+    fn stub_value(&self) -> String;
+
     /// Registers a global module constant in PHP, with the value as the content
     /// of self. This function _must_ be called in the module startup
     /// function, which is called after the module is initialized. The
@@ -89,6 +96,10 @@ pub trait IntoConst: Debug {
 }
 
 impl IntoConst for String {
+    fn stub_value(&self) -> String {
+        self.as_str().stub_value()
+    }
+
     fn register_constant_flags(
         &self,
         name: &str,
@@ -101,6 +112,17 @@ impl IntoConst for String {
 }
 
 impl IntoConst for &str {
+    fn stub_value(&self) -> String {
+        // Escape special characters for PHP string literal
+        let escaped = self
+            .replace('\\', "\\\\")
+            .replace('\'', "\\'")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t");
+        format!("'{escaped}'")
+    }
+
     fn register_constant_flags(
         &self,
         name: &str,
@@ -133,6 +155,10 @@ impl IntoConst for &str {
 }
 
 impl IntoConst for bool {
+    fn stub_value(&self) -> String {
+        if *self { "true" } else { "false" }.to_string()
+    }
+
     fn register_constant_flags(
         &self,
         name: &str,
@@ -169,6 +195,10 @@ impl IntoConst for bool {
 macro_rules! into_const_num {
     ($type: ty, $fn: expr) => {
         impl IntoConst for $type {
+            fn stub_value(&self) -> String {
+                self.to_string()
+            }
+
             fn register_constant_flags(
                 &self,
                 name: &str,

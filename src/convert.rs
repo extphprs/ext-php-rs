@@ -253,6 +253,85 @@ pub trait IntoZvalDyn {
 
     /// Returns the PHP type of the type.
     fn get_type(&self) -> DataType;
+
+    /// Returns the PHP stub representation of this value.
+    ///
+    /// This is used when generating PHP stub files for IDE autocompletion.
+    /// The returned string should be a valid PHP literal.
+    fn stub_value(&self) -> String {
+        // Default implementation - convert to zval and format
+        match self.as_zval(false) {
+            Ok(zval) => zval_to_stub(&zval),
+            Err(_) => "null".to_string(),
+        }
+    }
+}
+
+/// Converts a Zval to its PHP stub representation.
+#[must_use]
+#[allow(clippy::match_same_arms)]
+pub fn zval_to_stub(zval: &Zval) -> String {
+    use crate::flags::DataType;
+
+    match zval.get_type() {
+        DataType::Null | DataType::Undef => "null".to_string(),
+        DataType::True => "true".to_string(),
+        DataType::False => "false".to_string(),
+        DataType::Long => zval
+            .long()
+            .map_or_else(|| "null".to_string(), |v| v.to_string()),
+        DataType::Double => zval
+            .double()
+            .map_or_else(|| "null".to_string(), |v| v.to_string()),
+        DataType::String => {
+            if let Some(s) = zval.str() {
+                let escaped = s
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'")
+                    .replace('\n', "\\n")
+                    .replace('\r', "\\r")
+                    .replace('\t', "\\t");
+                format!("'{escaped}'")
+            } else {
+                "null".to_string()
+            }
+        }
+        DataType::Array => {
+            #[allow(clippy::explicit_iter_loop)]
+            if let Some(arr) = zval.array() {
+                // Check if array has sequential numeric keys starting from 0
+                let is_sequential = arr.iter().enumerate().all(|(i, (key, _))| {
+                    matches!(key, crate::types::ArrayKey::Long(idx) if i64::try_from(i).is_ok_and(|ii| idx == ii))
+                });
+
+                let mut parts = Vec::new();
+                for (key, val) in arr.iter() {
+                    let val_str = zval_to_stub(val);
+                    if is_sequential {
+                        parts.push(val_str);
+                    } else {
+                        match key {
+                            crate::types::ArrayKey::Long(idx) => {
+                                parts.push(format!("{idx} => {val_str}"));
+                            }
+                            crate::types::ArrayKey::String(key) => {
+                                let key_escaped = key.replace('\\', "\\\\").replace('\'', "\\'");
+                                parts.push(format!("'{key_escaped}' => {val_str}"));
+                            }
+                            crate::types::ArrayKey::Str(key) => {
+                                let key_escaped = key.replace('\\', "\\\\").replace('\'', "\\'");
+                                parts.push(format!("'{key_escaped}' => {val_str}"));
+                            }
+                        }
+                    }
+                }
+                format!("[{}]", parts.join(", "))
+            } else {
+                "[]".to_string()
+            }
+        }
+        _ => "null".to_string(),
+    }
 }
 
 impl<T: IntoZval + Clone> IntoZvalDyn for T {

@@ -17,7 +17,13 @@ use crate::{
     zend_fastcall,
 };
 
-type ConstantEntry = (String, Box<dyn FnOnce() -> Result<Zval>>, DocComments);
+/// A constant entry: (name, `value_closure`, docs, `stub_value`)
+type ConstantEntry = (
+    String,
+    Box<dyn FnOnce() -> Result<Zval>>,
+    DocComments,
+    String,
+);
 type PropertyDefault = Option<Box<dyn FnOnce() -> Result<Zval>>>;
 
 /// Builder for registering a class in PHP.
@@ -140,8 +146,11 @@ impl ClassBuilder {
         value: impl IntoZval + 'static,
         docs: DocComments,
     ) -> Result<Self> {
+        // Convert to Zval first to get stub value
+        let zval = value.into_zval(true)?;
+        let stub = crate::convert::zval_to_stub(&zval);
         self.constants
-            .push((name.into(), Box::new(|| value.into_zval(true)), docs));
+            .push((name.into(), Box::new(|| Ok(zval)), docs, stub));
         Ok(self)
     }
 
@@ -166,9 +175,14 @@ impl ClassBuilder {
         value: &'static dyn IntoZvalDyn,
         docs: DocComments,
     ) -> Result<Self> {
+        let stub = value.stub_value();
         let value = Rc::new(value);
-        self.constants
-            .push((name.into(), Box::new(move || value.as_zval(true)), docs));
+        self.constants.push((
+            name.into(),
+            Box::new(move || value.as_zval(true)),
+            docs,
+            stub,
+        ));
         Ok(self)
     }
 
@@ -375,7 +389,7 @@ impl ClassBuilder {
             }
         }
 
-        for (name, value, _) in self.constants {
+        for (name, value, _, _) in self.constants {
             let value = Box::into_raw(Box::new(value()?));
             unsafe {
                 zend_declare_class_constant(

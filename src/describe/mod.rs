@@ -270,8 +270,11 @@ impl From<ClassBuilder> for Class {
             constants: val
                 .constants
                 .into_iter()
-                .map(|(name, _, docs)| (name, docs))
-                .map(Constant::from)
+                .map(|(name, _, docs, stub)| Constant {
+                    name: name.into(),
+                    value: Option::Some(stub.into()),
+                    docs: docs.into(),
+                })
                 .collect::<StdVec<_>>()
                 .into(),
             flags,
@@ -385,9 +388,9 @@ impl<D> From<(String, PropertyFlags, D, DocComments)> for Property {
         let static_ = flags.contains(PropertyFlags::Static);
         let vis = Visibility::from(flags);
         // TODO: Implement ty #376
-        let ty = abi::Option::None;
+        let ty = Option::None;
         // TODO: Implement default #376
-        let default = abi::Option::<abi::RString>::None;
+        let default = Option::<RString>::None;
         // TODO: Implement nullable #376
         let nullable = false;
         let docs = docs.into();
@@ -552,7 +555,7 @@ impl From<(String, DocComments)> for Constant {
         let (name, docs) = val;
         Constant {
             name: name.into(),
-            value: abi::Option::None,
+            value: Option::None,
             docs: docs.into(),
         }
     }
@@ -560,10 +563,10 @@ impl From<(String, DocComments)> for Constant {
 
 impl From<(String, Box<dyn IntoConst + Send>, DocComments)> for Constant {
     fn from(val: (String, Box<dyn IntoConst + Send + 'static>, DocComments)) -> Self {
-        let (name, _, docs) = val;
+        let (name, value, docs) = val;
         Constant {
             name: name.into(),
-            value: abi::Option::None,
+            value: Option::Some(value.stub_value().into()),
             docs: docs.into(),
         }
     }
