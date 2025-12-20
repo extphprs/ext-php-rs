@@ -226,7 +226,27 @@ fn generate_bindings(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<S
                 .iter()
                 .map(|inc| format!("-I{}", inc.to_string_lossy())),
         )
-        .clang_args(defines.iter().map(|(var, val)| format!("-D{var}={val}")))
+        .clang_args(defines.iter().map(|(var, val)| format!("-D{var}={val}")));
+
+    // Add macOS SDK path for system headers (stdlib.h, etc.)
+    // Required for libclang 19+ with preserve_none calling convention support
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(sdk_path) = std::process::Command::new("xcrun")
+            .args(["--show-sdk-path"])
+            .output()
+        {
+            if sdk_path.status.success() {
+                let path = String::from_utf8_lossy(&sdk_path.stdout);
+                let path = path.trim();
+                bindgen = bindgen
+                    .clang_arg(format!("-isysroot{}", path))
+                    .clang_arg(format!("-I{}/usr/include", path));
+            }
+        }
+    }
+
+    bindgen = bindgen
         .formatter(bindgen::Formatter::Rustfmt)
         .no_copy("php_ini_builder")
         .no_copy("_zval_struct")

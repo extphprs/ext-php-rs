@@ -79,8 +79,10 @@ path = "tests/module.rs"
 name = "sapi_tests"
 path = "tests/sapi.rs"
 
-# Patch clang-sys to support preserve_none calling convention (libclang 19/20)
+# Patch clang-sys and bindgen for preserve_none calling convention support (libclang 19/20)
 # Required for PHP 8.5+ on macOS ARM64 which uses TAILCALL VM mode
-# See: https://github.com/KyleMayes/clang-sys/pull/195
+# - clang-sys: Adds libclang 19/20 bindings (https://github.com/KyleMayes/clang-sys/pull/195)
+# - bindgen: Maps CXCallingConv_PreserveNone to C ABI
 [patch.crates-io]
 clang-sys = { git = "https://github.com/extphprs/clang-sys.git", branch = "preserve-none-support" }
+bindgen = { git = "https://github.com/extphprs/rust-bindgen.git", branch = "preserve-none-support" }
