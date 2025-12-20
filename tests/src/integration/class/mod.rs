@@ -175,6 +175,24 @@ impl TestClassProtectedConstruct {
     }
 }
 
+/// Test class for issue #325 - returning &'static str from getter
+#[php_class]
+pub struct TestClassStaticStrGetter;
+
+#[php_impl]
+impl TestClassStaticStrGetter {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// This getter returns a &'static str which previously failed to compile
+    /// due to "implementation of `FromZval` is not general enough" error.
+    #[php(getter)]
+    pub fn get_static_value(&self) -> &'static str {
+        "Hello from static str"
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<TestClass>()
@@ -183,6 +201,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassExtendsImpl>()
         .class::<TestClassMethodVisibility>()
         .class::<TestClassProtectedConstruct>()
+        .class::<TestClassStaticStrGetter>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }
