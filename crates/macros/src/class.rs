@@ -76,6 +76,8 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
 #[darling(attributes(php), forward_attrs(doc), default)]
 struct PropAttributes {
     prop: Flag,
+    #[darling(rename = "static")]
+    static_: Flag,
     #[darling(flatten)]
     rename: PhpRename,
     flags: Option<Expr>,
@@ -114,6 +116,10 @@ impl Property<'_> {
             .rename
             .rename(self.ident.to_string(), RenameRule::Camel)
     }
+
+    pub fn is_static(&self) -> bool {
+        self.attr.static_.is_present()
+    }
 }
 
 /// Generates an implementation of `RegisteredClass` for struct `ident`.
@@ -130,9 +136,14 @@ fn generate_registered_class_impl(
 ) -> TokenStream {
     let modifier = modifier.option_tokens();
 
-    let fields = fields.iter().map(|prop| {
+    // Separate instance properties from static properties
+    let (instance_props, static_props): (Vec<_>, Vec<_>) =
+        fields.iter().partition(|prop| !prop.is_static());
+
+    // Generate instance properties (with Rust handlers)
+    let instance_fields = instance_props.iter().map(|prop| {
         let name = prop.name();
-        let ident = prop.ident;
+        let field_ident = prop.ident;
         let flags = prop
             .attr
             .flags
@@ -143,10 +154,30 @@ fn generate_registered_class_impl(
 
         quote! {
             (#name, ::ext_php_rs::internal::property::PropertyInfo {
-                prop: ::ext_php_rs::props::Property::field(|this: &mut Self| &mut this.#ident),
+                prop: ::ext_php_rs::props::Property::field(|this: &mut Self| &mut this.#field_ident),
                 flags: #flags,
                 docs: &[#(#docs,)*]
             })
+        }
+    });
+
+    // Generate static properties (PHP-managed, no Rust handlers)
+    // We combine the base flags with Static flag using from_bits_retain which is const
+    let static_fields = static_props.iter().map(|prop| {
+        let name = prop.name();
+        let base_flags = prop
+            .attr
+            .flags
+            .as_ref()
+            .map(ToTokens::to_token_stream)
+            .unwrap_or(quote! { ::ext_php_rs::flags::PropertyFlags::Public });
+        let docs = &prop.docs;
+
+        // Use from_bits_retain to combine flags in a const context
+        quote! {
+            (#name, ::ext_php_rs::flags::PropertyFlags::from_bits_retain(
+                (#base_flags).bits() | ::ext_php_rs::flags::PropertyFlags::Static.bits()
+            ), &[#(#docs,)*] as &[&str])
         }
     });
 
@@ -204,8 +235,14 @@ fn generate_registered_class_impl(
             > {
                 use ::std::iter::FromIterator;
                 ::std::collections::HashMap::from_iter([
-                    #(#fields,)*
+                    #(#instance_fields,)*
                 ])
+            }
+
+            #[must_use]
+            fn static_properties() -> &'static [(&'static str, ::ext_php_rs::flags::PropertyFlags, &'static [&'static str])] {
+                static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, &[&str])] = &[#(#static_fields,)*];
+                STATIC_PROPS
             }
 
             #[inline]

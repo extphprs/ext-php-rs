@@ -1,5 +1,6 @@
 #![allow(clippy::unused_self)]
 use ext_php_rs::{
+    class::RegisteredClass,
     convert::IntoZval,
     prelude::*,
     types::{ZendClassObject, Zval},
@@ -175,6 +176,53 @@ impl TestClassProtectedConstruct {
     }
 }
 
+/// Test class with static properties (Issue #252)
+#[php_class]
+pub struct TestStaticProps {
+    /// Instance property for comparison
+    #[php(prop)]
+    pub instance_value: i32,
+    /// Static property - managed by PHP, not Rust handlers
+    #[php(prop, static)]
+    pub static_counter: i32,
+    /// Private static property
+    #[php(prop, static, flags = ext_php_rs::flags::PropertyFlags::Private)]
+    pub private_static: String,
+}
+
+#[php_impl]
+impl TestStaticProps {
+    pub fn __construct(value: i32) -> Self {
+        Self {
+            instance_value: value,
+            // Note: static fields have default values in PHP, not from Rust constructor
+            static_counter: 0,
+            private_static: String::new(),
+        }
+    }
+
+    /// Static method to increment the static counter
+    pub fn increment_counter() {
+        let ce = Self::get_metadata().ce();
+        let current: i64 = ce.get_static_property("staticCounter").unwrap_or(0);
+        ce.set_static_property("staticCounter", current + 1)
+            .expect("Failed to set static property");
+    }
+
+    /// Static method to get the current counter value
+    pub fn get_counter() -> i64 {
+        let ce = Self::get_metadata().ce();
+        ce.get_static_property("staticCounter").unwrap_or(0)
+    }
+
+    /// Static method to set the counter to a specific value
+    pub fn set_counter(value: i64) {
+        let ce = Self::get_metadata().ce();
+        ce.set_static_property("staticCounter", value)
+            .expect("Failed to set static property");
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<TestClass>()
@@ -183,6 +231,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassExtendsImpl>()
         .class::<TestClassMethodVisibility>()
         .class::<TestClassProtectedConstruct>()
+        .class::<TestStaticProps>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }

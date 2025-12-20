@@ -87,6 +87,8 @@ bind! {
     zend_declare_class_constant,
     zend_declare_property,
     zend_do_implement_interface,
+    zend_read_static_property,
+    zend_update_static_property,
     zend_enum_add_case,
     zend_enum_get_case,
     zend_enum_new,

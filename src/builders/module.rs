@@ -254,6 +254,9 @@ impl ModuleBuilder<'_> {
             for (name, prop_info) in T::get_properties() {
                 builder = builder.property(name, prop_info.flags, prop_info.docs);
             }
+            for (name, flags, docs) in T::static_properties() {
+                builder = builder.property(*name, *flags, docs);
+            }
             if let Some(modifier) = T::BUILDER_MODIFIER {
                 builder = modifier(builder);
             }

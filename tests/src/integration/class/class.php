@@ -51,3 +51,46 @@ assert($classReflection->getMethod('protected')->isProtected());
 
 $classReflection = new ReflectionClass(TestClassProtectedConstruct::class);
 assert($classReflection->getMethod('__construct')->isProtected());
+
+// Test static properties (Issue #252)
+$staticObj = new TestStaticProps(42);
+assert($staticObj->instanceValue === 42, 'Instance property should work');
+
+// Verify static property exists and is accessible
+$reflection = new ReflectionClass(TestStaticProps::class);
+$staticCounterProp = $reflection->getProperty('staticCounter');
+assert($staticCounterProp->isStatic(), 'staticCounter should be a static property');
+assert($staticCounterProp->isPublic(), 'staticCounter should be public');
+
+// Verify private static property
+$privateStaticProp = $reflection->getProperty('privateStatic');
+assert($privateStaticProp->isStatic(), 'privateStatic should be a static property');
+assert($privateStaticProp->isPrivate(), 'privateStatic should be private');
+
+// Test accessing static property via class
+TestStaticProps::$staticCounter = 100;
+assert(TestStaticProps::$staticCounter === 100, 'Should be able to set and get static property');
+
+// Test that static property is shared across instances
+$obj1 = new TestStaticProps(1);
+$obj2 = new TestStaticProps(2);
+TestStaticProps::$staticCounter = 200;
+assert(TestStaticProps::$staticCounter === 200, 'Static property value should be shared');
+
+// Test static methods that interact with static properties
+TestStaticProps::setCounter(0);
+assert(TestStaticProps::getCounter() === 0, 'Counter should be 0 after reset');
+
+TestStaticProps::incrementCounter();
+assert(TestStaticProps::getCounter() === 1, 'Counter should be 1 after increment');
+
+TestStaticProps::incrementCounter();
+TestStaticProps::incrementCounter();
+assert(TestStaticProps::getCounter() === 3, 'Counter should be 3 after 3 increments');
+
+// Test that PHP access and Rust access see the same value
+TestStaticProps::$staticCounter = 50;
+assert(TestStaticProps::getCounter() === 50, 'Rust should see PHP-set value');
+
+TestStaticProps::setCounter(100);
+assert(TestStaticProps::$staticCounter === 100, 'PHP should see Rust-set value');

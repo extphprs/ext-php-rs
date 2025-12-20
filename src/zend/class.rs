@@ -4,11 +4,14 @@ use crate::ffi::instanceof_function_slow;
 use crate::types::{ZendIterator, Zval};
 use crate::{
     boxed::ZBox,
+    convert::{FromZval, IntoZval},
+    error::Result,
     ffi::zend_class_entry,
     flags::ClassFlags,
     types::{ZendObject, ZendStr},
     zend::ExecutorGlobals,
 };
+use std::ffi::CString;
 use std::ptr;
 use std::{convert::TryInto, fmt::Debug};
 
@@ -131,6 +134,74 @@ impl ClassEntry {
     #[must_use]
     pub fn name(&self) -> Option<&str> {
         unsafe { self.name.as_ref().and_then(|s| s.as_str().ok()) }
+    }
+
+    /// Reads a static property from the class.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the static property to read.
+    ///
+    /// # Returns
+    ///
+    /// Returns the value of the static property if it exists and can be
+    /// converted to type `T`, or `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::zend::ClassEntry;
+    ///
+    /// let ce = ClassEntry::try_find("MyClass").unwrap();
+    /// let value: Option<i64> = ce.get_static_property("counter");
+    /// ```
+    #[must_use]
+    pub fn get_static_property<'a, T: FromZval<'a>>(&'a self, name: &str) -> Option<T> {
+        let name = CString::new(name).ok()?;
+        let zval = unsafe {
+            crate::ffi::zend_read_static_property(
+                ptr::from_ref(self).cast_mut(),
+                name.as_ptr(),
+                name.as_bytes().len(),
+                true, // silent - don't throw if property doesn't exist
+            )
+            .as_ref()?
+        };
+        T::from_zval(zval)
+    }
+
+    /// Sets a static property on the class.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the static property to set.
+    /// * `value` - The value to set the property to.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the property name contains a null byte, or if the
+    /// value could not be converted to a Zval.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::zend::ClassEntry;
+    ///
+    /// let ce = ClassEntry::try_find("MyClass").unwrap();
+    /// ce.set_static_property("counter", 42).unwrap();
+    /// ```
+    pub fn set_static_property<T: IntoZval>(&self, name: &str, value: T) -> Result<()> {
+        let name = CString::new(name)?;
+        let mut zval = value.into_zval(false)?;
+        unsafe {
+            crate::ffi::zend_update_static_property(
+                ptr::from_ref(self).cast_mut(),
+                name.as_ptr(),
+                name.as_bytes().len(),
+                &raw mut zval,
+            );
+        }
+        Ok(())
     }
 }
 

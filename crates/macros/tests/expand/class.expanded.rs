@@ -27,6 +27,15 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         use ::std::iter::FromIterator;
         ::std::collections::HashMap::from_iter([])
     }
+    #[must_use]
+    fn static_properties() -> &'static [(
+        &'static str,
+        ::ext_php_rs::flags::PropertyFlags,
+        &'static [&'static str],
+    )] {
+        static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, &[&str])] = &[];
+        STATIC_PROPS
+    }
     #[inline]
     fn method_builders() -> ::std::vec::Vec<
         (
