@@ -29,6 +29,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module = integration::nullable::build_module(module);
     module = integration::number::build_module(module);
     module = integration::object::build_module(module);
+    module = integration::persistent_string::build_module(module);
     module = integration::string::build_module(module);
     module = integration::variadic_args::build_module(module);
     module = integration::interface::build_module(module);

@@ -15,6 +15,7 @@ pub mod magic_method;
 pub mod nullable;
 pub mod number;
 pub mod object;
+pub mod persistent_string;
 pub mod string;
 pub mod types;
 pub mod variadic_args;

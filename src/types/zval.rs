@@ -13,8 +13,9 @@ use crate::{
     convert::{FromZval, FromZvalMut, IntoZval, IntoZvalDyn},
     error::{Error, Result},
     ffi::{
-        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, zend_is_callable,
-        zend_is_identical, zend_is_iterable, zend_resource, zend_value, zval, zval_ptr_dtor,
+        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, ext_php_rs_zend_string_release,
+        zend_is_callable, zend_is_identical, zend_is_iterable, zend_resource, zend_value, zval,
+        zval_ptr_dtor,
     },
     flags::DataType,
     flags::ZvalTypeFlags,
@@ -496,6 +497,21 @@ impl Zval {
     /// * `val` - The value to set the zval as.
     /// * `persistent` - Whether the string should persist between requests.
     ///
+    /// # Persistent Strings
+    ///
+    /// When `persistent` is `true`, the string is allocated from PHP's
+    /// persistent heap (using `malloc`) rather than the request-bound heap.
+    /// This is typically used for strings that need to survive across multiple
+    /// PHP requests, such as class names, function names, or module-level data.
+    ///
+    /// **Important:** The string will still be freed when the Zval is dropped.
+    /// The `persistent` flag only affects which memory allocator is used. If
+    /// you need a string to outlive the Zval, consider using
+    /// [`std::mem::forget`] on the Zval or storing the string elsewhere.
+    ///
+    /// For most use cases (return values, function arguments, temporary
+    /// storage), you should use `persistent: false`.
+    ///
     /// # Errors
     ///
     /// Never returns an error.
@@ -506,6 +522,9 @@ impl Zval {
     }
 
     /// Sets the value of the zval as a Zend string.
+    ///
+    /// The Zval takes ownership of the string. When the Zval is dropped,
+    /// the string will be released.
     ///
     /// # Parameters
     ///
@@ -527,8 +546,12 @@ impl Zval {
         self.value.str_ = ptr;
     }
 
-    /// Sets the value of the zval as a interned string. Returns nothing in a
+    /// Sets the value of the zval as an interned string. Returns nothing in a
     /// result when successful.
+    ///
+    /// Interned strings are stored once and are immutable. PHP stores them in
+    /// an internal hashtable. Unlike regular strings, interned strings are not
+    /// reference counted and should not be freed by `zval_ptr_dtor`.
     ///
     /// # Parameters
     ///
@@ -540,7 +563,10 @@ impl Zval {
     /// Never returns an error.
     // TODO: Check if we can drop the result here.
     pub fn set_interned_string(&mut self, val: &str, persistent: bool) -> Result<()> {
-        self.set_zend_string(ZendStr::new_interned(val, persistent));
+        // Use InternedStringEx (without RefCounted) because interned strings
+        // should not have their refcount modified by zval_ptr_dtor.
+        self.change_type(ZvalTypeFlags::InternedStringEx);
+        self.value.str_ = ZendStr::new_interned(val, persistent).into_raw();
         Ok(())
     }
 
@@ -676,7 +702,21 @@ impl Zval {
     fn change_type(&mut self, ty: ZvalTypeFlags) {
         // SAFETY: we have exclusive mutable access to this zval so can free the
         // contents.
-        unsafe { zval_ptr_dtor(self) };
+        //
+        // For strings, we use zend_string_release directly instead of zval_ptr_dtor
+        // to correctly handle persistent strings. zend_string_release properly checks
+        // the IS_STR_PERSISTENT flag and uses the correct deallocator (free vs efree).
+        // This fixes heap corruption issues when dropping Zvals containing persistent
+        // strings (see issue #424).
+        if self.is_string() {
+            unsafe {
+                if let Some(str_ptr) = self.value.str_.as_mut() {
+                    ext_php_rs_zend_string_release(str_ptr);
+                }
+            }
+        } else {
+            unsafe { zval_ptr_dtor(self) };
+        }
         self.u1.type_info = ty.bits();
     }
 
