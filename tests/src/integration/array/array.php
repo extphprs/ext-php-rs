@@ -79,3 +79,17 @@ assert($leading_zeros['007'] === 'bond', 'Value at key "007" should be "bond"');
 
 assert(array_key_exists('00', $leading_zeros), '"00" should stay as string key');
 assert($leading_zeros['00'] === 'zerozero', 'Value at key "00" should be "zerozero"');
+
+// Test Option<&ZendHashTable> with literal array (issue #515)
+// This should work without "could not be passed by reference" error
+assert(test_optional_array_ref([1, 2, 3]) === 3, 'Option<&ZendHashTable> should accept literal array');
+assert(test_optional_array_ref(null) === -1, 'Option<&ZendHashTable> should accept null');
+$arr = ['a', 'b', 'c', 'd'];
+assert(test_optional_array_ref($arr) === 4, 'Option<&ZendHashTable> should accept variable array');
+
+// Test Option<&mut ZendHashTable> (anti-regression for issue #515)
+$mut_arr = ['x', 'y'];
+assert(test_optional_array_mut_ref($mut_arr) === 3, 'Option<&mut ZendHashTable> should accept variable array and add element');
+assert(array_key_exists('added_by_rust', $mut_arr), 'Rust should have added a key to the array');
+assert($mut_arr['added_by_rust'] === 'value', 'Added value should be correct');
+assert(test_optional_array_mut_ref(null) === -1, 'Option<&mut ZendHashTable> should accept null');

@@ -540,9 +540,11 @@ impl<'a> Args<'a> {
                                 .and_then(|ga| match ga {
                                     GenericArgument::Type(ty) => Some(match ty {
                                         Type::Reference(r) => {
+                                            // Only mark as_ref for mutable references
+                                            // (Option<&mut T>), not immutable ones (Option<&T>)
+                                            as_ref = r.mutability.is_some();
                                             let mut new_ref = r.clone();
                                             new_ref.mutability = None;
-                                            as_ref = true;
                                             Type::Reference(new_ref)
                                         }
                                         _ => ty.clone(),

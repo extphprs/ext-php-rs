@@ -5,7 +5,7 @@ use ext_php_rs::{
     ffi::HashTable,
     php_function,
     prelude::ModuleBuilder,
-    types::{ArrayKey, Zval},
+    types::{ArrayKey, ZendHashTable, Zval},
     wrap_function,
 };
 
@@ -41,6 +41,25 @@ pub fn test_array_keys() -> Zval {
     ht.into_zval(false).unwrap()
 }
 
+/// Test that `Option<&ZendHashTable>` can accept literal arrays (issue #515)
+#[php_function]
+pub fn test_optional_array_ref(arr: Option<&ZendHashTable>) -> i64 {
+    arr.map_or(-1, |ht| i64::try_from(ht.len()).unwrap_or(i64::MAX))
+}
+
+/// Test that `Option<&mut ZendHashTable>` works correctly (anti-regression for issue #515)
+#[php_function]
+pub fn test_optional_array_mut_ref(arr: Option<&mut ZendHashTable>) -> i64 {
+    match arr {
+        Some(ht) => {
+            // Add an element to verify mutation works
+            ht.insert("added_by_rust", "value").ok();
+            i64::try_from(ht.len()).unwrap_or(i64::MAX)
+        }
+        None => -1,
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_array))
@@ -48,6 +67,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(test_array_assoc_array_keys))
         .function(wrap_function!(test_btree_map))
         .function(wrap_function!(test_array_keys))
+        .function(wrap_function!(test_optional_array_ref))
+        .function(wrap_function!(test_optional_array_mut_ref))
 }
 
 #[cfg(test)]

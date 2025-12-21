@@ -5,7 +5,7 @@ use std::{convert::TryFrom, ffi::CString, fmt::Debug, ptr};
 
 use crate::{
     boxed::{ZBox, ZBoxable},
-    convert::{FromZval, IntoZval},
+    convert::{FromZval, FromZvalMut, IntoZval},
     error::Result,
     ffi::zend_ulong,
     ffi::{
@@ -709,5 +709,13 @@ impl<'a> FromZval<'a> for &'a ZendHashTable {
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
         zval.array()
+    }
+}
+
+impl<'a> FromZvalMut<'a> for &'a mut ZendHashTable {
+    const TYPE: DataType = DataType::Array;
+
+    fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
+        zval.array_mut()
     }
 }
