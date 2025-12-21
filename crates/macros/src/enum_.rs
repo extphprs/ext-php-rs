@@ -8,7 +8,9 @@ use syn::{Fields, Ident, ItemEnum, Lit};
 
 use crate::{
     helpers::get_docs,
-    parsing::{PhpRename, RenameRule, Visibility},
+    parsing::{
+        PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+    },
     prelude::*,
 };
 
@@ -81,12 +83,15 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
             bail!(variant => "Discriminant must be specified for all enum cases, found: {:?}", variant);
         }
 
+        let case_name = variant_attr.rename.rename(
+            ident_to_php_name(&variant.ident),
+            php_attr.rename_cases.unwrap_or(RenameRule::Pascal),
+        );
+        validate_php_name(&case_name, PhpNameContext::EnumCase, variant.ident.span())?;
+
         cases.push(EnumCase {
             ident: variant.ident.clone(),
-            name: variant_attr.rename.rename(
-                variant.ident.to_string(),
-                php_attr.rename_cases.unwrap_or(RenameRule::Pascal),
-            ),
+            name: case_name,
             attrs: variant_attr,
             discriminant,
             docs,
@@ -108,7 +113,7 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
         cases,
         None, // TODO: Implement flags support
         discriminant_type,
-    );
+    )?;
 
     Ok(quote! {
         #[allow(dead_code)]
@@ -136,17 +141,20 @@ impl<'a> Enum<'a> {
         cases: Vec<EnumCase>,
         flags: Option<String>,
         discriminant_type: DiscriminantType,
-    ) -> Self {
-        let name = attrs.rename.rename(ident.to_string(), RenameRule::Pascal);
+    ) -> Result<Self> {
+        let name = attrs
+            .rename
+            .rename(ident_to_php_name(ident), RenameRule::Pascal);
+        validate_php_name(&name, PhpNameContext::Enum, ident.span())?;
 
-        Self {
+        Ok(Self {
             ident,
             name,
             discriminant_type,
             docs,
             cases,
             flags,
-        }
+        })
     }
 
     fn registered_class(&self) -> TokenStream {

@@ -8,7 +8,9 @@ use syn::{Expr, Ident, ItemImpl};
 use crate::constant::PhpConstAttribute;
 use crate::function::{Args, CallType, Function, MethodReceiver};
 use crate::helpers::get_docs;
-use crate::parsing::{PhpRename, RenameRule, Visibility};
+use crate::parsing::{
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+};
 use crate::prelude::*;
 
 /// Method types.
@@ -187,7 +189,8 @@ impl<'a> ParsedImpl<'a> {
                     let attr = PhpConstAttribute::from_attributes(&c.attrs)?;
                     let name = attr
                         .rename
-                        .rename(c.ident.to_string(), self.change_constant_case);
+                        .rename(ident_to_php_name(&c.ident), self.change_constant_case);
+                    validate_php_name(&name, PhpNameContext::Constant, c.ident.span())?;
                     let docs = get_docs(&attr.attrs)?;
                     c.attrs.retain(|attr| !attr.path().is_ident("php"));
 
@@ -199,9 +202,11 @@ impl<'a> ParsedImpl<'a> {
                 }
                 syn::ImplItem::Fn(method) => {
                     let attr = PhpFunctionImplAttribute::from_attributes(&method.attrs)?;
-                    let name = attr
-                        .rename
-                        .rename_method(method.sig.ident.to_string(), self.change_method_case);
+                    let name = attr.rename.rename_method(
+                        ident_to_php_name(&method.sig.ident),
+                        self.change_method_case,
+                    );
+                    validate_php_name(&name, PhpNameContext::Method, method.sig.ident.span())?;
                     let docs = get_docs(&attr.attrs)?;
                     method.attrs.retain(|attr| !attr.path().is_ident("php"));
 

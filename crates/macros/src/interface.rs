@@ -11,7 +11,9 @@ use quote::{ToTokens, format_ident, quote};
 use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn};
 
 use crate::impl_::{FnBuilder, MethodModifier};
-use crate::parsing::{PhpRename, RenameRule, Visibility};
+use crate::parsing::{
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+};
 use crate::prelude::*;
 
 const INTERNAL_INTERFACE_NAME_PREFIX: &str = "PhpInterface";
@@ -196,7 +198,10 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
     fn parse(&'a mut self) -> Result<InterfaceData<'a>> {
         let attrs = TraitAttributes::from_attributes(&self.attrs)?;
         let ident = &self.ident;
-        let name = attrs.rename.rename(ident.to_string(), RenameRule::Pascal);
+        let name = attrs
+            .rename
+            .rename(ident_to_php_name(ident), RenameRule::Pascal);
+        validate_php_name(&name, PhpNameContext::Interface, ident.span())?;
         let docs = get_docs(&attrs.attrs)?;
         self.attrs.clean_php();
         let interface_name = format_ident!("{INTERNAL_INTERFACE_NAME_PREFIX}{ident}");
@@ -277,16 +282,16 @@ fn parse_trait_item_fn(
         modifiers.insert(MethodModifier::Static);
     }
 
-    let f = Function::new(
-        &fn_item.sig,
-        php_attr.rename.rename(
-            fn_item.sig.ident.to_string(),
-            change_case.unwrap_or(RenameRule::Camel),
-        ),
-        args,
-        php_attr.optional,
-        docs,
+    let method_name = php_attr.rename.rename(
+        ident_to_php_name(&fn_item.sig.ident),
+        change_case.unwrap_or(RenameRule::Camel),
     );
+    validate_php_name(
+        &method_name,
+        PhpNameContext::Method,
+        fn_item.sig.ident.span(),
+    )?;
+    let f = Function::new(&fn_item.sig, method_name, args, php_attr.optional, docs);
 
     if php_attr.constructor.is_present() {
         Ok(MethodKind::Constructor(f))
@@ -336,9 +341,10 @@ fn parse_trait_item_const(
 
     let attr = PhpConstAttribute::from_attributes(&const_item.attrs)?;
     let name = attr.rename.rename(
-        const_item.ident.to_string(),
+        ident_to_php_name(&const_item.ident),
         change_case.unwrap_or(RenameRule::ScreamingSnake),
     );
+    validate_php_name(&name, PhpNameContext::Constant, const_item.ident.span())?;
     let docs = get_docs(&attr.attrs)?;
     const_item.attrs.clean_php();
 

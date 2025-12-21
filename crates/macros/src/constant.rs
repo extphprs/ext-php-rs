@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use syn::ItemConst;
 
 use crate::helpers::get_docs;
-use crate::parsing::{PhpRename, RenameRule};
+use crate::parsing::{PhpNameContext, PhpRename, RenameRule, ident_to_php_name, validate_php_name};
 use crate::prelude::*;
 
 const INTERNAL_CONST_DOC_PREFIX: &str = "_internal_const_docs_";
@@ -25,7 +25,8 @@ pub fn parser(mut item: ItemConst) -> Result<TokenStream> {
 
     let name = attr
         .rename
-        .rename(item.ident.to_string(), RenameRule::ScreamingSnake);
+        .rename(ident_to_php_name(&item.ident), RenameRule::ScreamingSnake);
+    validate_php_name(&name, PhpNameContext::Constant, item.ident.span())?;
     let name_ident = format_ident!("{INTERNAL_CONST_NAME_PREFIX}{}", item.ident);
 
     let docs = get_docs(&attr.attrs)?;

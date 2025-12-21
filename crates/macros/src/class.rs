@@ -5,7 +5,7 @@ use quote::{TokenStreamExt, quote};
 use syn::{Attribute, Expr, Fields, ItemStruct};
 
 use crate::helpers::get_docs;
-use crate::parsing::{PhpRename, RenameRule};
+use crate::parsing::{PhpNameContext, PhpRename, RenameRule, ident_to_php_name, validate_php_name};
 use crate::prelude::*;
 
 #[derive(FromAttributes, Debug, Default)]
@@ -44,7 +44,10 @@ impl ToTokens for ClassEntryAttribute {
 pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
     let attr = StructAttributes::from_attributes(&input.attrs)?;
     let ident = &input.ident;
-    let name = attr.rename.rename(ident.to_string(), RenameRule::Pascal);
+    let name = attr
+        .rename
+        .rename(ident_to_php_name(ident), RenameRule::Pascal);
+    validate_php_name(&name, PhpNameContext::Class, ident.span())?;
     let docs = get_docs(&attr.attrs)?;
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
@@ -97,7 +100,17 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
             let docs = get_docs(&attr.attrs)?;
             field.attrs.retain(|attr| !attr.path().is_ident("php"));
 
-            result.push(Property { ident, attr, docs });
+            let name = attr
+                .rename
+                .rename(ident_to_php_name(ident), RenameRule::Camel);
+            validate_php_name(&name, PhpNameContext::Property, ident.span())?;
+
+            result.push(Property {
+                ident,
+                name,
+                attr,
+                docs,
+            });
         }
     }
 
@@ -107,17 +120,12 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
 #[derive(Debug)]
 struct Property<'a> {
     pub ident: &'a syn::Ident,
+    pub name: String,
     pub attr: PropAttributes,
     pub docs: Vec<String>,
 }
 
 impl Property<'_> {
-    pub fn name(&self) -> String {
-        self.attr
-            .rename
-            .rename(self.ident.to_string(), RenameRule::Camel)
-    }
-
     pub fn is_static(&self) -> bool {
         self.attr.static_.is_present()
     }
@@ -143,7 +151,7 @@ fn generate_registered_class_impl(
 
     // Generate instance properties (with Rust handlers)
     let instance_fields = instance_props.iter().map(|prop| {
-        let name = prop.name();
+        let name = &prop.name;
         let field_ident = prop.ident;
         let flags = prop
             .attr
@@ -166,7 +174,7 @@ fn generate_registered_class_impl(
     // We combine the base flags with Static flag using from_bits_retain which is
     // const
     let static_fields = static_props.iter().map(|prop| {
-        let name = prop.name();
+        let name = &prop.name;
         let base_flags = prop
             .attr
             .flags

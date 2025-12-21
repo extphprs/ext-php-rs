@@ -6,6 +6,7 @@ use syn::{
     LifetimeParam, TypeGenerics, Variant, WhereClause, punctuated::Punctuated, token::Where,
 };
 
+use crate::parsing::ident_to_php_name;
 use crate::prelude::*;
 
 pub fn parser(input: DeriveInput) -> Result<TokenStream> {
@@ -106,7 +107,7 @@ fn parse_struct(
             let ident = field.ident.as_ref().ok_or_else(|| {
                 err!(field => "Fields require names when using the `#[derive(ZvalConvert)]` macro on a struct.")
             })?;
-            let field_name = ident.to_string();
+            let field_name = ident_to_php_name(ident);
 
             Ok(quote! {
                 obj.set_property(#field_name, self.#ident)?;
@@ -121,7 +122,7 @@ fn parse_struct(
             let ident = field.ident.as_ref().ok_or_else(|| {
                 err!(field => "Fields require names when using the `#[derive(ZvalConvert)]` macro on a struct.")
             })?;
-            let field_name = ident.to_string();
+            let field_name = ident_to_php_name(ident);
 
             Ok(quote! {
                 #ident: obj.get_property(#field_name)?,

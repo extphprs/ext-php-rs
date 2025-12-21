@@ -156,12 +156,12 @@ impl TestClassMethodVisibility {
     }
 
     #[php(vis = "private")]
-    fn private() -> u32 {
+    fn private_method() -> u32 {
         3
     }
 
     #[php(vis = "protected")]
-    fn protected() -> u32 {
+    fn protected_method() -> u32 {
         3
     }
 }

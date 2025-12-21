@@ -5,6 +5,7 @@ use syn::{
     spanned::Spanned as _, token::Unsafe,
 };
 
+use crate::parsing::ident_to_php_name;
 use crate::prelude::*;
 
 pub fn parser(input: ItemForeignMod) -> Result<TokenStream> {
@@ -27,7 +28,7 @@ fn parse_function(mut func: ForeignItemFn) -> Result<TokenStream> {
 
     let Signature { ident, .. } = &sig;
 
-    let name = ident.to_string();
+    let name = ident_to_php_name(ident);
     let params = sig
         .inputs
         .iter()

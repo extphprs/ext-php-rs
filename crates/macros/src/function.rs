@@ -7,7 +7,9 @@ use syn::spanned::Spanned as _;
 use syn::{Expr, FnArg, GenericArgument, ItemFn, PatType, PathArguments, Type, TypePath};
 
 use crate::helpers::get_docs;
-use crate::parsing::{PhpRename, RenameRule, Visibility};
+use crate::parsing::{
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+};
 use crate::prelude::*;
 use crate::syn_ext::DropLifetimes;
 
@@ -44,15 +46,11 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
 
     let docs = get_docs(&php_attr.attrs)?;
 
-    let func = Function::new(
-        &input.sig,
-        php_attr
-            .rename
-            .rename(input.sig.ident.to_string(), RenameRule::Snake),
-        args,
-        php_attr.optional,
-        docs,
-    );
+    let func_name = php_attr
+        .rename
+        .rename(ident_to_php_name(&input.sig.ident), RenameRule::Snake);
+    validate_php_name(&func_name, PhpNameContext::Function, input.sig.ident.span())?;
+    let func = Function::new(&input.sig, func_name, args, php_attr.optional, docs);
     let function_impl = func.php_function_impl();
 
     Ok(quote! {
@@ -625,7 +623,7 @@ impl TypedArg<'_> {
     /// Returns a token stream containing the `Arg` definition to be passed to
     /// `ext-php-rs`.
     fn arg_builder(&self) -> TokenStream {
-        let name = self.name.to_string();
+        let name = ident_to_php_name(self.name);
         let ty = self.clean_ty();
         let null = if self.nullable {
             Some(quote! { .allow_null() })
