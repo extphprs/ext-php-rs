@@ -493,7 +493,7 @@ impl<'a> Args<'a> {
 
                     // If the variable is `&[&Zval]` treat it as the variadic argument.
                     let default = defaults.remove(ident);
-                    let nullable = type_is_nullable(ty.as_ref(), default.is_some())?;
+                    let nullable = type_is_nullable(ty.as_ref())?;
                     let (variadic, as_ref, ty) = Self::parse_typed(ty);
                     result.typed.push(TypedArg {
                         name: ident,
@@ -570,18 +570,20 @@ impl<'a> Args<'a> {
     /// # Parameters
     ///
     /// * `optional` - The first optional argument. If [`None`], the optional
-    ///   arguments will be from the first nullable argument after the last
-    ///   non-nullable argument to the end of the arguments.
+    ///   arguments will be from the first optional argument (nullable or has
+    ///   default) after the last required argument to the end of the arguments.
     pub fn split_args(&self, optional: Option<&Ident>) -> (&[TypedArg<'a>], &[TypedArg<'a>]) {
         let mut mid = None;
         for (i, arg) in self.typed.iter().enumerate() {
+            // An argument is optional if it's nullable (Option<T>) or has a default value.
+            let is_optional = arg.nullable || arg.default.is_some();
             if let Some(optional) = optional {
                 if optional == arg.name {
                     mid.replace(i);
                 }
-            } else if mid.is_none() && arg.nullable {
+            } else if mid.is_none() && is_optional {
                 mid.replace(i);
-            } else if !arg.nullable {
+            } else if !is_optional {
                 mid.take();
             }
         }
@@ -659,8 +661,49 @@ impl TypedArg<'_> {
     fn accessor(&self, bail_fn: impl Fn(TokenStream) -> TokenStream) -> TokenStream {
         let name = self.name;
         if let Some(default) = &self.default {
-            quote! {
-                #name.val().unwrap_or(#default.into())
+            if self.nullable {
+                // For nullable types with defaults, null is acceptable
+                quote! {
+                    #name.val().unwrap_or(#default.into())
+                }
+            } else {
+                // For non-nullable types with defaults:
+                // - If argument was omitted: use default
+                // - If null was explicitly passed: throw TypeError
+                // - If a value was passed: try to convert it
+                let bail_null = bail_fn(quote! {
+                    ::ext_php_rs::exception::PhpException::new(
+                        concat!("Argument `$", stringify!(#name), "` must not be null").into(),
+                        0,
+                        ::ext_php_rs::zend::ce::type_error(),
+                    )
+                });
+                let bail_invalid = bail_fn(quote! {
+                    ::ext_php_rs::exception::PhpException::default(
+                        concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
+                    )
+                });
+                quote! {
+                    match #name.zval() {
+                        Some(zval) if zval.is_null() => {
+                            // Null was explicitly passed to a non-nullable parameter
+                            #bail_null
+                        }
+                        Some(_) => {
+                            // A value was passed, try to convert it
+                            match #name.val() {
+                                Some(val) => val,
+                                None => {
+                                    #bail_invalid
+                                }
+                            }
+                        }
+                        None => {
+                            // Argument was omitted, use default
+                            #default.into()
+                        }
+                    }
+                }
             }
         } else if self.variadic {
             let variadic_name = format_ident!("__variadic_{}", name);
@@ -692,21 +735,22 @@ impl TypedArg<'_> {
     }
 }
 
-/// Returns true of the given type is nullable in PHP.
+/// Returns true if the given type is nullable in PHP (i.e., it's an `Option<T>`).
+///
+/// Note: Having a default value does NOT make a type nullable. A parameter with
+/// a default value is optional (can be omitted), but passing `null` explicitly
+/// should still be rejected unless the type is `Option<T>`.
 // TODO(david): Eventually move to compile-time constants for this (similar to
 // FromZval::NULLABLE).
-pub fn type_is_nullable(ty: &Type, has_default: bool) -> Result<bool> {
+pub fn type_is_nullable(ty: &Type) -> Result<bool> {
     Ok(match ty {
-        syn::Type::Path(path) => {
-            has_default
-                || path
-                    .path
-                    .segments
-                    .iter()
-                    .next_back()
-                    .is_some_and(|seg| seg.ident == "Option")
-        }
-        syn::Type::Reference(_) => false, /* Reference cannot be nullable unless */
+        Type::Path(path) => path
+            .path
+            .segments
+            .iter()
+            .next_back()
+            .is_some_and(|seg| seg.ident == "Option"),
+        Type::Reference(_) => false, /* Reference cannot be nullable unless */
         // wrapped in `Option` (in that case it'd be a Path).
         _ => bail!(ty => "Unsupported argument type."),
     })

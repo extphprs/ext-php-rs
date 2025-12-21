@@ -22,11 +22,18 @@ pub fn test_defaults_multiple_option_arguments(
     Ok(a.or(b).unwrap_or_else(|| "Default".to_string()))
 }
 
+#[php_function]
+#[php(defaults(a = Some("fallback".to_string())))]
+pub fn test_defaults_nullable_with_some_default(a: Option<String>) -> Option<String> {
+    a
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_defaults_integer))
         .function(wrap_function!(test_defaults_nullable_string))
         .function(wrap_function!(test_defaults_multiple_option_arguments))
+        .function(wrap_function!(test_defaults_nullable_with_some_default))
 }
 
 #[cfg(test)]
