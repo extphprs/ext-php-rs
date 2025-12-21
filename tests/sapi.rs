@@ -166,7 +166,7 @@ fn test_sapi_multithread() {
                     Ok(zval) => {
                         assert!(zval.is_string());
                         let string = zval.string().unwrap();
-                        let output = string.to_string();
+                        let output = string.clone();
                         assert_eq!(output, format!("Hello, thread-{i}!"));
 
                         results.lock().unwrap().push((i, output));

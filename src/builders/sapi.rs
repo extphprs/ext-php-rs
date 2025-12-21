@@ -168,7 +168,8 @@ impl SapiBuilder {
     ///
     /// # Parameters
     ///
-    /// * `func` - The function to be called when PHP gets an environment variable.
+    /// * `func` - The function to be called when PHP gets an environment
+    ///   variable.
     pub fn getenv_function(mut self, func: SapiGetEnvFunc) -> Self {
         self.module.getenv = Some(func);
         self
@@ -196,7 +197,8 @@ impl SapiBuilder {
 
     /// Sets the send headers function for this SAPI
     ///
-    /// This function is called once when all headers are finalized and ready to send.
+    /// This function is called once when all headers are finalized and ready to
+    /// send.
     ///
     /// # Arguments
     ///
@@ -230,7 +232,8 @@ impl SapiBuilder {
     ///
     /// # Parameters
     ///
-    /// * `func` - The function to be called when PHP registers server variables.
+    /// * `func` - The function to be called when PHP registers server
+    ///   variables.
     pub fn register_server_variables_function(
         mut self,
         func: SapiRegisterServerVariablesFunc,
@@ -291,8 +294,8 @@ impl SapiBuilder {
 
     /// Sets the pre-request init function for this SAPI
     ///
-    /// This function is called before request activation and before POST data is read.
-    /// It is typically used for .user.ini processing.
+    /// This function is called before request activation and before POST data
+    /// is read. It is typically used for .user.ini processing.
     ///
     /// # Parameters
     ///
@@ -455,7 +458,8 @@ pub type SapiGetUidFunc = extern "C" fn(uid: *mut uid_t) -> c_int;
 /// A function to be called when PHP gets the gid
 pub type SapiGetGidFunc = extern "C" fn(gid: *mut gid_t) -> c_int;
 
-/// A function to be called before request activation (used for .user.ini processing)
+/// A function to be called before request activation (used for .user.ini
+/// processing)
 #[cfg(php85)]
 pub type SapiPreRequestInitFunc = extern "C" fn() -> c_int;
 
@@ -485,8 +489,9 @@ mod test {
     extern "C" fn test_getenv(_name: *const c_char, _name_length: usize) -> *mut c_char {
         ptr::null_mut()
     }
-    // Note: C-variadic functions are unstable in Rust, so we can't test this properly
-    // extern "C" fn test_sapi_error(_type: c_int, _error_msg: *const c_char, _args: ...) {}
+    // Note: C-variadic functions are unstable in Rust, so we can't test this
+    // properly extern "C" fn test_sapi_error(_type: c_int, _error_msg: *const
+    // c_char, _args: ...) {}
     extern "C" fn test_send_header(_header: *mut sapi_header_struct, _server_context: *mut c_void) {
     }
     extern "C" fn test_send_headers(_sapi_headers: *mut sapi_headers_struct) -> c_int {
@@ -633,9 +638,10 @@ mod test {
         );
     }
 
-    // Note: Cannot test sapi_error_function because C-variadic functions are unstable in Rust
-    // The sapi_error field accepts a function with variadic arguments which cannot be
-    // created in stable Rust. However, the builder method itself works correctly.
+    // Note: Cannot test sapi_error_function because C-variadic functions are
+    // unstable in Rust The sapi_error field accepts a function with variadic
+    // arguments which cannot be created in stable Rust. However, the builder
+    // method itself works correctly.
 
     #[test]
     fn test_send_header_function() {
