@@ -92,4 +92,5 @@ $mut_arr = ['x', 'y'];
 assert(test_optional_array_mut_ref($mut_arr) === 3, 'Option<&mut ZendHashTable> should accept variable array and add element');
 assert(array_key_exists('added_by_rust', $mut_arr), 'Rust should have added a key to the array');
 assert($mut_arr['added_by_rust'] === 'value', 'Added value should be correct');
-assert(test_optional_array_mut_ref(null) === -1, 'Option<&mut ZendHashTable> should accept null');
+$null_arr = null;
+assert(test_optional_array_mut_ref($null_arr) === -1, 'Option<&mut ZendHashTable> should accept null');

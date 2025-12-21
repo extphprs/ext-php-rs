@@ -14,8 +14,8 @@ use crate::{
     error::{Error, Result},
     ffi::{
         _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, ext_php_rs_zend_string_release,
-        zend_is_callable, zend_is_identical, zend_is_iterable, zend_resource, zend_value, zval,
-        zval_ptr_dtor,
+        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_resource,
+        zend_value, zval, zval_ptr_dtor,
     },
     flags::DataType,
     flags::ZvalTypeFlags,
@@ -224,9 +224,30 @@ impl Zval {
 
     /// Returns a mutable reference to the underlying zval hashtable if the zval
     /// contains an array.
+    ///
+    /// # Array Separation
+    ///
+    /// PHP arrays use copy-on-write (COW) semantics. Before returning a mutable
+    /// reference, this method checks if the array is shared (refcount > 1) and
+    /// if so, creates a private copy. This is equivalent to PHP's
+    /// `SEPARATE_ARRAY()` macro and prevents the "Assertion failed:
+    /// `zend_gc_refcount` == 1" error that occurs when modifying shared arrays.
     pub fn array_mut(&mut self) -> Option<&mut ZendHashTable> {
         if self.is_array() {
-            unsafe { self.value.arr.as_mut() }
+            unsafe {
+                let arr = self.value.arr;
+                // Check if the array is shared (refcount > 1)
+                // If so, we need to separate it (copy-on-write)
+                if (*arr).gc.refcount > 1 {
+                    // Decrement the refcount of the original array
+                    (*arr).gc.refcount -= 1;
+                    // Duplicate the array to get our own private copy
+                    let new_arr = zend_array_dup(arr);
+                    // Update the zval to point to the new array
+                    self.value.arr = new_arr;
+                }
+                self.value.arr.as_mut()
+            }
         } else {
             None
         }
