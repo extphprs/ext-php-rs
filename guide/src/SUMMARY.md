@@ -36,6 +36,7 @@
   - [`Attributes`](./macros/php.md)
 - [Exceptions](./exceptions.md)
 - [INI Settings](./ini-settings.md)
+- [Superglobals](./superglobals.md)
 
 # Advanced Topics
 
