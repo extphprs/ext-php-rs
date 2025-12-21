@@ -25,7 +25,24 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
     > {
         use ::std::iter::FromIterator;
-        ::std::collections::HashMap::from_iter([])
+        use ::ext_php_rs::internal::class::PhpClassImpl;
+        let mut props = ::std::collections::HashMap::from_iter([]);
+        let method_props = ::ext_php_rs::internal::class::PhpClassImplCollector::<
+            Self,
+        >::default()
+            .get_method_props();
+        for (name, prop) in method_props {
+            props
+                .insert(
+                    name,
+                    ::ext_php_rs::internal::property::PropertyInfo {
+                        prop,
+                        flags: ::ext_php_rs::flags::PropertyFlags::Public,
+                        docs: &[],
+                    },
+                );
+        }
+        props
     }
     #[inline]
     fn method_builders() -> ::std::vec::Vec<

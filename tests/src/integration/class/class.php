@@ -6,18 +6,18 @@ require(__DIR__ . '/../_utils.php');
 $class = test_class('lorem ipsum', 2022);
 assert($class instanceof TestClass);
 
-// Tests getter/setter
-assert($class->getString() === 'lorem ipsum');
-$class->setString('dolor et');
-assert($class->getString() === 'dolor et');
+// Tests getter/setter as properties (get_string -> $class->string property)
+assert($class->string === 'lorem ipsum');
+$class->string = 'dolor et';
+assert($class->string === 'dolor et');
 $class->selfRef("foo");
-assert($class->getString() === 'Changed to foo');
+assert($class->string === 'Changed to foo');
 $class->selfMultiRef("bar");
-assert($class->getString() === 'Changed to bar');
+assert($class->string === 'Changed to bar');
 
-assert($class->getNumber() === 2022);
-$class->setNumber(2023);
-assert($class->getNumber() === 2023);
+assert($class->number === 2022);
+$class->number = 2023;
+assert($class->number === 2023);
 
 var_dump($class);
 // Tests #prop decorator
@@ -51,3 +51,7 @@ assert($classReflection->getMethod('protected')->isProtected());
 
 $classReflection = new ReflectionClass(TestClassProtectedConstruct::class);
 assert($classReflection->getMethod('__construct')->isProtected());
+
+// Test issue #325 - returning &'static str from getter
+$staticStrClass = new TestClassStaticStrGetter();
+assert($staticStrClass->static_value === 'Hello from static str');
