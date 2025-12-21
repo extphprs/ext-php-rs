@@ -379,9 +379,9 @@ pub struct Property {
     pub default: Option<RString>,
 }
 
-impl From<(String, PropertyFlags, DocComments)> for Property {
-    fn from(value: (String, PropertyFlags, DocComments)) -> Self {
-        let (name, flags, docs) = value;
+impl<D> From<(String, PropertyFlags, D, DocComments)> for Property {
+    fn from(value: (String, PropertyFlags, D, DocComments)) -> Self {
+        let (name, flags, _default, docs) = value;
         let static_ = flags.contains(PropertyFlags::Static);
         let vis = Visibility::from(flags);
         // TODO: Implement ty #376
@@ -656,7 +656,7 @@ mod tests {
             .extends((|| todo!(), "BaseClass"))
             .implements((|| todo!(), "Interface1"))
             .implements((|| todo!(), "Interface2"))
-            .property("prop1", PropertyFlags::Public, &["doc1"])
+            .property("prop1", PropertyFlags::Public, None, &["doc1"])
             .method(
                 FunctionBuilder::new("test_function", test_function),
                 MethodFlags::Protected,
@@ -702,8 +702,13 @@ mod tests {
     #[test]
     fn test_property_from() {
         let docs: &'static [&'static str] = &["doc1", "doc2"];
-        let property: Property =
-            ("test_property".to_string(), PropertyFlags::Protected, docs).into();
+        let property: Property = (
+            "test_property".to_string(),
+            PropertyFlags::Protected,
+            (),
+            docs,
+        )
+            .into();
         assert_eq!(property.name, "test_property".into());
         assert_eq!(property.docs.0.len(), 2);
         assert_eq!(property.vis, Visibility::Protected);

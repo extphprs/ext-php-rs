@@ -51,12 +51,16 @@ extern crate proc_macro;
 /// publicly with the same name as the field. Property types must implement
 /// `IntoZval` and `FromZval`.
 ///
-/// You can rename the property with options:
+/// You can customize properties with these options:
 ///
-/// - `name` - Allows you to rename the property, e.g. `#[php(name =
+/// - `name` - Allows you to rename the property, e.g. `#[php(prop, name =
 ///   "new_name")]`
 /// - `change_case` - Allows you to rename the property using rename rules, e.g.
-///   `#[php(change_case = PascalCase)]`
+///   `#[php(prop, change_case = PascalCase)]`
+/// - `static` - Makes the property static (shared across all instances), e.g.
+///   `#[php(prop, static)]`
+/// - `flags` - Sets property visibility flags, e.g. `#[php(prop, flags =
+///   ext_php_rs::flags::PropertyFlags::Private)]`
 ///
 /// ## Restrictions
 ///
@@ -204,6 +208,72 @@ extern crate proc_macro;
 /// }
 /// # fn main() {}
 /// ````
+///
+/// ## Static Properties
+///
+/// Static properties are shared across all instances of a class. Use
+/// `#[php(prop, static)]` to declare a static property. Unlike instance
+/// properties, static properties are managed entirely by PHP and do not use
+/// Rust property handlers.
+///
+/// You can specify a default value using the `default` attribute:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::class::RegisteredClass;
+///
+/// #[php_class]
+/// pub struct Counter {
+///     #[php(prop)]
+///     pub instance_value: i32,
+///     #[php(prop, static, default = 0)]
+///     pub count: i32,
+///     #[php(prop, static, flags = ext_php_rs::flags::PropertyFlags::Private)]
+///     pub internal_state: String,
+/// }
+///
+/// #[php_impl]
+/// impl Counter {
+///     pub fn __construct(value: i32) -> Self {
+///         Self {
+///             instance_value: value,
+///             count: 0,
+///             internal_state: String::new(),
+///         }
+///     }
+///
+///     /// Increment the static counter from Rust
+///     pub fn increment() {
+///         let ce = Self::get_metadata().ce();
+///         let current: i64 = ce.get_static_property("count").unwrap_or(0);
+///         ce.set_static_property("count", current + 1).unwrap();
+///     }
+///
+///     /// Get the current count
+///     pub fn get_count() -> i64 {
+///         let ce = Self::get_metadata().ce();
+///         ce.get_static_property("count").unwrap_or(0)
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<Counter>()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// From PHP, you can access static properties directly on the class:
+///
+/// ```php
+/// // No need to initialize - count already has default value of 0
+/// Counter::increment();
+/// Counter::increment();
+/// echo Counter::$count; // 2
+/// echo Counter::getCount(); // 2
+/// ```
 // END DOCS FROM classes.md
 #[proc_macro_attribute]
 pub fn php_class(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -811,6 +881,34 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///
 /// The `#[php(defaults)]` and `#[php(optional)]` attributes operate the same as
 /// the equivalent function attribute parameters.
+///
+/// ### Static Methods
+///
+/// Methods that do not take a `&self` or `&mut self` parameter are
+/// automatically exported as static methods. These can be called on the class
+/// itself without creating an instance.
+///
+/// ```rust,ignore
+/// #[php_impl]
+/// impl MyClass {
+///     // Static method - no self parameter
+///     pub fn create_default() -> Self {
+///         Self { /* ... */ }
+///     }
+///
+///     // Instance method - takes &self
+///     pub fn get_value(&self) -> i32 {
+///         self.value
+///     }
+/// }
+/// ```
+///
+/// From PHP:
+///
+/// ```php
+/// $obj = MyClass::createDefault(); // Static call
+/// $val = $obj->getValue();         // Instance call
+/// ```
 ///
 /// ### Constructors
 ///

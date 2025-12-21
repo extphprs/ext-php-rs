@@ -18,6 +18,7 @@ use crate::{
 };
 
 type ConstantEntry = (String, Box<dyn FnOnce() -> Result<Zval>>, DocComments);
+type PropertyDefault = Option<Box<dyn FnOnce() -> Result<Zval>>>;
 
 /// Builder for registering a class in PHP.
 #[must_use]
@@ -28,7 +29,7 @@ pub struct ClassBuilder {
     pub(crate) interfaces: Vec<ClassEntryInfo>,
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
-    pub(crate) properties: Vec<(String, PropertyFlags, DocComments)>,
+    pub(crate) properties: Vec<(String, PropertyFlags, PropertyDefault, DocComments)>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry)>,
     pub(crate) docs: DocComments,
@@ -105,14 +106,16 @@ impl ClassBuilder {
     ///
     /// * `name` - The name of the property to add to the class.
     /// * `flags` - Flags relating to the property. See [`PropertyFlags`].
+    /// * `default` - Optional default value for the property.
     /// * `docs` - Documentation comments for the property.
     pub fn property<T: Into<String>>(
         mut self,
         name: T,
         flags: PropertyFlags,
+        default: PropertyDefault,
         docs: DocComments,
     ) -> Self {
-        self.properties.push((name.into(), flags, docs));
+        self.properties.push((name.into(), flags, default, docs));
         self
     }
 
@@ -356,13 +359,17 @@ impl ClassBuilder {
             unsafe { zend_do_implement_interface(class, ptr::from_ref(interface).cast_mut()) };
         }
 
-        for (name, flags, _) in self.properties {
+        for (name, flags, default, _) in self.properties {
+            let mut default_zval = match default {
+                Some(f) => f()?,
+                None => Zval::new(),
+            };
             unsafe {
                 zend_declare_property(
                     class,
                     CString::new(name.as_str())?.as_ptr(),
                     name.len() as _,
-                    &mut Zval::new(),
+                    &raw mut default_zval,
                     flags.bits().try_into()?,
                 );
             }
@@ -409,7 +416,7 @@ mod tests {
         assert_eq!(class.interfaces, vec![]);
         assert_eq!(class.methods.len(), 0);
         assert_eq!(class.object_override, None);
-        assert_eq!(class.properties, vec![]);
+        assert!(class.properties.is_empty());
         assert_eq!(class.constants.len(), 0);
         assert_eq!(class.register, None);
         assert_eq!(class.docs, &[] as DocComments);
@@ -438,15 +445,13 @@ mod tests {
 
     #[test]
     fn test_property() {
-        let class = ClassBuilder::new("Foo").property("bar", PropertyFlags::Public, &["Doc 1"]);
-        assert_eq!(
-            class.properties,
-            vec![(
-                "bar".to_string(),
-                PropertyFlags::Public,
-                &["Doc 1"] as DocComments
-            )]
-        );
+        let class =
+            ClassBuilder::new("Foo").property("bar", PropertyFlags::Public, None, &["Doc 1"]);
+        assert_eq!(class.properties.len(), 1);
+        assert_eq!(class.properties[0].0, "bar");
+        assert_eq!(class.properties[0].1, PropertyFlags::Public);
+        assert!(class.properties[0].2.is_none());
+        assert_eq!(class.properties[0].3, &["Doc 1"] as DocComments);
     }
 
     #[test]

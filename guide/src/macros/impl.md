@@ -50,6 +50,34 @@ The rest of the options are passed as separate attributes:
 The `#[php(defaults)]` and `#[php(optional)]` attributes operate the same as the
 equivalent function attribute parameters.
 
+### Static Methods
+
+Methods that do not take a `&self` or `&mut self` parameter are automatically
+exported as static methods. These can be called on the class itself without
+creating an instance.
+
+```rust,ignore
+#[php_impl]
+impl MyClass {
+    // Static method - no self parameter
+    pub fn create_default() -> Self {
+        Self { /* ... */ }
+    }
+
+    // Instance method - takes &self
+    pub fn get_value(&self) -> i32 {
+        self.value
+    }
+}
+```
+
+From PHP:
+
+```php
+$obj = MyClass::createDefault(); // Static call
+$val = $obj->getValue();         // Instance call
+```
+
 ### Constructors
 
 By default, if a class does not have a constructor, it is not constructable from

@@ -5,8 +5,8 @@ use crate::types::{ZendIterator, Zval};
 use crate::{
     boxed::ZBox,
     convert::{FromZval, IntoZval},
-    error::Result,
-    ffi::zend_class_entry,
+    error::{Error, Result},
+    ffi::{ZEND_RESULT_CODE_SUCCESS, zend_class_entry},
     flags::ClassFlags,
     types::{ZendObject, ZendStr},
     zend::ExecutorGlobals,
@@ -179,8 +179,9 @@ impl ClassEntry {
     ///
     /// # Errors
     ///
-    /// Returns an error if the property name contains a null byte, or if the
-    /// value could not be converted to a Zval.
+    /// Returns an error if the property name contains a null byte, if the
+    /// value could not be converted to a Zval, or if the property could not
+    /// be updated (e.g., the property does not exist).
     ///
     /// # Example
     ///
@@ -193,15 +194,19 @@ impl ClassEntry {
     pub fn set_static_property<T: IntoZval>(&self, name: &str, value: T) -> Result<()> {
         let name = CString::new(name)?;
         let mut zval = value.into_zval(false)?;
-        unsafe {
+        let result = unsafe {
             crate::ffi::zend_update_static_property(
                 ptr::from_ref(self).cast_mut(),
                 name.as_ptr(),
                 name.as_bytes().len(),
                 &raw mut zval,
-            );
+            )
+        };
+        if result == ZEND_RESULT_CODE_SUCCESS {
+            Ok(())
+        } else {
+            Err(Error::InvalidProperty)
         }
-        Ok(())
     }
 }
 

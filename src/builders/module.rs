@@ -252,10 +252,14 @@ impl ModuleBuilder<'_> {
                     .expect("Failed to register constant");
             }
             for (name, prop_info) in T::get_properties() {
-                builder = builder.property(name, prop_info.flags, prop_info.docs);
+                builder = builder.property(name, prop_info.flags, None, prop_info.docs);
             }
-            for (name, flags, docs) in T::static_properties() {
-                builder = builder.property(*name, *flags, docs);
+            for (name, flags, default, docs) in T::static_properties() {
+                let default_fn = default.map(|v| {
+                    Box::new(move || v.as_zval(true))
+                        as Box<dyn FnOnce() -> crate::error::Result<crate::types::Zval>>
+                });
+                builder = builder.property(*name, *flags, default_fn, docs);
             }
             if let Some(modifier) = T::BUILDER_MODIFIER {
                 builder = modifier(builder);

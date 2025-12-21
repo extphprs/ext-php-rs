@@ -2109,6 +2109,22 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn zend_update_static_property(
+        scope: *mut zend_class_entry,
+        name: *const ::std::os::raw::c_char,
+        name_length: usize,
+        value: *mut zval,
+    ) -> zend_result;
+}
+unsafe extern "C" {
+    pub fn zend_read_static_property(
+        scope: *mut zend_class_entry,
+        name: *const ::std::os::raw::c_char,
+        name_length: usize,
+        silent: bool,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
     pub fn object_properties_init(object: *mut zend_object, class_type: *mut zend_class_entry);
 }
 unsafe extern "C" {

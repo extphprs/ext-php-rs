@@ -81,6 +81,7 @@ struct PropAttributes {
     #[darling(flatten)]
     rename: PhpRename,
     flags: Option<Expr>,
+    default: Option<Expr>,
     attrs: Vec<Attribute>,
 }
 
@@ -123,7 +124,7 @@ impl Property<'_> {
 }
 
 /// Generates an implementation of `RegisteredClass` for struct `ident`.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn generate_registered_class_impl(
     ident: &syn::Ident,
     class_name: &str,
@@ -162,7 +163,8 @@ fn generate_registered_class_impl(
     });
 
     // Generate static properties (PHP-managed, no Rust handlers)
-    // We combine the base flags with Static flag using from_bits_retain which is const
+    // We combine the base flags with Static flag using from_bits_retain which is
+    // const
     let static_fields = static_props.iter().map(|prop| {
         let name = prop.name();
         let base_flags = prop
@@ -173,11 +175,18 @@ fn generate_registered_class_impl(
             .unwrap_or(quote! { ::ext_php_rs::flags::PropertyFlags::Public });
         let docs = &prop.docs;
 
+        // Handle default value - if provided, wrap in Some(&value), otherwise None
+        let default_value = if let Some(expr) = &prop.attr.default {
+            quote! { ::std::option::Option::Some(&#expr as &'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)) }
+        } else {
+            quote! { ::std::option::Option::None }
+        };
+
         // Use from_bits_retain to combine flags in a const context
         quote! {
             (#name, ::ext_php_rs::flags::PropertyFlags::from_bits_retain(
                 (#base_flags).bits() | ::ext_php_rs::flags::PropertyFlags::Static.bits()
-            ), &[#(#docs,)*] as &[&str])
+            ), #default_value, &[#(#docs,)*] as &[&str])
         }
     });
 
@@ -240,8 +249,8 @@ fn generate_registered_class_impl(
             }
 
             #[must_use]
-            fn static_properties() -> &'static [(&'static str, ::ext_php_rs::flags::PropertyFlags, &'static [&'static str])] {
-                static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, &[&str])] = &[#(#static_fields,)*];
+            fn static_properties() -> &'static [(&'static str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &'static [&'static str])] {
+                static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &[&str])] = &[#(#static_fields,)*];
                 STATIC_PROPS
             }
 
