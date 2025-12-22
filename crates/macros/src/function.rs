@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use darling::{FromAttributes, ToTokens};
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned as _;
 use syn::{Expr, FnArg, GenericArgument, ItemFn, PatType, PathArguments, Type, TypePath};
 
@@ -10,6 +10,37 @@ use crate::helpers::get_docs;
 use crate::parsing::{PhpRename, RenameRule, Visibility};
 use crate::prelude::*;
 use crate::syn_ext::DropLifetimes;
+
+/// Checks if the return type is a reference to Self (`&Self` or `&mut Self`).
+/// This is used to detect methods that return `$this` in PHP.
+fn returns_self_ref(output: Option<&Type>) -> bool {
+    let Some(ty) = output else {
+        return false;
+    };
+    if let Type::Reference(ref_) = ty
+        && let Type::Path(path) = &*ref_.elem
+        && path.path.segments.len() == 1
+        && let Some(segment) = path.path.segments.last()
+    {
+        return segment.ident == "Self";
+    }
+    false
+}
+
+/// Checks if the return type is `Self` (not a reference).
+/// This is used to detect methods that return a new instance of the same class.
+fn returns_self(output: Option<&Type>) -> bool {
+    let Some(ty) = output else {
+        return false;
+    };
+    if let Type::Path(path) = ty
+        && path.path.segments.len() == 1
+        && let Some(segment) = path.path.segments.last()
+    {
+        return segment.ident == "Self";
+    }
+    false
+}
 
 pub fn wrap(input: &syn::Path) -> Result<TokenStream> {
     let Some(func_name) = input.get_ident() else {
@@ -145,7 +176,7 @@ impl<'a> Function<'a> {
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
 
-        let returns = self.build_returns();
+        let returns = self.build_returns(None);
         let docs = if self.docs.is_empty() {
             quote! {}
         } else {
@@ -166,7 +197,7 @@ impl<'a> Function<'a> {
     }
 
     /// Generates the function builder for the function.
-    pub fn function_builder(&self, call_type: CallType) -> TokenStream {
+    pub fn function_builder(&self, call_type: &CallType) -> TokenStream {
         let name = &self.name;
         let (required, not_required) = self.args.split_args(self.optional.as_ref());
 
@@ -188,7 +219,7 @@ impl<'a> Function<'a> {
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
 
-        let returns = self.build_returns();
+        let returns = self.build_returns(Some(call_type));
         let result = self.build_result(call_type, required, not_required);
         let docs = if self.docs.is_empty() {
             quote! {}
@@ -199,6 +230,62 @@ impl<'a> Function<'a> {
             }
         };
 
+        // Static methods cannot return &Self or &mut Self
+        if returns_self_ref(self.output)
+            && let CallType::Method {
+                receiver: MethodReceiver::Static,
+                ..
+            } = call_type
+            && let Some(output) = self.output
+        {
+            return quote_spanned! { output.span() =>
+                compile_error!(
+                    "Static methods cannot return `&Self` or `&mut Self`. \
+                     Only instance methods can use fluent interface pattern returning `$this`."
+                )
+            };
+        }
+
+        // Check if this method returns &Self or &mut Self
+        // In that case, we need to return `this` (the ZendClassObject) directly
+        let returns_this = returns_self_ref(self.output)
+            && matches!(
+                call_type,
+                CallType::Method {
+                    receiver: MethodReceiver::Class | MethodReceiver::ZendClassObject,
+                    ..
+                }
+            );
+
+        let handler_body = if returns_this {
+            quote! {
+                use ::ext_php_rs::convert::IntoZval;
+
+                #(#arg_declarations)*
+                #result
+
+                // The method returns &Self or &mut Self, use `this` directly
+                if let Err(e) = this.set_zval(retval, false) {
+                    let e: ::ext_php_rs::exception::PhpException = e.into();
+                    e.throw().expect("Failed to throw PHP exception.");
+                }
+            }
+        } else {
+            quote! {
+                use ::ext_php_rs::convert::IntoZval;
+
+                #(#arg_declarations)*
+                let result = {
+                    #result
+                };
+
+                if let Err(e) = result.set_zval(retval, false) {
+                    let e: ::ext_php_rs::exception::PhpException = e.into();
+                    e.throw().expect("Failed to throw PHP exception.");
+                }
+            }
+        };
+
         quote! {
             ::ext_php_rs::builders::FunctionBuilder::new(#name, {
                 ::ext_php_rs::zend_fastcall! {
@@ -206,17 +293,7 @@ impl<'a> Function<'a> {
                         ex: &mut ::ext_php_rs::zend::ExecuteData,
                         retval: &mut ::ext_php_rs::types::Zval,
                     ) {
-                        use ::ext_php_rs::convert::IntoZval;
-
-                        #(#arg_declarations)*
-                        let result = {
-                            #result
-                        };
-
-                        if let Err(e) = result.set_zval(retval, false) {
-                            let e: ::ext_php_rs::exception::PhpException = e.into();
-                            e.throw().expect("Failed to throw PHP exception.");
-                        }
+                        #handler_body
                     }
                 }
                 handler
@@ -229,9 +306,38 @@ impl<'a> Function<'a> {
         }
     }
 
-    fn build_returns(&self) -> Option<TokenStream> {
+    fn build_returns(&self, call_type: Option<&CallType>) -> Option<TokenStream> {
         self.output.cloned().map(|mut output| {
             output.drop_lifetimes();
+
+            // If returning &Self or &mut Self from a method, use the class type
+            // for return type information since we return `this` (ZendClassObject)
+            if returns_self_ref(self.output)
+                && let Some(CallType::Method { class, .. }) = call_type
+            {
+                return quote! {
+                    .returns(
+                        <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::TYPE,
+                        false,
+                        <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    )
+                };
+            }
+
+            // If returning Self (new instance) from a method, replace Self with
+            // the actual class type since Self won't resolve in generated code
+            if returns_self(self.output)
+                && let Some(CallType::Method { class, .. }) = call_type
+            {
+                return quote! {
+                    .returns(
+                        <#class as ::ext_php_rs::convert::IntoZval>::TYPE,
+                        false,
+                        <#class as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    )
+                };
+            }
+
             quote! {
                 .returns(
                     <#output as ::ext_php_rs::convert::IntoZval>::TYPE,
@@ -244,7 +350,7 @@ impl<'a> Function<'a> {
 
     fn build_result(
         &self,
-        call_type: CallType,
+        call_type: &CallType,
         required: &[TypedArg<'_>],
         not_required: &[TypedArg<'_>],
     ) -> TokenStream {
@@ -273,6 +379,9 @@ impl<'a> Function<'a> {
                 }
             })
         });
+
+        // Check if this method returns &Self or &mut Self
+        let returns_this = returns_self_ref(self.output);
 
         match call_type {
             CallType::Function => quote! {
@@ -306,15 +415,33 @@ impl<'a> Function<'a> {
                         };
                     },
                 };
-                let call = match receiver {
-                    MethodReceiver::Static => {
+
+                // When returning &Self or &mut Self, discard the return value
+                // (we'll use `this` directly in the handler)
+                let call = match (receiver, returns_this) {
+                    (MethodReceiver::Static, _) => {
                         quote! { #class::#ident(#({#arg_accessors}),*) }
                     }
-                    MethodReceiver::Class => quote! { this.#ident(#({#arg_accessors}),*) },
-                    MethodReceiver::ZendClassObject => {
+                    (MethodReceiver::Class, true) => {
+                        quote! { let _ = this.#ident(#({#arg_accessors}),*); }
+                    }
+                    (MethodReceiver::Class, false) => {
+                        quote! { this.#ident(#({#arg_accessors}),*) }
+                    }
+                    (MethodReceiver::ZendClassObject, true) => {
+                        // Explicit scope helps with mutable borrow lifetime when
+                        // the method returns `&mut Self`
+                        quote! {
+                            {
+                                let _ = #class::#ident(this, #({#arg_accessors}),*);
+                            }
+                        }
+                    }
+                    (MethodReceiver::ZendClassObject, false) => {
                         quote! { #class::#ident(this, #({#arg_accessors}),*) }
                     }
                 };
+
                 quote! {
                     #this
                     let parse_result = parse
@@ -336,7 +463,7 @@ impl<'a> Function<'a> {
     /// Generates a struct and impl for the `PhpFunction` trait.
     pub fn php_function_impl(&self) -> TokenStream {
         let internal_ident = self.internal_ident();
-        let builder = self.function_builder(CallType::Function);
+        let builder = self.function_builder(&CallType::Function);
 
         quote! {
             #[doc(hidden)]

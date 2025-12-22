@@ -241,7 +241,7 @@ impl<'a> ParsedImpl<'a> {
                             modifiers.insert(MethodModifier::Abstract);
                         }
 
-                        let builder = func.function_builder(call_type);
+                        let builder = func.function_builder(&call_type);
 
                         self.functions.push(FnBuilder {
                             builder,

@@ -58,6 +58,15 @@ impl TestClass {
         self_.string = format!("Changed to {val}");
         self_
     }
+
+    /// Returns a new instance with a different string (tests returning Self)
+    pub fn with_string(&self, string: String) -> Self {
+        Self {
+            string,
+            number: self.number,
+            boolean_prop: self.boolean_prop,
+        }
+    }
 }
 
 #[php_function]
@@ -223,6 +232,51 @@ impl TestStaticProps {
     }
 }
 
+/// Test class for returning $this (Issue #502)
+/// This demonstrates returning &mut Self from methods for fluent interfaces
+#[php_class]
+pub struct FluentBuilder {
+    value: i32,
+    name: String,
+}
+
+#[php_impl]
+impl FluentBuilder {
+    pub fn __construct() -> Self {
+        Self {
+            value: 0,
+            name: String::new(),
+        }
+    }
+
+    /// Set value and return $this for method chaining
+    pub fn set_value(&mut self, value: i32) -> &mut Self {
+        self.value = value;
+        self
+    }
+
+    /// Set name and return $this for method chaining
+    pub fn set_name(&mut self, name: String) -> &mut Self {
+        self.name = name;
+        self
+    }
+
+    /// Get the current value
+    pub fn get_value(&self) -> i32 {
+        self.value
+    }
+
+    /// Get the current name
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    /// Test returning &Self (immutable reference to self)
+    pub fn get_self(&self) -> &Self {
+        self
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<TestClass>()
@@ -232,6 +286,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassMethodVisibility>()
         .class::<TestClassProtectedConstruct>()
         .class::<TestStaticProps>()
+        .class::<FluentBuilder>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }

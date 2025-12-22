@@ -15,6 +15,13 @@ assert($class->getString() === 'Changed to foo');
 $class->selfMultiRef("bar");
 assert($class->getString() === 'Changed to bar');
 
+// Test method returning Self (new instance)
+$newClass = $class->withString('new string');
+assert($newClass instanceof TestClass, 'withString should return TestClass instance');
+assert($newClass->getString() === 'new string', 'new instance should have new string');
+assert($class->getString() === 'Changed to bar', 'original instance should be unchanged');
+assert($newClass !== $class, 'should be different instances');
+
 assert($class->getNumber() === 2022);
 $class->setNumber(2023);
 assert($class->getNumber() === 2023);
@@ -94,3 +101,24 @@ assert(TestStaticProps::getCounter() === 50, 'Rust should see PHP-set value');
 
 TestStaticProps::setCounter(100);
 assert(TestStaticProps::$staticCounter === 100, 'PHP should see Rust-set value');
+
+// Test FluentBuilder - returning $this for method chaining (Issue #502)
+$builder = new FluentBuilder();
+assert($builder->getValue() === 0);
+assert($builder->getName() === '');
+
+// Test single method call returning $this
+$result = $builder->setValue(42);
+assert($result === $builder, 'setValue should return $this');
+assert($builder->getValue() === 42);
+
+// Test fluent interface / method chaining
+$builder2 = new FluentBuilder();
+$chainResult = $builder2->setValue(100)->setName('test');
+assert($chainResult === $builder2, 'Chained methods should return $this');
+assert($builder2->getValue() === 100);
+assert($builder2->getName() === 'test');
+
+// Test returning &Self (immutable reference)
+$selfRef = $builder2->getSelf();
+assert($selfRef === $builder2, 'getSelf should return $this');
