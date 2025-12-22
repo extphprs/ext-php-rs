@@ -112,10 +112,11 @@ fn generate_bindings(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<S
     // Add macOS SDK path for system headers (stdlib.h, etc.)
     // Required for libclang 19+ with preserve_none calling convention support
     #[cfg(target_os = "macos")]
-    if let Ok(sdk_path) = std::process::Command::new("xcrun")
+    if let Some(sdk_path) = std::process::Command::new("xcrun")
         .args(["--show-sdk-path"])
         .output()
-        && sdk_path.status.success()
+        .ok()
+        .filter(|output| output.status.success())
     {
         let path = String::from_utf8_lossy(&sdk_path.stdout);
         let path = path.trim();
