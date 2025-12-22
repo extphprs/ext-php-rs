@@ -4,6 +4,8 @@
 
 use std::{convert::TryInto, ffi::c_void, fmt::Debug, ptr};
 
+use cfg_if::cfg_if;
+
 use crate::types::ZendIterator;
 use crate::types::iterable::Iterable;
 use crate::{
@@ -14,8 +16,8 @@ use crate::{
     error::{Error, Result},
     ffi::{
         _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, ext_php_rs_zend_string_release,
-        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_resource,
-        zend_value, zval, zval_ptr_dtor,
+        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_is_true,
+        zend_resource, zend_value, zval, zval_ptr_dtor,
     },
     flags::DataType,
     flags::ZvalTypeFlags,
@@ -530,6 +532,231 @@ impl Zval {
         )
     }
 
+    // =========================================================================
+    // Type Coercion Methods
+    // =========================================================================
+    //
+    // These methods convert the zval's value to a different type following
+    // PHP's type coercion rules. Unlike the mutating `coerce_into_*` methods
+    // in some implementations, these are pure functions that return a new value.
+
+    /// Coerces the value to a boolean following PHP's type coercion rules.
+    ///
+    /// This uses PHP's internal `zend_is_true` function to determine the
+    /// boolean value, which handles all PHP types correctly:
+    /// - `null` → `false`
+    /// - `false` → `false`, `true` → `true`
+    /// - `0`, `0.0`, `""`, `"0"` → `false`
+    /// - Empty arrays → `false`
+    /// - Everything else → `true`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_long(0);
+    /// assert_eq!(zv.coerce_to_bool(), false);
+    ///
+    /// zv.set_long(42);
+    /// assert_eq!(zv.coerce_to_bool(), true);
+    /// ```
+    #[must_use]
+    pub fn coerce_to_bool(&self) -> bool {
+        cfg_if! {
+            if #[cfg(php84)] {
+                let ptr: *const Self = self;
+                unsafe { zend_is_true(ptr) }
+            } else {
+                // Pre-PHP 8.5: zend_is_true takes *mut and returns c_int
+                let ptr = self as *const Self as *mut Self;
+                unsafe { zend_is_true(ptr) != 0 }
+            }
+        }
+    }
+
+    /// Coerces the value to a string following PHP's type coercion rules.
+    ///
+    /// Returns `None` for types that cannot be meaningfully converted to strings
+    /// (arrays, resources, objects without `__toString`).
+    ///
+    /// Conversion rules:
+    /// - Strings → returned as-is
+    /// - Integers → decimal string representation
+    /// - Floats → string representation (may use scientific notation for very
+    ///   large/small values)
+    /// - `true` → `"1"`, `false` → `""`
+    /// - `null` → `""`
+    /// - Objects with `__toString()` → result of calling `__toString()`
+    /// - Arrays, resources, objects without `__toString()` → `None`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_long(42);
+    /// assert_eq!(zv.coerce_to_string(), Some("42".to_string()));
+    ///
+    /// zv.set_bool(true);
+    /// assert_eq!(zv.coerce_to_string(), Some("1".to_string()));
+    /// ```
+    #[must_use]
+    pub fn coerce_to_string(&self) -> Option<String> {
+        // Already a string
+        if let Some(s) = self.str() {
+            return Some(s.to_string());
+        }
+
+        // Boolean
+        if let Some(b) = self.bool() {
+            return Some(if b { "1".to_string() } else { String::new() });
+        }
+
+        // Null
+        if self.is_null() {
+            return Some(String::new());
+        }
+
+        // Integer
+        if let Some(l) = self.long() {
+            return Some(l.to_string());
+        }
+
+        // Float
+        if let Some(d) = self.double() {
+            return Some(d.to_string());
+        }
+
+        // Object with __toString
+        if let Some(obj) = self.object()
+            && let Ok(result) = obj.try_call_method("__toString", vec![])
+        {
+            return result.str().map(ToString::to_string);
+        }
+
+        // Arrays, resources, and objects without __toString cannot be converted
+        None
+    }
+
+    /// Coerces the value to an integer following PHP's type coercion rules.
+    ///
+    /// Returns `None` for types that cannot be meaningfully converted to integers
+    /// (arrays, resources, objects).
+    ///
+    /// Conversion rules:
+    /// - Integers → returned as-is
+    /// - Floats → truncated toward zero
+    /// - `true` → `1`, `false` → `0`
+    /// - `null` → `0`
+    /// - Strings → parsed as integer (leading numeric portion, or 0 if
+    ///   non-numeric)
+    /// - Arrays, resources, objects → `None`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_string("42abc", false);
+    /// assert_eq!(zv.coerce_to_long(), Some(42));
+    ///
+    /// zv.set_double(3.7);
+    /// assert_eq!(zv.coerce_to_long(), Some(3));
+    /// ```
+    #[must_use]
+    pub fn coerce_to_long(&self) -> Option<ZendLong> {
+        // Already an integer
+        if let Some(l) = self.long() {
+            return Some(l);
+        }
+
+        // Boolean
+        if let Some(b) = self.bool() {
+            return Some(ZendLong::from(b));
+        }
+
+        // Null
+        if self.is_null() {
+            return Some(0);
+        }
+
+        // Float - truncate toward zero
+        if let Some(d) = self.double() {
+            #[allow(clippy::cast_possible_truncation)]
+            return Some(d as ZendLong);
+        }
+
+        // String - parse leading numeric portion
+        if let Some(s) = self.str() {
+            return Some(parse_long_from_str(s));
+        }
+
+        // Arrays, resources, objects cannot be converted
+        None
+    }
+
+    /// Coerces the value to a float following PHP's type coercion rules.
+    ///
+    /// Returns `None` for types that cannot be meaningfully converted to floats
+    /// (arrays, resources, objects).
+    ///
+    /// Conversion rules:
+    /// - Floats → returned as-is
+    /// - Integers → converted to float
+    /// - `true` → `1.0`, `false` → `0.0`
+    /// - `null` → `0.0`
+    /// - Strings → parsed as float (leading numeric portion, or 0.0 if
+    ///   non-numeric)
+    /// - Arrays, resources, objects → `None`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_string("3.14abc", false);
+    /// assert_eq!(zv.coerce_to_double(), Some(3.14));
+    ///
+    /// zv.set_long(42);
+    /// assert_eq!(zv.coerce_to_double(), Some(42.0));
+    /// ```
+    #[must_use]
+    pub fn coerce_to_double(&self) -> Option<f64> {
+        // Already a float
+        if let Some(d) = self.double() {
+            return Some(d);
+        }
+
+        // Integer
+        if let Some(l) = self.long() {
+            #[allow(clippy::cast_precision_loss)]
+            return Some(l as f64);
+        }
+
+        // Boolean
+        if let Some(b) = self.bool() {
+            return Some(if b { 1.0 } else { 0.0 });
+        }
+
+        // Null
+        if self.is_null() {
+            return Some(0.0);
+        }
+
+        // String - parse leading numeric portion
+        if let Some(s) = self.str() {
+            return Some(parse_double_from_str(s));
+        }
+
+        // Arrays, resources, objects cannot be converted
+        None
+    }
+
     /// Sets the value of the zval as a string. Returns nothing in a result when
     /// successful.
     ///
@@ -880,8 +1107,102 @@ impl<'a> FromZvalMut<'a> for &'a mut Zval {
     }
 }
 
+/// Parses an integer from a string following PHP's type coercion rules.
+///
+/// PHP extracts the leading numeric portion of a string:
+/// - `"42"` → 42
+/// - `"42abc"` → 42
+/// - `"  42"` → 42 (leading whitespace is skipped)
+/// - `"-42"` → -42
+/// - `"abc"` → 0
+/// - `""` → 0
+fn parse_long_from_str(s: &str) -> ZendLong {
+    let s = s.trim_start();
+    if s.is_empty() {
+        return 0;
+    }
+
+    // Find the end of the numeric portion
+    let mut chars = s.chars().peekable();
+    let mut num_str = String::new();
+
+    // Handle optional sign
+    if let Some(&c) = chars.peek()
+        && (c == '-' || c == '+')
+    {
+        num_str.push(c);
+        chars.next();
+    }
+
+    // Collect digits
+    for c in chars {
+        if c.is_ascii_digit() {
+            num_str.push(c);
+        } else {
+            break;
+        }
+    }
+
+    // Parse or return 0
+    num_str.parse().unwrap_or(0)
+}
+
+/// Parses a float from a string following PHP's type coercion rules.
+///
+/// PHP extracts the leading numeric portion of a string:
+/// - `"3.14"` → 3.14
+/// - `"3.14abc"` → 3.14
+/// - `"  3.14"` → 3.14 (leading whitespace is skipped)
+/// - `"-3.14"` → -3.14
+/// - `"1e10"` → 1e10 (scientific notation)
+/// - `"abc"` → 0.0
+/// - `""` → 0.0
+fn parse_double_from_str(s: &str) -> f64 {
+    let s = s.trim_start();
+    if s.is_empty() {
+        return 0.0;
+    }
+
+    // Find the end of the numeric portion (including decimal point and exponent)
+    let mut chars = s.chars().peekable();
+    let mut num_str = String::new();
+    let mut has_decimal = false;
+    let mut has_exponent = false;
+
+    // Handle optional sign
+    if let Some(&c) = chars.peek()
+        && (c == '-' || c == '+')
+    {
+        num_str.push(c);
+        chars.next();
+    }
+
+    // Collect digits, decimal point, and exponent
+    for c in chars {
+        if c.is_ascii_digit() {
+            num_str.push(c);
+        } else if c == '.' && !has_decimal && !has_exponent {
+            has_decimal = true;
+            num_str.push(c);
+        } else if (c == 'e' || c == 'E') && !has_exponent && !num_str.is_empty() {
+            has_exponent = true;
+            num_str.push(c);
+            // Handle optional sign after exponent - we need to peek at the next char
+            // Since we consumed c, we continue and handle sign in next iteration
+        } else if (c == '-' || c == '+') && has_exponent && num_str.ends_with(['e', 'E']) {
+            num_str.push(c);
+        } else {
+            break;
+        }
+    }
+
+    // Parse or return 0.0
+    num_str.parse().unwrap_or(0.0)
+}
+
 #[cfg(test)]
 #[cfg(feature = "embed")]
+#[allow(clippy::unwrap_used, clippy::approx_constant)]
 mod tests {
     use super::*;
     use crate::embed::Embed;
@@ -927,5 +1248,205 @@ mod tests {
             let zval_array = Zval::new_array();
             assert!(!zval_array.is_scalar());
         });
+    }
+
+    #[test]
+    fn test_coerce_to_bool() {
+        Embed::run(|| {
+            // Test truthy values
+            let mut zv = Zval::new();
+            zv.set_long(42);
+            assert!(zv.coerce_to_bool());
+
+            zv.set_long(1);
+            assert!(zv.coerce_to_bool());
+
+            zv.set_long(-1);
+            assert!(zv.coerce_to_bool());
+
+            zv.set_double(0.1);
+            assert!(zv.coerce_to_bool());
+
+            zv.set_string("hello", false).unwrap();
+            assert!(zv.coerce_to_bool());
+
+            zv.set_string("1", false).unwrap();
+            assert!(zv.coerce_to_bool());
+
+            zv.set_bool(true);
+            assert!(zv.coerce_to_bool());
+
+            // Test falsy values
+            zv.set_long(0);
+            assert!(!zv.coerce_to_bool());
+
+            zv.set_double(0.0);
+            assert!(!zv.coerce_to_bool());
+
+            zv.set_string("", false).unwrap();
+            assert!(!zv.coerce_to_bool());
+
+            zv.set_string("0", false).unwrap();
+            assert!(!zv.coerce_to_bool());
+
+            zv.set_bool(false);
+            assert!(!zv.coerce_to_bool());
+
+            let null_zv = Zval::null();
+            assert!(!null_zv.coerce_to_bool());
+
+            let empty_array = Zval::new_array();
+            assert!(!empty_array.coerce_to_bool());
+        });
+    }
+
+    #[test]
+    fn test_coerce_to_string() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // Integer to string
+            zv.set_long(42);
+            assert_eq!(zv.coerce_to_string(), Some("42".to_string()));
+
+            zv.set_long(-123);
+            assert_eq!(zv.coerce_to_string(), Some("-123".to_string()));
+
+            // Float to string
+            zv.set_double(3.14);
+            assert_eq!(zv.coerce_to_string(), Some("3.14".to_string()));
+
+            // Boolean to string
+            zv.set_bool(true);
+            assert_eq!(zv.coerce_to_string(), Some("1".to_string()));
+
+            zv.set_bool(false);
+            assert_eq!(zv.coerce_to_string(), Some(String::new()));
+
+            // Null to string
+            let null_zv = Zval::null();
+            assert_eq!(null_zv.coerce_to_string(), Some(String::new()));
+
+            // String unchanged
+            zv.set_string("hello", false).unwrap();
+            assert_eq!(zv.coerce_to_string(), Some("hello".to_string()));
+
+            // Array cannot be converted
+            let arr_zv = Zval::new_array();
+            assert_eq!(arr_zv.coerce_to_string(), None);
+        });
+    }
+
+    #[test]
+    fn test_coerce_to_long() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // Integer unchanged
+            zv.set_long(42);
+            assert_eq!(zv.coerce_to_long(), Some(42));
+
+            // Float truncated
+            zv.set_double(3.7);
+            assert_eq!(zv.coerce_to_long(), Some(3));
+
+            zv.set_double(-3.7);
+            assert_eq!(zv.coerce_to_long(), Some(-3));
+
+            // Boolean to integer
+            zv.set_bool(true);
+            assert_eq!(zv.coerce_to_long(), Some(1));
+
+            zv.set_bool(false);
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // Null to integer
+            let null_zv = Zval::null();
+            assert_eq!(null_zv.coerce_to_long(), Some(0));
+
+            // String to integer (leading numeric portion)
+            zv.set_string("42", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(42));
+
+            zv.set_string("42abc", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(42));
+
+            zv.set_string("  -123", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(-123));
+
+            zv.set_string("abc", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // Array cannot be converted
+            let arr_zv = Zval::new_array();
+            assert_eq!(arr_zv.coerce_to_long(), None);
+        });
+    }
+
+    #[test]
+    fn test_coerce_to_double() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // Float unchanged
+            zv.set_double(3.14);
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            // Integer to float
+            zv.set_long(42);
+            assert!((zv.coerce_to_double().unwrap() - 42.0).abs() < f64::EPSILON);
+
+            // Boolean to float
+            zv.set_bool(true);
+            assert!((zv.coerce_to_double().unwrap() - 1.0).abs() < f64::EPSILON);
+
+            zv.set_bool(false);
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // Null to float
+            let null_zv = Zval::null();
+            assert!((null_zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // String to float
+            zv.set_string("3.14", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            zv.set_string("3.14abc", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            zv.set_string("1e10", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 1e10).abs() < 1.0);
+
+            zv.set_string("abc", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // Array cannot be converted
+            let arr_zv = Zval::new_array();
+            assert_eq!(arr_zv.coerce_to_double(), None);
+        });
+    }
+
+    #[test]
+    fn test_parse_long_from_str() {
+        assert_eq!(parse_long_from_str("42"), 42);
+        assert_eq!(parse_long_from_str("42abc"), 42);
+        assert_eq!(parse_long_from_str("  42"), 42);
+        assert_eq!(parse_long_from_str("-42"), -42);
+        assert_eq!(parse_long_from_str("+42"), 42);
+        assert_eq!(parse_long_from_str("abc"), 0);
+        assert_eq!(parse_long_from_str(""), 0);
+        assert_eq!(parse_long_from_str("  "), 0);
+    }
+
+    #[test]
+    fn test_parse_double_from_str() {
+        assert!((parse_double_from_str("3.14") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("3.14abc") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("  3.14") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("-3.14") - (-3.14)).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("1e10") - 1e10).abs() < 1.0);
+        assert!((parse_double_from_str("1.5e-3") - 1.5e-3).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("abc") - 0.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("") - 0.0).abs() < f64::EPSILON);
     }
 }
