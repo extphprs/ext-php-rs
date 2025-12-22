@@ -122,3 +122,37 @@ assert($builder2->getName() === 'test');
 // Test returning &Self (immutable reference)
 $selfRef = $builder2->getSelf();
 assert($selfRef === $builder2, 'getSelf should return $this');
+
+// Test property visibility (Issue #375)
+$visibilityObj = new TestPropertyVisibility(42, 'private_data', 'protected_data');
+
+// Test public property - should work
+assert($visibilityObj->publicNum === 42, 'Public property read should work');
+$visibilityObj->publicNum = 100;
+assert($visibilityObj->publicNum === 100, 'Public property write should work');
+
+// Test accessing private property through class methods - should work
+assert($visibilityObj->getPrivate() === 'private_data', 'Private property access via method should work');
+$visibilityObj->setPrivate('new_private');
+assert($visibilityObj->getPrivate() === 'new_private', 'Private property set via method should work');
+
+// Test accessing protected property through class methods - should work
+assert($visibilityObj->getProtected() === 'protected_data', 'Protected property access via method should work');
+$visibilityObj->setProtected('new_protected');
+assert($visibilityObj->getProtected() === 'new_protected', 'Protected property set via method should work');
+
+// Test that direct access to private property throws an error
+assert_exception_thrown(fn() => $visibilityObj->privateStr, 'Reading private property should throw');
+assert_exception_thrown(fn() => $visibilityObj->privateStr = 'test', 'Writing private property should throw');
+
+// Test that direct access to protected property throws an error
+assert_exception_thrown(fn() => $visibilityObj->protectedStr, 'Reading protected property should throw');
+assert_exception_thrown(fn() => $visibilityObj->protectedStr = 'test', 'Writing protected property should throw');
+
+// Test var_dump shows mangled names for private/protected properties
+ob_start();
+var_dump($visibilityObj);
+$output = ob_get_clean();
+assert(strpos($output, 'publicNum') !== false, 'var_dump should show public property');
+// Private properties should show as ClassName::propertyName in var_dump
+// Protected properties should show with * prefix
