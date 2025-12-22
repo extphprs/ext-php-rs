@@ -297,4 +297,98 @@ mod tests {
             assert!(result.unwrap_err().is_bailout());
         });
     }
+
+    #[test]
+    fn test_php_write() {
+        use crate::zend::write;
+
+        Embed::run(|| {
+            // Test write function with regular data
+            let bytes_written = write(b"Hello").expect("write failed");
+            assert_eq!(bytes_written, 5);
+
+            // Test write function with binary data containing NUL bytes
+            let bytes_written = write(b"Hello\x00World").expect("write failed");
+            assert_eq!(bytes_written, 11);
+
+            // Test php_write! macro with byte literal
+            let bytes_written = php_write!(b"Test").expect("php_write failed");
+            assert_eq!(bytes_written, 4);
+
+            // Test php_write! macro with binary data containing NUL bytes
+            let bytes_written = php_write!(b"Binary\x00Data\x00Here").expect("php_write failed");
+            assert_eq!(bytes_written, 16);
+
+            // Test php_write! macro with byte slice variable
+            let data: &[u8] = &[0x48, 0x65, 0x6c, 0x6c, 0x6f]; // "Hello"
+            let bytes_written = php_write!(data).expect("php_write failed");
+            assert_eq!(bytes_written, 5);
+
+            // Test empty data
+            let bytes_written = write(b"").expect("write failed");
+            assert_eq!(bytes_written, 0);
+        });
+    }
+
+    #[test]
+    fn test_php_write_bypasses_output_buffering() {
+        use crate::zend::write;
+
+        Embed::run(|| {
+            // Start PHP output buffering
+            Embed::eval("ob_start();").expect("ob_start failed");
+
+            // Write data using ub_write - this bypasses output buffering
+            // ("ub" = unbuffered) and goes directly to SAPI output
+            write(b"Direct output").expect("write failed");
+
+            // Get the buffered output - should be empty since ub_write bypasses buffering
+            let result = Embed::eval("ob_get_clean();").expect("ob_get_clean failed");
+            let output = result.string().expect("expected string result");
+
+            // Verify that ub_write bypasses output buffering
+            assert_eq!(output, "", "ub_write should bypass output buffering");
+        });
+    }
+
+    #[test]
+    fn test_php_print_respects_output_buffering() {
+        use crate::zend::printf;
+
+        Embed::run(|| {
+            // Start PHP output buffering
+            Embed::eval("ob_start();").expect("ob_start failed");
+
+            // Write data using php_printf - this goes through output buffering
+            printf("Hello from Rust").expect("printf failed");
+
+            // Get the buffered output
+            let result = Embed::eval("ob_get_clean();").expect("ob_get_clean failed");
+            let output = result.string().expect("expected string result");
+
+            // Verify that printf output is captured by output buffering
+            assert_eq!(output, "Hello from Rust");
+        });
+    }
+
+    #[test]
+    fn test_php_output_write_binary_safe_with_buffering() {
+        use crate::zend::output_write;
+
+        Embed::run(|| {
+            // Start PHP output buffering
+            Embed::eval("ob_start();").expect("ob_start failed");
+
+            // Write binary data with NUL bytes - should be captured by buffer
+            let bytes_written = output_write(b"Hello\x00World");
+            assert_eq!(bytes_written, 11);
+
+            // Get the buffered output
+            let result = Embed::eval("ob_get_clean();").expect("ob_get_clean failed");
+            let output = result.string().expect("expected string result");
+
+            // Verify binary data was captured correctly (including NUL byte)
+            assert_eq!(output, "Hello\x00World");
+        });
+    }
 }

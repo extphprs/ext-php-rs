@@ -425,3 +425,82 @@ macro_rules! php_println {
         $crate::php_print!(concat!($fmt, "\n"), $($arg)*);
     };
 }
+
+/// Writes binary data to the PHP standard output.
+///
+/// Unlike [`php_print!`], this macro is binary-safe and can handle data
+/// containing `NUL` bytes. It uses the SAPI module's `ub_write` function.
+///
+/// # Arguments
+///
+/// * `$data` - A byte slice (`&[u8]`) or byte literal (`b"..."`) to write.
+///
+/// # Returns
+///
+/// A `Result<usize>` containing the number of bytes written.
+///
+/// # Errors
+///
+/// Returns [`Error::SapiWriteUnavailable`] if the SAPI's `ub_write` function
+/// is not available.
+///
+/// [`Error::SapiWriteUnavailable`]: crate::error::Error::SapiWriteUnavailable
+///
+/// # Examples
+///
+/// ```ignore
+/// use ext_php_rs::php_write;
+///
+/// // Write a byte literal
+/// php_write!(b"Hello World").expect("write failed");
+///
+/// // Write binary data with NUL bytes (would panic with php_print!)
+/// php_write!(b"Hello\x00World").expect("write failed");
+///
+/// // Write a byte slice
+/// let data: &[u8] = &[0x48, 0x65, 0x6c, 0x6c, 0x6f];
+/// php_write!(data).expect("write failed");
+/// ```
+#[macro_export]
+macro_rules! php_write {
+    ($data: expr) => {{ $crate::zend::write($data) }};
+}
+
+/// Writes binary data to PHP's output stream with output buffering support.
+///
+/// This macro is both binary-safe (can handle `NUL` bytes) AND respects PHP's
+/// output buffering (`ob_start()`). Use this when you need both capabilities.
+///
+/// # Arguments
+///
+/// * `$data` - A byte slice (`&[u8]`) or byte literal (`b"..."`) to write.
+///
+/// # Returns
+///
+/// The number of bytes written.
+///
+/// # Comparison
+///
+/// | Macro | Binary-safe | Output Buffering |
+/// |-------|-------------|------------------|
+/// | `php_print!` | No | Yes |
+/// | `php_write!` | Yes | No (unbuffered) |
+/// | `php_output!` | Yes | Yes |
+///
+/// # Examples
+///
+/// ```ignore
+/// use ext_php_rs::php_output;
+///
+/// // Write binary data that will be captured by ob_start()
+/// php_output!(b"Hello\x00World");
+///
+/// // Use with output buffering
+/// // ob_start();
+/// // php_output!(b"captured");
+/// // $data = ob_get_clean(); // Contains "captured"
+/// ```
+#[macro_export]
+macro_rules! php_output {
+    ($data: expr) => {{ $crate::zend::output_write($data) }};
+}

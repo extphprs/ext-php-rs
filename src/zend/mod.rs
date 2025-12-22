@@ -15,9 +15,10 @@ mod try_catch;
 
 use crate::{
     error::Result,
-    ffi::{php_printf, sapi_module},
+    ffi::{php_output_write, php_printf, sapi_module},
 };
 use std::ffi::CString;
+use std::os::raw::c_char;
 
 pub use _type::ZendType;
 pub use class::ClassEntry;
@@ -60,6 +61,83 @@ pub fn printf(message: &str) -> Result<()> {
         php_printf(FORMAT_STR.as_ptr().cast(), message.as_ptr());
     };
     Ok(())
+}
+
+/// Writes binary data to PHP's output stream (stdout).
+///
+/// Unlike [`printf`], this function is binary-safe and can handle data
+/// containing NUL bytes. It uses the SAPI module's `ub_write` function
+/// which accepts a pointer and length, allowing arbitrary binary data.
+///
+/// Also see the [`php_write!`] macro.
+///
+/// # Arguments
+///
+/// * `data` - The binary data to write to stdout.
+///
+/// # Returns
+///
+/// The number of bytes written.
+///
+/// # Errors
+///
+/// Returns [`crate::error::Error::SapiWriteUnavailable`] if the SAPI's `ub_write` function
+/// is not available.
+///
+/// # Example
+///
+/// ```ignore
+/// use ext_php_rs::zend::write;
+///
+/// // Write binary data including NUL bytes
+/// let data = b"Hello\x00World";
+/// write(data).expect("Failed to write data");
+/// ```
+pub fn write(data: &[u8]) -> Result<usize> {
+    unsafe {
+        if let Some(ub_write) = sapi_module.ub_write {
+            Ok(ub_write(data.as_ptr().cast::<c_char>(), data.len()))
+        } else {
+            Err(crate::error::Error::SapiWriteUnavailable)
+        }
+    }
+}
+
+/// Writes binary data to PHP's output stream with output buffering support.
+///
+/// This function is binary-safe (can handle NUL bytes) AND respects PHP's
+/// output buffering (`ob_start()`). Use this when you need both binary-safe
+/// output and output buffering compatibility.
+///
+/// # Arguments
+///
+/// * `data` - The binary data to write.
+///
+/// # Returns
+///
+/// The number of bytes written.
+///
+/// # Comparison
+///
+/// | Function | Binary-safe | Output Buffering |
+/// |----------|-------------|------------------|
+/// | [`printf`] | No | Yes |
+/// | [`write()`] | Yes | No (unbuffered) |
+/// | [`output_write`] | Yes | Yes |
+///
+/// # Example
+///
+/// ```ignore
+/// use ext_php_rs::zend::output_write;
+///
+/// // Binary data that will be captured by ob_start()
+/// let data = b"Hello\x00World";
+/// output_write(data);
+/// ```
+#[inline]
+#[must_use]
+pub fn output_write(data: &[u8]) -> usize {
+    unsafe { php_output_write(data.as_ptr().cast::<c_char>(), data.len()) }
 }
 
 /// Get the name of the SAPI module.

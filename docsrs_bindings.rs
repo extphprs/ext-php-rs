@@ -2201,6 +2201,9 @@ unsafe extern "C" {
         ...
     );
 }
+unsafe extern "C" {
+    pub fn php_output_write(str_: *const ::std::os::raw::c_char, len: usize) -> usize;
+}
 pub type php_stream = _php_stream;
 pub type php_stream_wrapper = _php_stream_wrapper;
 pub type php_stream_context = _php_stream_context;

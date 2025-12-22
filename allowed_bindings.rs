@@ -339,5 +339,6 @@ bind! {
     php_ini_builder_prepend,
     php_ini_builder_unquoted,
     php_ini_builder_quoted,
-    php_ini_builder_define
+    php_ini_builder_define,
+    php_output_write
 }

@@ -35,6 +35,7 @@
   - [`ZvalConvert`](./macros/zval_convert.md)
   - [`Attributes`](./macros/php.md)
 - [Exceptions](./exceptions.md)
+- [Output](./output.md)
 - [INI Settings](./ini-settings.md)
 - [Superglobals](./superglobals.md)
 

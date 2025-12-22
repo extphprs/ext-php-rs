@@ -70,6 +70,8 @@ pub enum Error {
     StreamWrapperRegistrationFailure,
     /// A failure occurred while unregistering the stream wrapper
     StreamWrapperUnregistrationFailure,
+    /// The SAPI write function is not available
+    SapiWriteUnavailable,
 }
 
 impl Display for Error {
@@ -112,6 +114,9 @@ impl Display for Error {
                     f,
                     "A failure occurred while unregistering the stream wrapper"
                 )
+            }
+            Error::SapiWriteUnavailable => {
+                write!(f, "The SAPI write function is not available")
             }
         }
     }
