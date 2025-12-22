@@ -165,6 +165,9 @@ pub const IS_INDIRECT: u32 = 12;
 pub const IS_PTR: u32 = 13;
 pub const _IS_BOOL: u32 = 18;
 pub const Z_TYPE_FLAGS_SHIFT: u32 = 8;
+pub const GC_FLAGS_MASK: u32 = 1008;
+pub const GC_FLAGS_SHIFT: u32 = 0;
+pub const GC_IMMUTABLE: u32 = 64;
 pub const IS_TYPE_REFCOUNTED: u32 = 1;
 pub const IS_TYPE_COLLECTABLE: u32 = 2;
 pub const IS_INTERNED_STRING_EX: u32 = 6;
@@ -769,6 +772,9 @@ pub const zend_hash_key_type_HASH_KEY_IS_STRING: zend_hash_key_type = 1;
 pub const zend_hash_key_type_HASH_KEY_IS_LONG: zend_hash_key_type = 2;
 pub const zend_hash_key_type_HASH_KEY_NON_EXISTENT: zend_hash_key_type = 3;
 pub type zend_hash_key_type = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub static zend_empty_array: HashTable;
+}
 unsafe extern "C" {
     pub fn zend_hash_clean(ht: *mut HashTable);
 }

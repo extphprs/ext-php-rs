@@ -5,7 +5,7 @@ use ext_php_rs::{
     ffi::HashTable,
     php_function,
     prelude::ModuleBuilder,
-    types::{ArrayKey, ZendHashTable, Zval},
+    types::{ArrayKey, ZendEmptyArray, ZendHashTable, Zval},
     wrap_function,
 };
 
@@ -60,6 +60,37 @@ pub fn test_optional_array_mut_ref(arr: Option<&mut ZendHashTable>) -> i64 {
     }
 }
 
+/// Test returning an empty immutable array using `ZendEmptyArray`
+#[php_function]
+pub fn test_empty_array() -> ZendEmptyArray {
+    ZendEmptyArray
+}
+
+/// Test that a normal `ZendHashTable` is not immutable
+#[php_function]
+pub fn test_hashtable_is_immutable() -> bool {
+    let ht = ZendHashTable::new();
+    ht.is_immutable()
+}
+
+/// Test that the empty array from `ZendEmptyArray` is immutable
+#[php_function]
+pub fn test_empty_array_is_immutable() -> bool {
+    ZendEmptyArray.as_hashtable().is_immutable()
+}
+
+/// Test that returning an empty `Vec` still works (should allocate a new array)
+#[php_function]
+pub fn test_empty_vec() -> Vec<i32> {
+    Vec::new()
+}
+
+/// Test that returning an empty `HashMap` still works (should allocate a new array)
+#[php_function]
+pub fn test_empty_hashmap() -> HashMap<String, String> {
+    HashMap::new()
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_array))
@@ -69,6 +100,11 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(test_array_keys))
         .function(wrap_function!(test_optional_array_ref))
         .function(wrap_function!(test_optional_array_mut_ref))
+        .function(wrap_function!(test_empty_array))
+        .function(wrap_function!(test_hashtable_is_immutable))
+        .function(wrap_function!(test_empty_array_is_immutable))
+        .function(wrap_function!(test_empty_vec))
+        .function(wrap_function!(test_empty_hashmap))
 }
 
 #[cfg(test)]
