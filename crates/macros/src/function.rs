@@ -637,7 +637,7 @@ impl TypedArg<'_> {
             None
         };
         let default = self.default.as_ref().map(|val| {
-            let val = val.to_token_stream().to_string();
+            let val = expr_to_php_stub(val);
             quote! {
                 .default(#val)
             }
@@ -732,6 +732,116 @@ impl TypedArg<'_> {
                 }
             }
         }
+    }
+}
+
+/// Converts a Rust expression to a PHP stub-compatible default value string.
+///
+/// This function handles common Rust patterns and converts them to valid PHP
+/// syntax for use in generated stub files:
+///
+/// - `None` → `"null"`
+/// - `Some(expr)` → converts the inner expression
+/// - `42`, `3.14` → numeric literals as-is
+/// - `true`/`false` → as-is
+/// - `"string"` → `"string"`
+/// - `"string".to_string()` or `String::from("string")` → `"string"`
+fn expr_to_php_stub(expr: &Expr) -> String {
+    match expr {
+        // Handle None -> null
+        Expr::Path(path) => {
+            let path_str = path.path.to_token_stream().to_string();
+            if path_str == "None" {
+                "null".to_string()
+            } else if path_str == "true" || path_str == "false" {
+                path_str
+            } else {
+                // For other paths (constants, etc.), use the raw representation
+                path_str
+            }
+        }
+
+        // Handle Some(expr) -> convert inner expression
+        Expr::Call(call) => {
+            if let Expr::Path(func_path) = &*call.func {
+                let func_name = func_path.path.to_token_stream().to_string();
+
+                // Some(value) -> convert inner value
+                if func_name == "Some"
+                    && let Some(arg) = call.args.first()
+                {
+                    return expr_to_php_stub(arg);
+                }
+
+                // String::from("...") -> "..."
+                if (func_name == "String :: from" || func_name == "String::from")
+                    && let Some(arg) = call.args.first()
+                {
+                    return expr_to_php_stub(arg);
+                }
+            }
+
+            // Default: use raw representation
+            expr.to_token_stream().to_string()
+        }
+
+        // Handle method calls like "string".to_string()
+        Expr::MethodCall(method_call) => {
+            let method_name = method_call.method.to_string();
+
+            // "...".to_string() or "...".to_owned() or "...".into() -> "..."
+            if method_name == "to_string" || method_name == "to_owned" || method_name == "into" {
+                return expr_to_php_stub(&method_call.receiver);
+            }
+
+            // Default: use raw representation
+            expr.to_token_stream().to_string()
+        }
+
+        // String literals -> keep as-is (already valid PHP)
+        Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Str(s) => format!(
+                "\"{}\"",
+                s.value().replace('\\', "\\\\").replace('"', "\\\"")
+            ),
+            syn::Lit::Int(i) => i.to_string(),
+            syn::Lit::Float(f) => f.to_string(),
+            syn::Lit::Bool(b) => if b.value { "true" } else { "false" }.to_string(),
+            syn::Lit::Char(c) => format!("\"{}\"", c.value()),
+            _ => expr.to_token_stream().to_string(),
+        },
+
+        // Handle arrays: [] or vec![]
+        Expr::Array(arr) => {
+            if arr.elems.is_empty() {
+                "[]".to_string()
+            } else {
+                let elems: Vec<String> = arr.elems.iter().map(expr_to_php_stub).collect();
+                format!("[{}]", elems.join(", "))
+            }
+        }
+
+        // Handle vec![] macro
+        Expr::Macro(m) => {
+            let macro_name = m.mac.path.to_token_stream().to_string();
+            if macro_name == "vec" {
+                let tokens = m.mac.tokens.to_string();
+                if tokens.trim().is_empty() {
+                    return "[]".to_string();
+                }
+            }
+            // Default: use raw representation
+            expr.to_token_stream().to_string()
+        }
+
+        // Handle unary expressions like -42
+        Expr::Unary(unary) => {
+            let inner = expr_to_php_stub(&unary.expr);
+            format!("{}{}", unary.op.to_token_stream(), inner)
+        }
+
+        // Default: use raw representation
+        _ => expr.to_token_stream().to_string(),
     }
 }
 
