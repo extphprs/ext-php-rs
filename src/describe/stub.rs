@@ -171,7 +171,18 @@ impl ToStub for Parameter {
             write!(buf, "...")?;
         }
 
-        write!(buf, "${}", self.name)
+        write!(buf, "${}", self.name)?;
+
+        // Add default value to stub
+        if let Option::Some(default) = &self.default {
+            write!(buf, " = {default}")?;
+        } else if self.nullable {
+            // For nullable parameters without explicit default, add = null
+            // This makes Option<T> parameters truly optional in PHP
+            write!(buf, " = null")?;
+        }
+
+        Ok(())
     }
 }
 
