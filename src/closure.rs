@@ -116,7 +116,8 @@ impl Closure {
     /// function.
     ///
     /// If the class has already been built, this function returns early without
-    /// doing anything. This allows for safe repeated calls in test environments.
+    /// doing anything. This allows for safe repeated calls in test
+    /// environments.
     ///
     /// # Panics
     ///
