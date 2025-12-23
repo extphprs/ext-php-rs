@@ -94,3 +94,33 @@ assert(array_key_exists('added_by_rust', $mut_arr), 'Rust should have added a ke
 assert($mut_arr['added_by_rust'] === 'value', 'Added value should be correct');
 $null_arr = null;
 assert(test_optional_array_mut_ref($null_arr) === -1, 'Option<&mut ZendHashTable> should accept null');
+
+// Test ZendEmptyArray - returns an empty immutable shared array
+$empty = test_empty_array();
+assert(is_array($empty), 'ZendEmptyArray should return an array');
+assert(count($empty) === 0, 'ZendEmptyArray should return an empty array');
+
+// Verify we can add elements to a copy (proves it's transparent to userland)
+$empty[] = 'added';
+assert(count($empty) === 1, 'Should be able to add elements to a copy of the empty array');
+assert($empty[0] === 'added', 'Added element should be accessible');
+
+// Test is_immutable() for normal hashtables
+assert(test_hashtable_is_immutable() === false, 'Normal ZendHashTable should not be immutable');
+
+// Test is_immutable() for empty array
+assert(test_empty_array_is_immutable() === true, 'Empty array from ZendEmptyArray should be immutable');
+
+// Test returning empty Vec (should still work)
+$empty_vec = test_empty_vec();
+assert(is_array($empty_vec), 'Empty Vec should return an array');
+assert(count($empty_vec) === 0, 'Empty Vec should return an empty array');
+$empty_vec[] = 42;
+assert(count($empty_vec) === 1, 'Should be able to add elements to empty Vec result');
+
+// Test returning empty HashMap (should still work)
+$empty_hashmap = test_empty_hashmap();
+assert(is_array($empty_hashmap), 'Empty HashMap should return an array');
+assert(count($empty_hashmap) === 0, 'Empty HashMap should return an empty array');
+$empty_hashmap['key'] = 'value';
+assert(count($empty_hashmap) === 1, 'Should be able to add elements to empty HashMap result');

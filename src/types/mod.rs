@@ -13,7 +13,7 @@ mod object;
 mod string;
 mod zval;
 
-pub use array::{ArrayKey, ZendHashTable};
+pub use array::{ArrayKey, ZendEmptyArray, ZendHashTable};
 pub use callable::ZendCallable;
 pub use class_object::ZendClassObject;
 pub use iterable::Iterable;

@@ -9,11 +9,12 @@ use crate::{
     error::Result,
     ffi::zend_ulong,
     ffi::{
-        _zend_new_array, HT_MIN_SIZE, zend_array_count, zend_array_destroy, zend_array_dup,
-        zend_hash_clean, zend_hash_index_del, zend_hash_index_find, zend_hash_index_update,
-        zend_hash_next_index_insert, zend_hash_str_del, zend_hash_str_find, zend_hash_str_update,
+        _zend_new_array, GC_FLAGS_MASK, GC_FLAGS_SHIFT, HT_MIN_SIZE, zend_array_count,
+        zend_array_destroy, zend_array_dup, zend_empty_array, zend_hash_clean, zend_hash_index_del,
+        zend_hash_index_find, zend_hash_index_update, zend_hash_next_index_insert,
+        zend_hash_str_del, zend_hash_str_find, zend_hash_str_update,
     },
-    flags::DataType,
+    flags::{DataType, ZvalTypeFlags},
     types::Zval,
 };
 
@@ -648,10 +649,37 @@ impl ZendHashTable {
     pub fn iter(&self) -> Iter<'_> {
         self.into_iter()
     }
+
+    /// Determines whether this hashtable is immutable.
+    ///
+    /// Immutable hashtables are shared and cannot be modified. The primary
+    /// example is the empty immutable shared array returned by
+    /// [`ZendEmptyArray`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendHashTable;
+    ///
+    /// let ht = ZendHashTable::new();
+    /// assert!(!ht.is_immutable());
+    /// ```
+    #[must_use]
+    pub fn is_immutable(&self) -> bool {
+        // SAFETY: Type info is initialized by Zend on array init.
+        let gc_type_info = unsafe { self.gc.u.type_info };
+        let gc_flags = (gc_type_info >> GC_FLAGS_SHIFT) & (GC_FLAGS_MASK >> GC_FLAGS_SHIFT);
+
+        gc_flags & ZvalTypeFlags::Immutable.bits() != 0
+    }
 }
 
 unsafe impl ZBoxable for ZendHashTable {
     fn free(&mut self) {
+        // Do not attempt to free the immutable shared empty array.
+        if self.is_immutable() {
+            return;
+        }
         // SAFETY: ZBox has immutable access to `self`.
         unsafe { zend_array_destroy(self) }
     }
@@ -717,5 +745,71 @@ impl<'a> FromZvalMut<'a> for &'a mut ZendHashTable {
 
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
         zval.array_mut()
+    }
+}
+
+/// Represents an empty, immutable, shared PHP array.
+///
+/// Since PHP 7.3, it's possible for extensions to return a zval backed by
+/// an immutable shared hashtable. This helps avoid redundant hashtable
+/// allocations when returning empty arrays to userland PHP code.
+///
+/// This struct provides a safe way to return an empty array without allocating
+/// a new hashtable. It implements [`IntoZval`] so it can be used as a return
+/// type for PHP functions.
+///
+/// # Safety
+///
+/// Unlike [`ZendHashTable`], this type does not allow any mutation of the
+/// underlying array, as it points to a shared static empty array in PHP's
+/// memory.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::ZendEmptyArray;
+///
+/// #[php_function]
+/// pub fn get_empty_array() -> ZendEmptyArray {
+///     ZendEmptyArray
+/// }
+/// ```
+///
+/// This is more efficient than returning `Vec::<i32>::new()` or creating
+/// a new `ZendHashTable` when you know the result will be empty.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ZendEmptyArray;
+
+impl ZendEmptyArray {
+    /// Returns a reference to the underlying immutable empty hashtable.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendEmptyArray;
+    ///
+    /// let empty = ZendEmptyArray;
+    /// let ht = empty.as_hashtable();
+    /// assert!(ht.is_empty());
+    /// assert!(ht.is_immutable());
+    /// ```
+    #[must_use]
+    pub fn as_hashtable(&self) -> &ZendHashTable {
+        // SAFETY: zend_empty_array is a static global initialized by PHP.
+        unsafe { &zend_empty_array }
+    }
+}
+
+impl IntoZval for ZendEmptyArray {
+    const TYPE: DataType = DataType::Array;
+    const NULLABLE: bool = false;
+
+    fn set_zval(self, zv: &mut Zval, _persistent: bool) -> Result<()> {
+        // Set the zval to point to the immutable shared empty array.
+        // This mirrors the ZVAL_EMPTY_ARRAY macro in PHP.
+        zv.u1.type_info = ZvalTypeFlags::Array.bits();
+        zv.value.arr = ptr::from_ref(self.as_hashtable()).cast_mut();
+        Ok(())
     }
 }
