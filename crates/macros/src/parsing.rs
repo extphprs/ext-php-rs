@@ -163,8 +163,9 @@ impl PhpNameContext {
 
 /// Checks if a name is a PHP type keyword (case-insensitive).
 ///
-/// Type keywords like `void`, `bool`, `int`, etc. are reserved for type declarations
-/// but CAN be used as method, function, constant, or property names in PHP.
+/// Type keywords like `void`, `bool`, `int`, etc. are reserved for type
+/// declarations but CAN be used as method, function, constant, or property
+/// names in PHP.
 fn is_php_type_keyword(name: &str) -> bool {
     let lower = name.to_lowercase();
     PHP_TYPE_KEYWORDS
@@ -183,13 +184,15 @@ pub fn is_php_reserved_keyword(name: &str) -> bool {
 /// Validates that a PHP name is not a reserved keyword.
 ///
 /// The validation is context-aware:
-/// - For class, interface, enum, and enum case names: both reserved keywords AND type keywords are checked
-/// - For method, function, constant, and property names: only reserved keywords are checked
-///   (type keywords like `void`, `bool`, etc. are allowed)
+/// - For class, interface, enum, and enum case names: both reserved keywords
+///   AND type keywords are checked
+/// - For method, function, constant, and property names: only reserved keywords
+///   are checked (type keywords like `void`, `bool`, etc. are allowed)
 ///
 /// # Errors
 ///
-/// Returns a `syn::Error` if the name is a reserved keyword in the given context.
+/// Returns a `syn::Error` if the name is a reserved keyword in the given
+/// context.
 pub fn validate_php_name(
     name: &str,
     context: PhpNameContext,

@@ -122,3 +122,14 @@ assert($builder2->getName() === 'test');
 // Test returning &Self (immutable reference)
 $selfRef = $builder2->getSelf();
 assert($selfRef === $builder2, 'getSelf should return $this');
+
+// Test readonly class (PHP 8.2+)
+$readonlyObj = new TestReadonlyClass('hello', 42);
+assert($readonlyObj->getName() === 'hello', 'Readonly class getter should work');
+assert($readonlyObj->getValue() === 42, 'Readonly class getter should work');
+
+// Check if class is marked as readonly (PHP 8.2+)
+if (PHP_VERSION_ID >= 80200) {
+    $readonlyReflection = new ReflectionClass(TestReadonlyClass::class);
+    assert($readonlyReflection->isReadOnly(), 'TestReadonlyClass should be marked as readonly on PHP 8.2+');
+}
