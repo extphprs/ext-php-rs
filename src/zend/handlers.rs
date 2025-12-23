@@ -1,14 +1,15 @@
-use std::{ffi::c_void, mem::MaybeUninit, os::raw::c_int, ptr};
+use std::{ffi::CString, ffi::c_void, mem::MaybeUninit, os::raw::c_int, ptr};
 
 use crate::{
     class::RegisteredClass,
     exception::PhpResult,
     ffi::{
-        std_object_handlers, zend_is_true, zend_object_handlers, zend_object_std_dtor,
+        ext_php_rs_executor_globals, instanceof_function_slow, std_object_handlers,
+        zend_class_entry, zend_is_true, zend_object_handlers, zend_object_std_dtor,
         zend_std_get_properties, zend_std_has_property, zend_std_read_property,
-        zend_std_write_property,
+        zend_std_write_property, zend_throw_error,
     },
-    flags::ZvalTypeFlags,
+    flags::{PropertyFlags, ZvalTypeFlags},
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
 };
 
@@ -108,6 +109,19 @@ impl ZendObjectHandlers {
 
             Ok(match prop {
                 Some(prop_info) => {
+                    // Check visibility before allowing access
+                    let object_ce = unsafe { (*object).ce };
+                    if !unsafe { check_property_access(prop_info.flags, object_ce) } {
+                        let is_private = prop_info.flags.contains(PropertyFlags::Private);
+                        unsafe {
+                            throw_property_access_error(
+                                T::CLASS_NAME,
+                                prop_name.as_str()?,
+                                is_private,
+                            );
+                        }
+                        return Ok(rv);
+                    }
                     prop_info.prop.get(self_, rv_mut)?;
                     rv
                 }
@@ -158,6 +172,19 @@ impl ZendObjectHandlers {
 
             Ok(match prop {
                 Some(prop_info) => {
+                    // Check visibility before allowing access
+                    let object_ce = unsafe { (*object).ce };
+                    if !unsafe { check_property_access(prop_info.flags, object_ce) } {
+                        let is_private = prop_info.flags.contains(PropertyFlags::Private);
+                        unsafe {
+                            throw_property_access_error(
+                                T::CLASS_NAME,
+                                prop_name.as_str()?,
+                                is_private,
+                            );
+                        }
+                        return Ok(value);
+                    }
                     prop_info.prop.set(self_, value_mut)?;
                     value
                 }
@@ -198,7 +225,19 @@ impl ZendObjectHandlers {
                 if val.prop.get(self_, &mut zv).is_err() {
                     continue;
                 }
-                props.insert(name, zv).map_err(|e| {
+
+                // Mangle property name according to visibility for debug output
+                // PHP convention: private = "\0ClassName\0propName", protected =
+                // "\0*\0propName"
+                let mangled_name = if val.flags.contains(PropertyFlags::Private) {
+                    format!("\0{}\0{name}", T::CLASS_NAME)
+                } else if val.flags.contains(PropertyFlags::Protected) {
+                    format!("\0*\0{name}")
+                } else {
+                    name.to_string()
+                };
+
+                props.insert(mangled_name.as_str(), zv).map_err(|e| {
                     format!("Failed to insert value into properties hashtable: {e:?}")
                 })?;
             }
@@ -307,5 +346,96 @@ impl ZendObjectHandlers {
                 0
             }
         }
+    }
+}
+
+/// Gets the current calling scope from the executor globals.
+///
+/// # Safety
+///
+/// Must only be called during PHP execution when executor globals are valid.
+#[inline]
+unsafe fn get_calling_scope() -> *const zend_class_entry {
+    let eg = unsafe { ext_php_rs_executor_globals().as_ref() };
+    let Some(eg) = eg else {
+        return ptr::null();
+    };
+    let execute_data = eg.current_execute_data;
+
+    if execute_data.is_null() {
+        return ptr::null();
+    }
+
+    let func = unsafe { (*execute_data).func };
+    if func.is_null() {
+        return ptr::null();
+    }
+
+    // Access the common.scope field through the union
+    unsafe { (*func).common.scope }
+}
+
+/// Checks if the calling scope has access to a property with the given flags.
+///
+/// Returns `true` if access is allowed, `false` otherwise.
+///
+/// # Safety
+///
+/// Must only be called during PHP execution when executor globals are valid.
+/// The `object_ce` pointer must be valid.
+#[inline]
+unsafe fn check_property_access(flags: PropertyFlags, object_ce: *const zend_class_entry) -> bool {
+    // Public properties are always accessible
+    if !flags.contains(PropertyFlags::Private) && !flags.contains(PropertyFlags::Protected) {
+        return true;
+    }
+
+    let calling_scope = unsafe { get_calling_scope() };
+
+    if flags.contains(PropertyFlags::Private) {
+        // Private: must be called from the exact same class
+        return calling_scope == object_ce;
+    }
+
+    if flags.contains(PropertyFlags::Protected) {
+        // Protected: must be called from same class or a subclass
+        if calling_scope.is_null() {
+            return false;
+        }
+
+        // Same class check
+        if calling_scope == object_ce {
+            return true;
+        }
+
+        // Check if calling_scope is a subclass of object_ce
+        // or if object_ce is a subclass of calling_scope (for parent access)
+        unsafe {
+            instanceof_function_slow(calling_scope, object_ce)
+                || instanceof_function_slow(object_ce, calling_scope)
+        }
+    } else {
+        true
+    }
+}
+
+/// Throws an error for invalid property access.
+///
+/// # Safety
+///
+/// Must only be called during PHP execution.
+///
+/// # Panics
+///
+/// Panics if the error message cannot be converted to a `CString`.
+unsafe fn throw_property_access_error(class_name: &str, prop_name: &str, is_private: bool) {
+    let visibility = if is_private { "private" } else { "protected" };
+    let message = CString::new(format!(
+        "Cannot access {visibility} property {class_name}::${prop_name}"
+    ))
+    .expect("Failed to create error message");
+
+    unsafe {
+        zend_throw_error(ptr::null_mut(), message.as_ptr());
     }
 }

@@ -47,7 +47,8 @@ pub fn test_optional_array_ref(arr: Option<&ZendHashTable>) -> i64 {
     arr.map_or(-1, |ht| i64::try_from(ht.len()).unwrap_or(i64::MAX))
 }
 
-/// Test that `Option<&mut ZendHashTable>` works correctly (anti-regression for issue #515)
+/// Test that `Option<&mut ZendHashTable>` works correctly (anti-regression for
+/// issue #515)
 #[php_function]
 pub fn test_optional_array_mut_ref(arr: Option<&mut ZendHashTable>) -> i64 {
     match arr {
