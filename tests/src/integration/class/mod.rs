@@ -277,6 +277,27 @@ impl FluentBuilder {
     }
 }
 
+/// Test class for union types in methods
+#[php_class]
+pub struct TestUnionMethods;
+
+#[php_impl]
+impl TestUnionMethods {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// Method accepting int|string union type
+    pub fn accept_int_or_string(#[php(union = "int|string")] _value: &Zval) -> String {
+        "method_ok".to_string()
+    }
+
+    /// Static method accepting float|bool|null union type
+    pub fn accept_float_bool_null(#[php(union = "float|bool|null")] _value: &Zval) -> String {
+        "static_method_ok".to_string()
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<TestClass>()
@@ -287,6 +308,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassProtectedConstruct>()
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
+        .class::<TestUnionMethods>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }
