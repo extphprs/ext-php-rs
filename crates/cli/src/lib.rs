@@ -121,6 +121,9 @@ struct Install {
     /// Whether to bypass the install prompt.
     #[clap(long)]
     yes: bool,
+    /// Skip the smoke test that verifies the extension loads correctly.
+    #[clap(long)]
+    no_smoke_test: bool,
 }
 
 #[derive(Parser)]
@@ -221,9 +224,49 @@ impl Install {
             ext_dir.push(ext_name);
         }
 
-        std::fs::copy(&ext_path, &ext_dir).with_context(
+        // Use atomic copy: copy to temp file in same directory, then rename.
+        // This prevents race conditions where a partially-written extension could be loaded.
+        let temp_ext_path = ext_dir.with_extension(format!(
+            "{}.tmp.{}",
+            ext_dir
+                .extension()
+                .map(|e| e.to_string_lossy())
+                .unwrap_or_default(),
+            std::process::id()
+        ));
+
+        std::fs::copy(&ext_path, &temp_ext_path).with_context(
             || "Failed to copy extension from target directory to extension directory",
         )?;
+
+        // Rename is atomic on POSIX when source and destination are on the same filesystem
+        if let Err(e) = std::fs::rename(&temp_ext_path, &ext_dir) {
+            // Clean up temp file on failure
+            let _ = std::fs::remove_file(&temp_ext_path);
+            return Err(e).with_context(|| "Failed to rename extension to final destination");
+        }
+
+        // Smoke test: verify the extension loads correctly before enabling it in php.ini.
+        // This prevents broken extensions from crashing PHP on startup.
+        if !self.no_smoke_test {
+            let smoke_test = Command::new("php")
+                .arg("-d")
+                .arg(format!("extension={}", ext_dir.display()))
+                .arg("-r")
+                .arg("")
+                .output()
+                .context("Failed to run PHP for smoke test")?;
+
+            if !smoke_test.status.success() {
+                // Extension failed to load - remove it and report the error
+                let _ = std::fs::remove_file(&ext_dir);
+                let stderr = String::from_utf8_lossy(&smoke_test.stderr);
+                bail!(
+                    "Extension failed to load during smoke test. The extension file has been removed.\n\
+                     PHP output:\n{stderr}"
+                );
+            }
+        }
 
         if let Some(php_ini) = php_ini {
             let mut file = OpenOptions::new()
