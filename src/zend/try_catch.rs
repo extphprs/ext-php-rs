@@ -14,8 +14,8 @@ pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnOnce() -> R + UnwindSafe>(
 ) -> *const c_void {
     // we try to catch panic here so we correctly shutdown php if it happens
     // mandatory when we do assert on test as other test would not run correctly
-    // SAFETY: We read the closure from the pointer and consume it. This is safe because
-    // the closure is only called once.
+    // SAFETY: We read the closure from the pointer and consume it. This is safe
+    // because the closure is only called once.
     let func = unsafe { std::ptr::read(ctx.cast::<F>()) };
     let panic = catch_unwind(func);
 
@@ -79,7 +79,8 @@ fn do_try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F, first: bool) -> Resul
         }
     };
 
-    // Prevent the closure from being dropped here since it was consumed in panic_wrapper
+    // Prevent the closure from being dropped here since it was consumed in
+    // panic_wrapper
     std::mem::forget(func);
 
     let panic = panic_ptr.cast::<std::thread::Result<R>>();
