@@ -291,7 +291,20 @@ impl<'a> Function<'a> {
                         ex: &mut ::ext_php_rs::zend::ExecuteData,
                         retval: &mut ::ext_php_rs::types::Zval,
                     ) {
-                        #handler_body
+                        use ::ext_php_rs::zend::try_catch;
+                        use ::std::panic::AssertUnwindSafe;
+
+                        // Wrap the handler body with try_catch to ensure Rust destructors
+                        // are called if a bailout occurs (issue #537)
+                        let catch_result = try_catch(AssertUnwindSafe(|| {
+                            #handler_body
+                        }));
+
+                        // If there was a bailout, run BailoutGuard cleanups and re-trigger
+                        if catch_result.is_err() {
+                            ::ext_php_rs::zend::run_bailout_cleanups();
+                            unsafe { ::ext_php_rs::zend::bailout(); }
+                        }
                     }
                 }
                 handler
@@ -535,18 +548,34 @@ impl<'a> Function<'a> {
             ::ext_php_rs::class::ConstructorMeta {
                 constructor: {
                     fn inner(ex: &mut ::ext_php_rs::zend::ExecuteData) -> ::ext_php_rs::class::ConstructorResult<#class> {
-                        #(#arg_declarations)*
-                        let parse = ex.parser()
-                            #(.arg(&mut #required_arg_names))*
-                            .not_required()
-                            #(.arg(&mut #not_required_arg_names))*
-                            #variadic
-                            .parse();
-                        if parse.is_err() {
-                            return ::ext_php_rs::class::ConstructorResult::ArgError;
+                        use ::ext_php_rs::zend::try_catch;
+                        use ::std::panic::AssertUnwindSafe;
+
+                        // Wrap the constructor body with try_catch to ensure Rust destructors
+                        // are called if a bailout occurs (issue #537)
+                        let catch_result = try_catch(AssertUnwindSafe(|| {
+                            #(#arg_declarations)*
+                            let parse = ex.parser()
+                                #(.arg(&mut #required_arg_names))*
+                                .not_required()
+                                #(.arg(&mut #not_required_arg_names))*
+                                #variadic
+                                .parse();
+                            if parse.is_err() {
+                                return ::ext_php_rs::class::ConstructorResult::ArgError;
+                            }
+                            #(#variadic_bindings)*
+                            #class::#ident(#({#arg_accessors}),*).into()
+                        }));
+
+                        // If there was a bailout, run BailoutGuard cleanups and re-trigger
+                        match catch_result {
+                            Ok(result) => result,
+                            Err(_) => {
+                                ::ext_php_rs::zend::run_bailout_cleanups();
+                                unsafe { ::ext_php_rs::zend::bailout() }
+                            }
                         }
-                        #(#variadic_bindings)*
-                        #class::#ident(#({#arg_accessors}),*).into()
                     }
                     inner
                 },

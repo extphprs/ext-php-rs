@@ -2,19 +2,22 @@ use crate::ffi::{
     ext_php_rs_zend_bailout, ext_php_rs_zend_first_try_catch, ext_php_rs_zend_try_catch,
 };
 use std::ffi::c_void;
-use std::panic::{RefUnwindSafe, catch_unwind, resume_unwind};
+use std::panic::{UnwindSafe, catch_unwind, resume_unwind};
 use std::ptr::null_mut;
 
 /// Error returned when a bailout occurs
 #[derive(Debug)]
 pub struct CatchError;
 
-pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnMut() -> R + RefUnwindSafe>(
+pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnOnce() -> R + UnwindSafe>(
     ctx: *const c_void,
 ) -> *const c_void {
     // we try to catch panic here so we correctly shutdown php if it happens
     // mandatory when we do assert on test as other test would not run correctly
-    let panic = catch_unwind(|| unsafe { (*(ctx as *mut F))() });
+    // SAFETY: We read the closure from the pointer and consume it. This is safe because
+    // the closure is only called once.
+    let func = unsafe { std::ptr::read(ctx.cast::<F>()) };
+    let panic = catch_unwind(func);
 
     Box::into_raw(Box::new(panic)).cast::<c_void>()
 }
@@ -33,7 +36,7 @@ pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnMut() -> R + RefUnwindSafe
 /// # Errors
 ///
 /// * [`CatchError`] - A bailout occurred during the execution
-pub fn try_catch<R, F: FnMut() -> R + RefUnwindSafe>(func: F) -> Result<R, CatchError> {
+pub fn try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F) -> Result<R, CatchError> {
     do_try_catch(func, false)
 }
 
@@ -54,11 +57,11 @@ pub fn try_catch<R, F: FnMut() -> R + RefUnwindSafe>(func: F) -> Result<R, Catch
 /// # Errors
 ///
 /// * [`CatchError`] - A bailout occurred during the execution
-pub fn try_catch_first<R, F: FnMut() -> R + RefUnwindSafe>(func: F) -> Result<R, CatchError> {
+pub fn try_catch_first<R, F: FnOnce() -> R + UnwindSafe>(func: F) -> Result<R, CatchError> {
     do_try_catch(func, true)
 }
 
-fn do_try_catch<R, F: FnMut() -> R + RefUnwindSafe>(func: F, first: bool) -> Result<R, CatchError> {
+fn do_try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F, first: bool) -> Result<R, CatchError> {
     let mut panic_ptr = null_mut();
     let has_bailout = unsafe {
         if first {
@@ -75,6 +78,9 @@ fn do_try_catch<R, F: FnMut() -> R + RefUnwindSafe>(func: F, first: bool) -> Res
             )
         }
     };
+
+    // Prevent the closure from being dropped here since it was consumed in panic_wrapper
+    std::mem::forget(func);
 
     let panic = panic_ptr.cast::<std::thread::Result<R>>();
 
@@ -190,17 +196,19 @@ mod tests {
 
     #[test]
     fn test_memory_leak() {
+        use std::panic::AssertUnwindSafe;
+
         Embed::run(|| {
             let mut ptr = null_mut();
 
-            let _ = try_catch(|| {
+            let _ = try_catch(AssertUnwindSafe(|| {
                 let mut result = "foo".to_string();
                 ptr = &raw mut result;
 
                 unsafe {
                     bailout();
                 }
-            });
+            }));
 
             // Check that the string is never released
             let result = unsafe { &*ptr as &str };

@@ -17,7 +17,7 @@ use crate::types::{ZendObject, Zval};
 use crate::zend::{ExecutorGlobals, panic_wrapper, try_catch};
 use parking_lot::{RwLock, const_rwlock};
 use std::ffi::{CString, NulError, c_char, c_void};
-use std::panic::{RefUnwindSafe, resume_unwind};
+use std::panic::{AssertUnwindSafe, UnwindSafe, resume_unwind};
 use std::path::Path;
 use std::ptr::null_mut;
 
@@ -105,7 +105,9 @@ impl Embed {
             zend_stream_init_filename(&raw mut file_handle, path.as_ptr());
         }
 
-        let exec_result = try_catch(|| unsafe { php_execute_script(&raw mut file_handle) });
+        let exec_result = try_catch(AssertUnwindSafe(|| unsafe {
+            php_execute_script(&raw mut file_handle)
+        }));
 
         unsafe { zend_destroy_file_handle(&raw mut file_handle) }
 
@@ -141,7 +143,7 @@ impl Embed {
     ///    assert_eq!(foo.unwrap().string().unwrap(), "foo");
     /// });
     /// ```
-    pub fn run<R, F: FnMut() -> R + RefUnwindSafe>(func: F) -> R
+    pub fn run<R, F: FnOnce() -> R + UnwindSafe>(func: F) -> R
     where
         R: Default,
     {
@@ -160,6 +162,9 @@ impl Embed {
                 (&raw const func).cast::<c_void>(),
             )
         };
+
+        // Prevent the closure from being dropped here since it was consumed in panic_wrapper
+        std::mem::forget(func);
 
         // This can happen if there is a bailout
         if panic.is_null() {
@@ -206,13 +211,13 @@ impl Embed {
 
         let mut result = Zval::new();
 
-        let exec_result = try_catch(|| unsafe {
+        let exec_result = try_catch(AssertUnwindSafe(|| unsafe {
             zend_eval_string(
                 cstr.as_ptr().cast::<c_char>(),
                 &raw mut result,
                 c"run".as_ptr().cast(),
             )
-        });
+        }));
 
         match exec_result {
             Err(_) => Err(EmbedError::CatchError),

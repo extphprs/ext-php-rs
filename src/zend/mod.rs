@@ -1,6 +1,7 @@
 //! Types used to interact with the Zend engine.
 
 mod _type;
+mod bailout_guard;
 pub mod ce;
 mod class;
 mod ex;
@@ -21,6 +22,8 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 
 pub use _type::ZendType;
+pub use bailout_guard::BailoutGuard;
+pub use bailout_guard::run_bailout_cleanups;
 pub use class::ClassEntry;
 pub use ex::ExecuteData;
 pub use function::Function;

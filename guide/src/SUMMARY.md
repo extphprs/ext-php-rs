@@ -42,6 +42,7 @@
 # Advanced Topics
 
 - [Async](./advanced/async_impl.md)
+- [Bailout Guard](./advanced/bailout_guard.md)
 - [Allowed Bindings](./advanced/allowed_bindings.md)
 
 # Migration Guides

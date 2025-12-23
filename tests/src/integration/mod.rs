@@ -1,4 +1,5 @@
 pub mod array;
+pub mod bailout;
 pub mod binary;
 pub mod bool;
 pub mod callable;
@@ -102,7 +103,7 @@ mod test {
     }
 
     /// Finds the location of the PHP executable.
-    fn find_php() -> Result<PathBuf, String> {
+    pub fn find_php() -> Result<PathBuf, String> {
         // If path is given via env, it takes priority.
         if let Some(path) = path_from_env("PHP") {
             if !path
@@ -121,8 +122,8 @@ mod test {
         })
     }
 
-    pub fn run_php(file: &str) -> bool {
-        setup();
+    /// Gets the path to the compiled test extension.
+    pub fn get_extension_path() -> String {
         let mut path = env::current_dir().expect("Could not get cwd");
         path.pop();
         path.push("target");
@@ -138,8 +139,14 @@ mod test {
             "libtests"
         });
         path.set_extension(std::env::consts::DLL_EXTENSION);
+        path.to_str().unwrap().to_string()
+    }
+
+    pub fn run_php(file: &str) -> bool {
+        setup();
+        let path = get_extension_path();
         let output = Command::new(find_php().expect("Could not find PHP executable"))
-            .arg(format!("-dextension={}", path.to_str().unwrap()))
+            .arg(format!("-dextension={path}"))
             .arg("-dassert.active=1")
             .arg("-dassert.exception=1")
             .arg("-dzend.assertions=1")

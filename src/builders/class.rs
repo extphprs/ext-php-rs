@@ -219,31 +219,43 @@ impl ClassBuilder {
 
         zend_fastcall! {
             extern fn constructor<T: RegisteredClass>(ex: &mut ExecuteData, _: &mut Zval) {
-                let Some(ConstructorMeta { constructor, .. }) = T::constructor() else {
-                    PhpException::default("You cannot instantiate this class from PHP.".into())
-                        .throw()
-                        .expect("Failed to throw exception when constructing class");
-                    return;
-                };
+                use crate::zend::try_catch;
+                use std::panic::AssertUnwindSafe;
 
-                let this = match constructor(ex) {
-                    ConstructorResult::Ok(this) => this,
-                    ConstructorResult::Exception(e) => {
-                        e.throw()
+                // Wrap the constructor body with try_catch to ensure Rust destructors
+                // are called if a bailout occurs (issue #537)
+                let catch_result = try_catch(AssertUnwindSafe(|| {
+                    let Some(ConstructorMeta { constructor, .. }) = T::constructor() else {
+                        PhpException::default("You cannot instantiate this class from PHP.".into())
+                            .throw()
+                            .expect("Failed to throw exception when constructing class");
+                        return;
+                    };
+
+                    let this = match constructor(ex) {
+                        ConstructorResult::Ok(this) => this,
+                        ConstructorResult::Exception(e) => {
+                            e.throw()
+                                .expect("Failed to throw exception while constructing class");
+                            return;
+                        }
+                        ConstructorResult::ArgError => return,
+                    };
+
+                    let Some(this_obj) = ex.get_object::<T>() else {
+                        PhpException::default("Failed to retrieve reference to `this` object.".into())
+                            .throw()
                             .expect("Failed to throw exception while constructing class");
                         return;
-                    }
-                    ConstructorResult::ArgError => return,
-                };
+                    };
 
-                let Some(this_obj) = ex.get_object::<T>() else {
-                    PhpException::default("Failed to retrieve reference to `this` object.".into())
-                        .throw()
-                        .expect("Failed to throw exception while constructing class");
-                    return;
-                };
+                    this_obj.initialize(this);
+                }));
 
-                this_obj.initialize(this);
+                // If there was a bailout, re-trigger it after Rust cleanup
+                if catch_result.is_err() {
+                    unsafe { crate::zend::bailout(); }
+                }
             }
         }
 
