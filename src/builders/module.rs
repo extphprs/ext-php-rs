@@ -219,8 +219,8 @@ impl ModuleBuilder<'_> {
             }
 
             builder = builder.flags(ClassFlags::Interface);
+            // Note: interfaces should NOT have object_override because they cannot be instantiated
             builder
-                .object_override::<T>()
                 .registration(|ce| {
                     T::get_metadata().set_ce(ce);
                 })
@@ -243,8 +243,14 @@ impl ModuleBuilder<'_> {
             if let Some(parent) = T::EXTENDS {
                 builder = builder.extends(parent);
             }
+            // Interfaces declared via #[php(implements(...))] attribute
             for interface in T::IMPLEMENTS {
                 builder = builder.implements(*interface);
+            }
+            // Interfaces from #[php_impl_interface] trait implementations.
+            // Uses the inventory crate for cross-crate interface discovery.
+            for interface in T::interface_implementations() {
+                builder = builder.implements(interface);
             }
             for (name, value, docs) in T::constants() {
                 builder = builder
@@ -327,12 +333,14 @@ impl ModuleStartup {
             val.register_constant(&name, mod_num)?;
         }
 
-        self.classes.into_iter().map(|c| c()).for_each(|c| {
-            c.register().expect("Failed to build class");
-        });
-
+        // Interfaces must be registered before classes so that classes can implement
+        // them
         self.interfaces.into_iter().map(|c| c()).for_each(|c| {
             c.register().expect("Failed to build interface");
+        });
+
+        self.classes.into_iter().map(|c| c()).for_each(|c| {
+            c.register().expect("Failed to build class");
         });
 
         #[cfg(feature = "enum")]

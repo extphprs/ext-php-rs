@@ -1,13 +1,24 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
 use crate::{
     builders::FunctionBuilder,
-    class::{ConstructorMeta, RegisteredClass},
+    class::{ClassEntryInfo, ConstructorMeta, RegisteredClass},
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
     flags::MethodFlags,
     props::Property,
 };
+
+/// Registration entry for interface implementations.
+/// Used by `#[php_impl_interface]` macro to register interfaces across crate boundaries.
+pub struct InterfaceRegistration {
+    /// The `TypeId` of the class implementing the interface.
+    pub class_type_id: TypeId,
+    /// Function that returns the interface's `ClassEntryInfo`.
+    pub interface_getter: fn() -> ClassEntryInfo,
+}
+
+inventory::collect!(InterfaceRegistration);
 
 /// Collector used to collect methods for PHP classes.
 pub struct PhpClassImplCollector<T: RegisteredClass>(PhantomData<T>);
