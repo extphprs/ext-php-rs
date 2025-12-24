@@ -294,8 +294,9 @@ mod tests {
     #[test]
     fn test_eval_bailout() {
         Embed::run(|| {
-            // TODO: For PHP 8.5, this needs to be replaced, as `E_USER_ERROR` is deprecated.
-            //       Currently, this seems to still be the best way to trigger a bailout.
+            // TODO: For PHP 8.5, this needs to be replaced, as `E_USER_ERROR` is
+            // deprecated.       Currently, this seems to still be the best way
+            // to trigger a bailout.
             let result = Embed::eval("trigger_error(\"Fatal error\", E_USER_ERROR);");
 
             assert!(result.is_err());

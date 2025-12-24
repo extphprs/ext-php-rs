@@ -8,6 +8,7 @@ mod fastcall;
 mod function;
 mod helpers;
 mod impl_;
+mod impl_interface;
 mod interface;
 mod module;
 mod parsing;
@@ -274,6 +275,172 @@ extern crate proc_macro;
 /// echo Counter::$count; // 2
 /// echo Counter::getCount(); // 2
 /// ```
+///
+/// ## Implementing Iterator
+///
+/// To make a Rust class usable with PHP's `foreach` loop, implement the
+/// [`Iterator`](https://www.php.net/manual/en/class.iterator.php) interface.
+/// This requires implementing five methods: `current()`, `key()`, `next()`,
+/// `rewind()`, and `valid()`.
+///
+/// The following example creates a `RangeIterator` that iterates over a range
+/// of integers:
+///
+/// ````rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{prelude::*, zend::ce};
+///
+/// #[php_class]
+/// #[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+/// pub struct RangeIterator {
+///     start: i64,
+///     end: i64,
+///     current: i64,
+///     index: i64,
+/// }
+///
+/// #[php_impl]
+/// impl RangeIterator {
+///     /// Create a new range iterator from start to end (inclusive).
+///     pub fn __construct(start: i64, end: i64) -> Self {
+///         Self {
+///             start,
+///             end,
+///             current: start,
+///             index: 0,
+///         }
+///     }
+///
+///     /// Return the current element.
+///     pub fn current(&self) -> i64 {
+///         self.current
+///     }
+///
+///     /// Return the key of the current element.
+///     pub fn key(&self) -> i64 {
+///         self.index
+///     }
+///
+///     /// Move forward to next element.
+///     pub fn next(&mut self) {
+///         self.current += 1;
+///         self.index += 1;
+///     }
+///
+///     /// Rewind the Iterator to the first element.
+///     pub fn rewind(&mut self) {
+///         self.current = self.start;
+///         self.index = 0;
+///     }
+///
+///     /// Checks if current position is valid.
+///     pub fn valid(&self) -> bool {
+///         self.current <= self.end
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<RangeIterator>()
+/// }
+/// # fn main() {}
+/// ````
+///
+/// Using the iterator in PHP:
+///
+/// ```php
+/// <?php
+///
+/// $range = new RangeIterator(1, 5);
+///
+/// // Use with foreach
+/// foreach ($range as $key => $value) {
+///     echo "$key => $value\n";
+/// }
+/// // Output:
+/// // 0 => 1
+/// // 1 => 2
+/// // 2 => 3
+/// // 3 => 4
+/// // 4 => 5
+///
+/// // Works with iterator functions
+/// $arr = iterator_to_array(new RangeIterator(10, 12));
+/// // [0 => 10, 1 => 11, 2 => 12]
+///
+/// $count = iterator_count(new RangeIterator(1, 100));
+/// // 100
+/// ```
+///
+/// ### Iterator with Mixed Types
+///
+/// You can return different types for keys and values. The following example
+/// uses string keys:
+///
+/// ````rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{prelude::*, zend::ce};
+///
+/// #[php_class]
+/// #[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+/// pub struct MapIterator {
+///     keys: Vec<String>,
+///     values: Vec<String>,
+///     index: usize,
+/// }
+///
+/// #[php_impl]
+/// impl MapIterator {
+///     pub fn __construct() -> Self {
+///         Self {
+///             keys: vec!["first".into(), "second".into(), "third".into()],
+///             values: vec!["one".into(), "two".into(), "three".into()],
+///             index: 0,
+///         }
+///     }
+///
+///     pub fn current(&self) -> Option<String> {
+///         self.values.get(self.index).cloned()
+///     }
+///
+///     pub fn key(&self) -> Option<String> {
+///         self.keys.get(self.index).cloned()
+///     }
+///
+///     pub fn next(&mut self) {
+///         self.index += 1;
+///     }
+///
+///     pub fn rewind(&mut self) {
+///         self.index = 0;
+///     }
+///
+///     pub fn valid(&self) -> bool {
+///         self.index < self.keys.len()
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<MapIterator>()
+/// }
+/// # fn main() {}
+/// ````
+///
+/// ```php
+/// <?php
+///
+/// $map = new MapIterator();
+/// foreach ($map as $key => $value) {
+///     echo "$key => $value\n";
+/// }
+/// // Output:
+/// // first => one
+/// // second => two
+/// // third => three
+/// ```
 // END DOCS FROM classes.md
 #[proc_macro_attribute]
 pub fn php_class(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -489,6 +656,166 @@ fn php_enum_internal(_args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 ///     }
 /// }
 /// ```
+///
+/// ## Interface Inheritance
+///
+/// PHP interfaces can extend other interfaces. You can achieve this in two
+/// ways:
+///
+/// ### Using `#[php(extends(...))]`
+///
+/// Use the `extends` attribute to extend a built-in PHP interface or another
+/// interface:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::zend::ce;
+///
+/// #[php_interface]
+/// #[php(extends(ce = ce::throwable, stub = "\\Throwable"))]
+/// #[php(name = "MyException")]
+/// trait MyExceptionInterface {
+///     fn get_error_code(&self) -> i32;
+/// }
+///
+/// # fn main() {}
+/// ```
+///
+/// ### Using Rust Trait Bounds
+///
+/// You can also use Rust's trait bound syntax. When a trait marked with
+/// `#[php_interface]` has supertraits, the PHP interface will automatically
+/// extend those parent interfaces:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_interface]
+/// #[php(name = "Rust\\ParentInterface")]
+/// trait ParentInterface {
+///     fn parent_method(&self) -> String;
+/// }
+///
+/// // ChildInterface extends ParentInterface in PHP
+/// #[php_interface]
+/// #[php(name = "Rust\\ChildInterface")]
+/// trait ChildInterface: ParentInterface {
+///     fn child_method(&self) -> String;
+/// }
+///
+/// #[php_module]
+/// pub fn module(module: ModuleBuilder) -> ModuleBuilder {
+///     module
+///         .interface::<PhpInterfaceParentInterface>()
+///         .interface::<PhpInterfaceChildInterface>()
+/// }
+///
+/// # fn main() {}
+/// ```
+///
+/// In PHP:
+///
+/// ```php
+/// <?php
+///
+/// // ChildInterface extends ParentInterface
+/// assert(is_a('Rust\ChildInterface', 'Rust\ParentInterface', true));
+/// ```
+///
+/// # `#[php_impl_interface]` Attribute
+///
+/// The `#[php_impl_interface]` attribute allows a Rust class to implement a
+/// custom PHP interface defined with `#[php_interface]`. This creates a
+/// relationship where PHP's `instanceof` and `is_a()` recognize the
+/// implementation.
+///
+/// ## Example
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// // Define a custom interface
+/// #[php_interface]
+/// #[php(name = "Rust\\Greetable")]
+/// trait Greetable {
+///     fn greet(&self) -> String;
+/// }
+///
+/// // Define a class
+/// #[php_class]
+/// #[php(name = "Rust\\Greeter")]
+/// pub struct Greeter {
+///     name: String,
+/// }
+///
+/// #[php_impl]
+/// impl Greeter {
+///     pub fn __construct(name: String) -> Self {
+///         Self { name }
+///     }
+/// }
+///
+/// // Implement the interface for the class
+/// #[php_impl_interface]
+/// impl Greetable for Greeter {
+///     fn greet(&self) -> String {
+///         format!("Hello, {}!", self.name)
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn module(module: ModuleBuilder) -> ModuleBuilder {
+///     module
+///         .interface::<PhpInterfaceGreetable>()
+///         .class::<Greeter>()
+/// }
+///
+/// # fn main() {}
+/// ```
+///
+/// Using in PHP:
+///
+/// ```php
+/// <?php
+///
+/// $greeter = new Rust\Greeter("World");
+///
+/// // instanceof works
+/// assert($greeter instanceof Rust\Greetable);
+///
+/// // is_a() works
+/// assert(is_a($greeter, 'Rust\Greetable'));
+///
+/// // Can be used as type hint
+/// function greet(Rust\Greetable $obj): void {
+///     // $obj->greet() method is available
+/// }
+///
+/// greet($greeter);
+/// ```
+///
+/// ## When to Use
+///
+/// - Use `#[php_impl_interface]` for custom interfaces you define with
+///   `#[php_interface]`
+/// - Use `#[php(implements(ce = ...))]` on `#[php_class]` for built-in PHP
+///   interfaces like `Iterator`, `ArrayAccess`, `Countable`, etc.
+///
+/// See the [Classes documentation](./classes.md#implementing-an-interface) for
+/// examples of implementing built-in interfaces.
+///
+/// ## Cross-Crate Support
+///
+/// The `#[php_impl_interface]` macro supports cross-crate interface discovery
+/// via the [`inventory`](https://crates.io/crates/inventory) crate. This means you can define
+/// an interface in one crate and implement it in another crate, and the
+/// implementation will be automatically discovered at link time.
 // END DOCS FROM interface.md
 #[proc_macro_attribute]
 pub fn php_interface(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -1051,6 +1378,67 @@ fn php_impl_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     impl_::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
 
+/// # `#[php_impl_interface]` Attribute
+///
+/// Marks a trait implementation as implementing a PHP interface. This allows
+/// Rust structs marked with `#[php_class]` to implement Rust traits marked
+/// with `#[php_interface]`, and have PHP recognize the relationship.
+///
+/// ## Usage
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_interface]
+/// trait MyInterface {
+///     fn my_method(&self);
+/// }
+///
+/// #[php_class]
+/// struct MyClass;
+///
+/// #[php_impl_interface]
+/// impl MyInterface for MyClass {
+///     fn my_method(&self) {
+///         // Implementation
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module
+///         .interface::<PhpInterfaceMyInterface>()
+///         .class::<MyClass>()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// After registration, PHP's `is_a($obj, 'MyInterface')` will return `true`
+/// for instances of `MyClass`.
+///
+/// ## Requirements
+///
+/// - The trait must be marked with `#[php_interface]`
+/// - The struct must be marked with `#[php_class]`
+/// - The interface must be registered before the class in the module builder
+#[proc_macro_attribute]
+pub fn php_impl_interface(args: TokenStream, input: TokenStream) -> TokenStream {
+    php_impl_interface_internal(args.into(), input.into()).into()
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn php_impl_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
+    let input = parse_macro_input2!(input as ItemImpl);
+    if !args.is_empty() {
+        return err!(input => "`#[php_impl_interface]` does not accept arguments.")
+            .to_compile_error();
+    }
+
+    impl_interface::parser(&input).unwrap_or_else(|e| e.to_compile_error())
+}
+
 // BEGIN DOCS FROM extern.md
 /// # `#[php_extern]` Attribute
 ///
@@ -1453,6 +1841,10 @@ mod tests {
                 ("php_extern", php_extern_internal as AttributeFn),
                 ("php_function", php_function_internal as AttributeFn),
                 ("php_impl", php_impl_internal as AttributeFn),
+                (
+                    "php_impl_interface",
+                    php_impl_interface_internal as AttributeFn,
+                ),
                 ("php_module", php_module_internal as AttributeFn),
             ],
         )
