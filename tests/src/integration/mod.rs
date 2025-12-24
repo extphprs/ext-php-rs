@@ -40,7 +40,8 @@ mod test {
             command.arg("--release");
 
             // Build features list dynamically based on compiled features
-            // Note: Using vec_init_then_push pattern here is intentional due to conditional compilation
+            // Note: Using vec_init_then_push pattern here is intentional due to conditional
+            // compilation
             #[allow(clippy::vec_init_then_push)]
             {
                 let mut features = vec![];

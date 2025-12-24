@@ -518,8 +518,8 @@ impl Zval {
         self.get_type() == DataType::Ptr
     }
 
-    /// Returns true if the zval is a scalar value (integer, float, string, or bool),
-    /// false otherwise.
+    /// Returns true if the zval is a scalar value (integer, float, string, or
+    /// bool), false otherwise.
     ///
     /// This is equivalent to PHP's `is_scalar()` function.
     #[must_use]

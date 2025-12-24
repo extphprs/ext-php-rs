@@ -73,4 +73,16 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
             .get_constants()
     }
+    #[inline]
+    fn interface_implementations() -> ::std::vec::Vec<
+        ::ext_php_rs::class::ClassEntryInfo,
+    > {
+        let my_type_id = ::std::any::TypeId::of::<Self>();
+        ::ext_php_rs::inventory::iter::<
+            ::ext_php_rs::internal::class::InterfaceRegistration,
+        >()
+            .filter(|reg| reg.class_type_id == my_type_id)
+            .map(|reg| (reg.interface_getter)())
+            .collect()
+    }
 }
