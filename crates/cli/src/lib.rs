@@ -88,6 +88,14 @@ enum Args {
     /// extension classes, functions and constants.
     #[cfg(not(windows))]
     Stubs(Stubs),
+    /// Watches for changes and automatically rebuilds and installs the extension.
+    ///
+    /// This command watches Rust source files and Cargo.toml for changes,
+    /// automatically rebuilding and reinstalling the extension when changes
+    /// are detected. Optionally, it can also manage the PHP built-in development
+    /// server, restarting it after each successful rebuild.
+    #[cfg(not(windows))]
+    Watch(Watch),
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -171,6 +179,41 @@ struct Stubs {
     no_default_features: bool,
 }
 
+#[cfg(not(windows))]
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Parser)]
+struct Watch {
+    /// Command to run after each build (e.g., 'php test.php').
+    /// The command is executed via shell and restarted on each rebuild.
+    #[arg(trailing_var_arg = true)]
+    command: Vec<String>,
+    /// Start PHP built-in server and restart it on changes.
+    #[arg(long)]
+    serve: bool,
+    /// Host and port for PHP server (e.g., localhost:8000).
+    #[arg(long, default_value = "localhost:8000")]
+    host: String,
+    /// Document root for PHP server. Defaults to current directory.
+    #[arg(long)]
+    docroot: Option<PathBuf>,
+    /// Whether to build the release version of the extension.
+    #[arg(long)]
+    release: bool,
+    /// Path to the Cargo manifest of the extension. Defaults to the manifest in
+    /// the directory the command is called.
+    #[arg(long)]
+    manifest: Option<PathBuf>,
+    #[arg(short = 'F', long, num_args = 1..)]
+    features: Option<Vec<String>>,
+    #[arg(long)]
+    all_features: bool,
+    #[arg(long)]
+    no_default_features: bool,
+    /// Changes the path that the extension is copied to.
+    #[arg(long)]
+    install_dir: Option<PathBuf>,
+}
+
 impl Args {
     pub fn handle(self) -> CrateResult {
         match self {
@@ -178,6 +221,8 @@ impl Args {
             Args::Remove(remove) => remove.handle(),
             #[cfg(not(windows))]
             Args::Stubs(stubs) => stubs.handle(),
+            #[cfg(not(windows))]
+            Args::Watch(watch) => watch.handle(),
         }
     }
 }
@@ -258,6 +303,37 @@ impl Install {
 
         Ok(())
     }
+}
+
+/// Copies an extension to the PHP extension directory.
+///
+/// # Parameters
+///
+/// * `ext_path` - Path to the built extension file.
+/// * `install_dir` - Optional custom installation directory. If not provided,
+///   the default PHP extension directory is used.
+///
+/// # Returns
+///
+/// The path where the extension was installed.
+fn copy_extension(ext_path: &Utf8PathBuf, install_dir: Option<&PathBuf>) -> AResult<PathBuf> {
+    let mut ext_dir = if let Some(dir) = install_dir {
+        dir.clone()
+    } else {
+        get_ext_dir()?
+    };
+
+    debug_assert!(ext_path.is_file());
+    let ext_name = ext_path.file_name().expect("ext path wasn't a filepath");
+
+    if ext_dir.is_dir() {
+        ext_dir.push(ext_name);
+    }
+
+    std::fs::copy(ext_path.as_std_path(), &ext_dir)
+        .with_context(|| "Failed to copy extension from target directory to extension directory")?;
+
+    Ok(ext_dir)
 }
 
 /// Returns the path to the extension directory utilised by the PHP interpreter,
@@ -440,6 +516,271 @@ impl Stubs {
 
             std::fs::write(out_path.as_ref(), &stubs)
                 .with_context(|| "Failed to write stubs to file")?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+impl Watch {
+    #[allow(clippy::too_many_lines)]
+    pub fn handle(self) -> CrateResult {
+        use notify::RecursiveMode;
+        use notify_debouncer_full::new_debouncer;
+        use std::{
+            process::Child,
+            sync::{
+                Arc,
+                atomic::{AtomicBool, Ordering},
+                mpsc::channel,
+            },
+            time::Duration,
+        };
+
+        let artifact = find_ext(self.manifest.as_ref())?;
+        let manifest_path = self.get_manifest_path()?;
+
+        // Initial build and install
+        println!("[cargo-php] Initial build...");
+        let ext_path = build_ext(
+            &artifact,
+            self.release,
+            self.features.clone(),
+            self.all_features,
+            self.no_default_features,
+        )?;
+        copy_extension(&ext_path, self.install_dir.as_ref())?;
+        println!("[cargo-php] Build successful, extension installed.");
+
+        // Start PHP server if requested
+        let mut php_process: Option<Child> = if self.serve {
+            Some(self.start_php_server()?)
+        } else {
+            None
+        };
+
+        // Start custom command if provided
+        let has_command = !self.command.is_empty();
+        let mut cmd_process: Option<Child> = if has_command {
+            Some(self.start_command()?)
+        } else {
+            None
+        };
+
+        // Setup signal handler for graceful shutdown
+        let running = Arc::new(AtomicBool::new(true));
+        let r = running.clone();
+        ctrlc::set_handler(move || {
+            r.store(false, Ordering::SeqCst);
+        })
+        .context("Failed to set Ctrl+C handler")?;
+
+        // Setup file watcher
+        let (tx, rx) = channel();
+        let mut debouncer = new_debouncer(Duration::from_millis(500), None, tx)
+            .context("Failed to create file watcher")?;
+
+        // Determine paths to watch
+        let watch_paths = Self::determine_watch_paths(&manifest_path)?;
+        for path in &watch_paths {
+            debouncer
+                .watch(path, RecursiveMode::Recursive)
+                .with_context(|| format!("Failed to watch {}", path.display()))?;
+        }
+
+        println!("[cargo-php] Watching for changes... Press Ctrl+C to stop.");
+
+        // Main watch loop
+        while running.load(Ordering::SeqCst) {
+            // Use a short timeout to periodically check the running flag
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(Ok(events)) => {
+                    if !Self::is_relevant_event(&events) {
+                        continue;
+                    }
+
+                    println!("\n[cargo-php] Change detected, rebuilding...");
+
+                    // Kill PHP server if running
+                    if let Some(mut process) = php_process.take() {
+                        Self::kill_php_server(&mut process)?;
+                    }
+
+                    // Kill custom command if running
+                    if let Some(mut process) = cmd_process.take() {
+                        Self::kill_process(&mut process)?;
+                    }
+
+                    // Rebuild and install
+                    match build_ext(
+                        &artifact,
+                        self.release,
+                        self.features.clone(),
+                        self.all_features,
+                        self.no_default_features,
+                    ) {
+                        Ok(ext_path) => {
+                            if let Err(e) = copy_extension(&ext_path, self.install_dir.as_ref()) {
+                                eprintln!("[cargo-php] Failed to install extension: {e}");
+                                eprintln!("[cargo-php] Waiting for changes...");
+                            } else {
+                                println!("[cargo-php] Build successful, extension installed.");
+
+                                // Restart PHP server if in serve mode
+                                if self.serve {
+                                    match self.start_php_server() {
+                                        Ok(process) => php_process = Some(process),
+                                        Err(e) => {
+                                            eprintln!(
+                                                "[cargo-php] Failed to restart PHP server: {e}"
+                                            );
+                                        }
+                                    }
+                                }
+
+                                // Restart custom command if provided
+                                if has_command {
+                                    match self.start_command() {
+                                        Ok(process) => cmd_process = Some(process),
+                                        Err(e) => {
+                                            eprintln!("[cargo-php] Failed to restart command: {e}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[cargo-php] Build failed: {e}");
+                            eprintln!("[cargo-php] Waiting for changes...");
+                        }
+                    }
+                }
+                Ok(Err(errors)) => {
+                    for e in errors {
+                        eprintln!("[cargo-php] Watch error: {e}");
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    // Just a timeout, continue checking running flag
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    bail!("File watcher channel disconnected");
+                }
+            }
+        }
+
+        // Cleanup on exit
+        println!("\n[cargo-php] Shutting down...");
+        if let Some(mut process) = php_process.take() {
+            Self::kill_php_server(&mut process)?;
+        }
+        if let Some(mut process) = cmd_process.take() {
+            Self::kill_process(&mut process)?;
+        }
+
+        Ok(())
+    }
+
+    fn get_manifest_path(&self) -> AResult<PathBuf> {
+        if let Some(manifest) = &self.manifest {
+            Ok(manifest.clone())
+        } else {
+            let cwd = std::env::current_dir().context("Failed to get current directory")?;
+            Ok(cwd.join("Cargo.toml"))
+        }
+    }
+
+    fn determine_watch_paths(manifest_path: &std::path::Path) -> AResult<Vec<PathBuf>> {
+        let project_root = manifest_path
+            .parent()
+            .context("Failed to get project root")?;
+
+        let mut paths = vec![project_root.join("src"), manifest_path.to_path_buf()];
+
+        // Add build.rs if it exists
+        let build_rs = project_root.join("build.rs");
+        if build_rs.exists() {
+            paths.push(build_rs);
+        }
+
+        Ok(paths)
+    }
+
+    fn is_relevant_event(events: &[notify_debouncer_full::DebouncedEvent]) -> bool {
+        events.iter().any(|event| {
+            event.paths.iter().any(|path: &PathBuf| {
+                path.extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext == "rs" || ext == "toml")
+            })
+        })
+    }
+
+    fn start_php_server(&self) -> AResult<std::process::Child> {
+        let docroot = self
+            .docroot
+            .as_deref()
+            .unwrap_or_else(|| std::path::Path::new("."));
+
+        let child = Command::new("php")
+            .arg("-S")
+            .arg(&self.host)
+            .arg("-t")
+            .arg(docroot)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .context("Failed to start PHP server")?;
+
+        println!("[cargo-php] PHP server started on http://{}", self.host);
+        Ok(child)
+    }
+
+    fn kill_php_server(process: &mut std::process::Child) -> AResult<()> {
+        println!("[cargo-php] Stopping PHP server...");
+        Self::kill_process(process)
+    }
+
+    fn start_command(&self) -> AResult<std::process::Child> {
+        let cmd_str = self.command.join(" ");
+        println!("[cargo-php] Running: {cmd_str}");
+
+        let child = Command::new("sh")
+            .arg("-c")
+            .arg(&cmd_str)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .with_context(|| format!("Failed to start command: {cmd_str}"))?;
+
+        Ok(child)
+    }
+
+    fn kill_process(process: &mut std::process::Child) -> AResult<()> {
+        use std::time::Duration;
+
+        // Send SIGTERM on Unix
+        #[allow(clippy::cast_possible_wrap)]
+        unsafe {
+            libc::kill(process.id() as i32, libc::SIGTERM);
+        }
+
+        // Wait up to 2 seconds for graceful shutdown
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(2);
+
+        loop {
+            if process.try_wait()?.is_some() {
+                break;
+            }
+            if start.elapsed() > timeout {
+                // Force kill after timeout
+                process.kill()?;
+                process.wait()?;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
         }
 
         Ok(())
