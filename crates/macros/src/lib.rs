@@ -39,6 +39,10 @@ extern crate proc_macro;
 ///   struct name is kept the same. If no name is given, the name of the struct
 ///   is used. Useful for namespacing classes.
 /// - `change_case` - Changes the case of the class name when exported to PHP.
+/// - `readonly` - Marks the class as readonly (PHP 8.2+). All properties in a
+///   readonly class are implicitly readonly.
+/// - `flags` - Sets class flags using `ClassFlags`, e.g. `#[php(flags =
+///   ClassFlags::Final)]` for a final class.
 /// - `#[php(extends(ce = ce_fn, stub = "ParentClass"))]` - Sets the parent
 ///   class of the class. Can only be used once. `ce_fn` must be a function with
 ///   the signature `fn() -> &'static ClassEntry`.
@@ -274,6 +278,85 @@ extern crate proc_macro;
 /// echo Counter::$count; // 2
 /// echo Counter::getCount(); // 2
 /// ```
+///
+/// ## Readonly Classes (PHP 8.2+)
+///
+/// PHP 8.2 introduced [readonly classes](https://www.php.net/manual/en/language.oop5.basic.php#language.oop5.basic.class.readonly),
+/// where all properties are implicitly readonly. You can create a readonly
+/// class using the `#[php(readonly)]` attribute:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_class]
+/// #[php(readonly)]
+/// pub struct ImmutablePoint {
+///     x: f64,
+///     y: f64,
+/// }
+///
+/// #[php_impl]
+/// impl ImmutablePoint {
+///     pub fn __construct(x: f64, y: f64) -> Self {
+///         Self { x, y }
+///     }
+///
+///     pub fn get_x(&self) -> f64 {
+///         self.x
+///     }
+///
+///     pub fn get_y(&self) -> f64 {
+///         self.y
+///     }
+///
+///     pub fn distance_from_origin(&self) -> f64 {
+///         (self.x * self.x + self.y * self.y).sqrt()
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<ImmutablePoint>()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// From PHP:
+///
+/// ```php
+/// $point = new ImmutablePoint(3.0, 4.0);
+/// echo $point->getX(); // 3.0
+/// echo $point->getY(); // 4.0
+/// echo $point->distanceFromOrigin(); // 5.0
+///
+/// // On PHP 8.2+, you can verify the class is readonly:
+/// $reflection = new ReflectionClass(ImmutablePoint::class);
+/// var_dump($reflection->isReadOnly()); // true
+/// ```
+///
+/// The `readonly` attribute is compatible with other class attributes:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::flags::ClassFlags;
+///
+/// // Readonly + Final class
+/// #[php_class]
+/// #[php(readonly)]
+/// #[php(flags = ClassFlags::Final)]
+/// pub struct FinalImmutableData {
+///     value: String,
+/// }
+/// # fn main() {}
+/// ```
+///
+/// **Note:** On PHP versions before 8.2, the `readonly` attribute is silently
+/// ignored for backwards compatibility. Your extension will still work, but the
+/// class won't have the readonly enforcement that PHP 8.2+ provides.
 // END DOCS FROM classes.md
 #[proc_macro_attribute]
 pub fn php_class(args: TokenStream, input: TokenStream) -> TokenStream {

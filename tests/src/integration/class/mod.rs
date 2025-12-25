@@ -232,6 +232,30 @@ impl TestStaticProps {
     }
 }
 
+/// Test readonly class (PHP 8.2+)
+/// All properties are implicitly readonly
+#[php_class]
+#[php(readonly)]
+pub struct TestReadonlyClass {
+    name: String,
+    value: i32,
+}
+
+#[php_impl]
+impl TestReadonlyClass {
+    pub fn __construct(name: String, value: i32) -> Self {
+        Self { name, value }
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_value(&self) -> i32 {
+        self.value
+    }
+}
+
 /// Test class for returning $this (Issue #502)
 /// This demonstrates returning &mut Self from methods for fluent interfaces
 #[php_class]
@@ -287,6 +311,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassProtectedConstruct>()
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
+        .class::<TestReadonlyClass>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }
