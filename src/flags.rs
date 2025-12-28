@@ -149,6 +149,11 @@ bitflags! {
         /// Class cannot be serialized or unserialized
         #[cfg(php81)]
         const NotSerializable = crate::ffi::ZEND_ACC_NOT_SERIALIZABLE;
+
+        /// Readonly class (PHP 8.2+)
+        /// All properties are implicitly readonly
+        #[cfg(php82)]
+        const ReadonlyClass = crate::ffi::ZEND_ACC_READONLY_CLASS;
     }
 }
 

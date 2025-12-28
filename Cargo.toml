@@ -4,6 +4,7 @@ description = "Bindings for the Zend API to build PHP extensions natively in Rus
 repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
+links = "ext-php-rs"
 keywords = ["php", "ffi", "zend"]
 version = "0.15.2"
 authors = [
