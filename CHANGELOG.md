@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.15.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.2...ext-php-rs-v0.15.3) - 2025-12-28
+
+### Added
+- *(cargo-php)* Atomic extension installation and smoke testing (by @kakserpom) [[#619](https://github.com/davidcole1340/ext-php-rs/issues/619)] [[#518](https://github.com/davidcole1340/ext-php-rs/issues/518)] 
+- *(class)* Static properties and methods #252 ([#627](https://github.com/extphprs/ext-php-rs/pull/627)) (by @kakserpom) [[#252](https://github.com/davidcole1340/ext-php-rs/issues/252)] [[#627](https://github.com/davidcole1340/ext-php-rs/issues/627)] 
+- *(is_scalar)* Zval::is_scalar() #237 ([#614](https://github.com/extphprs/ext-php-rs/pull/614)) (by @kakserpom) [[#237](https://github.com/davidcole1340/ext-php-rs/issues/237)] [[#614](https://github.com/davidcole1340/ext-php-rs/issues/614)] 
+- *(php_write)* A binary-safe way to write to PHP's stdout/stderr #508 ([#613](https://github.com/extphprs/ext-php-rs/pull/613)) (by @kakserpom) [[#508](https://github.com/davidcole1340/ext-php-rs/issues/508)] [[#613](https://github.com/davidcole1340/ext-php-rs/issues/613)] 
+- *(types)* Argument coercion into HashSet/BTreeSet #493 ([#598](https://github.com/extphprs/ext-php-rs/pull/598)) (by @kakserpom) [[#493](https://github.com/davidcole1340/ext-php-rs/issues/493)] [[#598](https://github.com/davidcole1340/ext-php-rs/issues/598)] 
+- Add support for empty immutable shared arrays (by @kakserpom) [[#631](https://github.com/davidcole1340/ext-php-rs/issues/631)] [[#355](https://github.com/davidcole1340/ext-php-rs/issues/355)] 
+
+### Fixed
+- *(binary)* Avoid leaking in Pack::pack_into ([#610](https://github.com/extphprs/ext-php-rs/pull/610)) (by @Nova-Static) [[#610](https://github.com/davidcole1340/ext-php-rs/issues/610)] 
+- *(bindings)* Exclude `preserve_none` instruction from bindings ([#620](https://github.com/extphprs/ext-php-rs/pull/620)) (by @ptondereau) [[#620](https://github.com/davidcole1340/ext-php-rs/issues/620)] 
+- *(ci)* Disable TS build for embed tests ([#600](https://github.com/extphprs/ext-php-rs/pull/600)) (by @ptondereau) [[#600](https://github.com/davidcole1340/ext-php-rs/issues/600)] 
+- *(class)* Check property visibility (by @kakserpom) [[#633](https://github.com/davidcole1340/ext-php-rs/issues/633)] [[#375](https://github.com/davidcole1340/ext-php-rs/issues/375)] 
+- *(class)* Return Self ($this) #502 ([#626](https://github.com/extphprs/ext-php-rs/pull/626)) (by @kakserpom) [[#502](https://github.com/davidcole1340/ext-php-rs/issues/502)] [[#626](https://github.com/davidcole1340/ext-php-rs/issues/626)] 
+- *(clippy)* Default hasher for ArrayKey ([#608](https://github.com/extphprs/ext-php-rs/pull/608)) (by @ptondereau) [[#608](https://github.com/davidcole1340/ext-php-rs/issues/608)] 
+- *(clippy)* Clippy v1.92.0 ([#605](https://github.com/extphprs/ext-php-rs/pull/605)) (by @ptondereau) [[#605](https://github.com/davidcole1340/ext-php-rs/issues/605)] 
+- *(macro)* Identifier-related bugs #536 ([#616](https://github.com/extphprs/ext-php-rs/pull/616)) (by @kakserpom) [[#536](https://github.com/davidcole1340/ext-php-rs/issues/536)] [[#616](https://github.com/davidcole1340/ext-php-rs/issues/616)] 
+- *(macro)* Nullable parameters #538 ([#617](https://github.com/extphprs/ext-php-rs/pull/617)) (by @kakserpom) [[#538](https://github.com/davidcole1340/ext-php-rs/issues/538)] [[#617](https://github.com/davidcole1340/ext-php-rs/issues/617)] 
+- *(macro)* Reference mutability inside Option #515 ([#615](https://github.com/extphprs/ext-php-rs/pull/615)) (by @kakserpom) [[#515](https://github.com/davidcole1340/ext-php-rs/issues/515)] [[#615](https://github.com/davidcole1340/ext-php-rs/issues/615)] 
+- *(zend_bailout)* Fix zend_bailout handling #537 ([#625](https://github.com/extphprs/ext-php-rs/pull/625)) (by @kakserpom) [[#537](https://github.com/davidcole1340/ext-php-rs/issues/537)] [[#625](https://github.com/davidcole1340/ext-php-rs/issues/625)] 
+- *(zval)* Heap corruption with persistent=true #424 ([#622](https://github.com/extphprs/ext-php-rs/pull/622)) (by @kakserpom) [[#424](https://github.com/davidcole1340/ext-php-rs/issues/424)] [[#622](https://github.com/davidcole1340/ext-php-rs/issues/622)] 
+
+### Other
+- *(deps)* Update zip requirement from 6.0 to 7.0 ([#634](https://github.com/extphprs/ext-php-rs/pull/634)) (by @dependabot[bot]) [[#634](https://github.com/davidcole1340/ext-php-rs/issues/634)] 
+- *(deps)* Bump actions/cache from 4 to 5 ([#607](https://github.com/extphprs/ext-php-rs/pull/607)) (by @dependabot[bot]) [[#607](https://github.com/davidcole1340/ext-php-rs/issues/607)] 
+- *(deps)* Bump JamesIves/github-pages-deploy-action ([#606](https://github.com/extphprs/ext-php-rs/pull/606)) (by @dependabot[bot]) [[#606](https://github.com/davidcole1340/ext-php-rs/issues/606)] 
+- *(superglobals)* A guide chapter on Superglobals #499 ([#612](https://github.com/extphprs/ext-php-rs/pull/612)) (by @kakserpom) [[#499](https://github.com/davidcole1340/ext-php-rs/issues/499)] [[#612](https://github.com/davidcole1340/ext-php-rs/issues/612)] 
+- Remove outdated `ClassBuilder::property()` documentation ([#603](https://github.com/extphprs/ext-php-rs/pull/603)) (by @DanielEScherzer) [[#603](https://github.com/davidcole1340/ext-php-rs/issues/603)] [[#372](https://github.com/davidcole1340/ext-php-rs/issues/372)] 
 ## [0.15.2](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.1...ext-php-rs-v0.15.2) - 2025-12-06
 
 ### Added

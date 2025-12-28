@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.5...ext-php-rs-derive-v0.11.6) - 2025-12-28
+
+### Added
+- *(class)* Static properties and methods #252 ([#627](https://github.com/extphprs/ext-php-rs/pull/627)) (by @kakserpom) [[#252](https://github.com/davidcole1340/ext-php-rs/issues/252)] [[#627](https://github.com/davidcole1340/ext-php-rs/issues/627)] 
+
+### Fixed
+- *(class)* Check property visibility (by @kakserpom) [[#633](https://github.com/davidcole1340/ext-php-rs/issues/633)] [[#375](https://github.com/davidcole1340/ext-php-rs/issues/375)] 
+- *(class)* Return Self ($this) #502 ([#626](https://github.com/extphprs/ext-php-rs/pull/626)) (by @kakserpom) [[#502](https://github.com/davidcole1340/ext-php-rs/issues/502)] [[#626](https://github.com/davidcole1340/ext-php-rs/issues/626)] 
+- *(clippy)* Clippy v1.92.0 ([#605](https://github.com/extphprs/ext-php-rs/pull/605)) (by @ptondereau) [[#605](https://github.com/davidcole1340/ext-php-rs/issues/605)] 
+- *(macro)* Identifier-related bugs #536 ([#616](https://github.com/extphprs/ext-php-rs/pull/616)) (by @kakserpom) [[#536](https://github.com/davidcole1340/ext-php-rs/issues/536)] [[#616](https://github.com/davidcole1340/ext-php-rs/issues/616)] 
+- *(macro)* Nullable parameters #538 ([#617](https://github.com/extphprs/ext-php-rs/pull/617)) (by @kakserpom) [[#538](https://github.com/davidcole1340/ext-php-rs/issues/538)] [[#617](https://github.com/davidcole1340/ext-php-rs/issues/617)] 
+- *(macro)* Reference mutability inside Option #515 ([#615](https://github.com/extphprs/ext-php-rs/pull/615)) (by @kakserpom) [[#515](https://github.com/davidcole1340/ext-php-rs/issues/515)] [[#615](https://github.com/davidcole1340/ext-php-rs/issues/615)] 
+- *(zend_bailout)* Fix zend_bailout handling #537 ([#625](https://github.com/extphprs/ext-php-rs/pull/625)) (by @kakserpom) [[#537](https://github.com/davidcole1340/ext-php-rs/issues/537)] [[#625](https://github.com/davidcole1340/ext-php-rs/issues/625)] 
+
+### Other
+- *(deps)* Update darling requirement from 0.21 to 0.23 ([#596](https://github.com/extphprs/ext-php-rs/pull/596)) (by @dependabot[bot]) [[#596](https://github.com/davidcole1340/ext-php-rs/issues/596)] 
 ## [0.11.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.4...ext-php-rs-derive-v0.11.5) - 2025-12-06
 
 ### Added

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.15](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.14...cargo-php-v0.1.15) - 2025-12-28
+
+### Added
+- *(cargo-php)* Atomic extension installation and smoke testing (by @kakserpom) [[#619](https://github.com/davidcole1340/ext-php-rs/issues/619)] [[#518](https://github.com/davidcole1340/ext-php-rs/issues/518)] 
 ## [0.1.14](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.13...cargo-php-v0.1.14) - 2025-12-06
 
 ### Other
