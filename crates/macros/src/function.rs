@@ -999,7 +999,8 @@ fn expr_to_php_stub(expr: &Expr) -> String {
     }
 }
 
-/// Returns true if the given type is nullable in PHP (i.e., it's an `Option<T>`).
+/// Returns true if the given type is nullable in PHP (i.e., it's an
+/// `Option<T>`).
 ///
 /// Note: Having a default value does NOT make a type nullable. A parameter with
 /// a default value is optional (can be omitted), but passing `null` explicitly

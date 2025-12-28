@@ -218,7 +218,8 @@ impl AsRef<str> for IniBuilder {
     }
 }
 
-// Ensure the C buffer is properly deinitialized when the builder goes out of scope.
+// Ensure the C buffer is properly deinitialized when the builder goes out of
+// scope.
 impl Drop for IniBuilder {
     fn drop(&mut self) {
         if !self.value.is_null() {

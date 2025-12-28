@@ -447,9 +447,11 @@ impl ZendHashTable {
             }
             ArrayKey::String(key) => {
                 unsafe {
+                    // Use raw bytes directly since zend_hash_str_update takes a length.
+                    // This allows keys with embedded null bytes (e.g. PHP property mangling).
                     zend_hash_str_update(
                         self,
-                        CString::new(key.as_str())?.as_ptr(),
+                        key.as_str().as_ptr().cast(),
                         key.len(),
                         &raw mut val,
                     )
@@ -457,7 +459,9 @@ impl ZendHashTable {
             }
             ArrayKey::Str(key) => {
                 unsafe {
-                    zend_hash_str_update(self, CString::new(key)?.as_ptr(), key.len(), &raw mut val)
+                    // Use raw bytes directly since zend_hash_str_update takes a length.
+                    // This allows keys with embedded null bytes (e.g. PHP property mangling).
+                    zend_hash_str_update(self, key.as_ptr().cast(), key.len(), &raw mut val)
                 };
             }
         }

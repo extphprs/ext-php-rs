@@ -1209,6 +1209,13 @@ unsafe extern "C" {
         ::std::option::Option<unsafe extern "C" fn(execute_data: *mut zend_execute_data)>;
 }
 unsafe extern "C" {
+    pub fn zend_throw_error(
+        exception_ce: *mut zend_class_entry,
+        format: *const ::std::os::raw::c_char,
+        ...
+    );
+}
+unsafe extern "C" {
     pub static mut zend_standard_class_def: *mut zend_class_entry;
 }
 pub const zend_error_handling_t_EH_NORMAL: zend_error_handling_t = 0;

@@ -277,6 +277,51 @@ impl FluentBuilder {
     }
 }
 
+/// Test class for property visibility (Issue #375)
+#[php_class]
+pub struct TestPropertyVisibility {
+    /// Public property - accessible from anywhere
+    #[php(prop)]
+    pub public_num: i32,
+    /// Private property - only accessible from within the class
+    #[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]
+    pub private_str: String,
+    /// Protected property - accessible from class and subclasses
+    #[php(prop, flags = ext_php_rs::flags::PropertyFlags::Protected)]
+    pub protected_str: String,
+}
+
+#[php_impl]
+impl TestPropertyVisibility {
+    pub fn __construct(public_num: i32, private_str: String, protected_str: String) -> Self {
+        Self {
+            public_num,
+            private_str,
+            protected_str,
+        }
+    }
+
+    /// Method to access private property from within the class
+    pub fn get_private(&self) -> String {
+        self.private_str.clone()
+    }
+
+    /// Method to access protected property from within the class
+    pub fn get_protected(&self) -> String {
+        self.protected_str.clone()
+    }
+
+    /// Method to set private property from within the class
+    pub fn set_private(&mut self, value: String) {
+        self.private_str = value;
+    }
+
+    /// Method to set protected property from within the class
+    pub fn set_protected(&mut self, value: String) {
+        self.protected_str = value;
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<TestClass>()
@@ -287,6 +332,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassProtectedConstruct>()
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
+        .class::<TestPropertyVisibility>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }
