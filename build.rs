@@ -406,6 +406,10 @@ fn check_php_version(info: &PHPInfo) -> Result<()> {
 
     for supported_version in version.supported_apis() {
         println!("cargo:rustc-cfg={}", supported_version.cfg_name());
+        // Export metadata for dependent crates (available as DEP_EXT_PHP_RS_<KEY>)
+        // Note: Using cargo:KEY=VALUE format for metadata (not cargo::metadata=)
+        // because cargo::metadata= causes duplicate artifacts in workspace builds
+        println!("cargo:{}=1", supported_version.cfg_name().to_uppercase());
     }
 
     Ok(())
@@ -436,11 +440,10 @@ fn main() -> Result<()> {
     if env::var("DOCS_RS").is_ok() {
         println!("cargo:warning=docs.rs detected - using stub bindings");
         println!("cargo:rustc-cfg=php_debug");
-        println!("cargo:rustc-cfg=php81");
-        println!("cargo:rustc-cfg=php82");
-        println!("cargo:rustc-cfg=php83");
-        println!("cargo:rustc-cfg=php84");
-        println!("cargo:rustc-cfg=php85");
+        for version in ["php81", "php82", "php83", "php84", "php85"] {
+            println!("cargo:rustc-cfg={version}");
+            println!("cargo:{}=1", version.to_uppercase());
+        }
         std::fs::copy("docsrs_bindings.rs", out_path)
             .expect("failed to copy docs.rs stub bindings to out directory");
         return Ok(());
@@ -469,9 +472,11 @@ fn main() -> Result<()> {
 
     if info.debug()? {
         println!("cargo:rustc-cfg=php_debug");
+        println!("cargo:PHP_DEBUG=1");
     }
     if info.thread_safety()? {
         println!("cargo:rustc-cfg=php_zts");
+        println!("cargo:PHP_ZTS=1");
     }
     provider.print_extra_link_args()?;
 

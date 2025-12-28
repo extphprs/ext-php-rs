@@ -232,6 +232,32 @@ impl TestStaticProps {
     }
 }
 
+/// Test readonly class (PHP 8.2+)
+/// All properties are implicitly readonly
+#[cfg(php82)]
+#[php_class]
+#[php(readonly)]
+pub struct TestReadonlyClass {
+    name: String,
+    value: i32,
+}
+
+#[cfg(php82)]
+#[php_impl]
+impl TestReadonlyClass {
+    pub fn __construct(name: String, value: i32) -> Self {
+        Self { name, value }
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_value(&self) -> i32 {
+        self.value
+    }
+}
+
 /// Test class for returning $this (Issue #502)
 /// This demonstrates returning &mut Self from methods for fluent interfaces
 #[php_class]
@@ -323,7 +349,7 @@ impl TestPropertyVisibility {
 }
 
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
-    builder
+    let builder = builder
         .class::<TestClass>()
         .class::<TestClassArrayAccess>()
         .class::<TestClassExtends>()
@@ -334,7 +360,12 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<FluentBuilder>()
         .class::<TestPropertyVisibility>()
         .function(wrap_function!(test_class))
-        .function(wrap_function!(throw_exception))
+        .function(wrap_function!(throw_exception));
+
+    #[cfg(php82)]
+    let builder = builder.class::<TestReadonlyClass>();
+
+    builder
 }
 
 #[cfg(test)]
