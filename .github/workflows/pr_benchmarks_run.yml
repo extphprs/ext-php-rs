@@ -9,7 +9,7 @@ jobs:
     name: Run PR Benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Valgrind
         run: sudo apt update && sudo apt install -y valgrind
       - uses: taiki-e/install-action@cargo-binstall
@@ -23,12 +23,12 @@ jobs:
       - name: Run Benchmarks
         run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark_results.txt
           path: ./benchmark_results.txt
       - name: Upload Pull Request Event
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: event.json
           path: ${{ github.event_path }}
