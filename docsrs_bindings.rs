@@ -1230,6 +1230,7 @@ pub struct _zend_lazy_objects_store {
 }
 pub type zend_lazy_objects_store = _zend_lazy_objects_store;
 pub type zend_property_info = _zend_property_info;
+pub type zend_fcall_info = _zend_fcall_info;
 pub type zend_fcall_info_cache = _zend_fcall_info_cache;
 pub type zend_object_read_property_t = ::std::option::Option<
     unsafe extern "C" fn(
@@ -2072,6 +2073,16 @@ pub struct _zend_function_entry {
 }
 pub type zend_function_entry = _zend_function_entry;
 #[repr(C)]
+pub struct _zend_fcall_info {
+    pub size: usize,
+    pub function_name: zval,
+    pub retval: *mut zval,
+    pub params: *mut zval,
+    pub object: *mut zend_object,
+    pub param_count: u32,
+    pub named_params: *mut HashTable,
+}
+#[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_fcall_info_cache {
     pub function_handler: *mut zend_function,
@@ -2096,6 +2107,16 @@ unsafe extern "C" {
     pub fn zend_register_internal_interface(
         orig_class_entry: *mut zend_class_entry,
     ) -> *mut zend_class_entry;
+}
+unsafe extern "C" {
+    pub fn zend_is_callable_ex(
+        callable: *mut zval,
+        object: *mut zend_object,
+        check_flags: u32,
+        callable_name: *mut *mut zend_string,
+        fcc: *mut zend_fcall_info_cache,
+        error: *mut *mut ::std::os::raw::c_char,
+    ) -> bool;
 }
 unsafe extern "C" {
     pub fn zend_is_callable(
@@ -2148,6 +2169,12 @@ unsafe extern "C" {
         param_count: u32,
         params: *mut zval,
         named_params: *mut HashTable,
+    ) -> zend_result;
+}
+unsafe extern "C" {
+    pub fn zend_call_function(
+        fci: *mut zend_fcall_info,
+        fci_cache: *mut zend_fcall_info_cache,
     ) -> zend_result;
 }
 unsafe extern "C" {
