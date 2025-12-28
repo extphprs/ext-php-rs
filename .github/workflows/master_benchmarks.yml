@@ -7,7 +7,7 @@ jobs:
     name: Run PR Benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Valgrind
         run: sudo apt update && sudo apt install -y valgrind
       - uses: taiki-e/install-action@cargo-binstall
