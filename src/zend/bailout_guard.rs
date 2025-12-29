@@ -1,9 +1,11 @@
-//! Provides cleanup guarantees for values that need to be dropped even when PHP bailout occurs.
+//! Provides cleanup guarantees for values that need to be dropped even when PHP
+//! bailout occurs.
 //!
-//! When PHP triggers a bailout (via `exit()`, fatal error, etc.), it uses `longjmp` which
-//! bypasses Rust's normal stack unwinding. This means destructors for stack-allocated values
-//! won't run. `BailoutGuard` solves this by heap-allocating values and registering cleanup
-//! callbacks that run when a bailout is caught.
+//! When PHP triggers a bailout (via `exit()`, fatal error, etc.), it uses
+//! `longjmp` which bypasses Rust's normal stack unwinding. This means
+//! destructors for stack-allocated values won't run. `BailoutGuard` solves this
+//! by heap-allocating values and registering cleanup callbacks that run when a
+//! bailout is caught.
 //!
 //! # Example
 //!
@@ -37,15 +39,16 @@ thread_local! {
 
 /// A guard that ensures a value is dropped even if PHP bailout occurs.
 ///
-/// `BailoutGuard` heap-allocates the wrapped value and registers a cleanup callback.
-/// If a bailout occurs, the cleanup runs before the bailout is re-triggered.
-/// If the guard is dropped normally, the cleanup is cancelled and the value is dropped.
+/// `BailoutGuard` heap-allocates the wrapped value and registers a cleanup
+/// callback. If a bailout occurs, the cleanup runs before the bailout is
+/// re-triggered. If the guard is dropped normally, the cleanup is cancelled and
+/// the value is dropped.
 ///
 /// # Performance Note
 ///
 /// This incurs a heap allocation. Only use for values that absolutely must be
-/// cleaned up (file handles, network connections, locks, etc.). For simple values,
-/// the overhead isn't worth it.
+/// cleaned up (file handles, network connections, locks, etc.). For simple
+/// values, the overhead isn't worth it.
 pub struct BailoutGuard<T> {
     /// Pointer to the heap-allocated value. Using raw pointer because we need
     /// to pass it to the cleanup callback.
