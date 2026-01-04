@@ -49,9 +49,8 @@ update_docs "extern"
 update_docs "function"
 update_docs "impl"
 update_docs "module"
-update_docs "zval_convert"
 update_docs "enum"
 update_docs "interface"
 
 # Format to remove trailing whitespace
-rustup run nightly rustfmt crates/macros/src/lib.rs
+rustup run nightly rustfmt --edition 2024 crates/macros/src/lib.rs
