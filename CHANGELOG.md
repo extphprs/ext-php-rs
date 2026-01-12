@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.15.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.3...ext-php-rs-v0.15.4) - 2026-01-12
+
+### Fixed
+- *(deps)* Bump parking_lot required version to 0.12.3 (by @TobiasBengtsson) [[#640](https://github.com/davidcole1340/ext-php-rs/issues/640)] 
 ## [0.15.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.2...ext-php-rs-v0.15.3) - 2025-12-28
 
 ### Added
