@@ -1,0 +1,18 @@
+on:
+  pull_request_target:
+    types: [closed]
+
+jobs:
+  archive_fork_pr_branch:
+    name: Archive closed PR branch with Bencher
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: bencherdev/bencher@main
+      - name: Archive closed fork PR branch with Bencher
+        run: |
+          bencher archive \
+          --host 'https://bencher.php.rs/api' \
+          --project ext-php-rs \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch "$GITHUB_HEAD_REF"

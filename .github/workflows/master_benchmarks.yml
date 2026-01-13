@@ -1,0 +1,34 @@
+on:
+  push:
+    branches: main
+
+jobs:
+  run_benchmarks:
+    name: Run PR Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Valgrind
+        run: sudo apt update && sudo apt install -y valgrind
+      - uses: taiki-e/install-action@cargo-binstall
+      - name: Install gungraun-runner
+        run: |
+          version=$(cargo metadata --format-version=1 |\
+            jq '.packages[] | select(.name == "gungraun").version' |\
+            tr -d '"'
+          )
+          cargo binstall --no-confirm gungraun-runner --version $version
+      - name: Run Benchmarks
+        run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
+      - name: Track Benchmarks with Bencher
+        run: |
+          bencher run \
+          --host 'https://bencher.php.rs/api' \
+          --project ext-php-rs \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch master \
+          --testbed "$(php --version | head -n 1)" \
+          --err \
+          --adapter rust_gungraun \
+          --github-actions '${{ secrets.GITHUB_TOKEN }}' \
+          --file "./benchmark_results.txt"
