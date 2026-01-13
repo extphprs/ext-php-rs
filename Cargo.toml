@@ -26,6 +26,12 @@ ext-php-rs-derive = { version = "=0.11.6", path = "./crates/macros" }
 
 [dev-dependencies]
 skeptic = "0.13"
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "function_call"
+harness = false
+required-features = ["embed"]
 
 [build-dependencies]
 anyhow = "1"
@@ -79,6 +85,16 @@ path = "tests/module.rs"
 name = "sapi_tests"
 path = "tests/sapi.rs"
 
+[[test]]
+name = "raw_functions_tests"
+path = "tests/raw_functions.rs"
+required-features = ["embed"]
+
+[[test]]
+name = "cached_callable_tests"
+path = "tests/cached_callable.rs"
+required-features = ["embed"]
+
 # Patch clang-sys and bindgen for preserve_none calling convention support (libclang 19/20)
 # Required for PHP 8.5+ on macOS ARM64 which uses TAILCALL VM mode
 # - clang-sys: Adds libclang 19/20 bindings (https://github.com/KyleMayes/clang-sys/pull/195)
@@ -86,3 +102,4 @@ path = "tests/sapi.rs"
 [patch.crates-io]
 clang-sys = { git = "https://github.com/extphprs/clang-sys.git", branch = "preserve-none-support" }
 bindgen = { git = "https://github.com/extphprs/rust-bindgen.git", branch = "preserve-none-support" }
+
