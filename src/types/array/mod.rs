@@ -20,9 +20,11 @@ use crate::{
 
 mod array_key;
 mod conversions;
+mod entry;
 mod iterators;
 
 pub use array_key::ArrayKey;
+pub use entry::{Entry, OccupiedEntry, VacantEntry};
 pub use iterators::{Iter, Values};
 
 /// A PHP hashtable.
@@ -654,6 +656,99 @@ impl ZendHashTable {
         self.into_iter()
     }
 
+    /// Gets the given key's corresponding entry in the hashtable for in-place
+    /// manipulation.
+    ///
+    /// This API is similar to Rust's [`std::collections::hash_map::HashMap::entry`].
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - The key to look up in the hashtable.
+    ///
+    /// # Returns
+    ///
+    /// An `Entry` enum that can be used to insert or modify the value at
+    /// the given key.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendHashTable;
+    ///
+    /// let mut ht = ZendHashTable::new();
+    ///
+    /// // Insert a default value if the key doesn't exist
+    /// ht.entry("counter").or_insert(0i64);
+    ///
+    /// // Modify the value if it exists
+    /// ht.entry("counter").and_modify(|v| {
+    ///     if let Some(n) = v.long() {
+    ///         v.set_long(n + 1);
+    ///     }
+    /// });
+    ///
+    /// // Use or_insert_with for lazy initialization
+    /// ht.entry("computed").or_insert_with(|| "computed value");
+    ///
+    /// // Works with numeric keys too
+    /// ht.entry(42i64).or_insert("value at index 42");
+    /// ```
+    pub fn entry<'a, 'k, K>(&'a mut self, key: K) -> Entry<'a, 'k>
+    where
+        K: Into<ArrayKey<'k>>,
+    {
+        let key = key.into();
+        if self.has_key(&key) {
+            Entry::Occupied(entry::OccupiedEntry::new(self, key))
+        } else {
+            Entry::Vacant(entry::VacantEntry::new(self, key))
+        }
+    }
+
+    /// Checks if a key exists in the hash table.
+    ///
+    /// # Parameters
+    ///
+    /// * `key` - The key to check for in the hash table.
+    ///
+    /// # Returns
+    ///
+    /// * `true` - The key exists in the hash table.
+    /// * `false` - The key does not exist in the hash table.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::{ZendHashTable, ArrayKey};
+    ///
+    /// let mut ht = ZendHashTable::new();
+    ///
+    /// ht.insert("test", "hello world");
+    /// assert!(ht.has_key(&ArrayKey::from("test")));
+    /// assert!(!ht.has_key(&ArrayKey::from("missing")));
+    /// ```
+    #[must_use]
+    pub fn has_key(&self, key: &ArrayKey<'_>) -> bool {
+        match key {
+            ArrayKey::Long(index) => unsafe {
+                #[allow(clippy::cast_sign_loss)]
+                !zend_hash_index_find(self, *index as zend_ulong).is_null()
+            },
+            ArrayKey::String(key) => {
+                let Ok(cstr) = CString::new(key.as_str()) else {
+                    return false;
+                };
+                unsafe { !zend_hash_str_find(self, cstr.as_ptr(), key.len() as _).is_null() }
+            }
+            ArrayKey::Str(key) => {
+                let Ok(cstr) = CString::new(*key) else {
+                    return false;
+                };
+                unsafe { !zend_hash_str_find(self, cstr.as_ptr(), key.len() as _).is_null() }
+            }
+        }
+    }
+
     /// Determines whether this hashtable is immutable.
     ///
     /// Immutable hashtables are shared and cannot be modified. The primary
@@ -815,5 +910,49 @@ impl IntoZval for ZendEmptyArray {
         zv.u1.type_info = ZvalTypeFlags::Array.bits();
         zv.value.arr = ptr::from_ref(self.as_hashtable()).cast_mut();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "embed")]
+mod tests {
+    use super::*;
+    use crate::embed::Embed;
+
+    #[test]
+    fn test_has_key_string() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.insert("test", "value");
+
+            assert!(ht.has_key(&ArrayKey::from("test")));
+            assert!(!ht.has_key(&ArrayKey::from("missing")));
+        });
+    }
+
+    #[test]
+    fn test_has_key_long() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.push(42i64);
+
+            assert!(ht.has_key(&ArrayKey::Long(0)));
+            assert!(!ht.has_key(&ArrayKey::Long(1)));
+        });
+    }
+
+    #[test]
+    fn test_has_key_str_ref() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.insert("hello", "world");
+
+            let key = ArrayKey::Str("hello");
+            assert!(ht.has_key(&key));
+            // Key is still usable after has_key (no clone needed)
+            assert!(ht.has_key(&key));
+
+            assert!(!ht.has_key(&ArrayKey::Str("missing")));
+        });
     }
 }
