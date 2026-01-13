@@ -84,8 +84,8 @@ pub fn printf(message: &str) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns [`crate::error::Error::SapiWriteUnavailable`] if the SAPI's `ub_write` function
-/// is not available.
+/// Returns [`crate::error::Error::SapiWriteUnavailable`] if the SAPI's
+/// `ub_write` function is not available.
 ///
 /// # Example
 ///
