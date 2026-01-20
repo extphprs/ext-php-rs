@@ -128,13 +128,22 @@ best resource at the moment. This can be viewed at [docs.rs].
 
 ### Alpine Linux (musl)
 
-Building for Alpine Linux (musl libc) is supported on stable Rust with dynamic linking
-thanks to `runtime` feature flag from `bindgen`.
+Building on Alpine Linux (musl libc) is supported thanks to the `runtime` feature flag.
 
-**Note**: Building for musl requires dynamic CRT linking (`-crt-static` flag) to produce
-the `cdylib` output required for PHP extensions.
-If you want to build statically, you'll need full LLVM + Clang toolchain.
-Please read: <https://github.com/KyleMayes/clang-sys#static>
+```sh
+# Install dependencies and cargo-php
+apk add clang16-libclang
+cargo install cargo-php
+```
+
+When building your own extensions, add to your project's `.cargo/config.toml`:
+
+```toml
+[target.'cfg(target_env = "musl")']
+rustflags = ["-C", "target-feature=-crt-static"]
+```
+
+For static linking, see: <https://github.com/KyleMayes/clang-sys#static>
 
 ### Windows Requirements
 
