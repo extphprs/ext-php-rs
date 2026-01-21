@@ -1,6 +1,9 @@
 //! Represents a string in the PHP world. Similar to a C string, but is
 //! reference counted and contains the length of the string.
 
+#[cfg(feature = "smartstring")]
+mod smartstring_impl;
+
 use std::{
     borrow::Cow,
     convert::TryFrom,

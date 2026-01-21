@@ -224,7 +224,7 @@ jobs:
           echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-config" >> $GITHUB_ENV
 
       - name: Test with embed feature
-        run: cargo test --workspace --release --features closure,embed,anyhow --no-fail-fast
+        run: cargo test --workspace --release --features closure,embed,anyhow,smartstring --no-fail-fast
 
   build-musl:
     name: musl / ${{ matrix.php }} / ${{ matrix.phpts[1] }}
