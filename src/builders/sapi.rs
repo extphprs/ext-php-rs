@@ -544,8 +544,8 @@ mod test {
 
         assert!(sapi.startup.is_some());
         assert_eq!(
-            sapi.startup.expect("should have startup function") as usize,
-            test_startup as usize
+            sapi.startup.expect("should have startup function") as *const () as usize,
+            test_startup as *const () as usize
         );
     }
 
@@ -558,8 +558,8 @@ mod test {
 
         assert!(sapi.shutdown.is_some());
         assert_eq!(
-            sapi.shutdown.expect("should have shutdown function") as usize,
-            test_shutdown as usize
+            sapi.shutdown.expect("should have shutdown function") as *const () as usize,
+            test_shutdown as *const () as usize
         );
     }
 
@@ -572,8 +572,8 @@ mod test {
 
         assert!(sapi.activate.is_some());
         assert_eq!(
-            sapi.activate.expect("should have activate function") as usize,
-            test_activate as usize
+            sapi.activate.expect("should have activate function") as *const () as usize,
+            test_activate as *const () as usize
         );
     }
 
@@ -586,8 +586,8 @@ mod test {
 
         assert!(sapi.deactivate.is_some());
         assert_eq!(
-            sapi.deactivate.expect("should have deactivate function") as usize,
-            test_deactivate as usize
+            sapi.deactivate.expect("should have deactivate function") as *const () as usize,
+            test_deactivate as *const () as usize
         );
     }
 
@@ -600,8 +600,8 @@ mod test {
 
         assert!(sapi.ub_write.is_some());
         assert_eq!(
-            sapi.ub_write.expect("should have ub_write function") as usize,
-            test_ub_write as usize
+            sapi.ub_write.expect("should have ub_write function") as *const () as usize,
+            test_ub_write as *const () as usize
         );
     }
 
@@ -614,8 +614,8 @@ mod test {
 
         assert!(sapi.flush.is_some());
         assert_eq!(
-            sapi.flush.expect("should have flush function") as usize,
-            test_flush as usize
+            sapi.flush.expect("should have flush function") as *const () as usize,
+            test_flush as *const () as usize
         );
     }
 
@@ -628,8 +628,8 @@ mod test {
 
         assert!(sapi.getenv.is_some());
         assert_eq!(
-            sapi.getenv.expect("should have getenv function") as usize,
-            test_getenv as usize
+            sapi.getenv.expect("should have getenv function") as *const () as usize,
+            test_getenv as *const () as usize
         );
     }
 
@@ -646,8 +646,8 @@ mod test {
 
         assert!(sapi.send_header.is_some());
         assert_eq!(
-            sapi.send_header.expect("should have send_header function") as usize,
-            test_send_header as usize
+            sapi.send_header.expect("should have send_header function") as *const () as usize,
+            test_send_header as *const () as usize
         );
     }
 
@@ -661,8 +661,8 @@ mod test {
         assert!(sapi.send_headers.is_some());
         assert_eq!(
             sapi.send_headers
-                .expect("should have send_headers function") as usize,
-            test_send_headers as usize
+                .expect("should have send_headers function") as *const () as usize,
+            test_send_headers as *const () as usize
         );
     }
 
@@ -675,8 +675,8 @@ mod test {
 
         assert!(sapi.read_post.is_some());
         assert_eq!(
-            sapi.read_post.expect("should have read_post function") as usize,
-            test_read_post as usize
+            sapi.read_post.expect("should have read_post function") as *const () as usize,
+            test_read_post as *const () as usize
         );
     }
 
@@ -690,8 +690,8 @@ mod test {
         assert!(sapi.read_cookies.is_some());
         assert_eq!(
             sapi.read_cookies
-                .expect("should have read_cookies function") as usize,
-            test_read_cookies as usize
+                .expect("should have read_cookies function") as *const () as usize,
+            test_read_cookies as *const () as usize
         );
     }
 
@@ -705,8 +705,9 @@ mod test {
         assert!(sapi.register_server_variables.is_some());
         assert_eq!(
             sapi.register_server_variables
-                .expect("should have register_server_variables function") as usize,
-            test_register_server_variables as usize
+                .expect("should have register_server_variables function") as *const ()
+                as usize,
+            test_register_server_variables as *const () as usize
         );
     }
 
@@ -719,8 +720,8 @@ mod test {
 
         assert!(sapi.log_message.is_some());
         assert_eq!(
-            sapi.log_message.expect("should have log_message function") as usize,
-            test_log_message as usize
+            sapi.log_message.expect("should have log_message function") as *const () as usize,
+            test_log_message as *const () as usize
         );
     }
 
@@ -734,8 +735,8 @@ mod test {
         assert!(sapi.get_request_time.is_some());
         assert_eq!(
             sapi.get_request_time
-                .expect("should have request_time function") as usize,
-            test_get_request_time as usize
+                .expect("should have request_time function") as *const () as usize,
+            test_get_request_time as *const () as usize
         );
     }
 
@@ -749,8 +750,8 @@ mod test {
         assert!(sapi.terminate_process.is_some());
         assert_eq!(
             sapi.terminate_process
-                .expect("should have terminate_process function") as usize,
-            test_terminate_process as usize
+                .expect("should have terminate_process function") as *const () as usize,
+            test_terminate_process as *const () as usize
         );
     }
 
@@ -764,8 +765,8 @@ mod test {
         assert!(sapi.get_target_uid.is_some());
         assert_eq!(
             sapi.get_target_uid
-                .expect("should have get_target_uid function") as usize,
-            test_get_target_uid as usize
+                .expect("should have get_target_uid function") as *const () as usize,
+            test_get_target_uid as *const () as usize
         );
     }
 
@@ -779,8 +780,8 @@ mod test {
         assert!(sapi.get_target_gid.is_some());
         assert_eq!(
             sapi.get_target_gid
-                .expect("should have get_target_gid function") as usize,
-            test_get_target_gid as usize
+                .expect("should have get_target_gid function") as *const () as usize,
+            test_get_target_gid as *const () as usize
         );
     }
 
@@ -795,8 +796,8 @@ mod test {
         assert!(sapi.pre_request_init.is_some());
         assert_eq!(
             sapi.pre_request_init
-                .expect("should have pre_request_init function") as usize,
-            test_pre_request_init as usize
+                .expect("should have pre_request_init function") as *const () as usize,
+            test_pre_request_init as *const () as usize
         );
     }
 
