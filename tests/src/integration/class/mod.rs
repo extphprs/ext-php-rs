@@ -277,7 +277,49 @@ impl FluentBuilder {
     }
 }
 
-/// Test class for property visibility (Issue #375)
+/// Test class for reserved keyword method names
+#[php_class]
+pub struct TestReservedKeywordMethods {
+    value: String,
+}
+
+#[php_impl]
+impl TestReservedKeywordMethods {
+    pub fn __construct() -> Self {
+        Self {
+            value: String::from("initial"),
+        }
+    }
+
+    #[allow(clippy::wrong_self_convention, clippy::new_ret_no_self)]
+    pub fn r#new(&mut self, value: String) -> String {
+        let result = format!("new called with: {value}");
+        self.value = value;
+        result
+    }
+
+    pub fn r#default(&self) -> String {
+        String::from("default value")
+    }
+
+    pub fn r#class(&self) -> String {
+        String::from("TestReservedKeywordMethods")
+    }
+
+    pub fn r#match(&self, pattern: String) -> bool {
+        self.value.contains(&pattern)
+    }
+
+    pub fn r#return(&self) -> String {
+        self.value.clone()
+    }
+
+    pub fn r#static(&self) -> String {
+        String::from("not actually static")
+    }
+}
+
+/// Test class for property visibility
 #[php_class]
 pub struct TestPropertyVisibility {
     /// Public property - accessible from anywhere
@@ -333,6 +375,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
         .class::<TestPropertyVisibility>()
+        .class::<TestReservedKeywordMethods>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
 }
