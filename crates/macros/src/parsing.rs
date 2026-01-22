@@ -115,6 +115,22 @@ const PHP_RESERVED_KEYWORDS: &[&str] = &[
     "parent",
 ];
 
+/// Keywords that are forbidden as method/property/constant names in PHP.
+///
+/// PHP uses the `semi_reserved` grammar rule to allow most keywords as method
+/// names (via `$obj->keyword()` syntax which avoids ambiguity). However,
+/// `__halt_compiler` is explicitly excluded from `semi_reserved` in PHP's parser.
+///
+/// See: <https://github.com/php/php-src/blob/master/Zend/zend_language_parser.y>
+const PHP_METHOD_FORBIDDEN_KEYWORDS: &[&str] = &["__halt_compiler"];
+
+/// Keywords that ARE allowed as function names in PHP.
+///
+/// PHP allows `readonly` as a function name since PHP 8.1.
+///
+/// See: <https://github.com/php/php-src/blob/master/Zend/zend_language_parser.y>
+const PHP_FUNCTION_ALLOWED_KEYWORDS: &[&str] = &["readonly"];
+
 /// Type keywords that are reserved for class/interface/enum names but CAN be
 /// used as method, function, constant, or property names in PHP.
 ///
@@ -180,12 +196,34 @@ pub fn is_php_reserved_keyword(name: &str) -> bool {
         .any(|&kw| kw.to_lowercase() == lower)
 }
 
+/// Checks if a name is forbidden as a method/property/constant name (case-insensitive).
+///
+/// PHP allows most reserved keywords as method names via the `semi_reserved` grammar rule,
+/// but `__halt_compiler` is explicitly excluded.
+fn is_php_method_forbidden_keyword(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    PHP_METHOD_FORBIDDEN_KEYWORDS
+        .iter()
+        .any(|&kw| kw.to_lowercase() == lower)
+}
+
+/// Checks if a name is explicitly allowed as a function name (case-insensitive).
+///
+/// PHP allows `readonly` as a function name since PHP 8.1.
+fn is_php_function_allowed_keyword(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    PHP_FUNCTION_ALLOWED_KEYWORDS
+        .iter()
+        .any(|&kw| kw.to_lowercase() == lower)
+}
+
 /// Validates that a PHP name is not a reserved keyword.
 ///
 /// The validation is context-aware:
 /// - For class, interface, enum, and enum case names: both reserved keywords AND type keywords are checked
-/// - For method, function, constant, and property names: only reserved keywords are checked
-///   (type keywords like `void`, `bool`, etc. are allowed)
+/// - For function names: reserved keywords are checked (except `readonly` which is allowed)
+/// - For method, constant, and property names: only `__halt_compiler` is forbidden
+///   (PHP allows most keywords as method names via `$obj->keyword()` syntax)
 ///
 /// # Errors
 ///
@@ -197,17 +235,19 @@ pub fn validate_php_name(
 ) -> Result<(), syn::Error> {
     let is_reserved = is_php_reserved_keyword(name);
     let is_type = is_php_type_keyword(name);
+    let is_method_forbidden = is_php_method_forbidden_keyword(name);
+    let is_function_allowed = is_php_function_allowed_keyword(name);
 
-    // Type keywords are forbidden for class/interface/enum/enum case names
+    // Determine if the name is forbidden based on context
     let is_forbidden = match context {
         PhpNameContext::Class
         | PhpNameContext::Interface
         | PhpNameContext::Enum
         | PhpNameContext::EnumCase => is_reserved || is_type,
-        PhpNameContext::Function
-        | PhpNameContext::Method
-        | PhpNameContext::Constant
-        | PhpNameContext::Property => is_reserved,
+        PhpNameContext::Function => is_reserved && !is_function_allowed,
+        PhpNameContext::Method | PhpNameContext::Constant | PhpNameContext::Property => {
+            is_method_forbidden
+        }
     };
 
     if is_forbidden {
@@ -680,5 +720,80 @@ mod tests {
         // 'resource' and 'numeric' are NOT reserved for class names in PHP
         validate_php_name("resource", PhpNameContext::Class, Span::call_site()).unwrap();
         validate_php_name("numeric", PhpNameContext::Class, Span::call_site()).unwrap();
+    }
+
+    #[test]
+    fn test_validate_php_name_allows_reserved_keywords_for_method() {
+        use super::{PhpNameContext, validate_php_name};
+        use proc_macro2::Span;
+
+        validate_php_name("new", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("default", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("class", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("function", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("match", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("if", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("while", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("for", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("return", PhpNameContext::Method, Span::call_site()).unwrap();
+        validate_php_name("static", PhpNameContext::Method, Span::call_site()).unwrap();
+    }
+
+    #[test]
+    fn test_validate_php_name_rejects_halt_compiler_for_method() {
+        use super::{PhpNameContext, validate_php_name};
+        use proc_macro2::Span;
+
+        let result =
+            validate_php_name("__halt_compiler", PhpNameContext::Method, Span::call_site());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("is a reserved keyword in PHP"));
+    }
+
+    #[test]
+    fn test_validate_php_name_allows_reserved_keywords_for_constant() {
+        use super::{PhpNameContext, validate_php_name};
+        use proc_macro2::Span;
+
+        validate_php_name("new", PhpNameContext::Constant, Span::call_site()).unwrap();
+        validate_php_name("default", PhpNameContext::Constant, Span::call_site()).unwrap();
+        validate_php_name("class", PhpNameContext::Constant, Span::call_site()).unwrap();
+    }
+
+    #[test]
+    fn test_validate_php_name_allows_reserved_keywords_for_property() {
+        use super::{PhpNameContext, validate_php_name};
+        use proc_macro2::Span;
+
+        validate_php_name("new", PhpNameContext::Property, Span::call_site()).unwrap();
+        validate_php_name("default", PhpNameContext::Property, Span::call_site()).unwrap();
+        validate_php_name("class", PhpNameContext::Property, Span::call_site()).unwrap();
+    }
+
+    #[test]
+    fn test_validate_php_name_rejects_reserved_keywords_for_function() {
+        use super::{PhpNameContext, validate_php_name};
+        use proc_macro2::Span;
+
+        let result = validate_php_name("new", PhpNameContext::Function, Span::call_site());
+        assert!(result.is_err());
+
+        let result = validate_php_name("default", PhpNameContext::Function, Span::call_site());
+        assert!(result.is_err());
+
+        let result = validate_php_name("class", PhpNameContext::Function, Span::call_site());
+        assert!(result.is_err());
+
+        let result = validate_php_name("match", PhpNameContext::Function, Span::call_site());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_php_name_allows_readonly_for_function() {
+        use super::{PhpNameContext, validate_php_name};
+        use proc_macro2::Span;
+
+        validate_php_name("readonly", PhpNameContext::Function, Span::call_site()).unwrap();
     }
 }

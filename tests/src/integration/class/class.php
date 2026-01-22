@@ -156,3 +156,35 @@ $output = ob_get_clean();
 assert(strpos($output, 'publicNum') !== false, 'var_dump should show public property');
 // Private properties should show as ClassName::propertyName in var_dump
 // Protected properties should show with * prefix
+
+// Test reserved keyword method names
+$keywordObj = new TestReservedKeywordMethods();
+
+$result = $keywordObj->new('test value');
+assert($result === 'new called with: test value', 'Method named "new" should work');
+
+$result = $keywordObj->default();
+assert($result === 'default value', 'Method named "default" should work');
+
+$result = $keywordObj->class();
+assert($result === 'TestReservedKeywordMethods', 'Method named "class" should work');
+
+$result = $keywordObj->match('test');
+assert($result === true, 'Method named "match" should work');
+$result = $keywordObj->match('notfound');
+assert($result === false, 'Method named "match" should work with non-matching pattern');
+
+$result = $keywordObj->return();
+assert($result === 'test value', 'Method named "return" should work');
+
+$result = $keywordObj->static();
+assert($result === 'not actually static', 'Method named "static" should work');
+
+$reflection = new ReflectionClass(TestReservedKeywordMethods::class);
+$methodNames = array_map(fn($m) => $m->getName(), $reflection->getMethods());
+assert(in_array('new', $methodNames), 'Method "new" should exist in reflection');
+assert(in_array('default', $methodNames), 'Method "default" should exist in reflection');
+assert(in_array('class', $methodNames), 'Method "class" should exist in reflection');
+assert(in_array('match', $methodNames), 'Method "match" should exist in reflection');
+assert(in_array('return', $methodNames), 'Method "return" should exist in reflection');
+assert(in_array('static', $methodNames), 'Method "static" should exist in reflection');
