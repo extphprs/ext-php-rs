@@ -1,0 +1,34 @@
+name: Run Benchmarks
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  run_benchmarks:
+    name: Run PR Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Valgrind
+        run: sudo apt update && sudo apt install -y valgrind
+      - uses: taiki-e/install-action@cargo-binstall
+      - name: Install gungraun-runner
+        run: |
+          version=$(cargo metadata --manifest-path ./benches/Cargo.toml --format-version=1 |\
+            jq '.packages[] | select(.name == "gungraun").version' |\
+            tr -d '"'
+          )
+          cargo binstall --no-confirm gungraun-runner --version $version
+      - name: Run Benchmarks
+        run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v6
+        with:
+          name: benchmark_results.txt
+          path: ./benchmark_results.txt
+      - name: Upload Pull Request Event
+        uses: actions/upload-artifact@v6
+        with:
+          name: event.json
+          path: ${{ github.event_path }}
