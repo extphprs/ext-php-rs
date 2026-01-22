@@ -194,13 +194,21 @@ impl DevelPack {
             arch
         );
 
-        fn download(zip_name: &str, archive: bool) -> Result<PathBuf> {
+        fn download(zip_name: &str, archive: bool, use_downloads_domain: bool) -> Result<PathBuf> {
             let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-            let url = format!(
-                "https://windows.php.net/downloads/releases{}/{}",
-                if archive { "/archives" } else { "" },
-                zip_name
-            );
+            let url = if use_downloads_domain {
+                format!(
+                    "https://downloads.php.net/~windows/releases{}/{}",
+                    if archive { "/archives" } else { "" },
+                    zip_name
+                )
+            } else {
+                format!(
+                    "https://windows.php.net/downloads/releases{}/{}",
+                    if archive { "/archives" } else { "" },
+                    zip_name
+                )
+            };
             let response = ureq::Agent::config_builder()
                 .tls_config(
                     TlsConfig::builder()
@@ -235,8 +243,15 @@ impl DevelPack {
             Ok(devpack_path)
         }
 
-        download(&zip_name, false)
-            .or_else(|_| download(&zip_name, true))
+        // Try multiple sources in order:
+        // 1. windows.php.net (stable, most common)
+        // 2. windows.php.net/archives (older releases)
+        // 3. downloads.php.net/~windows (newer releases appear here first)
+        // 4. downloads.php.net/~windows/archives
+        download(&zip_name, false, false)
+            .or_else(|_| download(&zip_name, true, false))
+            .or_else(|_| download(&zip_name, false, true))
+            .or_else(|_| download(&zip_name, true, true))
             .map(DevelPack)
     }
 
