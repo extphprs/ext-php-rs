@@ -34,3 +34,16 @@ Return types can also include:
 
 For a type to be returnable, it must implement `IntoZval`, while for it to be
 valid as a parameter, it must implement `FromZval`.
+
+## Complex Type Declarations
+
+For parameters that need PHP's advanced type system features (union types,
+intersection types, or DNF types), you can use `&Zval` as the parameter type
+with the `#[php(types = "...")]` attribute:
+
+- **Union types** (PHP 8.0+): `#[php(types = "int|string")]`
+- **Intersection types** (PHP 8.1+): `#[php(types = "Countable&Traversable")]`
+- **DNF types** (PHP 8.2+): `#[php(types = "(Countable&Traversable)|ArrayAccess")]`
+
+See the [function macro documentation](../macros/function.md#union-intersection-and-dnf-types)
+for detailed examples.

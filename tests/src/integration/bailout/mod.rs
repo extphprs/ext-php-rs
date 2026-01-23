@@ -1,16 +1,19 @@
-//! Test for issue #537 - Rust destructors should be called when PHP bailout occurs.
+//! Test for issue #537 - Rust destructors should be called when PHP bailout
+//! occurs.
 //!
-//! This test verifies that when PHP triggers a bailout (e.g., via `exit()`), Rust
-//! destructors are properly called before the bailout is re-triggered.
+//! This test verifies that when PHP triggers a bailout (e.g., via `exit()`),
+//! Rust destructors are properly called before the bailout is re-triggered.
 //!
 //! There are two mechanisms for ensuring cleanup:
 //!
-//! 1. **Using `try_call`**: When calling PHP code via `try_call`, bailouts are caught
-//!    internally and the function returns normally, allowing regular Rust destructors to run.
+//! 1. **Using `try_call`**: When calling PHP code via `try_call`, bailouts are
+//!    caught internally and the function returns normally, allowing regular
+//!    Rust destructors to run.
 //!
-//! 2. **Using `BailoutGuard`**: For values that MUST be cleaned up even if bailout occurs
-//!    directly (not via `try_call`), wrap them in `BailoutGuard`. This heap-allocates the
-//!    value and registers a cleanup callback that runs when bailout is caught.
+//! 2. **Using `BailoutGuard`**: For values that MUST be cleaned up even if
+//!    bailout occurs directly (not via `try_call`), wrap them in
+//!    `BailoutGuard`. This heap-allocates the value and registers a cleanup
+//!    callback that runs when bailout is caught.
 
 use ext_php_rs::prelude::*;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -84,8 +87,9 @@ pub fn bailout_test_without_exit() {
     // No bailout - destructors should run normally when function returns
 }
 
-/// Test `BailoutGuard` - wrap resources that MUST be cleaned up in `BailoutGuard`.
-/// This demonstrates using `BailoutGuard` for guaranteed cleanup even on direct bailout.
+/// Test `BailoutGuard` - wrap resources that MUST be cleaned up in
+/// `BailoutGuard`. This demonstrates using `BailoutGuard` for guaranteed
+/// cleanup even on direct bailout.
 #[php_function]
 pub fn bailout_test_with_guard(callback: ext_php_rs::types::ZendCallable) {
     // Wrap trackers in BailoutGuard - these will be cleaned up even if bailout
@@ -111,8 +115,9 @@ fn nested_inner(callback: &ext_php_rs::types::ZendCallable) {
     let _ = callback.try_call(vec![]);
 }
 
-/// Test nested calls with `BailoutGuard` - verifies cleanup happens at all nesting levels.
-/// This creates guards at multiple call stack levels, then triggers bailout from the innermost.
+/// Test nested calls with `BailoutGuard` - verifies cleanup happens at all
+/// nesting levels. This creates guards at multiple call stack levels, then
+/// triggers bailout from the innermost.
 #[php_function]
 pub fn bailout_test_nested(callback: ext_php_rs::types::ZendCallable) {
     // Outer level guards
@@ -122,7 +127,8 @@ pub fn bailout_test_nested(callback: ext_php_rs::types::ZendCallable) {
     // Call inner function which creates more guards and triggers bailout
     nested_inner(&callback);
 
-    // This code won't be reached due to bailout, but the guards should still be cleaned up
+    // This code won't be reached due to bailout, but the guards should still be
+    // cleaned up
 }
 
 /// Test deeply nested calls (3 levels) with `BailoutGuard`
