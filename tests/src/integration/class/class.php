@@ -318,3 +318,70 @@ assert($childObj->getBaseInfo() === 'I am the base class', 'Child should have ba
 $childReflection = new ReflectionClass(TestChildClass::class);
 assert($childReflection->getParentClass()->getName() === TestBaseClass::class, 'TestChildClass should extend TestBaseClass');
 assert($childObj instanceof TestBaseClass, 'TestChildClass instance should be instanceof TestBaseClass');
+
+// ==== Union types in class methods tests ====
+
+// Helper to get type string from ReflectionType
+function getTypeString(ReflectionType|null $type): string {
+    if ($type === null) {
+        return 'mixed';
+    }
+
+    if ($type instanceof ReflectionUnionType) {
+        $types = array_map(fn($t) => $t->getName(), $type->getTypes());
+        sort($types); // Sort for consistent comparison
+        return implode('|', $types);
+    }
+
+    if ($type instanceof ReflectionNamedType) {
+        $name = $type->getName();
+        if ($type->allowsNull() && $name !== 'mixed' && $name !== 'null') {
+            return '?' . $name;
+        }
+        return $name;
+    }
+
+    return (string)$type;
+}
+
+// Test union type in instance method
+$unionObj = new TestUnionMethods();
+
+$method = new ReflectionMethod(TestUnionMethods::class, 'acceptIntOrString');
+$params = $method->getParameters();
+assert(count($params) === 1, 'acceptIntOrString should have 1 parameter');
+
+$paramType = $params[0]->getType();
+assert($paramType instanceof ReflectionUnionType, 'Parameter should be a union type');
+
+$typeStr = getTypeString($paramType);
+assert($typeStr === 'int|string', "Expected 'int|string', got '$typeStr'");
+
+// Call method with int
+$result = $unionObj->acceptIntOrString(42);
+assert($result === 'method_ok', 'Method should accept int');
+
+// Call method with string
+$result = $unionObj->acceptIntOrString("hello");
+assert($result === 'method_ok', 'Method should accept string');
+
+// Test union type in static method
+$method = new ReflectionMethod(TestUnionMethods::class, 'acceptFloatBoolNull');
+$params = $method->getParameters();
+$paramType = $params[0]->getType();
+assert($paramType instanceof ReflectionUnionType, 'Static method parameter should be a union type');
+
+$typeStr = getTypeString($paramType);
+assert($typeStr === 'bool|float|null', "Expected 'bool|float|null', got '$typeStr'");
+
+// Call static method with various types
+$result = TestUnionMethods::acceptFloatBoolNull(3.14);
+assert($result === 'static_method_ok', 'Static method should accept float');
+
+$result = TestUnionMethods::acceptFloatBoolNull(true);
+assert($result === 'static_method_ok', 'Static method should accept bool');
+
+$result = TestUnionMethods::acceptFloatBoolNull(null);
+assert($result === 'static_method_ok', 'Static method should accept null');
+
+echo "All class union type tests passed!\n";

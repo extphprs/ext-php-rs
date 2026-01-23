@@ -568,6 +568,27 @@ impl TestChildClass {
     }
 }
 
+/// Test class for union types in methods
+#[php_class]
+pub struct TestUnionMethods;
+
+#[php_impl]
+impl TestUnionMethods {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// Method accepting int|string union type
+    pub fn accept_int_or_string(#[php(union = "int|string")] _value: &Zval) -> String {
+        "method_ok".to_string()
+    }
+
+    /// Static method accepting float|bool|null union type
+    pub fn accept_float_bool_null(#[php(union = "float|bool|null")] _value: &Zval) -> String {
+        "static_method_ok".to_string()
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -586,6 +607,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassStaticStrGetter>()
         .class::<TestBaseClass>()
         .class::<TestChildClass>()
+        .class::<TestUnionMethods>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception));
 

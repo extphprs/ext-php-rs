@@ -13,6 +13,7 @@ mod interface;
 mod module;
 mod parsing;
 mod syn_ext;
+mod union;
 mod zval;
 
 use darling::FromMeta;
@@ -1460,6 +1461,250 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 /// # fn main() {}
 /// ```
 ///
+/// ## Union, Intersection, and DNF Types
+///
+/// PHP 8.0+ supports union types (`int|string`), PHP 8.1+ supports intersection
+/// types (`Countable&Traversable`), and PHP 8.2+ supports DNF (Disjunctive
+/// Normal Form) types that combine both
+/// (`(Countable&Traversable)|ArrayAccess`).
+///
+/// You can declare these complex types using the `#[php(types = "...")]`
+/// attribute on parameters. The parameter type should be `&Zval` since Rust
+/// cannot directly represent these union/intersection types.
+///
+/// > **PHP Version Requirements for Internal Functions:**
+/// >
+/// > - **Primitive union types** (`int|string|null`) work on all PHP 8.x
+/// > versions
+/// > - **Intersection types** (`Countable&Traversable`) require **PHP 8.3+**
+/// > for
+/// > reflection to show the correct type. On PHP 8.1-8.2, the type appears as
+/// > `mixed` via reflection, but function calls still work correctly.
+/// > - **Class union types** (`Foo|Bar`) require **PHP 8.3+** for full support
+/// > - **DNF types** require **PHP 8.3+** for full support
+/// >
+/// > This is a PHP limitation where internal (C extension) functions did not
+/// > fully
+/// > support intersection/DNF types until PHP 8.3. See
+/// > [php-src#11969](https://github.com/php/php-src/pull/11969) for details.
+///
+/// ### Union Types (PHP 8.0+)
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// /// Accepts int|string
+/// #[php_function]
+/// pub fn accept_int_or_string(#[php(types = "int|string")] value: &Zval) -> String {
+///     if let Some(i) = value.long() {
+///         format!("Got integer: {}", i)
+///     } else if let Some(s) = value.str() {
+///         format!("Got string: {}", s)
+///     } else {
+///         "Unknown type".to_string()
+///     }
+/// }
+///
+/// /// Accepts float|bool|null
+/// #[php_function]
+/// pub fn accept_nullable(#[php(types = "float|bool|null")] value: &Zval) -> String {
+///     "ok".to_string()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ### Intersection Types (PHP 8.1+)
+///
+/// Intersection types require a value to implement ALL specified interfaces:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// /// Accepts only objects implementing both Countable AND Traversable
+/// #[php_function]
+/// pub fn accept_countable_traversable(
+///     #[php(types = "Countable&Traversable")] value: &Zval,
+/// ) -> String {
+///     "ok".to_string()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ### DNF Types (PHP 8.2+)
+///
+/// DNF (Disjunctive Normal Form) types combine union and intersection types.
+/// Intersection groups must be wrapped in parentheses:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// /// Accepts (Countable&Traversable)|ArrayAccess
+/// /// This accepts either:
+/// /// - An object implementing both Countable AND Traversable, OR
+/// /// - An object implementing ArrayAccess
+/// #[php_function]
+/// pub fn accept_dnf(
+///     #[php(types = "(Countable&Traversable)|ArrayAccess")] value: &Zval,
+/// ) -> String {
+///     "ok".to_string()
+/// }
+///
+/// /// Multiple intersection groups: (Countable&Traversable)|(Iterator&ArrayAccess)
+/// #[php_function]
+/// pub fn accept_complex_dnf(
+///     #[php(types = "(Countable&Traversable)|(Iterator&ArrayAccess)")] value: &Zval,
+/// ) -> String {
+///     "ok".to_string()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ### Union Types as Rust Enums (`PhpUnion`)
+///
+/// For a more ergonomic experience with union types, you can represent them as
+/// Rust enums using the `#[derive(PhpUnion)]` macro. This allows you to use
+/// Rust's pattern matching instead of manually checking the `Zval` type:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// /// Rust enum representing PHP `int|string`
+/// #[derive(Debug, Clone, PhpUnion)]
+/// enum IntOrString {
+///     Int(i64),
+///     Str(String),
+/// }
+///
+/// /// Accepts int|string and processes it using Rust pattern matching
+/// #[php_function]
+/// fn process_value(#[php(union_enum)] value: IntOrString) -> String {
+///     match value {
+///         IntOrString::Int(n) => format!("Got integer: {}", n),
+///         IntOrString::Str(s) => format!("Got string: {}", s),
+///     }
+/// }
+/// # fn main() {}
+/// ```
+///
+/// The `#[derive(PhpUnion)]` macro:
+/// - Generates `FromZval` and `IntoZval` implementations
+/// - Tries each variant in order when converting from PHP values
+/// - Provides `PhpUnion::union_types()` method returning the PHP types
+///
+/// Use `#[php(union_enum)]` on the parameter to tell the macro to use the
+/// `PhpUnion` trait for type registration.
+///
+/// **Requirements:**
+/// - Each enum variant must be a tuple variant with exactly one field
+/// - The field type must implement `FromZval` and `IntoZval`
+/// - No unit variants or named fields are allowed
+///
+/// #### Class and Interface Unions
+///
+/// For union types that include PHP classes or interfaces, use the `#[php(class
+/// = "...")]` or `#[php(interface = "...")]` attributes on enum variants. These
+/// attributes override the PHP type declaration for the variant:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// /// Rust enum representing PHP `Iterator|int`
+/// #[derive(PhpUnion)]
+/// enum IteratorOrInt<'a> {
+///     #[php(interface = "Iterator")]
+///     Iter(&'a Zval),  // Use &Zval for object types
+///     Int(i64),
+/// }
+///
+/// #[php_function]
+/// fn process_iterator_or_int(#[php(union_enum)] value: IteratorOrInt) -> String {
+///     match value {
+///         IteratorOrInt::Iter(_) => "Got iterator".to_string(),
+///         IteratorOrInt::Int(n) => format!("Got int: {n}"),
+///     }
+/// }
+/// ```
+///
+/// This generates PHP: `function process_iterator_or_int(Iterator|int $value):
+/// string`
+///
+/// **Variant Attributes:**
+/// - `#[php(class = "ClassName")]` - For PHP class types
+/// - `#[php(interface = "InterfaceName")]` - For PHP interface types
+/// - `#[php(intersection = ["Interface1", "Interface2"])]` - For intersection
+///   types (PHP 8.2+ DNF)
+///
+/// > **Note:** For class/interface types, use `&Zval` or `&mut Zval` as the
+/// > variant field
+/// > type since owned `ZendObject` doesn't implement the required traits.
+///
+/// #### DNF Types (PHP 8.2+)
+///
+/// For PHP 8.2+ DNF (Disjunctive Normal Form) types that combine unions and
+/// intersections, use the `#[php(intersection = [...])]` attribute:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// /// Represents: (Countable&Traversable)|ArrayAccess
+/// #[derive(PhpUnion)]
+/// enum CountableTraversableOrArrayAccess<'a> {
+///     #[php(intersection = ["Countable", "Traversable"])]
+///     CountableTraversable(&'a Zval),
+///     #[php(interface = "ArrayAccess")]
+///     ArrayAccess(&'a Zval),
+/// }
+///
+/// #[php_function]
+/// fn process_dnf(#[php(union_enum)] _value: CountableTraversableOrArrayAccess) -> String {
+///     "ok".to_string()
+/// }
+/// ```
+///
+/// This generates PHP: `function
+/// process_dnf((Countable&Traversable)|ArrayAccess $value): string`
+///
+/// > **Note:** When any variant uses `#[php(intersection = [...])]`, the macro
+/// > automatically switches to DNF mode for all variants.
+///
+/// For complex object union types, consider using the macro-based syntax
+/// `#[php(types = "...")]` which provides more flexibility:
+///
+/// ### Using the Builder API
+///
+/// You can also create these types programmatically using the `FunctionBuilder`
+/// API:
+///
+/// ```rust,ignore
+/// use ext_php_rs::args::{Arg, TypeGroup};
+/// use ext_php_rs::flags::DataType;
+///
+/// // Union of primitives
+/// Arg::new_union("value", vec![DataType::Long, DataType::String]);
+///
+/// // Intersection type
+/// Arg::new_intersection("value", vec!["Countable".to_string(), "Traversable".to_string()]);
+///
+/// // DNF type: (Countable&Traversable)|ArrayAccess
+/// Arg::new_dnf("value", vec![
+///     TypeGroup::Intersection(vec!["Countable".to_string(), "Traversable".to_string()]),
+///     TypeGroup::Single("ArrayAccess".to_string()),
+/// ]);
+/// ```
+///
 /// ## Returning `Result<T, E>`
 ///
 /// You can also return a `Result` from the function. The error variant will be
@@ -2316,6 +2561,91 @@ fn zval_convert_derive_internal(input: TokenStream2) -> TokenStream2 {
     zval::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
 
+/// # `PhpUnion` Derive Macro
+///
+/// The `#[derive(PhpUnion)]` macro derives `FromZval`, `IntoZval`, and
+/// `PhpUnion` traits for enums that represent PHP union types like
+/// `int|string`.
+///
+/// Each enum variant must be a tuple variant with exactly one field. The
+/// field's type determines the corresponding PHP type in the union.
+///
+/// When used with `#[php_function]`, the parameter will automatically have the
+/// correct union type signature in PHP.
+///
+/// ## Example
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+///
+/// #[derive(Debug, Clone, PhpUnion)]
+/// enum IntOrString {
+///     Int(i64),
+///     Str(String),
+/// }
+///
+/// #[php_function]
+/// fn process_value(value: IntOrString) -> String {
+///     match value {
+///         IntOrString::Int(n) => format!("Got int: {n}"),
+///         IntOrString::Str(s) => format!("Got string: {s}"),
+///     }
+/// }
+/// ```
+///
+/// This generates the PHP signature: `function process_value(int|string
+/// $value): string`
+///
+/// ## Variant Order Matters
+///
+/// When a PHP value is passed in, the variants are tried in order. The first
+/// variant whose inner type successfully converts from the PHP value is used.
+///
+/// For example, with `IntOrString`, if PHP passes `42`, the `Int` variant is
+/// tried first. Since `i64::from_zval` succeeds, `IntOrString::Int(42)` is
+/// returned.
+///
+/// ## Supported Types
+///
+/// Any type that implements `FromZval` and `IntoZval` can be used as a
+/// variant's inner type. Common types include:
+///
+/// - `i64`, `i32`, etc. → PHP `int`
+/// - `f64` → PHP `float`
+/// - `bool` → PHP `bool`
+/// - `String` → PHP `string`
+/// - `Vec<T>` / `HashMap<K, V>` → PHP `array`
+/// - `Option<T>` → adds `null` to the union
+///
+/// ## Class and Interface Types
+///
+/// For variants that hold PHP class or interface types, use the
+/// `#[php(class = "...")]` or `#[php(interface = "...")]` attributes:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::ZendObject;
+///
+/// #[derive(PhpUnion)]
+/// enum IteratorOrInt {
+///     #[php(interface = "Iterator")]
+///     Iter(ZendObject),
+///     Int(i64),
+/// }
+/// ```
+///
+/// This generates PHP signature with `Iterator|int` union type.
+#[proc_macro_derive(PhpUnion, attributes(php))]
+pub fn php_union_derive(input: TokenStream) -> TokenStream {
+    php_union_derive_internal(input.into()).into()
+}
+
+fn php_union_derive_internal(input: TokenStream2) -> TokenStream2 {
+    let input = parse_macro_input2!(input as DeriveInput);
+
+    union::parser(input).unwrap_or_else(|e| e.to_compile_error())
+}
+
 /// Defines an `extern` function with the Zend fastcall convention based on
 /// operating system.
 ///
@@ -2452,6 +2782,7 @@ mod tests {
     type AttributeFn =
         fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream;
     type FunctionLikeFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
+    type DeriveFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
 
     #[test]
     pub fn test_expand() {
@@ -2503,7 +2834,10 @@ mod tests {
         let file = std::fs::File::open(path).expect("Failed to open expand test file");
         runtime_macros::emulate_derive_macro_expansion(
             file,
-            &[("ZvalConvert", zval_convert_derive_internal)],
+            &[
+                ("ZvalConvert", zval_convert_derive_internal as DeriveFn),
+                ("PhpUnion", php_union_derive_internal as DeriveFn),
+            ],
         )
         .expect("Failed to expand derive macros in test file");
     }

@@ -1,12 +1,83 @@
 //! Traits used to convert between Zend/PHP and Rust types.
 
 use crate::{
+    args::TypeGroup,
     boxed::ZBox,
     error::Result,
     exception::PhpException,
     flags::DataType,
     types::{ZendObject, Zval},
 };
+
+/// Represents PHP union type information returned by `PhpUnion::union_types()`.
+///
+/// This enum allows representing both simple union types (`int|string`) and
+/// DNF (Disjunctive Normal Form) types (`(Countable&Traversable)|ArrayAccess`).
+#[derive(Debug, Clone)]
+pub enum PhpUnionTypes {
+    /// Simple union of primitive or class types.
+    /// Example: `int|string|null` or `Iterator|ArrayAccess`
+    Simple(Vec<DataType>),
+
+    /// DNF type combining unions and intersections (PHP 8.2+).
+    /// Example: `(Countable&Traversable)|ArrayAccess`
+    Dnf(Vec<TypeGroup>),
+}
+
+/// Trait for types that represent PHP union types (e.g., `int|string`).
+///
+/// This trait is typically implemented via the `#[derive(PhpUnion)]` macro
+/// on enums where each variant holds a single type that maps to a PHP type.
+///
+/// # Example
+///
+/// ```ignore
+/// use ext_php_rs::prelude::*;
+///
+/// #[derive(Debug, Clone, PhpUnion)]
+/// enum IntOrString {
+///     Int(i64),
+///     Str(String),
+/// }
+///
+/// #[php_function]
+/// fn accepts_int_or_string(value: IntOrString) -> String {
+///     match value {
+///         IntOrString::Int(n) => format!("Got int: {n}"),
+///         IntOrString::Str(s) => format!("Got string: {s}"),
+///     }
+/// }
+/// ```
+///
+/// This generates PHP: `function accepts_int_or_string(int|string $value):
+/// string`
+///
+/// # DNF Types (PHP 8.2+)
+///
+/// For DNF types that combine unions and intersections, use the
+/// `#[php(intersection = ["Interface1", "Interface2"])]` attribute:
+///
+/// ```ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::ZendObject;
+///
+/// #[derive(PhpUnion)]
+/// enum MyDnf {
+///     #[php(intersection = ["Countable", "Traversable"])]
+///     CountableTraversable(ZendObject),
+///     #[php(interface = "ArrayAccess")]
+///     ArrayAccess(ZendObject),
+/// }
+/// ```
+///
+/// This generates PHP: `(Countable&Traversable)|ArrayAccess`
+pub trait PhpUnion<'a>: FromZval<'a> + IntoZval {
+    /// Returns the PHP type information for this union.
+    ///
+    /// Returns either a simple union of types or a DNF type with intersection
+    /// groups.
+    fn union_types() -> PhpUnionTypes;
+}
 
 /// Allows zvals to be converted into Rust types in a fallible way. Reciprocal
 /// of the [`IntoZval`] trait.
