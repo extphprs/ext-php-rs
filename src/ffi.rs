@@ -44,6 +44,8 @@ unsafe extern "C" {
     ) -> bool;
 
     pub fn ext_php_rs_zend_bailout() -> !;
+
+    pub fn ext_php_rs_pemalloc(size: usize) -> *mut c_void;
 }
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

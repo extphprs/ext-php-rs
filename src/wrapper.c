@@ -111,3 +111,7 @@ bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void 
 void ext_php_rs_zend_bailout() {
   zend_bailout();
 }
+
+void *ext_php_rs_pemalloc(size_t size) {
+  return pemalloc(size, 1);
+}
