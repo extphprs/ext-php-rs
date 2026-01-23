@@ -107,6 +107,9 @@ bind! {
     zend_hash_str_update,
     zend_internal_arg_info,
     zend_is_callable,
+    zend_is_callable_ex,
+    zend_fcall_info_cache,
+    _zend_fcall_info_cache,
     zend_is_identical,
     zend_is_iterable,
     zend_known_strings,
@@ -266,6 +269,18 @@ bind! {
     zend_std_get_properties,
     zend_std_has_property,
     zend_objects_new,
+    zend_object_make_lazy,
+    zend_lazy_object_init,
+    zend_lazy_object_mark_as_initialized,
+    // Note: zend_lazy_object_get_instance and zend_lazy_object_get_flags are not
+    // exported (no ZEND_API) in PHP, so they cannot be used on Windows.
+    // Use zend_lazy_object_init instead which returns the instance for proxies.
+    zend_class_can_be_lazy,
+    zend_lazy_object_flags_t,
+    ZEND_LAZY_OBJECT_STRATEGY_GHOST,
+    ZEND_LAZY_OBJECT_STRATEGY_PROXY,
+    ZEND_LAZY_OBJECT_INITIALIZED,
+    ZEND_LAZY_OBJECT_SKIP_INITIALIZATION_ON_SERIALIZE,
     zend_standard_class_def,
     zend_class_serialize_deny,
     zend_class_unserialize_deny,

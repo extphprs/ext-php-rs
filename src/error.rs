@@ -72,6 +72,8 @@ pub enum Error {
     StreamWrapperUnregistrationFailure,
     /// The SAPI write function is not available
     SapiWriteUnavailable,
+    /// Failed to make an object lazy (PHP 8.4+)
+    LazyObjectFailed,
 }
 
 impl Display for Error {
@@ -117,6 +119,9 @@ impl Display for Error {
             }
             Error::SapiWriteUnavailable => {
                 write!(f, "The SAPI write function is not available")
+            }
+            Error::LazyObjectFailed => {
+                write!(f, "Failed to make the object lazy")
             }
         }
     }

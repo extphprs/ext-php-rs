@@ -1,0 +1,21 @@
+[package]
+name = "ext-php-rs-build"
+description = "Build-time PHP detection utilities for ext-php-rs."
+repository = "https://github.com/extphprs/ext-php-rs"
+homepage = "https://ext-php.rs"
+license = "MIT OR Apache-2.0"
+keywords = ["php", "ffi", "zend", "build"]
+version = "0.1.0"
+authors = [
+    "Pierre Tondereau <pierre.tondereau@protonmail.com>",
+    "Xenira <xenira@php.rs>",
+    "David Cole <david.cole1340@gmail.com>",
+]
+edition = "2024"
+categories = ["development-tools::build-utils"]
+
+[dependencies]
+anyhow = "1"
+
+[lints.rust]
+missing_docs = "warn"

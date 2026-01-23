@@ -1,8 +1,9 @@
 use std::{path::PathBuf, process::Command};
 
 use anyhow::{Context, Result, bail};
+use ext_php_rs_build::{find_executable, path_from_env};
 
-use crate::{PHPInfo, PHPProvider, find_executable, path_from_env};
+use crate::{PHPInfo, PHPProvider};
 
 pub struct Provider<'a> {
     info: &'a PHPInfo,

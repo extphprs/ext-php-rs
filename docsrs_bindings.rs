@@ -192,6 +192,10 @@ pub const E_STRICT: u32 = 2048;
 pub const E_RECOVERABLE_ERROR: u32 = 4096;
 pub const E_DEPRECATED: u32 = 8192;
 pub const E_USER_DEPRECATED: u32 = 16384;
+pub const ZEND_LAZY_OBJECT_STRATEGY_PROXY: u32 = 1;
+pub const ZEND_LAZY_OBJECT_STRATEGY_GHOST: u32 = 2;
+pub const ZEND_LAZY_OBJECT_INITIALIZED: u32 = 4;
+pub const ZEND_LAZY_OBJECT_SKIP_INITIALIZATION_ON_SERIALIZE: u32 = 8;
 pub const ZEND_PROPERTY_ISSET: u32 = 0;
 pub const ZEND_PROPERTY_EXISTS: u32 = 2;
 pub const ZEND_ACC_PUBLIC: u32 = 1;
@@ -1224,6 +1228,7 @@ pub type zend_error_handling_t = ::std::os::raw::c_uint;
 pub const zend_property_hook_kind_ZEND_PROPERTY_HOOK_GET: zend_property_hook_kind = 0;
 pub const zend_property_hook_kind_ZEND_PROPERTY_HOOK_SET: zend_property_hook_kind = 1;
 pub type zend_property_hook_kind = ::std::os::raw::c_uint;
+pub type zend_lazy_object_flags_t = u8;
 #[repr(C)]
 pub struct _zend_lazy_objects_store {
     pub infos: HashTable,
@@ -1231,6 +1236,24 @@ pub struct _zend_lazy_objects_store {
 pub type zend_lazy_objects_store = _zend_lazy_objects_store;
 pub type zend_property_info = _zend_property_info;
 pub type zend_fcall_info_cache = _zend_fcall_info_cache;
+unsafe extern "C" {
+    pub fn zend_class_can_be_lazy(ce: *const zend_class_entry) -> bool;
+}
+unsafe extern "C" {
+    pub fn zend_object_make_lazy(
+        obj: *mut zend_object,
+        class_type: *mut zend_class_entry,
+        initializer_zv: *mut zval,
+        initializer_fcc: *mut zend_fcall_info_cache,
+        flags: zend_lazy_object_flags_t,
+    ) -> *mut zend_object;
+}
+unsafe extern "C" {
+    pub fn zend_lazy_object_init(obj: *mut zend_object) -> *mut zend_object;
+}
+unsafe extern "C" {
+    pub fn zend_lazy_object_mark_as_initialized(obj: *mut zend_object) -> *mut zend_object;
+}
 pub type zend_object_read_property_t = ::std::option::Option<
     unsafe extern "C" fn(
         object: *mut zend_object,
@@ -2096,6 +2119,16 @@ unsafe extern "C" {
     pub fn zend_register_internal_interface(
         orig_class_entry: *mut zend_class_entry,
     ) -> *mut zend_class_entry;
+}
+unsafe extern "C" {
+    pub fn zend_is_callable_ex(
+        callable: *mut zval,
+        object: *mut zend_object,
+        check_flags: u32,
+        callable_name: *mut *mut zend_string,
+        fcc: *mut zend_fcall_info_cache,
+        error: *mut *mut ::std::os::raw::c_char,
+    ) -> bool;
 }
 unsafe extern "C" {
     pub fn zend_is_callable(

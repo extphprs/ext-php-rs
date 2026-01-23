@@ -7,6 +7,9 @@ use ext_php_rs::{
     zend::ce,
 };
 
+#[cfg(php84)]
+use ext_php_rs::types::ZendObject;
+
 /// Doc comment
 /// Goes here
 #[php_class]
@@ -232,6 +235,53 @@ impl TestStaticProps {
     }
 }
 
+/// Test class for lazy object support (PHP 8.4+)
+#[php_class]
+pub struct TestLazyClass {
+    #[php(prop)]
+    pub data: String,
+    #[php(prop)]
+    pub initialized: bool,
+}
+
+#[php_impl]
+impl TestLazyClass {
+    pub fn __construct(data: String) -> Self {
+        Self {
+            data,
+            initialized: true,
+        }
+    }
+}
+
+/// Check if a `ZendObject` is lazy
+#[cfg(php84)]
+#[php_function]
+pub fn test_is_lazy(obj: &ZendObject) -> bool {
+    obj.is_lazy()
+}
+
+/// Check if a `ZendObject` is a lazy ghost
+#[cfg(php84)]
+#[php_function]
+pub fn test_is_lazy_ghost(obj: &ZendObject) -> bool {
+    obj.is_lazy_ghost()
+}
+
+/// Check if a `ZendObject` is a lazy proxy
+#[cfg(php84)]
+#[php_function]
+pub fn test_is_lazy_proxy(obj: &ZendObject) -> bool {
+    obj.is_lazy_proxy()
+}
+
+/// Check if a lazy object has been initialized
+#[cfg(php84)]
+#[php_function]
+pub fn test_is_lazy_initialized(obj: &ZendObject) -> bool {
+    obj.is_lazy_initialized()
+}
+
 /// Test class for returning $this (Issue #502)
 /// This demonstrates returning &mut Self from methods for fluent interfaces
 #[php_class]
@@ -365,7 +415,7 @@ impl TestPropertyVisibility {
 }
 
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
-    builder
+    let builder = builder
         .class::<TestClass>()
         .class::<TestClassArrayAccess>()
         .class::<TestClassExtends>()
@@ -376,8 +426,18 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<FluentBuilder>()
         .class::<TestPropertyVisibility>()
         .class::<TestReservedKeywordMethods>()
+        .class::<TestLazyClass>()
         .function(wrap_function!(test_class))
-        .function(wrap_function!(throw_exception))
+        .function(wrap_function!(throw_exception));
+
+    #[cfg(php84)]
+    let builder = builder
+        .function(wrap_function!(test_is_lazy))
+        .function(wrap_function!(test_is_lazy_ghost))
+        .function(wrap_function!(test_is_lazy_proxy))
+        .function(wrap_function!(test_is_lazy_initialized));
+
+    builder
 }
 
 #[cfg(test)]

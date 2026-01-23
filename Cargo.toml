@@ -36,6 +36,7 @@ bindgen = { version = "0.72", default-features = false, features = [
 ] }
 cc = "1.2"
 skeptic = "0.13"
+ext-php-rs-build = { version = "0.1.0", path = "./crates/php-build" }
 
 [target.'cfg(windows)'.build-dependencies]
 ureq = { version = "3.0", features = [
@@ -56,7 +57,7 @@ runtime = ["bindgen/runtime"]
 static = ["bindgen/static"]
 
 [workspace]
-members = ["crates/macros", "crates/cli", "tests"]
+members = ["crates/macros", "crates/cli", "crates/php-build", "tests"]
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docs"]

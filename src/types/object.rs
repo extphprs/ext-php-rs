@@ -1,5 +1,50 @@
 //! Represents an object in PHP. Allows for overriding the internal object used
 //! by classes, allowing users to store Rust data inside a PHP object.
+//!
+//! # Lazy Objects (PHP 8.4+)
+//!
+//! PHP 8.4 introduced lazy objects, which defer their initialization until
+//! their properties are first accessed. This module provides introspection APIs
+//! for lazy objects:
+//!
+//! - [`ZendObject::is_lazy()`] - Check if an object is lazy (ghost or proxy)
+//! - [`ZendObject::is_lazy_ghost()`] - Check if an object is a lazy ghost
+//! - [`ZendObject::is_lazy_proxy()`] - Check if an object is a lazy proxy
+//! - [`ZendObject::is_lazy_initialized()`] - Check if a lazy object has been initialized
+//! - [`ZendObject::lazy_init()`] - Trigger initialization of a lazy object
+//!
+//! ## Lazy Ghosts vs Lazy Proxies
+//!
+//! - **Lazy Ghosts**: The ghost object itself becomes the real instance when
+//!   initialized. After initialization, the ghost is indistinguishable from a
+//!   regular object (the `is_lazy()` flag is cleared).
+//!
+//! - **Lazy Proxies**: A proxy wraps a real instance that is created when first
+//!   accessed. The proxy and real instance have different identities. After
+//!   initialization, the proxy still reports as lazy (`is_lazy()` returns true).
+//!
+//! ## Creating Lazy Objects
+//!
+//! Lazy objects should be created using PHP's `ReflectionClass` API:
+//!
+//! ```php
+//! <?php
+//! // Create a lazy ghost
+//! $reflector = new ReflectionClass(MyClass::class);
+//! $ghost = $reflector->newLazyGhost(function ($obj) {
+//!     $obj->__construct('initialized');
+//! });
+//!
+//! // Create a lazy proxy
+//! $proxy = $reflector->newLazyProxy(function ($obj) {
+//!     return new MyClass('initialized');
+//! });
+//! ```
+//!
+//! **Note**: PHP 8.4 lazy objects only work with user-defined PHP classes, not
+//! internal classes. Since Rust-defined classes (using `#[php_class]`) are
+//! registered as internal classes, they cannot be made lazy using PHP's
+//! Reflection API.
 
 use std::{convert::TryInto, fmt::Debug, os::raw::c_char, ptr};
 
@@ -17,6 +62,18 @@ use crate::{
     rc::PhpRc,
     types::{ZendClassObject, ZendStr, Zval},
     zend::{ClassEntry, ExecutorGlobals, ZendObjectHandlers, ce},
+};
+
+#[cfg(php84)]
+use crate::ffi::{zend_lazy_object_init, zend_lazy_object_mark_as_initialized};
+
+#[cfg(all(feature = "closure", php84))]
+use crate::{
+    closure::Closure,
+    ffi::{
+        _zend_fcall_info_cache, ZEND_LAZY_OBJECT_STRATEGY_GHOST, ZEND_LAZY_OBJECT_STRATEGY_PROXY,
+        zend_is_callable_ex, zend_object_make_lazy,
+    },
 };
 
 /// A PHP object.
@@ -349,6 +406,289 @@ impl ZendObject {
     #[must_use]
     pub fn hash(&self) -> String {
         format!("{:016x}0000000000000000", self.handle)
+    }
+
+    // Object extra_flags constants for lazy object detection.
+    // PHP 8.4+ lazy object constants
+    // These are checked on zend_object.extra_flags before calling zend_lazy_object_get_flags.
+    // IS_OBJ_LAZY_UNINITIALIZED = (1U<<31) - Virtual proxy or uninitialized Ghost
+    #[cfg(php84)]
+    const IS_OBJ_LAZY_UNINITIALIZED: u32 = 1 << 31;
+    // IS_OBJ_LAZY_PROXY = (1U<<30) - Virtual proxy (may be initialized)
+    #[cfg(php84)]
+    const IS_OBJ_LAZY_PROXY: u32 = 1 << 30;
+
+    /// Returns whether this object is a lazy object (ghost or proxy).
+    ///
+    /// Lazy objects are objects whose initialization is deferred until
+    /// one of their properties is accessed.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn is_lazy(&self) -> bool {
+        // Check extra_flags directly - safe for all objects
+        (self.extra_flags & (Self::IS_OBJ_LAZY_UNINITIALIZED | Self::IS_OBJ_LAZY_PROXY)) != 0
+    }
+
+    /// Returns whether this object is a lazy proxy.
+    ///
+    /// Lazy proxies wrap a real instance that is created when the proxy
+    /// is first accessed. The proxy and real instance have different identities.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn is_lazy_proxy(&self) -> bool {
+        // Check extra_flags directly - safe for all objects
+        (self.extra_flags & Self::IS_OBJ_LAZY_PROXY) != 0
+    }
+
+    /// Returns whether this object is a lazy ghost.
+    ///
+    /// Lazy ghosts are indistinguishable from non-lazy objects once initialized.
+    /// The ghost object itself becomes the real instance.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn is_lazy_ghost(&self) -> bool {
+        // A lazy ghost has IS_OBJ_LAZY_UNINITIALIZED set but NOT IS_OBJ_LAZY_PROXY
+        (self.extra_flags & Self::IS_OBJ_LAZY_UNINITIALIZED) != 0
+            && (self.extra_flags & Self::IS_OBJ_LAZY_PROXY) == 0
+    }
+
+    /// Returns whether this lazy object has been initialized.
+    ///
+    /// Returns `false` for non-lazy objects.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn is_lazy_initialized(&self) -> bool {
+        if !self.is_lazy() {
+            return false;
+        }
+        // A lazy object is initialized when IS_OBJ_LAZY_UNINITIALIZED is NOT set.
+        // For ghosts: both flags clear when initialized
+        // For proxies: IS_OBJ_LAZY_PROXY stays but IS_OBJ_LAZY_UNINITIALIZED clears
+        (self.extra_flags & Self::IS_OBJ_LAZY_UNINITIALIZED) == 0
+    }
+
+    /// Triggers initialization of a lazy object.
+    ///
+    /// If the object is a lazy ghost, this populates the object in place.
+    /// If the object is a lazy proxy, this creates the real instance.
+    ///
+    /// Returns `None` if the object is not lazy or initialization fails.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn lazy_init(&mut self) -> Option<&mut Self> {
+        if !self.is_lazy() {
+            return None;
+        }
+        unsafe { zend_lazy_object_init(self).as_mut() }
+    }
+
+    /// Marks a lazy object as initialized without calling the initializer.
+    ///
+    /// This can be used to manually initialize a lazy object's properties
+    /// and then mark it as initialized.
+    ///
+    /// Returns `None` if the object is not lazy.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn mark_lazy_initialized(&mut self) -> Option<&mut Self> {
+        if !self.is_lazy() {
+            return None;
+        }
+        unsafe { zend_lazy_object_mark_as_initialized(self).as_mut() }
+    }
+
+    /// For lazy proxies, returns the real instance after initialization.
+    ///
+    /// Returns `None` if this is not a lazy proxy or if not initialized.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn lazy_get_instance(&mut self) -> Option<&mut Self> {
+        if !self.is_lazy_proxy() || !self.is_lazy_initialized() {
+            return None;
+        }
+        // Note: We use zend_lazy_object_init here because zend_lazy_object_get_instance
+        // is not exported (no ZEND_API) in PHP and cannot be linked on Windows.
+        // zend_lazy_object_init returns the real instance for already-initialized proxies.
+        unsafe { zend_lazy_object_init(self).as_mut() }
+    }
+
+    /// Converts this object into a lazy ghost with the given initializer.
+    ///
+    /// The initializer closure will be called when the object's properties are
+    /// first accessed. The closure should perform initialization logic.
+    ///
+    /// # Parameters
+    ///
+    /// * `initializer` - A closure that performs initialization. The closure
+    ///   returns `()`. Any state needed for initialization should be captured
+    ///   in the closure.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the object was successfully made lazy, or an error
+    /// if the operation failed.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use ext_php_rs::types::ZendObject;
+    ///
+    /// fn make_lazy_example(obj: &mut ZendObject) -> ext_php_rs::error::Result<()> {
+    ///     let init_value = "initialized".to_string();
+    ///     obj.make_lazy_ghost(Box::new(move || {
+    ///         // Use captured state for initialization
+    ///         println!("Initializing with: {}", init_value);
+    ///     }) as Box<dyn Fn()>)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the initializer closure cannot be converted to a
+    /// PHP callable or if the object cannot be made lazy.
+    ///
+    /// # Safety
+    ///
+    /// This is a PHP 8.4+ feature. The closure must be `'static` as it may be
+    /// called at any time during the object's lifetime.
+    ///
+    /// **Note**: PHP 8.4 lazy objects only work with user-defined PHP classes,
+    /// not internal classes. Rust-defined classes cannot be made lazy.
+    #[cfg(all(feature = "closure", php84))]
+    #[cfg_attr(docs, doc(cfg(all(feature = "closure", php84))))]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn make_lazy_ghost<F>(&mut self, initializer: F) -> Result<()>
+    where
+        F: Fn() + 'static,
+    {
+        self.make_lazy_internal(initializer, ZEND_LAZY_OBJECT_STRATEGY_GHOST as u8)
+    }
+
+    /// Converts this object into a lazy proxy with the given initializer.
+    ///
+    /// The initializer closure will be called when the object's properties are
+    /// first accessed. The closure should return the real instance that the
+    /// proxy will forward to.
+    ///
+    /// # Parameters
+    ///
+    /// * `initializer` - A closure that returns `Option<ZBox<ZendObject>>`,
+    ///   the real instance. Any state needed should be captured in the closure.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the object was successfully made lazy, or an error
+    /// if the operation failed.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use ext_php_rs::types::ZendObject;
+    /// use ext_php_rs::boxed::ZBox;
+    ///
+    /// fn make_proxy_example(obj: &mut ZendObject) -> ext_php_rs::error::Result<()> {
+    ///     obj.make_lazy_proxy(Box::new(|| {
+    ///         // Create and return the real instance
+    ///         Some(ZendObject::new_stdclass())
+    ///     }) as Box<dyn Fn() -> Option<ZBox<ZendObject>>>)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the initializer closure cannot be converted to a
+    /// PHP callable or if the object cannot be made lazy.
+    ///
+    /// # Safety
+    ///
+    /// This is a PHP 8.4+ feature. The closure must be `'static` as it may be
+    /// called at any time during the object's lifetime.
+    ///
+    /// **Note**: PHP 8.4 lazy objects only work with user-defined PHP classes,
+    /// not internal classes. Rust-defined classes cannot be made lazy.
+    #[cfg(all(feature = "closure", php84))]
+    #[cfg_attr(docs, doc(cfg(all(feature = "closure", php84))))]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn make_lazy_proxy<F>(&mut self, initializer: F) -> Result<()>
+    where
+        F: Fn() -> Option<ZBox<ZendObject>> + 'static,
+    {
+        self.make_lazy_internal(initializer, ZEND_LAZY_OBJECT_STRATEGY_PROXY as u8)
+    }
+
+    /// Internal implementation for making an object lazy.
+    #[cfg(all(feature = "closure", php84))]
+    fn make_lazy_internal<F, R>(&mut self, initializer: F, strategy: u8) -> Result<()>
+    where
+        F: Fn() -> R + 'static,
+        R: IntoZval + 'static,
+    {
+        // Check if the class can be made lazy
+        let ce = unsafe { self.ce.as_ref() }.ok_or(Error::InvalidPointer)?;
+        if !ce.can_be_lazy() {
+            return Err(Error::LazyObjectFailed);
+        }
+
+        // Cannot make an already-lazy uninitialized object lazy again
+        if self.is_lazy() && !self.is_lazy_initialized() {
+            return Err(Error::LazyObjectFailed);
+        }
+
+        // Wrap the Rust closure in a PHP-callable Closure
+        let closure = Closure::wrap(Box::new(initializer) as Box<dyn Fn() -> R>);
+
+        // Convert the closure to a zval
+        let mut initializer_zv = Zval::new();
+        closure.set_zval(&mut initializer_zv, false)?;
+
+        // Initialize the fcc structure
+        let mut fcc: _zend_fcall_info_cache = unsafe { std::mem::zeroed() };
+
+        // Populate the fcc using zend_is_callable_ex
+        let is_callable = unsafe {
+            zend_is_callable_ex(
+                &raw mut initializer_zv,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                &raw mut fcc,
+                ptr::null_mut(),
+            )
+        };
+
+        if !is_callable {
+            return Err(Error::Callable);
+        }
+
+        // Get the class entry
+        let ce = self.ce;
+
+        // Make the object lazy
+        let result = unsafe {
+            zend_object_make_lazy(self, ce, &raw mut initializer_zv, &raw mut fcc, strategy)
+        };
+
+        if result.is_null() {
+            Err(Error::LazyObjectFailed)
+        } else {
+            Ok(())
+        }
     }
 
     /// Attempts to retrieve a reference to the object handlers.
