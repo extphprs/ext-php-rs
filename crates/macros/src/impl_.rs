@@ -54,8 +54,20 @@ pub fn parser(mut input: ItemImpl) -> Result<TokenStream> {
             .unwrap_or(RenameRule::ScreamingSnake),
     );
     parsed.parse(input.items.iter_mut())?;
-
     let php_class_impl = parsed.generate_php_class_impl();
+
+    // Strip #[php(...)] attributes from method parameters before emitting output
+    // (must be done after generate_php_class_impl since parsed borrows from input)
+    for item in &mut input.items {
+        if let syn::ImplItem::Fn(method) = item {
+            for arg in &mut method.sig.inputs {
+                if let syn::FnArg::Typed(pat_type) = arg {
+                    pat_type.attrs.retain(|attr| !attr.path().is_ident("php"));
+                }
+            }
+        }
+    }
+
     Ok(quote::quote! {
         #input
         #php_class_impl
