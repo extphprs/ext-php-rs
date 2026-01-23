@@ -188,3 +188,66 @@ assert(in_array('class', $methodNames), 'Method "class" should exist in reflecti
 assert(in_array('match', $methodNames), 'Method "match" should exist in reflection');
 assert(in_array('return', $methodNames), 'Method "return" should exist in reflection');
 assert(in_array('static', $methodNames), 'Method "static" should exist in reflection');
+
+// Test lazy objects (PHP 8.4+)
+if (PHP_VERSION_ID >= 80400) {
+    // Test with a regular (non-lazy) Rust object first
+    $regularObj = new TestLazyClass('regular');
+    assert(test_is_lazy($regularObj) === false, 'Regular Rust object should not be lazy');
+    assert(test_is_lazy_ghost($regularObj) === false, 'Regular Rust object should not be lazy ghost');
+    assert(test_is_lazy_proxy($regularObj) === false, 'Regular Rust object should not be lazy proxy');
+    assert(test_is_lazy_initialized($regularObj) === false, 'Regular Rust object lazy_initialized should be false');
+    // PHP 8.4 lazy objects only work with user-defined PHP classes, not internal classes.
+    // Rust-defined classes are internal classes, so we test with a pure PHP class.
+    class PhpLazyTestClass {
+        public string $data = '';
+        public bool $initialized = false;
+
+        public function __construct(string $data) {
+            $this->data = $data;
+            $this->initialized = true;
+        }
+    }
+
+    // Create a lazy ghost using PHP's Reflection API
+    $reflector = new ReflectionClass(PhpLazyTestClass::class);
+    $lazyGhost = $reflector->newLazyGhost(function (PhpLazyTestClass $obj) {
+        $obj->__construct('lazy initialized');
+    });
+
+    // Verify lazy ghost introspection BEFORE initialization
+    assert(test_is_lazy($lazyGhost) === true, 'Lazy ghost should be lazy');
+    assert(test_is_lazy_ghost($lazyGhost) === true, 'Lazy ghost should be identified as ghost');
+    assert(test_is_lazy_proxy($lazyGhost) === false, 'Lazy ghost should not be identified as proxy');
+    assert(test_is_lazy_initialized($lazyGhost) === false, 'Lazy ghost should not be initialized yet');
+
+    // Access a property to trigger initialization
+    $data = $lazyGhost->data;
+    assert($data === 'lazy initialized', 'Lazy ghost should be initialized with correct data');
+
+    // Verify lazy ghost introspection AFTER initialization
+    // Note: Initialized lazy ghosts become indistinguishable from regular objects (flags cleared)
+    assert(test_is_lazy($lazyGhost) === false, 'Initialized lazy ghost should no longer report as lazy');
+    assert(test_is_lazy_initialized($lazyGhost) === false, 'Initialized ghost returns false (not lazy anymore)');
+
+    // Create a lazy proxy
+    $lazyProxy = $reflector->newLazyProxy(function (PhpLazyTestClass $obj) {
+        return new PhpLazyTestClass('proxy target');
+    });
+
+    // Verify lazy proxy introspection BEFORE initialization
+    assert(test_is_lazy($lazyProxy) === true, 'Lazy proxy should be lazy');
+    assert(test_is_lazy_ghost($lazyProxy) === false, 'Lazy proxy should not be identified as ghost');
+    assert(test_is_lazy_proxy($lazyProxy) === true, 'Lazy proxy should be identified as proxy');
+    assert(test_is_lazy_initialized($lazyProxy) === false, 'Lazy proxy should not be initialized yet');
+
+    // Trigger initialization
+    $proxyData = $lazyProxy->data;
+    assert($proxyData === 'proxy target', 'Lazy proxy should forward to real instance');
+
+    // Verify lazy proxy introspection AFTER initialization
+    // Note: Initialized lazy proxies still report as lazy (IS_OBJ_LAZY_PROXY stays set)
+    assert(test_is_lazy($lazyProxy) === true, 'Initialized lazy proxy should still report as lazy');
+    assert(test_is_lazy_proxy($lazyProxy) === true, 'Initialized proxy should still be identified as proxy');
+    assert(test_is_lazy_initialized($lazyProxy) === true, 'Lazy proxy should be initialized after property access');
+}

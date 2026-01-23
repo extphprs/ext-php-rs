@@ -1,7 +1,6 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
+use ext_php_rs_build::Arch;
 use std::{
-    convert::TryFrom,
-    fmt::Display,
     io::{Cursor, Read, Write},
     path::{Path, PathBuf},
     process::Command,
@@ -128,40 +127,6 @@ fn looks_like_msvc_linker(linker: &Path) -> bool {
         }
     }
     false
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Arch {
-    X86,
-    X64,
-    AArch64,
-}
-
-impl TryFrom<&str> for Arch {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &str) -> Result<Self> {
-        Ok(match value {
-            "x86" => Self::X86,
-            "x64" => Self::X64,
-            "arm64" => Self::AArch64,
-            a => bail!("Unknown architecture {}", a),
-        })
-    }
-}
-
-impl Display for Arch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Arch::X86 => "x86",
-                Arch::X64 => "x64",
-                Arch::AArch64 => "arm64",
-            }
-        )
-    }
 }
 
 struct DevelPack(PathBuf);

@@ -1,6 +1,8 @@
 //! Builder and objects for creating classes in the PHP world.
 
 use crate::ffi::instanceof_function_slow;
+#[cfg(php84)]
+use crate::ffi::zend_class_can_be_lazy;
 use crate::types::{ZendIterator, Zval};
 use crate::{
     boxed::ZBox,
@@ -30,9 +32,7 @@ impl ClassEntry {
         ExecutorGlobals::get().class_table()?;
         let mut name = ZendStr::new(name, false);
 
-        unsafe {
-            crate::ffi::zend_lookup_class_ex(&raw mut *name, std::ptr::null_mut(), 0).as_ref()
-        }
+        unsafe { crate::ffi::zend_lookup_class_ex(&raw mut *name, ptr::null_mut(), 0).as_ref() }
     }
 
     /// Creates a new [`ZendObject`], returned inside an [`ZBox<ZendObject>`]
@@ -58,6 +58,18 @@ impl ClassEntry {
     #[must_use]
     pub fn is_interface(&self) -> bool {
         self.flags().contains(ClassFlags::Interface)
+    }
+
+    /// Returns `true` if instances of this class can be made lazy.
+    ///
+    /// Only user-defined classes and `stdClass` can be made lazy.
+    /// Internal classes (including Rust-defined classes) cannot be made lazy.
+    ///
+    /// This is a PHP 8.4+ feature.
+    #[cfg(php84)]
+    #[must_use]
+    pub fn can_be_lazy(&self) -> bool {
+        unsafe { zend_class_can_be_lazy(ptr::from_ref(self).cast_mut()) }
     }
 
     /// Checks if the class is an instance of another class or interface.
