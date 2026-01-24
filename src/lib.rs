@@ -72,6 +72,21 @@ pub const PHP_DEBUG: bool = cfg!(php_debug);
 /// Whether the extension is compiled for PHP thread-safe mode.
 pub const PHP_ZTS: bool = cfg!(php_zts);
 
+/// Whether the extension is compiled for PHP 8.1 or later.
+pub const PHP_81: bool = cfg!(php81);
+
+/// Whether the extension is compiled for PHP 8.2 or later.
+pub const PHP_82: bool = cfg!(php82);
+
+/// Whether the extension is compiled for PHP 8.3 or later.
+pub const PHP_83: bool = cfg!(php83);
+
+/// Whether the extension is compiled for PHP 8.4 or later.
+pub const PHP_84: bool = cfg!(php84);
+
+/// Whether the extension is compiled for PHP 8.5 or later.
+pub const PHP_85: bool = cfg!(php85);
+
 #[cfg(feature = "enum")]
 pub use ext_php_rs_derive::php_enum;
 pub use ext_php_rs_derive::{
