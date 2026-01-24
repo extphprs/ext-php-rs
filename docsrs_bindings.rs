@@ -1235,6 +1235,7 @@ pub struct _zend_lazy_objects_store {
 }
 pub type zend_lazy_objects_store = _zend_lazy_objects_store;
 pub type zend_property_info = _zend_property_info;
+pub type zend_fcall_info = _zend_fcall_info;
 pub type zend_fcall_info_cache = _zend_fcall_info_cache;
 unsafe extern "C" {
     pub fn zend_class_can_be_lazy(ce: *const zend_class_entry) -> bool;
@@ -1844,17 +1845,7 @@ pub struct _zend_call_stack {
 pub type zend_call_stack = _zend_call_stack;
 pub type zend_vm_stack = *mut _zend_vm_stack;
 pub type zend_ini_entry = _zend_ini_entry;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct _zend_fiber_context {
-    _unused: [u8; 0],
-}
 pub type zend_fiber_context = _zend_fiber_context;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct _zend_fiber {
-    _unused: [u8; 0],
-}
 pub type zend_fiber = _zend_fiber;
 pub const zend_memoize_mode_ZEND_MEMOIZE_NONE: zend_memoize_mode = 0;
 pub const zend_memoize_mode_ZEND_MEMOIZE_COMPILE: zend_memoize_mode = 1;
@@ -2094,6 +2085,16 @@ pub struct _zend_function_entry {
     pub doc_comment: *const ::std::os::raw::c_char,
 }
 pub type zend_function_entry = _zend_function_entry;
+#[repr(C)]
+pub struct _zend_fcall_info {
+    pub size: usize,
+    pub function_name: zval,
+    pub retval: *mut zval,
+    pub params: *mut zval,
+    pub object: *mut zend_object,
+    pub param_count: u32,
+    pub named_params: *mut HashTable,
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_fcall_info_cache {
@@ -3418,4 +3419,70 @@ unsafe extern "C" {
         val_len: usize,
         new_val_len: *mut usize,
     ) -> ::std::os::raw::c_uint;
+}
+pub const zend_fiber_status_ZEND_FIBER_STATUS_INIT: zend_fiber_status = 0;
+pub const zend_fiber_status_ZEND_FIBER_STATUS_RUNNING: zend_fiber_status = 1;
+pub const zend_fiber_status_ZEND_FIBER_STATUS_SUSPENDED: zend_fiber_status = 2;
+pub const zend_fiber_status_ZEND_FIBER_STATUS_DEAD: zend_fiber_status = 3;
+pub type zend_fiber_status = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_fiber_stack {
+    _unused: [u8; 0],
+}
+pub type zend_fiber_stack = _zend_fiber_stack;
+#[repr(C)]
+pub struct _zend_fiber_transfer {
+    pub context: *mut zend_fiber_context,
+    pub value: zval,
+    pub flags: u8,
+}
+pub type zend_fiber_transfer = _zend_fiber_transfer;
+pub type zend_fiber_coroutine =
+    ::std::option::Option<unsafe extern "C" fn(transfer: *mut zend_fiber_transfer)>;
+pub type zend_fiber_clean =
+    ::std::option::Option<unsafe extern "C" fn(context: *mut zend_fiber_context)>;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_fiber_context {
+    pub handle: *mut ::std::os::raw::c_void,
+    pub kind: *mut ::std::os::raw::c_void,
+    pub function: zend_fiber_coroutine,
+    pub cleanup: zend_fiber_clean,
+    pub stack: *mut zend_fiber_stack,
+    pub status: zend_fiber_status,
+    pub top_observed_frame: *mut zend_execute_data,
+    pub reserved: [*mut ::std::os::raw::c_void; 6usize],
+}
+#[repr(C)]
+pub struct _zend_fiber {
+    pub std: zend_object,
+    pub flags: u8,
+    pub context: zend_fiber_context,
+    pub caller: *mut zend_fiber_context,
+    pub previous: *mut zend_fiber_context,
+    pub fci: zend_fcall_info,
+    pub fci_cache: zend_fcall_info_cache,
+    pub execute_data: *mut zend_execute_data,
+    pub stack_bottom: *mut zend_execute_data,
+    pub vm_stack: zend_vm_stack,
+    pub result: zval,
+}
+pub type zend_observer_fcall_begin_handler =
+    ::std::option::Option<unsafe extern "C" fn(execute_data: *mut zend_execute_data)>;
+pub type zend_observer_fcall_end_handler = ::std::option::Option<
+    unsafe extern "C" fn(execute_data: *mut zend_execute_data, retval: *mut zval),
+>;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_observer_fcall_handlers {
+    pub begin: zend_observer_fcall_begin_handler,
+    pub end: zend_observer_fcall_end_handler,
+}
+pub type zend_observer_fcall_handlers = _zend_observer_fcall_handlers;
+pub type zend_observer_fcall_init = ::std::option::Option<
+    unsafe extern "C" fn(execute_data: *mut zend_execute_data) -> zend_observer_fcall_handlers,
+>;
+unsafe extern "C" {
+    pub fn zend_observer_fcall_register(arg1: zend_observer_fcall_init);
 }

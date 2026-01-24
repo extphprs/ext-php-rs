@@ -163,6 +163,56 @@ impl ModuleBuilder<'_> {
         self
     }
 
+    /// Registers a function call observer for profiling or tracing.
+    ///
+    /// The factory function is called once globally during MINIT to create
+    /// a singleton observer instance shared across all requests and threads.
+    /// The observer must be `Send + Sync` as it may be accessed concurrently
+    /// in ZTS builds.
+    ///
+    /// # Arguments
+    ///
+    /// * `factory` - A function that creates an observer instance
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::prelude::*;
+    /// use ext_php_rs::zend::{FcallObserver, FcallInfo, ExecuteData};
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// struct MyProfiler;
+    ///
+    /// impl FcallObserver for MyProfiler {
+    ///     fn should_observe(&self, info: &FcallInfo) -> bool {
+    ///         !info.is_internal
+    ///     }
+    ///     fn begin(&self, _: &ExecuteData) {}
+    ///     fn end(&self, _: &ExecuteData, _: Option<&Zval>) {}
+    /// }
+    ///
+    /// #[php_module]
+    /// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    ///     module.fcall_observer(|| MyProfiler)
+    /// }
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if called more than once on the same module.
+    #[cfg(feature = "observer")]
+    pub fn fcall_observer<F, O>(self, factory: F) -> Self
+    where
+        F: Fn() -> O + Send + Sync + 'static,
+        O: crate::zend::FcallObserver + Send + Sync,
+    {
+        let boxed_factory: Box<
+            dyn Fn() -> Box<dyn crate::zend::FcallObserver + Send + Sync> + Send + Sync,
+        > = Box::new(move || Box::new(factory()));
+        crate::zend::observer::register_fcall_observer_factory(boxed_factory);
+        self
+    }
+
     /// Adds a function to the extension.
     ///
     /// # Arguments
@@ -342,6 +392,12 @@ impl ModuleStartup {
             .for_each(|e| {
                 e.register().expect("Failed to build enum");
             });
+
+        // Initialize observer system if registered
+        #[cfg(feature = "observer")]
+        unsafe {
+            crate::zend::observer::observer_startup();
+        }
 
         Ok(())
     }

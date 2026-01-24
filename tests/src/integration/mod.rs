@@ -16,6 +16,8 @@ pub mod magic_method;
 pub mod nullable;
 pub mod number;
 pub mod object;
+#[cfg(feature = "observer")]
+pub mod observer;
 pub mod persistent_string;
 pub mod string;
 pub mod types;
@@ -55,6 +57,8 @@ mod test {
                 features.push("runtime");
                 #[cfg(feature = "static")]
                 features.push("static");
+                #[cfg(feature = "observer")]
+                features.push("observer");
 
                 if !features.is_empty() {
                     command.arg("--no-default-features");

@@ -31,6 +31,12 @@ pub mod describe;
 pub mod embed;
 #[cfg(feature = "enum")]
 pub mod enum_;
+#[cfg(feature = "observer")]
+#[cfg_attr(docs, doc(cfg(feature = "observer")))]
+pub mod observer {
+    //! Observer API for function call profiling and tracing.
+    pub use crate::zend::observer::{FcallInfo, FcallObserver};
+}
 #[doc(hidden)]
 pub mod internal;
 pub mod props;
@@ -57,6 +63,8 @@ pub mod prelude {
     pub use crate::php_write;
     pub use crate::types::ZendCallable;
     pub use crate::zend::BailoutGuard;
+    #[cfg(feature = "observer")]
+    pub use crate::zend::{FcallInfo, FcallObserver};
     pub use crate::{
         ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_interface,
         php_module, wrap_constant, wrap_function, zend_fastcall,

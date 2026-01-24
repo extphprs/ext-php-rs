@@ -53,6 +53,7 @@ embed = []
 anyhow = ["dep:anyhow"]
 smartstring = ["dep:smartstring"]
 enum = []
+observer = []
 runtime = ["bindgen/runtime"]
 static = ["bindgen/static"]
 
@@ -68,6 +69,11 @@ missing_docs = "warn"
 [[example]]
 name = "hello_world"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "observer"
+crate-type = ["cdylib"]
+required-features = ["observer"]
 
 [[test]]
 name = "guide_tests"

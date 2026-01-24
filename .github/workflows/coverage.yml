@@ -62,6 +62,6 @@ jobs:
           cargo tarpaulin --version
       - name: Run tests
         run: |
-          cargo tarpaulin --engine llvm --workspace --features closure,embed,anyhow --tests --exclude tests --exclude-files docsrs_bindings.rs --exclude-files "crates/macros/tests/expand/*.expanded.rs" --timeout 120 --out Xml
+          cargo tarpaulin --engine llvm --workspace --features closure,embed,anyhow,observer --tests --exclude tests --exclude-files docsrs_bindings.rs --exclude-files "crates/macros/tests/expand/*.expanded.rs" --timeout 120 --out Xml
       - name: Upload coverage
         uses: coverallsapp/github-action@v2

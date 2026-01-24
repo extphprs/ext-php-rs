@@ -360,5 +360,13 @@ bind! {
     php_ini_builder_unquoted,
     php_ini_builder_quoted,
     php_ini_builder_define,
-    php_output_write
+    php_output_write,
+    zend_observer_fcall_handlers,
+    _zend_observer_fcall_handlers,
+    zend_observer_fcall_begin_handler,
+    zend_observer_fcall_end_handler,
+    zend_observer_fcall_init,
+    zend_observer_fcall_register,
+    zend_function,
+    zend_op_array
 }
