@@ -17,6 +17,7 @@
   - [`bool`](./types/bool.md)
   - [`Vec`](./types/vec.md)
   - [`HashMap`](./types/hashmap.md)
+  - [`ZendHashTable`](./types/zend_hashtable.md)
   - [`Binary`](./types/binary.md)
   - [`BinarySlice`](./types/binary_slice.md)
   - [`Option`](./types/option.md)
