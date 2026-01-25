@@ -266,6 +266,7 @@ impl ModuleBuilder<'_> {
             }
 
             builder
+                .flags(T::FLAGS)
                 .object_override::<T>()
                 .registration(|ce| {
                     T::get_metadata().set_ce(ce);

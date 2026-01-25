@@ -119,7 +119,8 @@ const PHP_RESERVED_KEYWORDS: &[&str] = &[
 ///
 /// PHP uses the `semi_reserved` grammar rule to allow most keywords as method
 /// names (via `$obj->keyword()` syntax which avoids ambiguity). However,
-/// `__halt_compiler` is explicitly excluded from `semi_reserved` in PHP's parser.
+/// `__halt_compiler` is explicitly excluded from `semi_reserved` in PHP's
+/// parser.
 ///
 /// See: <https://github.com/php/php-src/blob/master/Zend/zend_language_parser.y>
 const PHP_METHOD_FORBIDDEN_KEYWORDS: &[&str] = &["__halt_compiler"];
@@ -179,8 +180,9 @@ impl PhpNameContext {
 
 /// Checks if a name is a PHP type keyword (case-insensitive).
 ///
-/// Type keywords like `void`, `bool`, `int`, etc. are reserved for type declarations
-/// but CAN be used as method, function, constant, or property names in PHP.
+/// Type keywords like `void`, `bool`, `int`, etc. are reserved for type
+/// declarations but CAN be used as method, function, constant, or property
+/// names in PHP.
 fn is_php_type_keyword(name: &str) -> bool {
     let lower = name.to_lowercase();
     PHP_TYPE_KEYWORDS
@@ -196,10 +198,11 @@ pub fn is_php_reserved_keyword(name: &str) -> bool {
         .any(|&kw| kw.to_lowercase() == lower)
 }
 
-/// Checks if a name is forbidden as a method/property/constant name (case-insensitive).
+/// Checks if a name is forbidden as a method/property/constant name
+/// (case-insensitive).
 ///
-/// PHP allows most reserved keywords as method names via the `semi_reserved` grammar rule,
-/// but `__halt_compiler` is explicitly excluded.
+/// PHP allows most reserved keywords as method names via the `semi_reserved`
+/// grammar rule, but `__halt_compiler` is explicitly excluded.
 fn is_php_method_forbidden_keyword(name: &str) -> bool {
     let lower = name.to_lowercase();
     PHP_METHOD_FORBIDDEN_KEYWORDS
@@ -207,7 +210,8 @@ fn is_php_method_forbidden_keyword(name: &str) -> bool {
         .any(|&kw| kw.to_lowercase() == lower)
 }
 
-/// Checks if a name is explicitly allowed as a function name (case-insensitive).
+/// Checks if a name is explicitly allowed as a function name
+/// (case-insensitive).
 ///
 /// PHP allows `readonly` as a function name since PHP 8.1.
 fn is_php_function_allowed_keyword(name: &str) -> bool {
@@ -220,14 +224,18 @@ fn is_php_function_allowed_keyword(name: &str) -> bool {
 /// Validates that a PHP name is not a reserved keyword.
 ///
 /// The validation is context-aware:
-/// - For class, interface, enum, and enum case names: both reserved keywords AND type keywords are checked
-/// - For function names: reserved keywords are checked (except `readonly` which is allowed)
-/// - For method, constant, and property names: only `__halt_compiler` is forbidden
-///   (PHP allows most keywords as method names via `$obj->keyword()` syntax)
+/// - For class, interface, enum, and enum case names: both reserved keywords
+///   AND type keywords are checked
+/// - For function names: reserved keywords are checked (except `readonly` which
+///   is allowed)
+/// - For method, constant, and property names: only `__halt_compiler` is
+///   forbidden (PHP allows most keywords as method names via `$obj->keyword()`
+///   syntax)
 ///
 /// # Errors
 ///
-/// Returns a `syn::Error` if the name is a reserved keyword in the given context.
+/// Returns a `syn::Error` if the name is a reserved keyword in the given
+/// context.
 pub fn validate_php_name(
     name: &str,
     context: PhpNameContext,

@@ -20,6 +20,10 @@ pub struct StructAttributes {
     modifier: Option<syn::Ident>,
     /// An expression of `ClassFlags` to be applied to the class.
     flags: Option<syn::Expr>,
+    /// Whether the class is readonly (PHP 8.2+).
+    /// Readonly classes have all properties implicitly readonly.
+    #[darling(rename = "readonly")]
+    readonly: Flag,
     extends: Option<ClassEntryAttribute>,
     #[darling(multiple)]
     implements: Vec<ClassEntryAttribute>,
@@ -64,6 +68,7 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         &attr.implements,
         &fields,
         attr.flags.as_ref(),
+        attr.readonly.is_present(),
         &docs,
     );
 
@@ -141,6 +146,7 @@ fn generate_registered_class_impl(
     implements: &[ClassEntryAttribute],
     fields: &[Property],
     flags: Option<&syn::Expr>,
+    readonly: bool,
     docs: &[String],
 ) -> TokenStream {
     let modifier = modifier.option_tokens();
@@ -198,9 +204,46 @@ fn generate_registered_class_impl(
         }
     });
 
-    let flags = match flags {
-        Some(flags) => flags.to_token_stream(),
-        None => quote! { ::ext_php_rs::flags::ClassFlags::empty() }.to_token_stream(),
+    // Generate flags expression, combining user-provided flags with readonly if
+    // specified. Note: ReadonlyClass is only available on PHP 8.2+, so we emit
+    // a compile error if readonly is used on earlier PHP versions.
+    // The compile_error! is placed as a statement so the block still has a valid
+    // ClassFlags return type for type checking (even though compilation fails).
+    let flags = match (flags, readonly) {
+        (Some(flags), true) => {
+            // User provided flags + readonly
+            quote! {
+                {
+                    #[cfg(not(php82))]
+                    compile_error!("The `readonly` class attribute requires PHP 8.2 or later");
+
+                    #[cfg(php82)]
+                    {
+                        ::ext_php_rs::flags::ClassFlags::from_bits_retain(
+                            (#flags).bits() | ::ext_php_rs::flags::ClassFlags::ReadonlyClass.bits()
+                        )
+                    }
+                    #[cfg(not(php82))]
+                    { #flags }
+                }
+            }
+        }
+        (Some(flags), false) => flags.to_token_stream(),
+        (None, true) => {
+            // Only readonly flag
+            quote! {
+                {
+                    #[cfg(not(php82))]
+                    compile_error!("The `readonly` class attribute requires PHP 8.2 or later");
+
+                    #[cfg(php82)]
+                    { ::ext_php_rs::flags::ClassFlags::ReadonlyClass }
+                    #[cfg(not(php82))]
+                    { ::ext_php_rs::flags::ClassFlags::empty() }
+                }
+            }
+        }
+        (None, false) => quote! { ::ext_php_rs::flags::ClassFlags::empty() },
     };
 
     let docs = quote! {
