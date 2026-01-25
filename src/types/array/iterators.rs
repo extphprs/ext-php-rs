@@ -34,6 +34,11 @@ impl<'a> Iter<'a> {
     /// # Parameters
     ///
     /// * `ht` - The hashtable to iterate.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hashtable length exceeds `i64::MAX`.
+    #[must_use]
     pub fn new(ht: &'a ZendHashTable) -> Self {
         let end_num: i64 = ht
             .len()
@@ -54,6 +59,9 @@ impl<'a> Iter<'a> {
         }
     }
 
+    /// Advances the iterator and returns the next key-value pair as raw Zvals.
+    ///
+    /// Returns `None` when iteration is finished.
     pub fn next_zval(&mut self) -> Option<(Zval, &'a Zval)> {
         if self.current_num >= self.end_num {
             return None;
@@ -225,6 +233,7 @@ impl<'a> Values<'a> {
     /// # Parameters
     ///
     /// * `ht` - The hashtable to iterate.
+    #[must_use]
     pub fn new(ht: &'a ZendHashTable) -> Self {
         Self(Iter::new(ht))
     }

@@ -3,7 +3,7 @@
 //! Generally, it is easier to work directly with Rust types, converting into
 //! these PHP types when required.
 
-mod array;
+pub mod array;
 mod callable;
 mod class_object;
 mod iterable;
@@ -13,7 +13,7 @@ mod object;
 mod string;
 mod zval;
 
-pub use array::{ArrayKey, ZendEmptyArray, ZendHashTable};
+pub use array::{ArrayKey, Entry, OccupiedEntry, VacantEntry, ZendEmptyArray, ZendHashTable};
 pub use callable::ZendCallable;
 pub use class_object::ZendClassObject;
 pub use iterable::Iterable;
