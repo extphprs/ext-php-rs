@@ -1,6 +1,9 @@
 [book]
-authors = ["David Cole"]
+authors = ["David Cole", "Xenira", "Pierre Tondereau"]
 language = "en"
-multilingual = false
 src = "src"
 title = "ext-php-rs"
+description = "A guide to using ext-php-rs"
+
+[rust]
+edition = "2024"
