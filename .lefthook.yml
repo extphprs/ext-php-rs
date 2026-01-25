@@ -8,7 +8,7 @@ pre-commit:
         - "crates/macros/tests/expand/*.expanded.rs"
       stage_fixed: true
     - name: clippy
-      run: cargo clippy --workspace --all-targets --features closure,embed,anyhow -- -W clippy::pedantic -D warnings
+      run: cargo clippy --workspace --all-targets --features closure,embed,anyhow,observer -- -W clippy::pedantic -D warnings
       glob: "*.rs"
     - name: bindings
       run: tools/update_bindings.sh && git diff --exit-code docsrs_bindings.rs

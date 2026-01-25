@@ -21,6 +21,7 @@ anyhow = ["ext-php-rs/anyhow"]
 runtime = ["ext-php-rs/runtime"]
 closure = ["ext-php-rs/closure"]
 static = ["ext-php-rs/static"]
+observer = ["ext-php-rs/observer"]
 
 [lib]
 crate-type = ["cdylib"]

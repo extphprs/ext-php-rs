@@ -43,6 +43,7 @@
 
 - [Async](./advanced/async_impl.md)
 - [Bailout Guard](./advanced/bailout_guard.md)
+- [Observer API](./advanced/observer.md)
 - [Allowed Bindings](./advanced/allowed_bindings.md)
 
 # Migration Guides

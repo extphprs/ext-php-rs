@@ -11,6 +11,8 @@ mod handlers;
 mod ini_entry_def;
 mod linked_list;
 mod module;
+#[cfg(feature = "observer")]
+pub(crate) mod observer;
 mod streams;
 mod try_catch;
 
@@ -39,6 +41,8 @@ pub use handlers::ZendObjectHandlers;
 pub use ini_entry_def::IniEntryDef;
 pub use linked_list::ZendLinkedList;
 pub use module::ModuleEntry;
+#[cfg(feature = "observer")]
+pub use observer::{FcallInfo, FcallObserver};
 pub use streams::*;
 #[cfg(feature = "embed")]
 pub(crate) use try_catch::panic_wrapper;

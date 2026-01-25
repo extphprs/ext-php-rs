@@ -38,6 +38,7 @@
 #include "zend_interfaces.h"
 #include "php_variables.h"
 #include "zend_ini.h"
+#include "zend_observer.h"
 #include "main/SAPI.h"
 
 zend_string *ext_php_rs_zend_string_init(const char *str, size_t len, bool persistent);

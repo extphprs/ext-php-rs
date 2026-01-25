@@ -72,7 +72,7 @@ jobs:
       - name: Run rustfmt
         run: cargo fmt --all -- --check
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --features closure,embed,anyhow -- -W clippy::pedantic -D warnings
+        run: cargo clippy --workspace --all-targets --features closure,embed,anyhow,observer -- -W clippy::pedantic -D warnings
       # Docs
       - name: Run rustdoc
         run: cargo rustdoc -- -D warnings
@@ -162,12 +162,12 @@ jobs:
       - name: Build
         env:
           EXT_PHP_RS_TEST: ""
-        run: cargo build --release --features closure,anyhow,runtime --workspace
+        run: cargo build --release --features closure,anyhow,runtime,observer --workspace
       # Test
       - name: Test inline examples
         # Macos fails on unstable rust. We skip the inline examples test for now.
         if: "!(contains(matrix.os, 'macos') && matrix.rust == 'nightly')"
-        run: cargo test --release --workspace --features closure,anyhow,runtime --no-fail-fast
+        run: cargo test --release --workspace --features closure,anyhow,runtime,observer --no-fail-fast
   test-embed:
     name: Test with embed (NTS)
     runs-on: ubuntu-latest
@@ -224,7 +224,7 @@ jobs:
           echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-config" >> $GITHUB_ENV
 
       - name: Test with embed feature
-        run: cargo test --workspace --release --features closure,embed,anyhow,smartstring --no-fail-fast
+        run: cargo test --workspace --release --features closure,embed,anyhow,smartstring,observer --no-fail-fast
 
   build-musl:
     name: musl / ${{ matrix.php }} / ${{ matrix.phpts[1] }}
@@ -259,11 +259,11 @@ jobs:
             -v $(pwd):/workspace \
             -w /workspace \
             extphprs/ext-php-rs:musl-${{ matrix.php }}-${{ matrix.phpts[1] }} \
-            build --release --features closure,anyhow,runtime --workspace
+            build --release --features closure,anyhow,runtime,observer --workspace
       - name: Run tests
         run: |
           docker run \
             -v $(pwd):/workspace \
             -w /workspace \
             extphprs/ext-php-rs:musl-${{ matrix.php }}-${{ matrix.phpts[1] }} \
-            test --workspace --release --features closure,anyhow,runtime --no-fail-fast
+            test --workspace --release --features closure,anyhow,runtime,observer --no-fail-fast
