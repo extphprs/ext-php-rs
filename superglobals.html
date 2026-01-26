@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>INI Settings - ext-php-rs</title>
+        <title>Superglobals - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -174,68 +174,331 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
-<p>Your PHP Extension may want to provide it’s own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
-<h2 id="registering-ini-settings"><a class="header" href="#registering-ini-settings">Registering INI Settings</a></h2>
-<p>All PHP INI definitions must be registered with PHP to get / set their values via the <code>php.ini</code> file or <code>ini_get() / ini_set()</code>.</p>
+                        <h1 id="superglobals"><a class="header" href="#superglobals">Superglobals</a></h1>
+<p>PHP provides several superglobal arrays that are accessible from any scope. In
+ext-php-rs, you can access these superglobals using the <code>ProcessGlobals</code>,
+<code>SapiGlobals</code>, and <code>ExecutorGlobals</code> types.</p>
+<blockquote>
+<p><strong>Note for FrankenPHP users:</strong> In FrankenPHP worker mode, you would need to
+override <code>sapi_activate</code>/<code>sapi_deactivate</code> hooks to mimic
+<code>php_rinit</code>/<code>php_rshutdown</code> behavior. However, superglobals are inaccessible
+during <code>sapi_activate</code> and will cause crashes if accessed at that point.</p>
+</blockquote>
+<h2 id="accessing-http-superglobals"><a class="header" href="#accessing-http-superglobals">Accessing HTTP Superglobals</a></h2>
+<p>The <code>ProcessGlobals</code> type provides access to the common HTTP superglobals:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>PHP Equivalent</th></tr>
+</thead>
+<tbody>
+<tr><td><code>http_get_vars()</code></td><td><code>$_GET</code></td></tr>
+<tr><td><code>http_post_vars()</code></td><td><code>$_POST</code></td></tr>
+<tr><td><code>http_cookie_vars()</code></td><td><code>$_COOKIE</code></td></tr>
+<tr><td><code>http_server_vars()</code></td><td><code>$_SERVER</code></td></tr>
+<tr><td><code>http_env_vars()</code></td><td><code>$_ENV</code></td></tr>
+<tr><td><code>http_files_vars()</code></td><td><code>$_FILES</code></td></tr>
+<tr><td><code>http_request_vars()</code></td><td><code>$_REQUEST</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="basic-example"><a class="header" href="#basic-example">Basic Example</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
-</span><span class="boring">use ext_php_rs::prelude::*;
-</span><span class="boring">use ext_php_rs::zend::IniEntryDef;
-</span><span class="boring">use ext_php_rs::flags::IniEntryPermission;
-</span>
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    let ini_entries: Vec&lt;IniEntryDef&gt; = vec![
-        IniEntryDef::new(
-            "my_extension.display_emoji".to_owned(),
-            "yes".to_owned(),
-            &amp;IniEntryPermission::All,
-        ),
-    ];
-    IniEntryDef::register(ini_entries, mod_num);
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ProcessGlobals;
 
-    0
+#[php_function]
+pub fn get_cookie(name: String) -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_cookie_vars()
+        .get(name.as_str())
+        .and_then(|zval| zval.string())
 }
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
+#[php_function]
+pub fn get_query_param(name: String) -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_get_vars()
+        .get(name.as_str())
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_post_param(name: String) -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_post_vars()
+        .get(name.as_str())
+        .and_then(|zval| zval.string())
 }
 <span class="boring">fn main() {}</span></code></pre>
-<h2 id="getting-ini-settings"><a class="header" href="#getting-ini-settings">Getting INI Settings</a></h2>
-<p>The INI values are stored as part of the <code>GlobalExecutor</code>, and can be accessed via the <code>ini_values()</code> function. To retrieve the value for a registered INI setting</p>
+<h3 id="accessing-_server"><a class="header" href="#accessing-_server">Accessing <code>$_SERVER</code></a></h3>
+<p>The <code>$_SERVER</code> superglobal is lazy-initialized in PHP, so <code>http_server_vars()</code>
+returns an <code>Option</code>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
-</span>use ext_php_rs::{
-    prelude::*,
-    zend::ExecutorGlobals,
-};
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ProcessGlobals;
 
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    // Get all INI values
-    let ini_values = ExecutorGlobals::get().ini_values(); // HashMap&lt;String, Option&lt;String&gt;&gt;
-    let my_ini_value = ini_values.get("my_extension.display_emoji"); // Option&lt;Option&lt;String&gt;&gt;
-
-    0
+#[php_function]
+pub fn get_request_method() -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_server_vars()?
+        .get("REQUEST_METHOD")
+        .and_then(|zval| zval.string())
 }
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
+#[php_function]
+pub fn get_remote_addr() -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_server_vars()?
+        .get("REMOTE_ADDR")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_user_agent() -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_server_vars()?
+        .get("HTTP_USER_AGENT")
+        .and_then(|zval| zval.string())
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h3 id="working-with-_files"><a class="header" href="#working-with-_files">Working with <code>$_FILES</code></a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ProcessGlobals;
+
+#[php_function]
+pub fn get_uploaded_file_name(field: String) -&gt; Option&lt;String&gt; {
+    let globals = ProcessGlobals::get();
+    let files = globals.http_files_vars();
+
+    // $_FILES structure: $_FILES['field']['name'], ['tmp_name'], ['size'], etc.
+    files
+        .get(field.as_str())?
+        .array()?
+        .get("name")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_uploaded_file_tmp_path(field: String) -&gt; Option&lt;String&gt; {
+    let globals = ProcessGlobals::get();
+    let files = globals.http_files_vars();
+
+    files
+        .get(field.as_str())?
+        .array()?
+        .get("tmp_name")
+        .and_then(|zval| zval.string())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="returning-superglobals-to-php"><a class="header" href="#returning-superglobals-to-php">Returning Superglobals to PHP</a></h3>
+<p>You can return copies of superglobals back to PHP:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::boxed::ZBox;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::zend::ProcessGlobals;
+
+#[php_function]
+pub fn get_all_cookies() -&gt; ZBox&lt;ZendHashTable&gt; {
+    ProcessGlobals::get().http_cookie_vars().to_owned()
+}
+
+#[php_function]
+pub fn get_all_get_params() -&gt; ZBox&lt;ZendHashTable&gt; {
+    ProcessGlobals::get().http_get_vars().to_owned()
+}
+
+#[php_function]
+pub fn get_server_vars() -&gt; Option&lt;ZBox&lt;ZendHashTable&gt;&gt; {
+    Some(ProcessGlobals::get().http_server_vars()?.to_owned())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="sapi-request-information"><a class="header" href="#sapi-request-information">SAPI Request Information</a></h2>
+<p>For lower-level request information, use <code>SapiGlobals</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::SapiGlobals;
+
+#[php_function]
+pub fn get_request_info() -&gt; Vec&lt;String&gt; {
+    let globals = SapiGlobals::get();
+    let request_info = globals.request_info();
+
+    let mut info = Vec::new();
+
+    if let Some(method) = request_info.request_method() {
+        info.push(format!("Method: {}", method));
+    }
+    if let Some(uri) = request_info.request_uri() {
+        info.push(format!("URI: {}", uri));
+    }
+    if let Some(query) = request_info.query_string() {
+        info.push(format!("Query: {}", query));
+    }
+    if let Some(content_type) = request_info.content_type() {
+        info.push(format!("Content-Type: {}", content_type));
+    }
+    info.push(format!("Content-Length: {}", request_info.content_length()));
+
+    info
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="available-request-info-methods"><a class="header" href="#available-request-info-methods">Available Request Info Methods</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>request_method()</code></td><td>HTTP method (GET, POST, etc.)</td></tr>
+<tr><td><code>request_uri()</code></td><td>Request URI</td></tr>
+<tr><td><code>query_string()</code></td><td>Query string</td></tr>
+<tr><td><code>cookie_data()</code></td><td>Raw cookie data</td></tr>
+<tr><td><code>content_type()</code></td><td>Content-Type header</td></tr>
+<tr><td><code>content_length()</code></td><td>Content-Length value</td></tr>
+<tr><td><code>path_translated()</code></td><td>Translated filesystem path</td></tr>
+<tr><td><code>auth_user()</code></td><td>HTTP Basic auth username</td></tr>
+<tr><td><code>auth_password()</code></td><td>HTTP Basic auth password</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="accessing-constants"><a class="header" href="#accessing-constants">Accessing Constants</a></h2>
+<p>Use <code>ExecutorGlobals</code> to access PHP constants:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ExecutorGlobals;
+
+#[php_function]
+pub fn get_php_version_constant() -&gt; Option&lt;String&gt; {
+    let globals = ExecutorGlobals::get();
+    globals
+        .constants()?
+        .get("PHP_VERSION")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn constant_exists(name: String) -&gt; bool {
+    let globals = ExecutorGlobals::get();
+    globals
+        .constants()
+        .is_some_and(|c| c.get(name.as_str()).is_some())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="accessing-ini-values"><a class="header" href="#accessing-ini-values">Accessing INI Values</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ExecutorGlobals;
+
+#[php_function]
+pub fn get_memory_limit() -&gt; Option&lt;String&gt; {
+    ExecutorGlobals::get()
+        .ini_values()
+        .get("memory_limit")
+        .cloned()
+        .flatten()
+}
+
+#[php_function]
+pub fn get_all_ini_values() -&gt; Vec&lt;(String, String)&gt; {
+    ExecutorGlobals::get()
+        .ini_values()
+        .iter()
+        .filter_map(|(k, v)| {
+            v.as_ref().map(|val| (k.clone(), val.clone()))
+        })
+        .collect()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h2>
+<p>All global access methods use guard types that provide thread-safe access:</p>
+<ul>
+<li><code>ProcessGlobals::get()</code> returns a <code>GlobalReadGuard&lt;ProcessGlobals&gt;</code></li>
+<li><code>ExecutorGlobals::get()</code> returns a <code>GlobalReadGuard&lt;ExecutorGlobals&gt;</code></li>
+<li><code>SapiGlobals::get()</code> returns a <code>GlobalReadGuard&lt;SapiGlobals&gt;</code></li>
+</ul>
+<p>The guard is automatically released when it goes out of scope. For mutable
+access (rarely needed), use <code>get_mut()</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::zend::ExecutorGlobals;
+
+fn example() {
+    // Read-only access (most common)
+    let globals = ExecutorGlobals::get();
+    // ... use globals ...
+    // Guard released when `globals` goes out of scope
+
+    // Mutable access (rarely needed)
+    let mut globals = ExecutorGlobals::get_mut();
+    // ... modify globals ...
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example"><a class="header" href="#php-example">PHP Example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Assuming you've registered the functions above
+
+// Access cookies
+$session_id = get_cookie('session_id');
+
+// Access query parameters
+$page = get_query_param('page') ?? '1';
+
+// Get request method
+$method = get_request_method(); // "GET", "POST", etc.
+
+// Get all cookies as array
+$all_cookies = get_all_cookies();
+print_r($all_cookies);
+
+// Get request info
+$info = get_request_info();
+print_r($info);
+
+// Access constants
+$php_version = get_php_version_constant();
+echo "PHP Version: $php_version\n";
+
+// Check if constant exists
+if (constant_exists('MY_CUSTOM_CONSTANT')) {
+    echo "Constant exists!\n";
+}
+</code></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Use Case</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ProcessGlobals</code></td><td>HTTP superglobals (<code>$_GET</code>, <code>$_POST</code>, <code>$_COOKIE</code>, etc.)</td></tr>
+<tr><td><code>SapiGlobals</code></td><td>Low-level request info, headers</td></tr>
+<tr><td><code>ExecutorGlobals</code></td><td>Constants, INI values, function/class tables</td></tr>
+</tbody>
+</table>
+</div>
+<p>All types are accessed via <code>::get()</code> for read access or <code>::get_mut()</code> for write
+access, and provide thread-safe access through guard types.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="output.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="ini-settings.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="superglobals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="advanced/async_impl.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -245,11 +508,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="output.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="ini-settings.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="superglobals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="advanced/async_impl.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

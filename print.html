@@ -9,25 +9,24 @@
 
         <!-- Custom HTML head -->
 
-        <meta name="description" content="">
+        <meta name="description" content="A guide to using ext-php-rs">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
-        <link rel="shortcut icon" href="favicon.png">
-        <link rel="stylesheet" href="css/variables.css">
-        <link rel="stylesheet" href="css/general.css">
-        <link rel="stylesheet" href="css/chrome.css">
-        <link rel="stylesheet" href="css/print.css" media="print">
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-        <link rel="stylesheet" href="fonts/fonts.css">
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
@@ -37,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex.js";
+            window.path_to_searchindex_js = "searchindex-5db2da77.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc.js"></script>
+        <script src="toc-fc22e4c1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -54,7 +53,7 @@
             </div>
         </div>
     </div>
-    <div id="body-container">
+    <div id="mdbook-body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
@@ -83,12 +82,12 @@
             html.classList.add("js");
         </script>
 
-        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             let sidebar = null;
-            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
@@ -103,39 +102,39 @@
             }
         </script>
 
-        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
                 <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
             </div>
         </nav>
 
-        <div id="page-wrapper" class="page-wrapper">
+        <div id="mdbook-page-wrapper" class="page-wrapper">
 
             <div class="page">
-                <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
-                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
-                            <i class="fa fa-bars"></i>
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
                         </label>
-                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
-                            <i class="fa fa-paint-brush"></i>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
                         </button>
-                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
-                            <i class="fa fa-search"></i>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
                         </button>
                     </div>
 
@@ -143,38 +142,38 @@
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
-                            <i id="print-button" class="fa fa-print"></i>
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
                     </div>
                 </div>
 
-                <div id="search-wrapper" class="hidden">
-                    <form id="searchbar-outer" class="searchbar-outer">
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
                         <div class="search-wrapper">
-                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
                             <div class="spinner-wrapper">
-                                <i class="fa fa-spinner fa-spin"></i>
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
                             </div>
                         </div>
                     </form>
-                    <div id="searchresults-outer" class="searchresults-outer hidden">
-                        <div id="searchresults-header" class="searchresults-header"></div>
-                        <ul id="searchresults">
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
                         </ul>
                     </div>
                 </div>
 
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
                 <script>
-                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
-                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
-                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
                         link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
                     });
                 </script>
 
-                <div id="content" class="content">
+                <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
 <p><code>ext-php-rs</code> is a Rust library containing bindings and abstractions for the PHP
@@ -184,7 +183,7 @@ extension API, which allows users to build extensions natively in Rust.</p>
 <li><strong>Easy to use:</strong> The built-in macros can abstract away the need to interact
 with the Zend API, such as Rust-type function parameter abstracting away
 interacting with Zend values.</li>
-<li><strong>Lightweight:</strong> You don't have to use the built-in helper macros. It's
+<li><strong>Lightweight:</strong> You don’t have to use the built-in helper macros. It’s
 possible to write your own glue code around your own functions.</li>
 <li><strong>Extensible:</strong> Implement <code>IntoZval</code> and <code>FromZval</code> for your own custom types,
 allowing the type to be used as function parameters and return types.</li>
@@ -194,7 +193,7 @@ allowing the type to be used as function parameters and return types.</li>
 <ul>
 <li>Writing extensions in C can be tedious, and with the Zend APIs limited
 documentation can be intimidating.</li>
-<li>Rust's modern language features and feature-full standard library are big
+<li>Rust’s modern language features and feature-full standard library are big
 improvements on C.</li>
 <li>Abstracting away the raw Zend APIs allows extensions to be developed faster
 and with more confidence.</li>
@@ -204,7 +203,7 @@ of PHP without significant changes to extension code.</li>
 <h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
 <p><code>ext-php-rs</code> follows semantic versioning, however, no backwards compatibility is
 guaranteed while we are at major version <code>0</code>, which is for the foreseeable
-future. It's recommended to lock the version at the patch level.</p>
+future. It’s recommended to lock the version at the patch level.</p>
 <p>When introducing breaking changes a migration guide will be provided in this
 guide.</p>
 <h2 id="documentation"><a class="header" href="#documentation">Documentation</a></h2>
@@ -212,15 +211,16 @@ guide.</p>
 <li>This guide!</li>
 <li><a href="https://docs.rs/ext-php-rs">Rust docs</a></li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
 <p>To get started using <code>ext-php-rs</code> you will need both a Rust toolchain
-and a PHP development environment. We'll cover each of these below.</p>
+and a PHP development environment. We’ll cover each of these below.</p>
 <h2 id="rust-toolchain"><a class="header" href="#rust-toolchain">Rust toolchain</a></h2>
 <p>First, make sure you have rust installed on your system.
-If you haven't already done so you can do so by following the instructions <a href="https://www.rust-lang.org/tools/install">here</a>.
+If you haven’t already done so you can do so by following the instructions <a href="https://www.rust-lang.org/tools/install">here</a>.
 <code>ext-php-rs</code> runs on both the stable and nightly versions so you can choose whichever one fits you best.</p>
 <h2 id="php-development-environment"><a class="header" href="#php-development-environment">PHP development environment</a></h2>
-<p>In order to develop PHP extensions, you'll need the following installed on your system:</p>
+<p>In order to develop PHP extensions, you’ll need the following installed on your system:</p>
 <ol>
 <li>The PHP CLI executable itself</li>
 <li>The PHP development headers</li>
@@ -228,7 +228,7 @@ If you haven't already done so you can do so by following the instructions <a hr
 </ol>
 <p>While the easiest way to get started is to use the packages provided by your distribution,
 we recommend building PHP from source.</p>
-<p><strong>NB:</strong> To use <code>ext-php-rs</code> you'll need at least PHP 8.0.</p>
+<p><strong>NB:</strong> To use <code>ext-php-rs</code> you’ll need at least PHP 8.0.</p>
 <h3 id="using-a-package-manager"><a class="header" href="#using-a-package-manager">Using a package manager</a></h3>
 <pre><code class="language-sh"># Debian and derivatives
 apt install php-dev
@@ -262,15 +262,16 @@ make install
 and the <code>php-config</code> binary at <code>${PREFIX}/bin/php-config</code>.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <p>Now that we have our development environment in place,
-let's go <a href="getting-started/./hello_world.html">build an extension</a> !</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="hello-world"><a class="header" href="#hello-world">Hello World</a></h1>
+let’s go <a href="#hello-world">build an extension</a> !</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hello-world"><a class="header" href="#hello-world">Hello World</a></h1>
 <h2 id="project-setup"><a class="header" href="#project-setup">Project Setup</a></h2>
 <p>We will start by creating a new Rust library crate:</p>
 <pre><code class="language-sh">$ cargo new hello_world --lib
 $ cd hello_world
 </code></pre>
 <h3 id="cargotoml"><a class="header" href="#cargotoml"><code>Cargo.toml</code></a></h3>
-<p>Let's set up our crate by adding <code>ext-php-rs</code> as a dependency and setting the
+<p>Let’s set up our crate by adding <code>ext-php-rs</code> as a dependency and setting the
 crate type to <code>cdylib</code>. Update the <code>Cargo.toml</code> to look something like so:</p>
 <pre><code class="language-toml">[package]
 name = "hello_world"
@@ -288,11 +289,11 @@ strip = "debuginfo"
 </code></pre>
 <h3 id="cargoconfigtoml"><a class="header" href="#cargoconfigtoml"><code>.cargo/config.toml</code></a></h3>
 <p>When compiling for Linux and macOS, we do not link directly to PHP, rather PHP
-will dynamically load the library. We need to tell the linker it's ok to have
+will dynamically load the library. We need to tell the linker it’s ok to have
 undefined symbols (as they will be resolved when loaded by PHP).</p>
 <p>On Windows, we also need to switch to using the <code>rust-lld</code> linker.</p>
 <blockquote>
-<p>Microsoft Visual C++'s <code>link.exe</code> is supported, however you may run into
+<p>Microsoft Visual C++’s <code>link.exe</code> is supported, however you may run into
 issues if your linker is not compatible with the linker used to compile PHP.</p>
 </blockquote>
 <p>We do this by creating a Cargo config file in <code>.cargo/config.toml</code> with the
@@ -305,10 +306,13 @@ linker = "rust-lld"
 
 [target.i686-pc-windows-msvc]
 linker = "rust-lld"
+
+[target.'cfg(target_env = "musl")']
+rustflags = ["-C", "target-feature=-crt-static"]
 </code></pre>
 <h2 id="writing-our-extension"><a class="header" href="#writing-our-extension">Writing our extension</a></h2>
 <h3 id="srclibrs"><a class="header" href="#srclibrs"><code>src/lib.rs</code></a></h3>
-<p>Let's actually write the extension code now. We start by importing the
+<p>Let’s actually write the extension code now. We start by importing the
 <code>ext-php-rs</code> prelude, which contains most of the imports required to make a
 basic extension. We will then write our basic <code>hello_world</code> function, which will
 take a string argument for the callers name, and we will return another string.
@@ -318,7 +322,7 @@ and then return the same object.</p>
 <p>We also need to enable the <code>abi_vectorcall</code> feature when compiling for Windows
 (the first line). This is a nightly-only feature so it is recommended to use
 the <code>#[cfg_attr]</code> macro to not enable the feature on other operating systems.</p>
-<pre><pre class="playground"><code class="language-rust no_run">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024">#![cfg_attr(windows, feature(abi_vectorcall))]
 <span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -331,9 +335,9 @@ pub fn hello_world(name: &amp;str) -&gt; String {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(hello_world))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="building-the-extension"><a class="header" href="#building-the-extension">Building the extension</a></h2>
-<p>Now let's build our extension.
+<p>Now let’s build our extension.
 This is done through <code>cargo</code> like any other Rust crate.</p>
 <p>If you installed php using a package manager in the previous chapter
 (or if the <code>php</code> and <code>php-config</code> binaries are already in your <code>$PATH</code>),
@@ -348,11 +352,11 @@ export PHP=/path/to/php
 export PHP_CONFIG=/path/to/php-config
 </code></pre>
 <p>As an alternative, if you compiled PHP from source and installed it under
-it's own prefix (<code>configure --prefix=/my/prefix</code>), you can just put
+it’s own prefix (<code>configure --prefix=/my/prefix</code>), you can just put
 this prefix in front of your PATH:</p>
 <pre><code class="language-sh">export PATH="/my/prefix:${PATH}"
 </code></pre>
-<p>Once you've setup these variables, you can just run</p>
+<p>Once you’ve setup these variables, you can just run</p>
 <pre><code class="language-sh">cargo build
 </code></pre>
 <p>Cargo will track changes to these environment variables and rebuild the library accordingly.</p>
@@ -377,8 +381,8 @@ this prefix in front of your PATH:</p>
 </ul>
 <p>Now we need a way to tell the PHP CLI binary to load our extension.
 There are <a href="https://www.phpinternalsbook.com/php7/build_system/building_extensions.html#loading-shared-extensions">several ways to do that</a>.
-For now we'll simply pass the <code>-d extension=/path/to/extension</code> option to the PHP CLI binary.</p>
-<p>Let's make a test script:</p>
+For now we’ll simply pass the <code>-d extension=/path/to/extension</code> option to the PHP CLI binary.</p>
+<p>Let’s make a test script:</p>
 <h3 id="testphp"><a class="header" href="#testphp"><code>test.php</code></a></h3>
 <pre><code class="language-php">&lt;?php
 
@@ -388,7 +392,8 @@ var_dump(hello_world("David"));
 <pre><code class="language-sh">$ php -d extension=./target/debug/libhello_world.so test.php
 string(13) "Hello, David!"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="cargo-php"><a class="header" href="#cargo-php"><code>cargo php</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cargo-php"><a class="header" href="#cargo-php"><code>cargo php</code></a></h1>
 <p>ext-php-rs comes with a cargo subcommand called <a href="https://crates.io/crates/cargo-php"><code>cargo-php</code></a>. When called in
 the manifest directory of an extension, it allows you to do the following:</p>
 <ul>
@@ -571,7 +576,8 @@ OPTIONS:
         --yes
             Bypasses the confirmation prompt
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="types"><a class="header" href="#types">Types</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="types"><a class="header" href="#types">Types</a></h1>
 <p>In PHP, data is stored in containers called zvals (zend values). Internally,
 these are effectively tagged unions (enums in Rust) without the safety that Rust
 introduces. Passing data between Rust and PHP requires the data to become a
@@ -606,14 +612,21 @@ as an exception.</li>
 </ul>
 <p>For a type to be returnable, it must implement <code>IntoZval</code>, while for it to be
 valid as a parameter, it must implement <code>FromZval</code>.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="primitive-numbers"><a class="header" href="#primitive-numbers">Primitive Numbers</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="primitive-numbers"><a class="header" href="#primitive-numbers">Primitive Numbers</a></h1>
 <p>Primitive integers include <code>i8</code>, <code>i16</code>, <code>i32</code>, <code>i64</code>, <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code>,
 <code>isize</code>, <code>usize</code>, <code>f32</code> and <code>f64</code>.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>i32</code> on 32-bit platforms, <code>i64</code> on 64-bit platforms, <code>f64</code> platform-independent</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
-<p>Note that internally, PHP treats <strong>all</strong> of these integers the same (a 'long'),
+<p>Note that internally, PHP treats <strong>all</strong> of these integers the same (a ‘long’),
 and therefore it must be converted into a long to be stored inside the zval. A
 long is always signed, and the size will be 32-bits on 32-bit platforms and
 64-bits on 64-bit platforms.</p>
@@ -623,7 +636,7 @@ of platform. Note that converting a zval into a <code>f32</code> will lose accur
 depending on the value and the platform, which is why all zval conversions are
 fallible.</p>
 <h2 id="rust-example"><a class="header" href="#rust-example">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
@@ -631,19 +644,26 @@ pub fn test_numbers(a: i32, b: u32, c: f32) -&gt; u8 {
     println!("a {} b {} c {}", a, b, c);
     0
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example"><a class="header" href="#php-example">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 test_numbers(5, 10, 12.5); // a 5 b 10 c 12.5
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="string"><a class="header" href="#string"><code>String</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="string"><a class="header" href="#string"><code>String</code></a></h1>
 <p>When a <code>String</code> type is encountered, the zend string content is copied to/from a
 Rust <code>String</code> object. If the zval does not contain a string, it will attempt to
 read a <code>double</code> from the zval and convert it into a <code>String</code> object.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>zend_string</code> (C-string)</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Internally, PHP stores strings in <code>zend_string</code> objects, which is a refcounted C
 struct containing the string length with the content of the string appended to
@@ -651,35 +671,42 @@ the end of the struct based on how long the string is. Since the string is
 NUL-terminated, you cannot have any NUL bytes in your string, and an error will
 be thrown if one is encountered while converting a <code>String</code> to a zval.</p>
 <h2 id="rust-example-1"><a class="header" href="#rust-example-1">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
 pub fn str_example(input: String) -&gt; String {
     format!("Hello {}", input)
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example-1"><a class="header" href="#php-example-1">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 var_dump(str_example("World")); // string(11) "Hello World"
 var_dump(str_example(5)); // string(7) "Hello 5"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="str"><a class="header" href="#str"><code>&amp;str</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="str"><a class="header" href="#str"><code>&amp;str</code></a></h1>
 <p>A borrowed string. When this type is encountered, you are given a reference to
 the actual zend string memory, rather than copying the contents like if you were
 taking an owned <code>String</code> argument.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>No</td><td>Yes</td><td>No</td><td>Yes</td><td><code>zend_string</code> (C-string)</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Note that you cannot expect the function to operate the same by swapping out
 <code>String</code> and <code>&amp;str</code> - since the zend string memory is read directly, this
 library does not attempt to parse <code>double</code> types as strings.</p>
-<p>See the <a href="types/./string.html"><code>String</code></a> for a deeper dive into the internal structure of
+<p>See the <a href="#string"><code>String</code></a> for a deeper dive into the internal structure of
 PHP strings.</p>
 <h2 id="rust-example-2"><a class="header" href="#rust-example-2">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
@@ -691,7 +718,7 @@ pub fn str_example(input: &amp;str) -&gt; String {
 pub fn str_return_example() -&gt; &amp;'static str {
     "Hello from Rust"
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example-2"><a class="header" href="#php-example-2">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
@@ -700,11 +727,18 @@ var_dump(str_example(5)); // Invalid
 
 var_dump(str_return_example());
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="bool"><a class="header" href="#bool"><code>bool</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="bool"><a class="header" href="#bool"><code>bool</code></a></h1>
 <p>A boolean. Not much else to say here.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Union flag</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Booleans are not actually stored inside the zval. Instead, they are treated as
 two different union types (the zval can be in a true or false state). An
@@ -718,7 +752,7 @@ equivalent structure in Rust would look like:</p>
 }
 </code></pre>
 <h2 id="rust-example-3"><a class="header" href="#rust-example-3">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
@@ -729,7 +763,7 @@ pub fn test_bool(input: bool) -&gt; String {
         "No!".into()
     }
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example-3"><a class="header" href="#php-example-3">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
@@ -737,7 +771,7 @@ var_dump(test_bool(true)); // string(4) "Yes!"
 var_dump(test_bool(false)); // string(3) "No!"
 </code></pre>
 <h2 id="rust-example-taking-by-reference"><a class="header" href="#rust-example-taking-by-reference">Rust example, taking by reference</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span><span class="boring">use ext_php_rs::types;
@@ -745,14 +779,21 @@ var_dump(test_bool(false)); // string(3) "No!"
 pub fn test_bool(input: &amp;mut types::Zval) {
     input.reference_mut().unwrap().set_bool(false);
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="vec"><a class="header" href="#vec"><code>Vec</code></a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="vec"><a class="header" href="#vec"><code>Vec</code></a></h1>
 <p>Vectors can contain any type that can be represented as a zval. Note that the
 data contained in the array will be copied into Rust types and stored inside the
 vector. The internal representation of a PHP array is discussed below.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Internally, PHP arrays are hash tables where the key can be an unsigned long or
 a string. Zvals are contained inside arrays therefore the data does not have to
@@ -761,24 +802,31 @@ contain only one type.</p>
 given generic type. If any of the conversions fail, the whole conversion will
 fail.</p>
 <h2 id="rust-example-4"><a class="header" href="#rust-example-4">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
 pub fn test_vec(vec: Vec&lt;String&gt;) -&gt; String {
     vec.join(" ")
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example-4"><a class="header" href="#php-example-4">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 var_dump(test_vec(['hello', 'world', 5])); // string(13) "hello world 5"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="hashmap"><a class="header" href="#hashmap"><code>HashMap</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hashmap"><a class="header" href="#hashmap"><code>HashMap</code></a></h1>
 <p><code>HashMap</code>s are represented as associative arrays in PHP.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Converting from a zval to a <code>HashMap</code> is valid when the key is a <code>String</code>, and
 the value implements <code>FromZval</code>. The key and values are copied into Rust types
@@ -796,8 +844,9 @@ If you need to preserve the order of elements, consider using `Vec&lt;(K, V)&gt;
 `Vec&lt;ArrayKey, V)&gt;` instead.
 </code></pre>
 </div>
+
 <h2 id="rust-example-5"><a class="header" href="#rust-example-5">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span><span class="boring">use std::collections::HashMap;
@@ -811,7 +860,7 @@ pub fn test_hashmap(hm: HashMap&lt;String, String&gt;) -&gt; Vec&lt;String&gt; {
         .map(|(_, v)| v)
         .collect::&lt;Vec&lt;_&gt;&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example-5"><a class="header" href="#php-example-5">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
@@ -838,8 +887,8 @@ where the keys can be strings or integers.</p>
 <p>For <code>i64</code> keys, string keys that can be parsed as integers will be accepted, and
 converted to <code>i64</code>.</p>
 <p>If you need to accept both string and integer keys, use <code>ArrayKey</code> as the key type.</p>
-<h3 id="rust-example-6"><a class="header" href="#rust-example-6">Rust example</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<h3 id="rust-example-1-1"><a class="header" href="#rust-example-1-1">Rust example</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span><span class="boring">use ext_php_rs::types::ArrayKey;
@@ -864,8 +913,8 @@ pub fn test_vec_arraykey(vec: Vec&lt;(ArrayKey, String)&gt;) -&gt; Vec&lt;String
         .map(|(_, v)| v)
         .collect::&lt;Vec&lt;_&gt;&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<h2 id="php-example-6"><a class="header" href="#php-example-6">PHP example</a></h2>
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example-1-1"><a class="header" href="#php-example-1-1">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 declare(strict_types=1);
@@ -900,13 +949,282 @@ array(3) {
     [2] =&gt; string(3) "okk"
 }
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="binary"><a class="header" href="#binary"><code>Binary</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="zendhashtable"><a class="header" href="#zendhashtable"><code>ZendHashTable</code></a></h1>
+<p><code>ZendHashTable</code> is the internal representation of PHP arrays. While you can use
+<code>Vec</code> and <code>HashMap</code> for most use cases (which are converted to/from
+<code>ZendHashTable</code> automatically), working directly with <code>ZendHashTable</code> gives you
+more control and avoids copying data when you need to manipulate PHP arrays
+in-place.</p>
+<h2 id="when-to-use-zendhashtable-directly"><a class="header" href="#when-to-use-zendhashtable-directly">When to use <code>ZendHashTable</code> directly</a></h2>
+<ul>
+<li>When you need to modify a PHP array in place without copying</li>
+<li>When working with arrays passed by reference</li>
+<li>When you need fine-grained control over array operations</li>
+<li>When implementing custom iterators or data structures</li>
+</ul>
+<h2 id="basic-operations"><a class="header" href="#basic-operations">Basic Operations</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
+
+#[php_function]
+pub fn create_array() -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut ht = ZendHashTable::new();
+
+    // Push values (auto-incrementing numeric keys)
+    ht.push("first").unwrap();
+    ht.push("second").unwrap();
+
+    // Insert with string keys
+    ht.insert("name", "John").unwrap();
+    ht.insert("age", 30i64).unwrap();
+
+    // Insert at specific numeric index
+    ht.insert_at_index(100, "at index 100").unwrap();
+
+    ht
+}
+
+#[php_function]
+pub fn read_array(arr: &amp;ZendHashTable) {
+    // Get by string key
+    if let Some(name) = arr.get("name") {
+        println!("Name: {:?}", name.str());
+    }
+
+    // Get by numeric index
+    if let Some(first) = arr.get_index(0) {
+        println!("First: {:?}", first.str());
+    }
+
+    // Check length
+    println!("Length: {}", arr.len());
+    println!("Is empty: {}", arr.is_empty());
+
+    // Iterate over key-value pairs
+    for (key, value) in arr.iter() {
+        println!("{}: {:?}", key, value);
+    }
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="entry-api"><a class="header" href="#entry-api">Entry API</a></h2>
+<p>The Entry API provides an ergonomic way to handle hash table operations where
+you need to conditionally insert or update values based on whether a key already
+exists. This is similar to Rust’s <code>std::collections::hash_map::Entry</code> API.</p>
+<h3 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
+
+#[php_function]
+pub fn entry_example() -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut ht = ZendHashTable::new();
+
+    // Insert a default value if the key doesn't exist
+    ht.entry("counter").or_insert(0i64).unwrap();
+
+    // Modify the value if it exists, using and_modify
+    ht.entry("counter")
+        .and_modify(|v| {
+            if let Some(n) = v.long() {
+                v.set_long(n + 1);
+            }
+        })
+        .or_insert(0i64)
+        .unwrap();
+
+    // Use or_insert_with for lazy initialization
+    ht.entry("computed")
+        .or_insert_with(|| "computed value")
+        .unwrap();
+
+    // Works with numeric keys too
+    ht.entry(42i64).or_insert("value at index 42").unwrap();
+
+    ht
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="entry-variants"><a class="header" href="#entry-variants">Entry Variants</a></h3>
+<p>The <code>entry()</code> method returns an <code>Entry</code> enum with two variants:</p>
+<ul>
+<li><code>Entry::Occupied</code> - The key exists in the hash table</li>
+<li><code>Entry::Vacant</code> - The key does not exist</li>
+</ul>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::{ZendHashTable, Entry, Zval};
+use ext_php_rs::boxed::ZBox;
+
+#[php_function]
+pub fn match_entry() -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut ht = ZendHashTable::new();
+    ht.insert("existing", "value").unwrap();
+
+    // Pattern match on the entry
+    match ht.entry("existing") {
+        Entry::Occupied(entry) =&gt; {
+            println!("Key {:?} exists with value {:?}",
+                     entry.key(),
+                     entry.get().and_then(Zval::str),
+             );
+        }
+        Entry::Vacant(entry) =&gt; {
+            println!("Key {:?} is vacant", entry.key());
+            entry.insert("new value").unwrap();
+        }
+    }
+
+    ht
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h3>
+<h4 id="counting-occurrences"><a class="header" href="#counting-occurrences">Counting occurrences</a></h4>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
+
+#[php_function]
+pub fn count_words(words: Vec&lt;String&gt;) -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut counts = ZendHashTable::new();
+
+    for word in words {
+        counts.entry(word.as_str())
+            .and_modify(|v| {
+                if let Some(n) = v.long() {
+                    v.set_long(n + 1);
+                }
+            })
+            .or_insert(1i64)
+            .unwrap();
+    }
+
+    counts
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h4 id="caching-computed-values"><a class="header" href="#caching-computed-values">Caching computed values</a></h4>
+<p>This example demonstrates using <code>or_insert_with_key</code> for lazy computation:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::types::ZendHashTable;
+
+fn expensive_computation(key: &amp;str) -&gt; String {
+    format!("computed_{}", key)
+}
+
+fn get_or_compute(cache: &amp;mut ZendHashTable, key: &amp;str) -&gt; String {
+    let value = cache.entry(key)
+        .or_insert_with_key(|k| expensive_computation(&amp;k.to_string()))
+        .unwrap();
+
+    value.str().unwrap_or_default().to_string()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h4 id="updating-existing-values"><a class="header" href="#updating-existing-values">Updating existing values</a></h4>
+<p>This example shows how to conditionally update a value only if the key exists:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::types::{ZendHashTable, Entry};
+
+fn update_if_exists(ht: &amp;mut ZendHashTable, key: &amp;str, new_value: &amp;str) -&gt; bool {
+    match ht.entry(key) {
+        Entry::Occupied(mut entry) =&gt; {
+            entry.insert(new_value).unwrap();
+            true
+        }
+        Entry::Vacant(_) =&gt; false,
+    }
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="entry-methods-reference"><a class="header" href="#entry-methods-reference">Entry Methods Reference</a></h3>
+<h4 id="entry-methods"><a class="header" href="#entry-methods"><code>Entry</code> methods</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>or_insert(default)</code></td><td>Insert <code>default</code> if vacant, return <code>&amp;mut Zval</code></td></tr>
+<tr><td><code>or_insert_with(f)</code></td><td>Insert result of <code>f()</code> if vacant</td></tr>
+<tr><td><code>or_insert_with_key(f)</code></td><td>Insert result of <code>f(&amp;key)</code> if vacant</td></tr>
+<tr><td><code>or_default()</code></td><td>Insert default <code>Zval</code> (null) if vacant</td></tr>
+<tr><td><code>key()</code></td><td>Get reference to the key</td></tr>
+<tr><td><code>and_modify(f)</code></td><td>Modify value in place if occupied</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="occupiedentry-methods"><a class="header" href="#occupiedentry-methods"><code>OccupiedEntry</code> methods</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>key()</code></td><td>Get reference to key</td></tr>
+<tr><td><code>get()</code></td><td>Get reference to value</td></tr>
+<tr><td><code>get_mut()</code></td><td>Get mutable reference to value</td></tr>
+<tr><td><code>into_mut()</code></td><td>Convert to mutable reference with entry’s lifetime</td></tr>
+<tr><td><code>insert(value)</code></td><td>Replace value, returning old value</td></tr>
+<tr><td><code>remove()</code></td><td>Remove and return value</td></tr>
+<tr><td><code>remove_entry()</code></td><td>Remove and return key-value pair</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="vacantentry-methods"><a class="header" href="#vacantentry-methods"><code>VacantEntry</code> methods</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>key()</code></td><td>Get reference to key</td></tr>
+<tr><td><code>into_key()</code></td><td>Take ownership of key</td></tr>
+<tr><td><code>insert(value)</code></td><td>Insert value and return <code>&amp;mut Zval</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="php-example-6"><a class="header" href="#php-example-6">PHP Example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Using the create_array function
+$arr = create_array();
+var_dump($arr);
+// array(5) {
+//   [0]=&gt; string(5) "first"
+//   [1]=&gt; string(6) "second"
+//   ["name"]=&gt; string(4) "John"
+//   ["age"]=&gt; int(30)
+//   [100]=&gt; string(12) "at index 100"
+// }
+
+// Count words
+$counts = count_words(['apple', 'banana', 'apple', 'cherry', 'banana', 'apple']);
+var_dump($counts);
+// array(3) {
+//   ["apple"]=&gt; int(3)
+//   ["banana"]=&gt; int(2)
+//   ["cherry"]=&gt; int(1)
+// }
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="binary"><a class="header" href="#binary"><code>Binary</code></a></h1>
 <p>Binary data is represented as a string in PHP. The most common source of this
 data is from the <a href="https://www.php.net/manual/en/function.pack.php"><code>pack</code></a> and <a href="https://www.php.net/manual/en/function.unpack.php"><code>unpack</code></a> functions. It allows you to transfer
 arbitrary binary data between Rust and PHP.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>zend_string</code></td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>The binary type is represented as a string in PHP. Although not encoded, the
 data is converted into an array and then the pointer to the data is set as the
@@ -915,7 +1233,7 @@ string pointer, with the length of the array being the length of the string.</p>
 on most primitive numbers (i8, i16, i32, i64, u8, u16, u32, u64, isize, usize,
 f32, f64).</p>
 <h2 id="rust-usage"><a class="header" href="#rust-usage">Rust Usage</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 use ext_php_rs::binary::Binary;
@@ -930,7 +1248,7 @@ pub fn test_binary(input: Binary&lt;u32&gt;) -&gt; Binary&lt;u32&gt; {
         .into_iter()
         .collect::&lt;Binary&lt;_&gt;&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-usage"><a class="header" href="#php-usage">PHP Usage</a></h2>
 <pre><code class="language-php">&lt;?php
 
@@ -938,13 +1256,20 @@ $data = pack('L*', 1, 2, 3, 4, 5);
 $output = unpack('L*', test_binary($data));
 var_dump($output); // array(5) { [0] =&gt; 5, [1] =&gt; 4, [2] =&gt; 3, [3] =&gt; 2, [4] =&gt; 1 }
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="binary-slices"><a class="header" href="#binary-slices"><code>Binary Slices</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="binary-slices"><a class="header" href="#binary-slices"><code>Binary Slices</code></a></h1>
 <p>Binary data is represented as a string in PHP. The most common source of this
 data is from the <a href="https://www.php.net/manual/en/function.pack.php"><code>pack</code></a> and <a href="https://www.php.net/manual/en/function.unpack.php"><code>unpack</code></a> functions. It allows you to use a PHP
 string as a read-only slice in Rust.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>No</td><td>No</td><td><code>zend_string</code></td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>The binary type is represented as a string in PHP. Although not encoded, the
 data is converted into a slice and then the pointer to the data is set as the
@@ -953,7 +1278,7 @@ string pointer, with the length of the array being the length of the string.</p>
 implemented on most primitive numbers (i8, i16, i32, i64, u8, u16, u32, u64,
 isize, usize, f32, f64).</p>
 <h2 id="rust-usage-1"><a class="header" href="#rust-usage-1">Rust Usage</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 use ext_php_rs::binary_slice::BinarySlice;
@@ -967,7 +1292,7 @@ pub fn test_binary_slice(input: BinarySlice&lt;u8&gt;) -&gt; u8 {
 
     sum
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-usage-1"><a class="header" href="#php-usage-1">PHP Usage</a></h2>
 <pre><code class="language-php">&lt;?php
 
@@ -975,13 +1300,20 @@ $data = pack('C*', 1, 2, 3, 4, 5);
 $output = test_binary_slice($data);
 var_dump($output); // 15
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="optiont"><a class="header" href="#optiont"><code>Option&lt;T&gt;</code></a></h1>
 <p>Options are used for optional and nullable parameters, as well as null returns.
 It is valid to be converted to/from a zval as long as the underlying <code>T</code> generic
 is also able to be converted to/from a zval.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td>Depends on <code>T</code>, <code>null</code> for <code>None</code>.</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Using <code>Option&lt;T&gt;</code> as a parameter indicates that the parameter is nullable. If
 null is passed, a <code>None</code> value will be supplied. It is also used in the place of
@@ -989,36 +1321,43 @@ optional parameters. If the parameter is not given, a <code>None</code> value wi
 supplied.</p>
 <p>Returning <code>Option&lt;T&gt;</code> is a nullable return type. Returning <code>None</code> will return
 null to PHP.</p>
-<h2 id="rust-example-7"><a class="header" href="#rust-example-7">Rust example</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<h2 id="rust-example-6"><a class="header" href="#rust-example-6">Rust example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
 pub fn test_option_null(input: Option&lt;String&gt;) -&gt; Option&lt;String&gt; {
     input.map(|input| format!("Hello {}", input).into())
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-example-7"><a class="header" href="#php-example-7">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 var_dump(test_option_null("World")); // string(11) "Hello World"
 var_dump(test_option_null()); // null
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="object"><a class="header" href="#object">Object</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="object"><a class="header" href="#object">Object</a></h1>
 <p>An object is any object type in PHP. This can include a PHP class and PHP
-<code>stdClass</code>. A Rust struct registered as a PHP class is a <a href="types/./class_object.html">class object</a>, which
+<code>stdClass</code>. A Rust struct registered as a PHP class is a <a href="#class-object">class object</a>, which
 contains an object.</p>
 <p>Objects are valid as parameters but only as an immutable or mutable reference.
 You cannot take ownership of an object as objects are reference counted, and
 multiple zvals can point to the same object. You can return a boxed owned
 object.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>No</td><td>Yes</td><td><code>ZBox&lt;ZendObject&gt;</code></td><td>Yes, mutable only</td><td>Zend object.</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
 <h3 id="calling-a-method"><a class="header" href="#calling-a-method">Calling a method</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::ZendObject};
 
@@ -1032,9 +1371,9 @@ pub fn take_obj(obj: &amp;mut ZendObject) -&gt; () {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(take_obj))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h3 id="taking-an-object-reference"><a class="header" href="#taking-an-object-reference">Taking an object reference</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::ZendObject};
 
@@ -1049,9 +1388,9 @@ pub fn take_obj(obj: &amp;mut ZendObject) -&gt; &amp;mut ZendObject {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(take_obj))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h3 id="creating-a-new-object"><a class="header" href="#creating-a-new-object">Creating a new object</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::ZendObject, boxed::ZBox};
 
@@ -1067,18 +1406,164 @@ pub fn make_object() -&gt; ZBox&lt;ZendObject&gt; {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(make_object))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="class-object"><a class="header" href="#class-object">Class Object</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="lazy-objects-php-84"><a class="header" href="#lazy-objects-php-84">Lazy Objects (PHP 8.4+)</a></h2>
+<p>PHP 8.4 introduced lazy objects, which defer their initialization until their
+properties are first accessed. ext-php-rs provides APIs to introspect and create
+lazy objects from Rust.</p>
+<h3 id="lazy-object-types"><a class="header" href="#lazy-object-types">Lazy Object Types</a></h3>
+<p>There are two types of lazy objects:</p>
+<ul>
+<li>
+<p><strong>Lazy Ghosts</strong>: The ghost object itself becomes the real instance when
+initialized. After initialization, the ghost is indistinguishable from a
+regular object.</p>
+</li>
+<li>
+<p><strong>Lazy Proxies</strong>: A proxy wraps a real instance that is created when first
+accessed. The proxy and real instance have different identities. After
+initialization, the proxy still reports as lazy.</p>
+</li>
+</ul>
+<h3 id="introspection-apis"><a class="header" href="#introspection-apis">Introspection APIs</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, types::ZendObject};
+
+#[php_function]
+pub fn check_lazy(obj: &amp;ZendObject) -&gt; String {
+    if obj.is_lazy() {
+        if obj.is_lazy_ghost() {
+            if obj.is_lazy_initialized() {
+                "Initialized lazy ghost".into()
+            } else {
+                "Uninitialized lazy ghost".into()
+            }
+        } else if obj.is_lazy_proxy() {
+            if obj.is_lazy_initialized() {
+                "Initialized lazy proxy".into()
+            } else {
+                "Uninitialized lazy proxy".into()
+            }
+        } else {
+            "Unknown lazy type".into()
+        }
+    } else {
+        "Not a lazy object".into()
+    }
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>Available introspection methods:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>is_lazy()</code></td><td>Returns <code>true</code> if the object is lazy (ghost or proxy)</td></tr>
+<tr><td><code>is_lazy_ghost()</code></td><td>Returns <code>true</code> if the object is a lazy ghost</td></tr>
+<tr><td><code>is_lazy_proxy()</code></td><td>Returns <code>true</code> if the object is a lazy proxy</td></tr>
+<tr><td><code>is_lazy_initialized()</code></td><td>Returns <code>true</code> if the lazy object has been initialized</td></tr>
+<tr><td><code>lazy_init()</code></td><td>Triggers initialization of a lazy object</td></tr>
+<tr><td><code>lazy_get_instance()</code></td><td>For proxies, returns <code>Option&lt;&amp;mut Self&gt;</code> with the real instance after initialization</td></tr>
+</tbody>
+</table>
+</div>
+<p>You can also check if a class supports lazy objects using <code>ClassEntry::can_be_lazy()</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, zend::ClassEntry};
+
+#[php_function]
+pub fn can_class_be_lazy(class_name: &amp;str) -&gt; bool {
+    ClassEntry::try_find(class_name)
+        .map(|ce| ce.can_be_lazy())
+        .unwrap_or(false)
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="creating-lazy-objects-from-rust"><a class="header" href="#creating-lazy-objects-from-rust">Creating Lazy Objects from Rust</a></h3>
+<p>You can create lazy objects from Rust using <code>make_lazy_ghost()</code> and
+<code>make_lazy_proxy()</code>. These methods require the <code>closure</code> feature:</p>
+<pre><code class="language-toml">[dependencies]
+ext-php-rs = { version = "0.15", features = ["closure"] }
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, types::ZendObject, boxed::ZBox};
+
+#[php_function]
+pub fn create_lazy_ghost(obj: &amp;mut ZendObject) -&gt; PhpResult&lt;()&gt; {
+    let init_value = "initialized".to_string();
+    obj.make_lazy_ghost(Box::new(move || {
+        // Initialization logic - use captured state
+        println!("Initializing with: {}", init_value);
+    }) as Box&lt;dyn Fn()&gt;)?;
+    Ok(())
+}
+
+#[php_function]
+pub fn create_lazy_proxy(obj: &amp;mut ZendObject) -&gt; PhpResult&lt;()&gt; {
+    obj.make_lazy_proxy(Box::new(|| {
+        // Return the real instance
+        Some(ZendObject::new_stdclass())
+    }) as Box&lt;dyn Fn() -&gt; Option&lt;ZBox&lt;ZendObject&gt;&gt;&gt;)?;
+    Ok(())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="creating-lazy-objects-from-php"><a class="header" href="#creating-lazy-objects-from-php">Creating Lazy Objects from PHP</a></h3>
+<p>For full control over lazy object creation, use PHP’s Reflection API:</p>
+<pre><code class="language-php">&lt;?php
+// Create a lazy ghost
+$reflector = new ReflectionClass(MyClass::class);
+$ghost = $reflector-&gt;newLazyGhost(function ($obj) {
+    $obj-&gt;__construct('initialized');
+});
+
+// Create a lazy proxy
+$proxy = $reflector-&gt;newLazyProxy(function ($obj) {
+    return new MyClass('initialized');
+});
+</code></pre>
+<h3 id="limitations"><a class="header" href="#limitations">Limitations</a></h3>
+<ul>
+<li>
+<p><strong>PHP 8.4+ only</strong>: Lazy objects are a PHP 8.4 feature and not available in
+earlier versions.</p>
+</li>
+<li>
+<p><strong><code>closure</code> feature required</strong>: The <code>make_lazy_ghost()</code> and <code>make_lazy_proxy()</code>
+methods require the <code>closure</code> feature to be enabled.</p>
+</li>
+<li>
+<p><strong>User-defined classes only</strong>: PHP lazy objects only work with user-defined
+PHP classes, not internal classes. Since Rust-defined classes (using
+<code>#[php_class]</code>) are registered as internal classes, they cannot be made lazy.</p>
+</li>
+<li>
+<p><strong>Closure parameter access</strong>: Due to Rust trait system limitations, the
+<code>make_lazy_ghost()</code> and <code>make_lazy_proxy()</code> closures don’t receive the object
+being initialized as a parameter. Capture any needed initialization state in
+the closure itself.</p>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="class-object"><a class="header" href="#class-object">Class Object</a></h1>
 <p>A class object is an instance of a Rust struct (which has been registered as a
 PHP class) that has been allocated alongside an object. You can think of a class
 object as a superset of an object, as a class object contains a Zend object.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td>No</td><td><code>&amp;ZendClassObject&lt;T&gt;</code></td><td>Yes</td><td><code>&amp;mut ZendClassObject&lt;T&gt;</code></td><td>Zend object and a Rust struct.</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
 <h3 id="returning-a-reference-to-self"><a class="header" href="#returning-a-reference-to-self">Returning a reference to <code>self</code></a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::ZendClassObject};
 
@@ -1104,9 +1589,9 @@ impl Example {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.class::&lt;Example&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h3 id="creating-a-new-class-instance"><a class="header" href="#creating-a-new-class-instance">Creating a new class instance</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1127,8 +1612,9 @@ impl Example {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.class::&lt;Example&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="closure"><a class="header" href="#closure">Closure</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="closure"><a class="header" href="#closure">Closure</a></h1>
 <p>Rust closures can be passed to PHP through a wrapper class <code>PhpClosure</code>. The
 Rust closure must be static (i.e. can only reference things with a <code>'static</code>
 lifetime, so not <code>self</code> in methods), and can take up to 8 parameters, all of
@@ -1140,9 +1626,15 @@ Enable it in your <code>Cargo.toml</code>:</p>
 <p>PHP callables (which includes closures) can be passed to Rust through the
 <code>Callable</code> type. When calling a callable, you must provide it with a <code>Vec</code> of
 arguments, all of which must implement <code>IntoZval</code> and <code>Clone</code>.</p>
-<div class="table-wrapper"><table><thead><tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
 <tr><td><code>Callable</code></td><td>No</td><td><code>Closure</code>, <code>Callable</code>for PHP functions</td><td>No</td><td>Callables are implemented in PHP, closures are represented as an instance of <code>PhpClosure</code>.</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Internally, when you enable the <code>closure</code> feature, a class <code>PhpClosure</code> is
 registered alongside your other classes:</p>
@@ -1159,7 +1651,7 @@ underlying Rust closure is called. There are three types of closures in Rust:</p
 <p>These closures can be called multiple times. <code>FnMut</code> differs from <code>Fn</code> in the
 fact that it can modify variables in its scope.</p>
 <h3 id="example"><a class="header" href="#example">Example</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1182,7 +1674,7 @@ pub fn closure_count() -&gt; Closure {
         count
     }) as Box&lt;dyn FnMut(i32) -&gt; i32&gt;)
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="fnonce"><a class="header" href="#fnonce"><code>FnOnce</code></a></h2>
 <p>Closures that implement <code>FnOnce</code> can only be called once. They consume some sort
 of value. Calling these closures more than once will cause them to throw an
@@ -1193,7 +1685,7 @@ owns the <code>FnOnce</code> closure until it is called. If the <code>FnMut</cod
 again, the <code>FnOnce</code> closure would have already been consumed, and an exception
 will be thrown.</p>
 <h3 id="example-1"><a class="header" href="#example-1">Example</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1206,7 +1698,7 @@ pub fn closure_return_string() -&gt; Closure {
         example
     }) as Box&lt;dyn FnOnce() -&gt; String&gt;)
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Closures must be boxed as PHP classes cannot support generics, therefore trait
 objects must be used. These must be boxed to have a compile time size.</p>
 <h2 id="callable"><a class="header" href="#callable"><code>Callable</code></a></h2>
@@ -1214,7 +1706,7 @@ objects must be used. These must be boxed to have a compile time size.</p>
 function by its name, or as a parameter. They can be called through the
 <code>try_call</code> method implemented on <code>Callable</code>, which returns a zval in a result.</p>
 <h3 id="callable-parameter"><a class="header" href="#callable-parameter">Callable parameter</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1223,12 +1715,13 @@ pub fn callable_parameter(call: ZendCallable) {
     let val = call.try_call(vec![&amp;0, &amp;1, &amp;"Hello"]).expect("Failed to call function");
     dbg!(val);
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="functions--methods"><a class="header" href="#functions--methods">Functions &amp; methods</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="functions--methods"><a class="header" href="#functions--methods">Functions &amp; methods</a></h1>
 <p>PHP functions and methods are represented by the <code>Function</code> struct.</p>
 <p>You can use the <code>try_from_function</code> and <code>try_from_method</code> methods to obtain a Function struct corresponding to the passed function or static method name.
-It's heavily recommended you reuse returned <code>Function</code> objects, to avoid the overhead of looking up the function/method name.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+It’s heavily recommended you reuse returned <code>Function</code> objects, to avoid the overhead of looking up the function/method name.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1246,26 +1739,29 @@ pub fn test_method() -&gt; () {
     let _ = f.try_call(vec![&amp;"abc"]);
 }
 
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="macros"><a class="header" href="#macros">Macros</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="macros"><a class="header" href="#macros">Macros</a></h1>
 <p><code>ext-php-rs</code> comes with a set of macros that are used to annotate types which
 are to be exported to PHP. This allows you to write Rust-like APIs that can be
 used from PHP without fiddling around with zvals.</p>
 <ul>
-<li><a href="macros/./module.html"><code>php_module</code></a> - Defines the function used by PHP to retrieve your extension.</li>
+<li><a href="#php_module-attribute"><code>php_module</code></a> - Defines the function used by PHP to retrieve your extension.</li>
 <li>[<code>php_startup</code>] - Defines the extension startup function used by PHP to
 initialize your extension.</li>
-<li><a href="macros/./function.html"><code>php_function</code></a> - Used to export a Rust function to PHP.</li>
-<li><a href="macros/./classes.html"><code>php_class</code></a> - Used to export a Rust struct or enum as a PHP class.</li>
-<li><a href="macros/./impl.html"><code>php_impl</code></a> - Used to export a Rust <code>impl</code> block to PHP, including all
+<li><a href="#php_function-attribute"><code>php_function</code></a> - Used to export a Rust function to PHP.</li>
+<li><a href="#php_class-attribute"><code>php_class</code></a> - Used to export a Rust struct or enum as a PHP class.</li>
+<li><a href="#php_impl-attribute"><code>php_impl</code></a> - Used to export a Rust <code>impl</code> block to PHP, including all
 methods and constants.</li>
-<li><a href="macros/./constant.html"><code>php_const</code></a> - Used to export a Rust constant to PHP as a global constant.</li>
-<li><a href="macros/./extern.html"><code>php_extern</code></a> - Attribute used to annotate <code>extern</code> blocks which are deemed as
+<li><a href="#php_const-attribute"><code>php_const</code></a> - Used to export a Rust constant to PHP as a global constant.</li>
+<li><a href="#php_extern-attribute"><code>php_extern</code></a> - Attribute used to annotate <code>extern</code> blocks which are deemed as
 PHP functions.</li>
-<li><a href="macros/./php.html"><code>php</code></a> - Used to modify the default behavior of the above macros. This is a
+<li><a href="#php_interface-attribute"><code>php_interface</code></a> - Attribute used to export Rust Trait as PHP interface</li>
+<li><a href="#php-attributes"><code>php</code></a> - Used to modify the default behavior of the above macros. This is a
 generic attribute that can be used on most of the above macros.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_module-attribute"><a class="header" href="#php_module-attribute"><code>#[php_module]</code> Attribute</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_module-attribute"><a class="header" href="#php_module-attribute"><code>#[php_module]</code> Attribute</a></h1>
 <p>The module macro is used to annotate the <code>get_module</code> function, which is used by
 the PHP interpreter to retrieve information about your extension, including the
 name, version, functions and extra initialization functions. Regardless if you
@@ -1291,7 +1787,7 @@ the following (if required):</p>
 <p>Classes and constants are not registered with PHP in the <code>get_module</code> function. These are
 registered inside the extension startup function.</p>
 <h2 id="usage-3"><a class="header" href="#usage-3">Usage</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{
     prelude::*,
@@ -1330,18 +1826,19 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .function(wrap_function!(hello_world))
         .info_function(php_module_info)
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_function-attribute"><a class="header" href="#php_function-attribute"><code>#[php_function]</code> Attribute</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_function-attribute"><a class="header" href="#php_function-attribute"><code>#[php_function]</code> Attribute</a></h1>
 <p>Used to annotate functions which should be exported to PHP. Note that this
 should not be used on class methods - see the <code>#[php_impl]</code> macro for that.</p>
-<p>See the <a href="macros/../types/index.html">list of types</a> that are valid as parameter and
+<p>See the <a href="#types">list of types</a> that are valid as parameter and
 return types.</p>
 <h2 id="optional-parameters"><a class="header" href="#optional-parameters">Optional parameters</a></h2>
 <p>Optional parameters can be used by setting the Rust parameter type to a variant
 of <code>Option&lt;T&gt;</code>. The macro will then figure out which parameters are optional by
 using the last consecutive arguments that are a variant of <code>Option&lt;T&gt;</code> or have a
 default value.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1360,11 +1857,11 @@ pub fn greet(name: String, age: Option&lt;i32&gt;) -&gt; String {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(greet))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Default parameter values can also be set for optional parameters. This is done
 through the <code>#[php(defaults)]</code> attribute option. When an optional parameter has a
 default, it does not need to be a variant of <code>Option</code>:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1379,11 +1876,11 @@ pub fn rusty_strpos(haystack: &amp;str, needle: &amp;str, offset: i64) -&gt; Opt
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(rusty_strpos))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Note that if there is a non-optional argument after an argument that is a
 variant of <code>Option&lt;T&gt;</code>, the <code>Option&lt;T&gt;</code> argument will be deemed a nullable
 argument rather than an optional argument.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1404,11 +1901,11 @@ pub fn greet(name: String, age: Option&lt;i32&gt;, description: String) -&gt; St
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(greet))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>You can also specify the optional arguments if you want to have nullable
 arguments before optional arguments. This is done through an attribute
 parameter:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1434,12 +1931,12 @@ pub fn greet(name: String, age: Option&lt;i32&gt;, description: Option&lt;String
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(greet))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="variadic-functions"><a class="header" href="#variadic-functions">Variadic Functions</a></h2>
 <p>Variadic functions can be implemented by specifying the last argument in the Rust
 function to the type <code>&amp;[&amp;Zval]</code>. This is the equivalent of a PHP function using
 the <code>...$args</code> syntax.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::Zval};
 
@@ -1454,16 +1951,76 @@ pub fn add(number: u32, numbers:&amp;[&amp;Zval]) -&gt; u32 {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(add))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="returning-resultt-e"><a class="header" href="#returning-resultt-e">Returning <code>Result&lt;T, E&gt;</code></a></h2>
 <p>You can also return a <code>Result</code> from the function. The error variant will be
 translated into an exception and thrown. See the section on
-<a href="macros/../exceptions.html">exceptions</a> for more details.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_class-attribute"><a class="header" href="#php_class-attribute"><code>#[php_class]</code> Attribute</a></h1>
+<a href="#exceptions">exceptions</a> for more details.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_interface-attribute"><a class="header" href="#php_interface-attribute"><code>#[php_interface]</code> Attribute</a></h1>
+<p>You can export a <code>Trait</code> block to PHP. This exports all methods as well as
+constants to PHP on the interface. Trait method SHOULD NOT contain default
+implementations, as these are not supported in PHP interfaces.</p>
+<h2 id="options"><a class="header" href="#options">Options</a></h2>
+<p>By default all constants are renamed to <code>UPPER_CASE</code> and all methods are renamed to
+<code>camelCase</code>. This can be changed by passing the <code>change_method_case</code> and
+<code>change_constant_case</code> as <code>#[php]</code> attributes on the <code>impl</code> block. The options are:</p>
+<ul>
+<li><code>#[php(change_method_case = "snake_case")]</code> - Renames the method to snake case.</li>
+<li><code>#[php(change_constant_case = "snake_case")]</code> - Renames the constant to snake case.</li>
+</ul>
+<p>See the <a href="#name-and-change_case"><code>name</code> and <code>change_case</code></a> section for a list of all
+available cases.</p>
+<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<p>See the <a href="#"><code>php_impl</code></a></p>
+<h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
+<p>See the <a href="#"><code>php_impl</code></a></p>
+<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
+<p>Define an example trait with methods and constant:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, types::ZendClassObject};
+
+
+#[php_interface]
+#[php(name = "Rust\\TestInterface")]
+trait Test {
+    const TEST: &amp;'static str = "TEST";
+
+    fn co();
+
+    #[php(defaults(value = 0))]
+    fn set_value(&amp;mut self, value: i32);
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .interface::&lt;PhpInterfaceTest&gt;()
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>Using our newly created interface in PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+assert(interface_exists("Rust\TestInterface"));
+
+class B implements Rust\TestInterface {
+
+    public static function co() {}
+
+    public function setValue(?int $value = 0) {
+
+    }
+}
+
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_class-attribute"><a class="header" href="#php_class-attribute"><code>#[php_class]</code> Attribute</a></h1>
 <p>Structs can be exported to PHP as classes with the <code>#[php_class]</code> attribute
 macro. This attribute derives the <code>RegisteredClass</code> trait on your struct, as
 well as registering the class to be registered with the <code>#[php_module]</code> macro.</p>
-<h2 id="options"><a class="header" href="#options">Options</a></h2>
+<h2 id="options-1"><a class="header" href="#options-1">Options</a></h2>
 <p>There are additional macros that modify the class. These macros <strong>must</strong> be
 placed underneath the <code>#[php_class]</code> attribute.</p>
 <ul>
@@ -1471,6 +2028,10 @@ placed underneath the <code>#[php_class]</code> attribute.</p>
 name is kept the same. If no name is given, the name of the struct is used.
 Useful for namespacing classes.</li>
 <li><code>change_case</code> - Changes the case of the class name when exported to PHP.</li>
+<li><code>readonly</code> - Marks the class as readonly (PHP 8.2+). All properties in a
+readonly class are implicitly readonly.</li>
+<li><code>flags</code> - Sets class flags using <code>ClassFlags</code>, e.g.
+<code>#[php(flags = ClassFlags::Final)]</code> for a final class.</li>
 <li><code>#[php(extends(ce = ce_fn, stub = "ParentClass"))]</code> - Sets the parent class of the class. Can only be used once.
 <code>ce_fn</code> must be a function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
 <li><code>#[php(implements(ce = ce_fn, stub = "InterfaceName"))]</code> - Implements the given interface on the class. Can be used
@@ -1481,16 +2042,20 @@ multiple times. <code>ce_fn</code> must be a valid function with the signature
 PHP property. By default, the field will be accessible from PHP publicly with
 the same name as the field. Property types must implement <code>IntoZval</code> and
 <code>FromZval</code>.</p>
-<p>You can rename the property with options:</p>
+<p>You can customize properties with these options:</p>
 <ul>
 <li><code>name</code> - Allows you to rename the property, e.g.
-<code>#[php(name = "new_name")]</code></li>
+<code>#[php(prop, name = "new_name")]</code></li>
 <li><code>change_case</code> - Allows you to rename the property using rename rules, e.g.
-<code>#[php(change_case = PascalCase)]</code></li>
+<code>#[php(prop, change_case = PascalCase)]</code></li>
+<li><code>static</code> - Makes the property static (shared across all instances), e.g.
+<code>#[php(prop, static)]</code></li>
+<li><code>flags</code> - Sets property visibility flags, e.g.
+<code>#[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]</code></li>
 </ul>
 <h2 id="restrictions"><a class="header" href="#restrictions">Restrictions</a></h2>
 <h3 id="no-lifetime-parameters"><a class="header" href="#no-lifetime-parameters">No lifetime parameters</a></h3>
-<p>Rust lifetimes are used by the Rust compiler to reason about a program's memory safety.
+<p>Rust lifetimes are used by the Rust compiler to reason about a program’s memory safety.
 They are a compile-time only concept;
 there is no way to access Rust lifetimes at runtime from a dynamic language like PHP.</p>
 <p>As soon as Rust data is exposed to PHP,
@@ -1509,9 +2074,9 @@ each time it is used with a different concrete type for <code>T</code>.
 These new implementations are generated by the compiler at each usage site.
 This is incompatible with wrapping <code>Foo</code> in PHP,
 where there needs to be a single compiled implementation of <code>Foo</code> which is integrated with the PHP interpreter.</p>
-<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
+<h2 id="example-3"><a class="header" href="#example-3">Example</a></h2>
 <p>This example creates a PHP class <code>Human</code>, adding a PHP property <code>address</code>.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1527,10 +2092,10 @@ pub struct Human {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.class::&lt;Human&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Create a custom exception <code>RedisException</code>, which extends <code>Exception</code>, and put
 it in the <code>Redis\Exception</code> namespace:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{
     prelude::*,
@@ -1556,11 +2121,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .class::&lt;RedisException&gt;()
         .function(wrap_function!(throw_exception))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="implementing-an-interface"><a class="header" href="#implementing-an-interface">Implementing an Interface</a></h2>
 <p>To implement an interface, use <code>#[php(implements(ce = ce_fn, stub = "InterfaceName")]</code> where <code>ce_fn</code> is an function returning a <code>ClassEntry</code>.
 The following example implements <a href="https://www.php.net/manual/en/class.arrayaccess.php"><code>ArrayAccess</code></a>:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{
     prelude::*,
@@ -1610,8 +2175,166 @@ impl EvenNumbersArray {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.class::&lt;EvenNumbersArray&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_impl-attribute"><a class="header" href="#php_impl-attribute"><code>#[php_impl]</code> Attribute</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="static-properties"><a class="header" href="#static-properties">Static Properties</a></h2>
+<p>Static properties are shared across all instances of a class. Use <code>#[php(prop, static)]</code>
+to declare a static property. Unlike instance properties, static properties are managed
+entirely by PHP and do not use Rust property handlers.</p>
+<p>You can specify a default value using the <code>default</code> attribute:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::class::RegisteredClass;
+
+#[php_class]
+pub struct Counter {
+    #[php(prop)]
+    pub instance_value: i32,
+    #[php(prop, static, default = 0)]
+    pub count: i32,
+    #[php(prop, static, flags = ext_php_rs::flags::PropertyFlags::Private)]
+    pub internal_state: String,
+}
+
+#[php_impl]
+impl Counter {
+    pub fn __construct(value: i32) -&gt; Self {
+        Self {
+            instance_value: value,
+            count: 0,
+            internal_state: String::new(),
+        }
+    }
+
+    /// Increment the static counter from Rust
+    pub fn increment() {
+        let ce = Self::get_metadata().ce();
+        let current: i64 = ce.get_static_property("count").unwrap_or(0);
+        ce.set_static_property("count", current + 1).unwrap();
+    }
+
+    /// Get the current count
+    pub fn get_count() -&gt; i64 {
+        let ce = Self::get_metadata().ce();
+        ce.get_static_property("count").unwrap_or(0)
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.class::&lt;Counter&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>From PHP, you can access static properties directly on the class:</p>
+<pre><code class="language-php">// No need to initialize - count already has default value of 0
+Counter::increment();
+Counter::increment();
+echo Counter::$count; // 2
+echo Counter::getCount(); // 2
+</code></pre>
+<h2 id="readonly-classes-php-82"><a class="header" href="#readonly-classes-php-82">Readonly Classes (PHP 8.2+)</a></h2>
+<p>PHP 8.2 introduced <a href="https://www.php.net/manual/en/language.oop5.basic.php#language.oop5.basic.class.readonly">readonly classes</a>,
+where all properties are implicitly readonly. You can create a readonly class using
+the <code>#[php(readonly)]</code> attribute:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_class]
+#[php(readonly)]
+pub struct ImmutablePoint {
+    x: f64,
+    y: f64,
+}
+
+#[php_impl]
+impl ImmutablePoint {
+    pub fn __construct(x: f64, y: f64) -&gt; Self {
+        Self { x, y }
+    }
+
+    pub fn get_x(&amp;self) -&gt; f64 {
+        self.x
+    }
+
+    pub fn get_y(&amp;self) -&gt; f64 {
+        self.y
+    }
+
+    pub fn distance_from_origin(&amp;self) -&gt; f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.class::&lt;ImmutablePoint&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>From PHP:</p>
+<pre><code class="language-php">$point = new ImmutablePoint(3.0, 4.0);
+echo $point-&gt;getX(); // 3.0
+echo $point-&gt;getY(); // 4.0
+echo $point-&gt;distanceFromOrigin(); // 5.0
+
+// On PHP 8.2+, you can verify the class is readonly:
+$reflection = new ReflectionClass(ImmutablePoint::class);
+var_dump($reflection-&gt;isReadOnly()); // true
+</code></pre>
+<p>The <code>readonly</code> attribute is compatible with other class attributes:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+// Readonly + Final class
+#[php_class]
+#[php(readonly)]
+#[php(flags = ClassFlags::Final)]
+pub struct FinalImmutableData {
+    value: String,
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p><strong>Note:</strong> The <code>readonly</code> attribute requires PHP 8.2 or later. Using it when
+compiling against an earlier PHP version will result in a compile error.</p>
+<h3 id="conditional-compilation-for-multi-version-support"><a class="header" href="#conditional-compilation-for-multi-version-support">Conditional Compilation for Multi-Version Support</a></h3>
+<p>If your extension needs to support both PHP 8.1 and PHP 8.2+, you can use
+conditional compilation to only enable readonly on supported versions.</p>
+<p>First, add <code>ext-php-rs-build</code> as a build dependency in your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[build-dependencies]
+ext-php-rs-build = "0.1"
+anyhow = "1"
+</code></pre>
+<p>Then create a <code>build.rs</code> that detects the PHP version and emits cfg flags:</p>
+<pre><code class="language-rust ignore">use ext_php_rs_build::{find_php, PHPInfo, ApiVersion, emit_php_cfg_flags, emit_check_cfg};
+
+fn main() -&gt; anyhow::Result&lt;()&gt; {
+    let php = find_php()?;
+    let info = PHPInfo::get(&amp;php)?;
+    let version: ApiVersion = info.zend_version()?.try_into()?;
+
+    emit_check_cfg();
+    emit_php_cfg_flags(version);
+    Ok(())
+}</code></pre>
+<p>Now you can use <code>#[cfg(php82)]</code> to conditionally apply the readonly attribute:</p>
+<pre><code class="language-rust ignore">#[php_class]
+#[cfg_attr(php82, php(readonly))]
+pub struct MaybeReadonlyClass {
+    value: String,
+}</code></pre>
+<p>The <code>ext-php-rs-build</code> crate provides several useful utilities:</p>
+<ul>
+<li><code>find_php()</code> - Locates the PHP executable (respects the <code>PHP</code> env var)</li>
+<li><code>PHPInfo::get()</code> - Runs <code>php -i</code> and parses the output</li>
+<li><code>ApiVersion</code> - Enum representing PHP versions (Php80, Php81, Php82, etc.)</li>
+<li><code>emit_php_cfg_flags()</code> - Emits <code>cargo:rustc-cfg=phpXX</code> for all supported versions</li>
+<li><code>emit_check_cfg()</code> - Emits check-cfg to avoid unknown cfg warnings</li>
+</ul>
+<p>This is <strong>optional</strong> - if your extension only targets PHP 8.2+, you can use
+<code>#[php(readonly)]</code> directly without any build script setup.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_impl-attribute"><a class="header" href="#php_impl-attribute"><code>#[php_impl]</code> Attribute</a></h1>
 <p>You can export an entire <code>impl</code> block to PHP. This exports all methods as well
 as constants to PHP on the class that it is implemented on. This requires the
 <code>#[php_class]</code> macro to already be used on the underlying struct. Trait
@@ -1619,8 +2342,8 @@ implementations cannot be exported to PHP. Only one <code>impl</code> block can 
 per class.</p>
 <p>If you do not want a function exported to PHP, you should place it in a separate
 <code>impl</code> block.</p>
-<p>If you want to use async Rust, use <code>#[php_async_impl]</code>, instead: see <a href="macros/./async_impl.html">here »</a> for more info.</p>
-<h2 id="options-1"><a class="header" href="#options-1">Options</a></h2>
+<p>If you want to use async Rust, use <code>#[php_async_impl]</code>, instead: see <a href="macros/async_impl.html">here »</a> for more info.</p>
+<h2 id="options-2"><a class="header" href="#options-2">Options</a></h2>
 <p>By default all constants are renamed to <code>UPPER_CASE</code> and all methods are renamed to
 camelCase. This can be changed by passing the <code>change_method_case</code> and
 <code>change_constant_case</code> as <code>#[php]</code> attributes on the <code>impl</code> block. The options are:</p>
@@ -1628,9 +2351,9 @@ camelCase. This can be changed by passing the <code>change_method_case</code> an
 <li><code>#[php(change_method_case = "snake_case")]</code> - Renames the method to snake case.</li>
 <li><code>#[php(change_constant_case = "snake_case")]</code> - Renames the constant to snake case.</li>
 </ul>
-<p>See the <a href="macros/./php.html#name-and-change_case"><code>name</code> and <code>change_case</code></a> section for a list of all
+<p>See the <a href="#name-and-change_case"><code>name</code> and <code>change_case</code></a> section for a list of all
 available cases.</p>
-<h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
+<h2 id="methods-1"><a class="header" href="#methods-1">Methods</a></h2>
 <p>Methods basically follow the same rules as functions, so read about the
 [<code>php_function</code>] macro first. The primary difference between functions and
 methods is they are bounded by their class object.</p>
@@ -1652,6 +2375,26 @@ without renaming the Rust method name.</li>
 </ul>
 <p>The <code>#[php(defaults)]</code> and <code>#[php(optional)]</code> attributes operate the same as the
 equivalent function attribute parameters.</p>
+<h3 id="static-methods"><a class="header" href="#static-methods">Static Methods</a></h3>
+<p>Methods that do not take a <code>&amp;self</code> or <code>&amp;mut self</code> parameter are automatically
+exported as static methods. These can be called on the class itself without
+creating an instance.</p>
+<pre><code class="language-rust ignore">#[php_impl]
+impl MyClass {
+    // Static method - no self parameter
+    pub fn create_default() -&gt; Self {
+        Self { /* ... */ }
+    }
+
+    // Instance method - takes &amp;self
+    pub fn get_value(&amp;self) -&gt; i32 {
+        self.value
+    }
+}</code></pre>
+<p>From PHP:</p>
+<pre><code class="language-php">$obj = MyClass::createDefault(); // Static call
+$val = $obj-&gt;getValue();         // Instance call
+</code></pre>
 <h3 id="constructors"><a class="header" href="#constructors">Constructors</a></h3>
 <p>By default, if a class does not have a constructor, it is not constructable from
 PHP. It can only be returned from a Rust function to PHP.</p>
@@ -1663,7 +2406,7 @@ the class is not constructed.</p>
 annotating a method with the <code>#[php(constructor)]</code> attribute. Note that when using
 the attribute, the function is not exported to PHP like a regular method.</p>
 <p>Constructors cannot use the visibility or rename attributes listed above.</p>
-<h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
+<h2 id="constants-1"><a class="header" href="#constants-1">Constants</a></h2>
 <p>Constants are defined as regular Rust <code>impl</code> constants. Any type that implements
 <code>IntoZval</code> can be used as a constant. Constant visibility is not supported at
 the moment, and therefore no attributes are valid on constants.</p>
@@ -1681,11 +2424,11 @@ Properties cannot have multiple getters or setters, and the property name cannot
 conflict with field properties defined on the struct.</p>
 <p>As the same as field properties, method property types must implement both
 <code>IntoZval</code> and <code>FromZval</code>.</p>
-<h2 id="example-3"><a class="header" href="#example-3">Example</a></h2>
+<h2 id="example-4"><a class="header" href="#example-4">Example</a></h2>
 <p>Continuing on from our <code>Human</code> example in the structs section, we will define a
 constructor, as well as getters for the properties. We will also define a
 constant for the maximum age of a <code>Human</code>.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::ZendClassObject};
 
@@ -1742,7 +2485,7 @@ impl Human {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.class::&lt;Human&gt;()
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Using our newly created class in PHP:</p>
 <pre><code class="language-php">&lt;?php
 
@@ -1752,7 +2495,8 @@ $me-&gt;introduce(); // My name is David and I am 20 years old.
 var_dump(Human::get_max_age()); // int(100)
 var_dump(Human::MAX_AGE); // int(100)
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_const-attribute"><a class="header" href="#php_const-attribute"><code>#[php_const]</code> Attribute</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_const-attribute"><a class="header" href="#php_const-attribute"><code>#[php_const]</code> Attribute</a></h1>
 <p>Exports a Rust constant as a global PHP constant. The constant can be any type
 that implements <code>IntoConst</code>.</p>
 <p>The <code>wrap_constant!()</code> macro can be used to simplify the registration of constants.
@@ -1765,7 +2509,7 @@ It sets the name and doc comments for the constant.</p>
 <code>#[php(change_case = PascalCase)]</code></li>
 </ul>
 <h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1786,7 +2530,7 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .constant(wrap_constant!(TEST_CONSTANT_THE_SECOND))
         .constant(("MANUAL_CONSTANT", ANOTHER_STRING_CONST, &amp;[]))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="php-usage-2"><a class="header" href="#php-usage-2">PHP usage</a></h2>
 <pre><code class="language-php">&lt;?php
 
@@ -1794,10 +2538,11 @@ var_dump(TEST_CONSTANT); // int(100)
 var_dump(I_AM_RENAMED); // int(42)
 var_dump(MANUAL_CONSTANT); // string(12) "Hello world!"
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_extern-attribute"><a class="header" href="#php_extern-attribute"><code>#[php_extern]</code> Attribute</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_extern-attribute"><a class="header" href="#php_extern-attribute"><code>#[php_extern]</code> Attribute</a></h1>
 <p>Attribute used to annotate <code>extern</code> blocks which are deemed as PHP
 functions.</p>
-<p>This allows you to 'import' PHP functions into Rust so that they can be
+<p>This allows you to ‘import’ PHP functions into Rust so that they can be
 called like regular Rust functions. Parameters can be any type that
 implements <a href="crate::convert::IntoZval"><code>IntoZval</code></a>, and the return type can be anything that implements
 [<code>From&lt;Zval&gt;</code>] (notice how <a href="crate::types::Zval"><code>Zval</code></a> is consumed rather than borrowed in this
@@ -1816,12 +2561,12 @@ case).</p>
 unions, such as <a href="https://www.php.net/manual/en/function.strpos.php"><code>strpos</code></a> which can return an integer or a boolean. In this
 case, a <a href="crate::types::Zval"><code>Zval</code></a> should be returned as parsing a boolean to an integer is
 invalid, and vice versa.</p>
-<h1 id="example-4"><a class="header" href="#example-4">Example</a></h1>
+<h1 id="example-5"><a class="header" href="#example-5">Example</a></h1>
 <p>This <code>extern</code> block imports the <a href="https://www.php.net/manual/en/function.strpos.php"><code>strpos</code></a> function from PHP. Notice that
 the string parameters can take either [<code>String</code>] or [<code>&amp;str</code>], the optional
 parameter <code>offset</code> is an [<code>Option&lt;i64&gt;</code>], and the return value is a <a href="crate::types::Zval"><code>Zval</code></a>
 as the return type is an integer-boolean union.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{
     prelude::*,
@@ -1842,8 +2587,9 @@ pub fn my_strpos() {
 pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(my_strpos))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="zvalconvert-derive-macro"><a class="header" href="#zvalconvert-derive-macro"><code>ZvalConvert</code> Derive Macro</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="zvalconvert-derive-macro"><a class="header" href="#zvalconvert-derive-macro"><code>ZvalConvert</code> Derive Macro</a></h1>
 <p>The <code>#[derive(ZvalConvert)]</code> macro derives the <code>FromZval</code> and <code>IntoZval</code> traits
 on a struct or enum.</p>
 <h2 id="structs"><a class="header" href="#structs">Structs</a></h2>
@@ -1853,7 +2599,7 @@ struct must implement <code>FromZval</code> as well. Generics are allowed on str
 use the derive macro, however, the implementation will add a <code>FromZval</code> bound to
 all generics types.</p>
 <h3 id="examples-3"><a class="header" href="#examples-3">Examples</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1884,7 +2630,7 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .function(wrap_function!(take_object))
         .function(wrap_function!(give_object))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Calling from PHP:</p>
 <pre><code class="language-php">&lt;?php
 
@@ -1897,7 +2643,7 @@ take_object($obj);
 var_dump(give_object());
 </code></pre>
 <p>Another example involving generics:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1918,7 +2664,7 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module
         .function(wrap_function!(take_object))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="enums"><a class="header" href="#enums">Enums</a></h2>
 <p>When used on an enum, the <code>FromZval</code> implementation will treat the enum as a
 tagged union with a mixed datatype. This allows you to accept multiple types in
@@ -1931,9 +2677,9 @@ variants could not be extracted from the zval.</p>
 implementation will attempt to parse the zval data in order. For example, if you
 put a <code>String</code> variant before an integer variant, the integer would be converted
 to a string and passed as the string variant.</p>
-<h3 id="examples-4"><a class="header" href="#examples-4">Examples</a></h3>
+<h3 id="examples-1-1"><a class="header" href="#examples-1-1">Examples</a></h3>
 <p>Basic example showing the importance of variant ordering and default field:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 
@@ -1961,7 +2707,7 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .function(wrap_function!(test_union))
         .function(wrap_function!(give_union))
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Use in PHP:</p>
 <pre><code class="language-php">test_union(5); // UnionExample::Long(5)
 test_union("Hello, world!"); // UnionExample::ProperStr("Hello, world!")
@@ -1969,12 +2715,13 @@ test_union(5.66666); // UnionExample::ParsedStr("5.6666")
 test_union(null); // UnionExample::None
 var_dump(give_union()); // int(5)
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php-attributes"><a class="header" href="#php-attributes"><code>#[php]</code> Attributes</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php-attributes"><a class="header" href="#php-attributes"><code>#[php]</code> Attributes</a></h1>
 <p>There are a number of attributes that can be used to annotate elements in your
 extension.</p>
 <p>Multiple <code>#[php]</code> attributes will be combined. For example, the following will
 be identical:</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
@@ -1983,8 +2730,8 @@ be identical:</p>
 fn hello_world(a: i32, b: i32) -&gt; i32 {
     a + b
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<span class="boring">fn main() {}</span></code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span>#[php_function]
@@ -1992,9 +2739,14 @@ fn hello_world(a: i32, b: i32) -&gt; i32 {
 fn hello_world(a: i32, b: i32) -&gt; i32 {
     a + b
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <p>Which attributes are available depends on the element you are annotating:</p>
-<div class="table-wrapper"><table><thead><tr><th>Attribute</th><th><code>const</code></th><th><code>fn</code></th><th><code>struct</code></th><th><code>struct</code> field</th><th><code>impl</code></th><th><code>impl</code> <code>const</code></th><th><code>impl</code> <code>fn</code></th><th><code>enum</code></th><th><code>enum</code> case</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Attribute</th><th><code>const</code></th><th><code>fn</code></th><th><code>struct</code></th><th><code>struct</code> field</th><th><code>impl</code></th><th><code>impl</code> <code>const</code></th><th><code>impl</code> <code>fn</code></th><th><code>enum</code></th><th><code>enum</code> case</th></tr>
+</thead>
+<tbody>
 <tr><td>name</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
 <tr><td>change_case</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
 <tr><td>change_method_case</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
@@ -2013,7 +2765,8 @@ fn hello_world(a: i32, b: i32) -&gt; i32 {
 <tr><td>abstract_method</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>allow_native_discriminants</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td></tr>
 <tr><td>discriminant</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h2 id="name-and-change_case"><a class="header" href="#name-and-change_case"><code>name</code> and <code>change_case</code></a></h2>
 <p><code>name</code> and <code>change_case</code> are mutually exclusive. The <code>name</code> attribute is used to set the name of
@@ -2029,7 +2782,8 @@ an item to a string literal. The <code>change_case</code> attribute is used to c
 <li><code>UPPER_CASE</code></li>
 <li><code>none</code> - No change</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="exceptions"><a class="header" href="#exceptions">Exceptions</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="exceptions"><a class="header" href="#exceptions">Exceptions</a></h1>
 <p>Exceptions can be thrown from Rust to PHP. The inverse (catching a PHP exception
 in Rust) is currently being worked on.</p>
 <h2 id="throwing-exceptions"><a class="header" href="#throwing-exceptions">Throwing exceptions</a></h2>
@@ -2048,8 +2802,8 @@ returned.</p>
 <code>E: Into&lt;PhpException&gt;</code>. If the result contains the error variant, the exception
 is thrown. This allows you to return a result from a PHP function annotated with
 the <code>#[php_function]</code> attribute.</p>
-<h3 id="examples-5"><a class="header" href="#examples-5">Examples</a></h3>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<h3 id="examples-4"><a class="header" href="#examples-4">Examples</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
 use std::convert::TryInto;
@@ -2066,12 +2820,134 @@ pub fn something_fallible(n: u64) -&gt; PhpResult&lt;u32&gt; {
 pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
-<p>Your PHP Extension may want to provide it's own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="output"><a class="header" href="#output">Output</a></h1>
+<p><code>ext-php-rs</code> provides several macros and functions for writing output to PHP’s
+stdout and stderr streams. These are essential when your extension needs to
+produce output that integrates with PHP’s output buffering system.</p>
+<h2 id="text-output"><a class="header" href="#text-output">Text Output</a></h2>
+<p>For regular text output (strings without NUL bytes), use the <code>php_print!</code> and
+<code>php_println!</code> macros. These work similarly to Rust’s <code>print!</code> and <code>println!</code>
+macros.</p>
+<h3 id="php_print"><a class="header" href="#php_print"><code>php_print!</code></a></h3>
+<p>Prints to PHP’s standard output without a trailing newline.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_function]
+pub fn greet(name: &amp;str) {
+    php_print!("Hello, {}!", name);
+}</code></pre>
+<h3 id="php_println"><a class="header" href="#php_println"><code>php_println!</code></a></h3>
+<p>Prints to PHP’s standard output with a trailing newline.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_function]
+pub fn greet(name: &amp;str) {
+    php_println!("Hello, {}!", name);
+}</code></pre>
+<blockquote>
+<p><strong>Note:</strong> <code>php_print!</code> and <code>php_println!</code> will panic if the string contains
+NUL bytes (<code>\0</code>). For binary-safe output, use <code>php_output!</code> or <code>php_write!</code>.</p>
+</blockquote>
+<h2 id="binary-safe-output"><a class="header" href="#binary-safe-output">Binary-Safe Output</a></h2>
+<p>When working with binary data that may contain NUL bytes, use the binary-safe
+output functions. These are essential for outputting raw bytes, binary file
+contents, or any data that might contain <code>\0</code> characters.</p>
+<h3 id="php_output"><a class="header" href="#php_output"><code>php_output!</code></a></h3>
+<p>Writes binary data to PHP’s output stream. This macro is <strong>both binary-safe AND
+respects PHP’s output buffering</strong> (<code>ob_start()</code>). This is usually what you want
+for binary output.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_function]
+pub fn output_binary() -&gt; i64 {
+    // Write binary data with NUL bytes - will be captured by ob_start()
+    let bytes_written = php_output!(b"Hello\x00World");
+    bytes_written as i64
+}</code></pre>
+<h3 id="php_write"><a class="header" href="#php_write"><code>php_write!</code></a></h3>
+<p>Writes binary data directly to the SAPI output, <strong>bypassing PHP’s output
+buffering</strong>. This macro is binary-safe but output will NOT be captured by
+<code>ob_start()</code>. The “ub” in <code>ub_write</code> stands for “unbuffered”.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_function]
+pub fn output_binary() -&gt; i64 {
+    // Write a byte literal
+    php_write!(b"Hello World").expect("write failed");
+
+    // Write binary data with NUL bytes (would panic with php_print!)
+    let bytes_written = php_write!(b"Hello\x00World").expect("write failed");
+
+    // Write a byte slice
+    let data: &amp;[u8] = &amp;[0x48, 0x65, 0x6c, 0x6c, 0x6f]; // "Hello"
+    php_write!(data).expect("write failed");
+
+    bytes_written as i64
+}</code></pre>
+<p>The macro returns a <code>Result&lt;usize&gt;</code> with the number of bytes written, which can
+be useful for verifying that all data was output successfully. The error case
+occurs when the SAPI’s <code>ub_write</code> function is not available.</p>
+<h2 id="function-api"><a class="header" href="#function-api">Function API</a></h2>
+<p>In addition to macros, you can use the underlying functions directly:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Binary-Safe</th><th>Output Buffering</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>zend::printf()</code></td><td>No</td><td>Yes</td><td>Printf-style output (used by <code>php_print!</code>)</td></tr>
+<tr><td><code>zend::output_write()</code></td><td>Yes</td><td>Yes</td><td>Binary-safe buffered output</td></tr>
+<tr><td><code>zend::write()</code></td><td>Yes</td><td>No</td><td>Binary-safe unbuffered output</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="example-using-functions-directly"><a class="header" href="#example-using-functions-directly">Example using functions directly</a></h3>
+<pre><code class="language-rust ignore">use ext_php_rs::zend::output_write;
+
+fn output_data(data: &amp;[u8]) {
+    let bytes_written = output_write(data);
+    if bytes_written != data.len() {
+        eprintln!("Warning: incomplete write");
+    }
+}</code></pre>
+<h2 id="comparison"><a class="header" href="#comparison">Comparison</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Macro</th><th>Binary-Safe</th><th>Output Buffering</th><th>Supports Formatting</th></tr>
+</thead>
+<tbody>
+<tr><td><code>php_print!</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>php_println!</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>php_output!</code></td><td>Yes</td><td>Yes</td><td>No</td></tr>
+<tr><td><code>php_write!</code></td><td>Yes</td><td>No</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="when-to-use-each"><a class="header" href="#when-to-use-each">When to Use Each</a></h2>
+<ul>
+<li>
+<p><strong><code>php_print!</code> / <code>php_println!</code></strong>: Use for text output with format strings,
+similar to Rust’s <code>print!</code> and <code>println!</code>. Best for human-readable messages.</p>
+</li>
+<li>
+<p><strong><code>php_output!</code></strong>: Use for binary data that needs to work with PHP’s output
+buffering. This is the recommended choice for most binary output needs.</p>
+</li>
+<li>
+<p><strong><code>php_write!</code></strong>: Use when you need direct, unbuffered output that bypasses
+PHP’s output layer. Useful for low-level SAPI interaction or when output
+buffering must be avoided.</p>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
+<p>Your PHP Extension may want to provide it’s own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
 <h2 id="registering-ini-settings"><a class="header" href="#registering-ini-settings">Registering INI Settings</a></h2>
 <p>All PHP INI definitions must be registered with PHP to get / set their values via the <code>php.ini</code> file or <code>ini_get() / ini_set()</code>.</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
 </span><span class="boring">use ext_php_rs::zend::IniEntryDef;
@@ -2095,10 +2971,10 @@ pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="getting-ini-settings"><a class="header" href="#getting-ini-settings">Getting INI Settings</a></h2>
 <p>The INI values are stored as part of the <code>GlobalExecutor</code>, and can be accessed via the <code>ini_values()</code> function. To retrieve the value for a registered INI setting</p>
-<pre><pre class="playground"><code class="language-rust no_run"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{
     prelude::*,
@@ -2118,15 +2994,332 @@ pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module
 }
-<span class="boring">fn main() {}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="php_async_impl-attribute"><a class="header" href="#php_async_impl-attribute"><code>#[php_async_impl]</code> Attribute</a></h1>
+<span class="boring">fn main() {}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="superglobals"><a class="header" href="#superglobals">Superglobals</a></h1>
+<p>PHP provides several superglobal arrays that are accessible from any scope. In
+ext-php-rs, you can access these superglobals using the <code>ProcessGlobals</code>,
+<code>SapiGlobals</code>, and <code>ExecutorGlobals</code> types.</p>
+<blockquote>
+<p><strong>Note for FrankenPHP users:</strong> In FrankenPHP worker mode, you would need to
+override <code>sapi_activate</code>/<code>sapi_deactivate</code> hooks to mimic
+<code>php_rinit</code>/<code>php_rshutdown</code> behavior. However, superglobals are inaccessible
+during <code>sapi_activate</code> and will cause crashes if accessed at that point.</p>
+</blockquote>
+<h2 id="accessing-http-superglobals"><a class="header" href="#accessing-http-superglobals">Accessing HTTP Superglobals</a></h2>
+<p>The <code>ProcessGlobals</code> type provides access to the common HTTP superglobals:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>PHP Equivalent</th></tr>
+</thead>
+<tbody>
+<tr><td><code>http_get_vars()</code></td><td><code>$_GET</code></td></tr>
+<tr><td><code>http_post_vars()</code></td><td><code>$_POST</code></td></tr>
+<tr><td><code>http_cookie_vars()</code></td><td><code>$_COOKIE</code></td></tr>
+<tr><td><code>http_server_vars()</code></td><td><code>$_SERVER</code></td></tr>
+<tr><td><code>http_env_vars()</code></td><td><code>$_ENV</code></td></tr>
+<tr><td><code>http_files_vars()</code></td><td><code>$_FILES</code></td></tr>
+<tr><td><code>http_request_vars()</code></td><td><code>$_REQUEST</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="basic-example"><a class="header" href="#basic-example">Basic Example</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ProcessGlobals;
+
+#[php_function]
+pub fn get_cookie(name: String) -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_cookie_vars()
+        .get(name.as_str())
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_query_param(name: String) -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_get_vars()
+        .get(name.as_str())
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_post_param(name: String) -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_post_vars()
+        .get(name.as_str())
+        .and_then(|zval| zval.string())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="accessing-_server"><a class="header" href="#accessing-_server">Accessing <code>$_SERVER</code></a></h3>
+<p>The <code>$_SERVER</code> superglobal is lazy-initialized in PHP, so <code>http_server_vars()</code>
+returns an <code>Option</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ProcessGlobals;
+
+#[php_function]
+pub fn get_request_method() -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_server_vars()?
+        .get("REQUEST_METHOD")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_remote_addr() -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_server_vars()?
+        .get("REMOTE_ADDR")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_user_agent() -&gt; Option&lt;String&gt; {
+    ProcessGlobals::get()
+        .http_server_vars()?
+        .get("HTTP_USER_AGENT")
+        .and_then(|zval| zval.string())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="working-with-_files"><a class="header" href="#working-with-_files">Working with <code>$_FILES</code></a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ProcessGlobals;
+
+#[php_function]
+pub fn get_uploaded_file_name(field: String) -&gt; Option&lt;String&gt; {
+    let globals = ProcessGlobals::get();
+    let files = globals.http_files_vars();
+
+    // $_FILES structure: $_FILES['field']['name'], ['tmp_name'], ['size'], etc.
+    files
+        .get(field.as_str())?
+        .array()?
+        .get("name")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn get_uploaded_file_tmp_path(field: String) -&gt; Option&lt;String&gt; {
+    let globals = ProcessGlobals::get();
+    let files = globals.http_files_vars();
+
+    files
+        .get(field.as_str())?
+        .array()?
+        .get("tmp_name")
+        .and_then(|zval| zval.string())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="returning-superglobals-to-php"><a class="header" href="#returning-superglobals-to-php">Returning Superglobals to PHP</a></h3>
+<p>You can return copies of superglobals back to PHP:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::boxed::ZBox;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::zend::ProcessGlobals;
+
+#[php_function]
+pub fn get_all_cookies() -&gt; ZBox&lt;ZendHashTable&gt; {
+    ProcessGlobals::get().http_cookie_vars().to_owned()
+}
+
+#[php_function]
+pub fn get_all_get_params() -&gt; ZBox&lt;ZendHashTable&gt; {
+    ProcessGlobals::get().http_get_vars().to_owned()
+}
+
+#[php_function]
+pub fn get_server_vars() -&gt; Option&lt;ZBox&lt;ZendHashTable&gt;&gt; {
+    Some(ProcessGlobals::get().http_server_vars()?.to_owned())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="sapi-request-information"><a class="header" href="#sapi-request-information">SAPI Request Information</a></h2>
+<p>For lower-level request information, use <code>SapiGlobals</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::SapiGlobals;
+
+#[php_function]
+pub fn get_request_info() -&gt; Vec&lt;String&gt; {
+    let globals = SapiGlobals::get();
+    let request_info = globals.request_info();
+
+    let mut info = Vec::new();
+
+    if let Some(method) = request_info.request_method() {
+        info.push(format!("Method: {}", method));
+    }
+    if let Some(uri) = request_info.request_uri() {
+        info.push(format!("URI: {}", uri));
+    }
+    if let Some(query) = request_info.query_string() {
+        info.push(format!("Query: {}", query));
+    }
+    if let Some(content_type) = request_info.content_type() {
+        info.push(format!("Content-Type: {}", content_type));
+    }
+    info.push(format!("Content-Length: {}", request_info.content_length()));
+
+    info
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="available-request-info-methods"><a class="header" href="#available-request-info-methods">Available Request Info Methods</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>request_method()</code></td><td>HTTP method (GET, POST, etc.)</td></tr>
+<tr><td><code>request_uri()</code></td><td>Request URI</td></tr>
+<tr><td><code>query_string()</code></td><td>Query string</td></tr>
+<tr><td><code>cookie_data()</code></td><td>Raw cookie data</td></tr>
+<tr><td><code>content_type()</code></td><td>Content-Type header</td></tr>
+<tr><td><code>content_length()</code></td><td>Content-Length value</td></tr>
+<tr><td><code>path_translated()</code></td><td>Translated filesystem path</td></tr>
+<tr><td><code>auth_user()</code></td><td>HTTP Basic auth username</td></tr>
+<tr><td><code>auth_password()</code></td><td>HTTP Basic auth password</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="accessing-constants"><a class="header" href="#accessing-constants">Accessing Constants</a></h2>
+<p>Use <code>ExecutorGlobals</code> to access PHP constants:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ExecutorGlobals;
+
+#[php_function]
+pub fn get_php_version_constant() -&gt; Option&lt;String&gt; {
+    let globals = ExecutorGlobals::get();
+    globals
+        .constants()?
+        .get("PHP_VERSION")
+        .and_then(|zval| zval.string())
+}
+
+#[php_function]
+pub fn constant_exists(name: String) -&gt; bool {
+    let globals = ExecutorGlobals::get();
+    globals
+        .constants()
+        .is_some_and(|c| c.get(name.as_str()).is_some())
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="accessing-ini-values"><a class="header" href="#accessing-ini-values">Accessing INI Values</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ExecutorGlobals;
+
+#[php_function]
+pub fn get_memory_limit() -&gt; Option&lt;String&gt; {
+    ExecutorGlobals::get()
+        .ini_values()
+        .get("memory_limit")
+        .cloned()
+        .flatten()
+}
+
+#[php_function]
+pub fn get_all_ini_values() -&gt; Vec&lt;(String, String)&gt; {
+    ExecutorGlobals::get()
+        .ini_values()
+        .iter()
+        .filter_map(|(k, v)| {
+            v.as_ref().map(|val| (k.clone(), val.clone()))
+        })
+        .collect()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h2>
+<p>All global access methods use guard types that provide thread-safe access:</p>
+<ul>
+<li><code>ProcessGlobals::get()</code> returns a <code>GlobalReadGuard&lt;ProcessGlobals&gt;</code></li>
+<li><code>ExecutorGlobals::get()</code> returns a <code>GlobalReadGuard&lt;ExecutorGlobals&gt;</code></li>
+<li><code>SapiGlobals::get()</code> returns a <code>GlobalReadGuard&lt;SapiGlobals&gt;</code></li>
+</ul>
+<p>The guard is automatically released when it goes out of scope. For mutable
+access (rarely needed), use <code>get_mut()</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::zend::ExecutorGlobals;
+
+fn example() {
+    // Read-only access (most common)
+    let globals = ExecutorGlobals::get();
+    // ... use globals ...
+    // Guard released when `globals` goes out of scope
+
+    // Mutable access (rarely needed)
+    let mut globals = ExecutorGlobals::get_mut();
+    // ... modify globals ...
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example-8"><a class="header" href="#php-example-8">PHP Example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Assuming you've registered the functions above
+
+// Access cookies
+$session_id = get_cookie('session_id');
+
+// Access query parameters
+$page = get_query_param('page') ?? '1';
+
+// Get request method
+$method = get_request_method(); // "GET", "POST", etc.
+
+// Get all cookies as array
+$all_cookies = get_all_cookies();
+print_r($all_cookies);
+
+// Get request info
+$info = get_request_info();
+print_r($info);
+
+// Access constants
+$php_version = get_php_version_constant();
+echo "PHP Version: $php_version\n";
+
+// Check if constant exists
+if (constant_exists('MY_CUSTOM_CONSTANT')) {
+    echo "Constant exists!\n";
+}
+</code></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Use Case</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ProcessGlobals</code></td><td>HTTP superglobals (<code>$_GET</code>, <code>$_POST</code>, <code>$_COOKIE</code>, etc.)</td></tr>
+<tr><td><code>SapiGlobals</code></td><td>Low-level request info, headers</td></tr>
+<tr><td><code>ExecutorGlobals</code></td><td>Constants, INI values, function/class tables</td></tr>
+</tbody>
+</table>
+</div>
+<p>All types are accessed via <code>::get()</code> for read access or <code>::get_mut()</code> for write
+access, and provide thread-safe access through guard types.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="php_async_impl-attribute"><a class="header" href="#php_async_impl-attribute"><code>#[php_async_impl]</code> Attribute</a></h1>
 <p>Using <code>#[php_async_impl]</code> instead of <code>#[php_impl]</code> allows us to expose any async Rust library to PHP, using <a href="https://www.php.net/manual/en/language.fibers.php">PHP fibers</a>, <a href="https://github.com/danog/php-tokio">php-tokio</a> and the <a href="https://revolt.run">PHP Revolt event loop</a> under the hood to handle async interoperability.</p>
 <p>This allows full compatibility with <a href="https://amphp.org">amphp</a>, <a href="https://github.com/azjezz/psl">PSL</a>, <a href="https://reactphp.org">reactphp</a> and any other async PHP library based on <a href="https://revolt.run">Revolt</a>.</p>
 <p>Traits annotated with <code>#[php_async_impl]</code> can freely expose any async function, using <code>await</code> and any async Rust library.</p>
-<p>Make sure to also expose the <code>php_tokio::EventLoop::init</code> and <code>php_tokio::EventLoop::wakeup</code> functions to PHP in order to initialize the event loop, as specified in the full example <a href="advanced/async_impl.html#async-example">here »</a>.</p>
+<p>Make sure to also expose the <code>php_tokio::EventLoop::init</code> and <code>php_tokio::EventLoop::wakeup</code> functions to PHP in order to initialize the event loop, as specified in the full example <a href="#async-example">here »</a>.</p>
 <p>Also, make sure to invoke <code>EventLoop::shutdown</code> in the request shutdown handler to clean up the tokio event loop before finishing the request.</p>
 <h2 id="async-example"><a class="header" href="#async-example">Async example</a></h2>
-<p>In this example, we're exposing an async Rust HTTP client library called <a href="https://docs.rs/reqwest/latest/reqwest/">reqwest</a> to PHP, using <a href="https://www.php.net/manual/en/language.fibers.php">PHP fibers</a>, <a href="https://github.com/danog/php-tokio">php-tokio</a> and the <a href="https://revolt.run">PHP Revolt event loop</a> under the hood to handle async interoperability.</p>
+<p>In this example, we’re exposing an async Rust HTTP client library called <a href="https://docs.rs/reqwest/latest/reqwest/">reqwest</a> to PHP, using <a href="https://www.php.net/manual/en/language.fibers.php">PHP fibers</a>, <a href="https://github.com/danog/php-tokio">php-tokio</a> and the <a href="https://revolt.run">PHP Revolt event loop</a> under the hood to handle async interoperability.</p>
 <p>This allows full compatibility with <a href="https://amphp.org">amphp</a>, <a href="https://github.com/azjezz/psl">PSL</a>, <a href="https://reactphp.org">reactphp</a> and any other async PHP library based on <a href="https://revolt.run">Revolt</a>.</p>
 <p>Make sure to require <a href="https://github.com/danog/php-tokio">php-tokio</a> as a dependency before proceeding.</p>
 <!-- Must ignore because of circular dependency with php_tokio. Otherwise, this _should_ work. -->
@@ -2161,7 +3354,7 @@ pub extern "C" fn request_shutdown(_type: i32, _module_number: i32) -&gt; i32 {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.request_shutdown_function(request_shutdown)
 }</code></pre>
-<p>Here's the async PHP code we use to interact with the Rust class we just exposed.</p>
+<p>Here’s the async PHP code we use to interact with the Rust class we just exposed.</p>
 <p>The <code>Client::init</code> method needs to be called only once in order to initialize the Revolt event loop and link it to the Tokio event loop, as shown by the following code.</p>
 <p>See <a href="https://amphp.org">here »</a> for more info on async PHP using <a href="https://amphp.org">amphp</a> + <a href="https://revolt.run">revolt</a>.</p>
 <pre><code class="language-php">&lt;?php declare(strict_types=1);
@@ -2231,7 +3424,328 @@ Got response from https://httpbin.org/delay/5 after ~5 seconds!
 Got response from https://httpbin.org/delay/5 after ~5 seconds!
 Got response from https://httpbin.org/delay/5 after ~5 seconds!
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="allowed-bindings"><a class="header" href="#allowed-bindings">Allowed Bindings</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="bailout-guard"><a class="header" href="#bailout-guard">Bailout Guard</a></h1>
+<p>When PHP triggers a “bailout” (via <code>exit()</code>, <code>die()</code>, or a fatal error), it uses
+<code>longjmp</code> to unwind the stack. This bypasses Rust’s normal drop semantics,
+meaning destructors for stack-allocated values won’t run. This can lead to
+resource leaks for things like file handles, network connections, or locks.</p>
+<h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
+<p>Consider this code:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn process_file(callback: ZendCallable) {
+    let file = File::open("data.txt").unwrap();
+
+    // If callback calls exit(), the file handle leaks!
+    callback.try_call(vec![]);
+
+    // file.drop() never runs
+}</code></pre>
+<p>If the PHP callback triggers <code>exit()</code>, the <code>File</code> handle is never closed because
+<code>longjmp</code> skips Rust’s destructor calls.</p>
+<h2 id="solution-1-using-try_call"><a class="header" href="#solution-1-using-try_call">Solution 1: Using <code>try_call</code></a></h2>
+<p>The simplest solution is to use <code>try_call</code> for PHP callbacks. It catches bailouts
+internally and returns normally, allowing Rust destructors to run:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn process_file(callback: ZendCallable) {
+    let file = File::open("data.txt").unwrap();
+
+    // try_call catches bailout, function returns, file is dropped
+    let result = callback.try_call(vec![]);
+
+    if result.is_err() {
+        // Bailout occurred, but file will still be closed
+        // when this function returns
+    }
+}</code></pre>
+<h2 id="solution-2-using-bailoutguard"><a class="header" href="#solution-2-using-bailoutguard">Solution 2: Using <code>BailoutGuard</code></a></h2>
+<p>For cases where you need guaranteed cleanup even if bailout occurs directly
+(not through <code>try_call</code>), use <code>BailoutGuard</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use std::fs::File;
+
+#[php_function]
+pub fn process_file(callback: ZendCallable) {
+    // Wrap the file handle in BailoutGuard
+    let file = BailoutGuard::new(File::open("data.txt").unwrap());
+
+    // Even if bailout occurs, the file will be closed
+    callback.try_call(vec![]);
+
+    // Use the file via Deref
+    // file.read_to_string(...);
+}</code></pre>
+<h3 id="how-bailoutguard-works"><a class="header" href="#how-bailoutguard-works">How <code>BailoutGuard</code> Works</a></h3>
+<ol>
+<li>
+<p><strong>Heap allocation</strong>: The wrapped value is heap-allocated so it survives
+the <code>longjmp</code> stack unwinding.</p>
+</li>
+<li>
+<p><strong>Cleanup registration</strong>: A cleanup callback is registered in thread-local
+storage when the guard is created.</p>
+</li>
+<li>
+<p><strong>On normal drop</strong>: The cleanup is cancelled and the value is dropped normally.</p>
+</li>
+<li>
+<p><strong>On bailout</strong>: Before re-triggering the bailout, all registered cleanup
+callbacks are executed, dropping the guarded values.</p>
+</li>
+</ol>
+<h3 id="api"><a class="header" href="#api">API</a></h3>
+<pre><code class="language-rust ignore">// Create a guard
+let guard = BailoutGuard::new(value);
+
+// Access the value (implements Deref and DerefMut)
+guard.do_something();
+let inner: &amp;T = &amp;*guard;
+let inner_mut: &amp;mut T = &amp;mut *guard;
+
+// Explicitly get references
+let inner: &amp;T = guard.get();
+let inner_mut: &amp;mut T = guard.get_mut();
+
+// Extract the value, cancelling cleanup
+let value: T = guard.into_inner();</code></pre>
+<h3 id="performance-note"><a class="header" href="#performance-note">Performance Note</a></h3>
+<p><code>BailoutGuard</code> incurs a heap allocation. Only use it for values that absolutely
+must be cleaned up, such as:</p>
+<ul>
+<li>File handles</li>
+<li>Network connections</li>
+<li>Database connections</li>
+<li>Locks and mutexes</li>
+<li>Other system resources</li>
+</ul>
+<p>For simple values without cleanup requirements, the overhead isn’t worth it.</p>
+<h2 id="nested-calls"><a class="header" href="#nested-calls">Nested Calls</a></h2>
+<p><code>BailoutGuard</code> works correctly with nested function calls. Guards at all
+nesting levels are cleaned up when bailout occurs:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn outer_function(callback: ZendCallable) {
+    let _outer_resource = BailoutGuard::new(Resource::new());
+
+    inner_function(&amp;callback);
+}
+
+fn inner_function(callback: &amp;ZendCallable) {
+    let _inner_resource = BailoutGuard::new(Resource::new());
+
+    // If bailout occurs here, both inner and outer resources are cleaned up
+    callback.try_call(vec![]);
+}</code></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<ol>
+<li>
+<p><strong>Prefer <code>try_call</code></strong>: For most cases, using <code>try_call</code> and handling the
+error result is simpler and doesn’t require heap allocation.</p>
+</li>
+<li>
+<p><strong>Use <code>BailoutGuard</code> for critical resources</strong>: Only wrap values that
+absolutely must be cleaned up (connections, locks, etc.).</p>
+</li>
+<li>
+<p><strong>Don’t overuse</strong>: Not every value needs to be wrapped. Simple data
+structures without cleanup requirements don’t need <code>BailoutGuard</code>.</p>
+</li>
+<li>
+<p><strong>Combine approaches</strong>: Use <code>try_call</code> where possible and <code>BailoutGuard</code>
+for critical resources that must be cleaned up regardless.</p>
+</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="observer-api"><a class="header" href="#observer-api">Observer API</a></h1>
+<p>The Observer API allows you to build profilers, tracers, and instrumentation tools
+that observe PHP function calls. This is useful for:</p>
+<ul>
+<li>Performance profiling</li>
+<li>Request tracing (APM)</li>
+<li>Code coverage tools</li>
+<li>Debugging tools</li>
+</ul>
+<h2 id="enabling-the-feature"><a class="header" href="#enabling-the-feature">Enabling the Feature</a></h2>
+<p>The Observer API is behind a feature flag. Add it to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+ext-php-rs = { version = "0.15", features = ["observer"] }
+</code></pre>
+<h2 id="basic-usage-1"><a class="header" href="#basic-usage-1">Basic Usage</a></h2>
+<p>Implement the <code>FcallObserver</code> trait to create an observer:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
+use ext_php_rs::zend::ExecuteData;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// A simple profiler that counts function calls.
+struct CallCounter {
+    count: AtomicU64,
+}
+
+impl CallCounter {
+    fn new() -&gt; Self {
+        Self {
+            count: AtomicU64::new(0),
+        }
+    }
+}
+
+impl FcallObserver for CallCounter {
+    fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
+        // Only observe user-defined functions (not internal PHP functions)
+        !info.is_internal
+    }
+
+    fn begin(&amp;self, _execute_data: &amp;ExecuteData) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {
+        // Called when the function returns
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.fcall_observer(CallCounter::new)
+}</code></pre>
+<h2 id="the-fcallobserver-trait"><a class="header" href="#the-fcallobserver-trait">The <code>FcallObserver</code> Trait</a></h2>
+<p>The trait has three methods:</p>
+<h3 id="should_observe"><a class="header" href="#should_observe"><code>should_observe</code></a></h3>
+<pre><code class="language-rust ignore">fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool;</code></pre>
+<p>Called once per unique function to determine if it should be observed.
+The result is cached by PHP, so this is only called once per function definition.</p>
+<p>Return <code>true</code> to observe the function, <code>false</code> to skip it.</p>
+<h3 id="begin"><a class="header" href="#begin"><code>begin</code></a></h3>
+<pre><code class="language-rust ignore">fn begin(&amp;self, execute_data: &amp;ExecuteData);</code></pre>
+<p>Called when an observed function begins execution. Use this to:</p>
+<ul>
+<li>Record start timestamps for profiling</li>
+<li>Push to a call stack for tracing</li>
+<li>Log function entry</li>
+</ul>
+<h3 id="end"><a class="header" href="#end"><code>end</code></a></h3>
+<pre><code class="language-rust ignore">fn end(&amp;self, execute_data: &amp;ExecuteData, retval: Option&lt;&amp;Zval&gt;);</code></pre>
+<p>Called when an observed function ends execution. This is called even if
+the function throws an exception. Use this to:</p>
+<ul>
+<li>Calculate execution duration</li>
+<li>Pop from a call stack</li>
+<li>Record return values</li>
+</ul>
+<h2 id="fcallinfo---function-metadata"><a class="header" href="#fcallinfo---function-metadata"><code>FcallInfo</code> - Function Metadata</a></h2>
+<p>The <code>FcallInfo</code> struct provides metadata about the function being called:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>function_name</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Function name (None for anonymous/main)</td></tr>
+<tr><td><code>class_name</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Class name for methods</td></tr>
+<tr><td><code>filename</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Source file (None for internal functions)</td></tr>
+<tr><td><code>lineno</code></td><td><code>u32</code></td><td>Line number (0 for internal functions)</td></tr>
+<tr><td><code>is_internal</code></td><td><code>bool</code></td><td>True for built-in PHP functions</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="thread-safety-1"><a class="header" href="#thread-safety-1">Thread Safety</a></h2>
+<p>The observer is created once during MINIT and stored as a global singleton
+shared across all requests. The observer must implement <code>Send + Sync</code> because:</p>
+<ul>
+<li><strong>NTS (Non-Thread-Safe)</strong>: A single global observer instance handles all requests</li>
+<li><strong>ZTS (Thread-Safe)</strong>: The same observer instance may be called from different threads</li>
+</ul>
+<p>Use thread-safe primitives like <code>AtomicU64</code>, <code>Mutex</code>, or <code>RwLock</code> for
+any mutable state in your observer.</p>
+<h2 id="example-simple-profiler"><a class="header" href="#example-simple-profiler">Example: Simple Profiler</a></h2>
+<p>Here’s a more complete example that tracks function timing:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
+use ext_php_rs::zend::ExecuteData;
+use std::sync::Mutex;
+use std::time::Instant;
+use std::collections::HashMap;
+
+struct TimingProfiler {
+    // Track start times per call (thread-safe)
+    call_stack: Mutex&lt;Vec&lt;(String, Instant)&gt;&gt;,
+    // Accumulated timings
+    timings: Mutex&lt;HashMap&lt;String, u128&gt;&gt;,
+}
+
+impl TimingProfiler {
+    fn new() -&gt; Self {
+        Self {
+            call_stack: Mutex::new(Vec::new()),
+            timings: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl FcallObserver for TimingProfiler {
+    fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
+        // Only observe user functions
+        !info.is_internal
+    }
+
+    fn begin(&amp;self, execute_data: &amp;ExecuteData) {
+        let func_name = execute_data
+            .get_function_name()
+            .unwrap_or_else(|| "unknown".to_string());
+
+        if let Ok(mut stack) = self.call_stack.lock() {
+            stack.push((func_name, Instant::now()));
+        }
+    }
+
+    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {
+        if let Ok(mut stack) = self.call_stack.lock() {
+            if let Some((func_name, start)) = stack.pop() {
+                let duration = start.elapsed().as_micros();
+
+                if let Ok(mut timings) = self.timings.lock() {
+                    *timings.entry(func_name).or_insert(0) += duration;
+                }
+            }
+        }
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.fcall_observer(TimingProfiler::new)
+}</code></pre>
+<h2 id="best-practices-1"><a class="header" href="#best-practices-1">Best Practices</a></h2>
+<ol>
+<li>
+<p><strong>Keep observers lightweight</strong>: The <code>begin</code> and <code>end</code> methods are called
+for every function invocation. Avoid heavy computations or I/O.</p>
+</li>
+<li>
+<p><strong>Use <code>should_observe</code> wisely</strong>: Filter out functions you don’t need
+to observe. This is cached by PHP, so complex logic here is acceptable.</p>
+</li>
+<li>
+<p><strong>Handle errors gracefully</strong>: Don’t panic in observer methods. Use
+<code>Result</code> types and log errors instead.</p>
+</li>
+<li>
+<p><strong>Consider memory usage</strong>: If storing call data, implement limits or
+periodic flushing to avoid unbounded memory growth.</p>
+</li>
+<li>
+<p><strong>Test with real workloads</strong>: Profile your observer itself to ensure
+it doesn’t add significant overhead.</p>
+</li>
+</ol>
+<h2 id="limitations-1"><a class="header" href="#limitations-1">Limitations</a></h2>
+<ul>
+<li>Only function calls can be observed (not opcodes or other events)</li>
+<li>The observer is registered globally for the entire PHP process</li>
+<li>Only one observer can be registered per extension</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="allowed-bindings"><a class="header" href="#allowed-bindings">Allowed Bindings</a></h1>
 <p>The extension limits the bindings that are generated by <code>bindgen</code> to a subset of the original bindings.
 Those bindings are defined in the <code>allowed_bindings.rs</code> file.</p>
 <p>Should you need to add more bindings, you can do so by defining them as a comma-separated list in the <code>EXT_PHP_RS_ALLOWED_BINDINGS</code> environment variable.</p>
@@ -2245,9 +3759,11 @@ Pay attention to the PHP version
 <p>Be aware, that bindings that do not exist in the PHP version you are targeting will not be available.</p>
 <p>Some bindings may also change between PHP versions, so make sure to test your extension with all PHP versions you are targeting.</p>
 </div>
+
 <h2 id="contributing"><a class="header" href="#contributing">Contributing</a></h2>
 <p>If you think that a binding should be added to the allowed bindings, please open an issue or a pull request on the <a href="https://github.com/extphprs/ext-php-rs">GitHub repository</a> so that everyone can benefit from it.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="migrating-to-v014"><a class="header" href="#migrating-to-v014">Migrating to <code>v0.14</code></a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="migrating-to-v014"><a class="header" href="#migrating-to-v014">Migrating to <code>v0.14</code></a></h1>
 <h2 id="new-macro-transition"><a class="header" href="#new-macro-transition">New Macro Transition</a></h2>
 <p>The old macro system used a global state to be able to automatically register
 functions and classes when the <code>#[php_module]</code> attribute is used. However,
@@ -2356,7 +3872,7 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
 <p>Extends and implements are now taking a second parameter which is the
 <code>stub</code> name. This is the name of the class or interface in PHP.</p>
 <p>This value is only used for stub generation and is not used for the class name in Rust.</p>
-<h3 id="constants-1"><a class="header" href="#constants-1">Constants</a></h3>
+<h3 id="constants-2"><a class="header" href="#constants-2">Constants</a></h3>
 <p>Mostly unchanged in terms of constant definition, however you now need to
 register the constant with the module builder:</p>
 <pre><code class="language-rs">use ext_php_rs::prelude::*;
@@ -2465,6 +3981,11 @@ unified to use <code>name</code> to set the name of an item to a string literal.
 
         </div>
 
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
 
 
 
@@ -2473,13 +3994,13 @@ unified to use <code>name</code> to set the name of an item to a string literal.
         </script>
 
 
-        <script src="elasticlunr.min.js"></script>
-        <script src="mark.min.js"></script>
-        <script src="searcher.js"></script>
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
-        <script src="clipboard.min.js"></script>
-        <script src="highlight.js"></script>
-        <script src="book.js"></script>
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
 

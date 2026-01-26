@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>INI Settings - ext-php-rs</title>
+        <title>ZendHashTable - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-fc22e4c1.js"></script>
+        <script src="../toc-fc22e4c1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">ext-php-rs</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -174,68 +174,277 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
-<p>Your PHP Extension may want to provide it’s own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
-<h2 id="registering-ini-settings"><a class="header" href="#registering-ini-settings">Registering INI Settings</a></h2>
-<p>All PHP INI definitions must be registered with PHP to get / set their values via the <code>php.ini</code> file or <code>ini_get() / ini_set()</code>.</p>
+                        <h1 id="zendhashtable"><a class="header" href="#zendhashtable"><code>ZendHashTable</code></a></h1>
+<p><code>ZendHashTable</code> is the internal representation of PHP arrays. While you can use
+<code>Vec</code> and <code>HashMap</code> for most use cases (which are converted to/from
+<code>ZendHashTable</code> automatically), working directly with <code>ZendHashTable</code> gives you
+more control and avoids copying data when you need to manipulate PHP arrays
+in-place.</p>
+<h2 id="when-to-use-zendhashtable-directly"><a class="header" href="#when-to-use-zendhashtable-directly">When to use <code>ZendHashTable</code> directly</a></h2>
+<ul>
+<li>When you need to modify a PHP array in place without copying</li>
+<li>When working with arrays passed by reference</li>
+<li>When you need fine-grained control over array operations</li>
+<li>When implementing custom iterators or data structures</li>
+</ul>
+<h2 id="basic-operations"><a class="header" href="#basic-operations">Basic Operations</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
-</span><span class="boring">use ext_php_rs::prelude::*;
-</span><span class="boring">use ext_php_rs::zend::IniEntryDef;
-</span><span class="boring">use ext_php_rs::flags::IniEntryPermission;
-</span>
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    let ini_entries: Vec&lt;IniEntryDef&gt; = vec![
-        IniEntryDef::new(
-            "my_extension.display_emoji".to_owned(),
-            "yes".to_owned(),
-            &amp;IniEntryPermission::All,
-        ),
-    ];
-    IniEntryDef::register(ini_entries, mod_num);
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
 
-    0
+#[php_function]
+pub fn create_array() -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut ht = ZendHashTable::new();
+
+    // Push values (auto-incrementing numeric keys)
+    ht.push("first").unwrap();
+    ht.push("second").unwrap();
+
+    // Insert with string keys
+    ht.insert("name", "John").unwrap();
+    ht.insert("age", 30i64).unwrap();
+
+    // Insert at specific numeric index
+    ht.insert_at_index(100, "at index 100").unwrap();
+
+    ht
 }
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
+#[php_function]
+pub fn read_array(arr: &amp;ZendHashTable) {
+    // Get by string key
+    if let Some(name) = arr.get("name") {
+        println!("Name: {:?}", name.str());
+    }
+
+    // Get by numeric index
+    if let Some(first) = arr.get_index(0) {
+        println!("First: {:?}", first.str());
+    }
+
+    // Check length
+    println!("Length: {}", arr.len());
+    println!("Is empty: {}", arr.is_empty());
+
+    // Iterate over key-value pairs
+    for (key, value) in arr.iter() {
+        println!("{}: {:?}", key, value);
+    }
 }
 <span class="boring">fn main() {}</span></code></pre>
-<h2 id="getting-ini-settings"><a class="header" href="#getting-ini-settings">Getting INI Settings</a></h2>
-<p>The INI values are stored as part of the <code>GlobalExecutor</code>, and can be accessed via the <code>ini_values()</code> function. To retrieve the value for a registered INI setting</p>
+<h2 id="entry-api"><a class="header" href="#entry-api">Entry API</a></h2>
+<p>The Entry API provides an ergonomic way to handle hash table operations where
+you need to conditionally insert or update values based on whether a key already
+exists. This is similar to Rust’s <code>std::collections::hash_map::Entry</code> API.</p>
+<h3 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
-</span>use ext_php_rs::{
-    prelude::*,
-    zend::ExecutorGlobals,
-};
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
 
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    // Get all INI values
-    let ini_values = ExecutorGlobals::get().ini_values(); // HashMap&lt;String, Option&lt;String&gt;&gt;
-    let my_ini_value = ini_values.get("my_extension.display_emoji"); // Option&lt;Option&lt;String&gt;&gt;
+#[php_function]
+pub fn entry_example() -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut ht = ZendHashTable::new();
 
-    0
-}
+    // Insert a default value if the key doesn't exist
+    ht.entry("counter").or_insert(0i64).unwrap();
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
+    // Modify the value if it exists, using and_modify
+    ht.entry("counter")
+        .and_modify(|v| {
+            if let Some(n) = v.long() {
+                v.set_long(n + 1);
+            }
+        })
+        .or_insert(0i64)
+        .unwrap();
+
+    // Use or_insert_with for lazy initialization
+    ht.entry("computed")
+        .or_insert_with(|| "computed value")
+        .unwrap();
+
+    // Works with numeric keys too
+    ht.entry(42i64).or_insert("value at index 42").unwrap();
+
+    ht
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h3 id="entry-variants"><a class="header" href="#entry-variants">Entry Variants</a></h3>
+<p>The <code>entry()</code> method returns an <code>Entry</code> enum with two variants:</p>
+<ul>
+<li><code>Entry::Occupied</code> - The key exists in the hash table</li>
+<li><code>Entry::Vacant</code> - The key does not exist</li>
+</ul>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::{ZendHashTable, Entry, Zval};
+use ext_php_rs::boxed::ZBox;
+
+#[php_function]
+pub fn match_entry() -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut ht = ZendHashTable::new();
+    ht.insert("existing", "value").unwrap();
+
+    // Pattern match on the entry
+    match ht.entry("existing") {
+        Entry::Occupied(entry) =&gt; {
+            println!("Key {:?} exists with value {:?}",
+                     entry.key(),
+                     entry.get().and_then(Zval::str),
+             );
+        }
+        Entry::Vacant(entry) =&gt; {
+            println!("Key {:?} is vacant", entry.key());
+            entry.insert("new value").unwrap();
+        }
+    }
+
+    ht
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="common-patterns"><a class="header" href="#common-patterns">Common Patterns</a></h3>
+<h4 id="counting-occurrences"><a class="header" href="#counting-occurrences">Counting occurrences</a></h4>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::boxed::ZBox;
+
+#[php_function]
+pub fn count_words(words: Vec&lt;String&gt;) -&gt; ZBox&lt;ZendHashTable&gt; {
+    let mut counts = ZendHashTable::new();
+
+    for word in words {
+        counts.entry(word.as_str())
+            .and_modify(|v| {
+                if let Some(n) = v.long() {
+                    v.set_long(n + 1);
+                }
+            })
+            .or_insert(1i64)
+            .unwrap();
+    }
+
+    counts
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h4 id="caching-computed-values"><a class="header" href="#caching-computed-values">Caching computed values</a></h4>
+<p>This example demonstrates using <code>or_insert_with_key</code> for lazy computation:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::types::ZendHashTable;
+
+fn expensive_computation(key: &amp;str) -&gt; String {
+    format!("computed_{}", key)
+}
+
+fn get_or_compute(cache: &amp;mut ZendHashTable, key: &amp;str) -&gt; String {
+    let value = cache.entry(key)
+        .or_insert_with_key(|k| expensive_computation(&amp;k.to_string()))
+        .unwrap();
+
+    value.str().unwrap_or_default().to_string()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h4 id="updating-existing-values"><a class="header" href="#updating-existing-values">Updating existing values</a></h4>
+<p>This example shows how to conditionally update a value only if the key exists:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::types::{ZendHashTable, Entry};
+
+fn update_if_exists(ht: &amp;mut ZendHashTable, key: &amp;str, new_value: &amp;str) -&gt; bool {
+    match ht.entry(key) {
+        Entry::Occupied(mut entry) =&gt; {
+            entry.insert(new_value).unwrap();
+            true
+        }
+        Entry::Vacant(_) =&gt; false,
+    }
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="entry-methods-reference"><a class="header" href="#entry-methods-reference">Entry Methods Reference</a></h3>
+<h4 id="entry-methods"><a class="header" href="#entry-methods"><code>Entry</code> methods</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>or_insert(default)</code></td><td>Insert <code>default</code> if vacant, return <code>&amp;mut Zval</code></td></tr>
+<tr><td><code>or_insert_with(f)</code></td><td>Insert result of <code>f()</code> if vacant</td></tr>
+<tr><td><code>or_insert_with_key(f)</code></td><td>Insert result of <code>f(&amp;key)</code> if vacant</td></tr>
+<tr><td><code>or_default()</code></td><td>Insert default <code>Zval</code> (null) if vacant</td></tr>
+<tr><td><code>key()</code></td><td>Get reference to the key</td></tr>
+<tr><td><code>and_modify(f)</code></td><td>Modify value in place if occupied</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="occupiedentry-methods"><a class="header" href="#occupiedentry-methods"><code>OccupiedEntry</code> methods</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>key()</code></td><td>Get reference to key</td></tr>
+<tr><td><code>get()</code></td><td>Get reference to value</td></tr>
+<tr><td><code>get_mut()</code></td><td>Get mutable reference to value</td></tr>
+<tr><td><code>into_mut()</code></td><td>Convert to mutable reference with entry’s lifetime</td></tr>
+<tr><td><code>insert(value)</code></td><td>Replace value, returning old value</td></tr>
+<tr><td><code>remove()</code></td><td>Remove and return value</td></tr>
+<tr><td><code>remove_entry()</code></td><td>Remove and return key-value pair</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="vacantentry-methods"><a class="header" href="#vacantentry-methods"><code>VacantEntry</code> methods</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>key()</code></td><td>Get reference to key</td></tr>
+<tr><td><code>into_key()</code></td><td>Take ownership of key</td></tr>
+<tr><td><code>insert(value)</code></td><td>Insert value and return <code>&amp;mut Zval</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="php-example"><a class="header" href="#php-example">PHP Example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Using the create_array function
+$arr = create_array();
+var_dump($arr);
+// array(5) {
+//   [0]=&gt; string(5) "first"
+//   [1]=&gt; string(6) "second"
+//   ["name"]=&gt; string(4) "John"
+//   ["age"]=&gt; int(30)
+//   [100]=&gt; string(12) "at index 100"
+// }
+
+// Count words
+$counts = count_words(['apple', 'banana', 'apple', 'cherry', 'banana', 'apple']);
+var_dump($counts);
+// array(3) {
+//   ["apple"]=&gt; int(3)
+//   ["banana"]=&gt; int(2)
+//   ["cherry"]=&gt; int(1)
+// }
+</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="output.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../types/hashmap.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="superglobals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../types/binary.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -245,11 +454,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="output.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../types/hashmap.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="superglobals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../types/binary.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -269,13 +478,13 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
 

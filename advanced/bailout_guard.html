@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>INI Settings - ext-php-rs</title>
+        <title>Bailout Guard - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-fc22e4c1.js"></script>
+        <script src="../toc-fc22e4c1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">ext-php-rs</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -174,68 +174,145 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
-<p>Your PHP Extension may want to provide it’s own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
-<h2 id="registering-ini-settings"><a class="header" href="#registering-ini-settings">Registering INI Settings</a></h2>
-<p>All PHP INI definitions must be registered with PHP to get / set their values via the <code>php.ini</code> file or <code>ini_get() / ini_set()</code>.</p>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
-</span><span class="boring">extern crate ext_php_rs;
-</span><span class="boring">use ext_php_rs::prelude::*;
-</span><span class="boring">use ext_php_rs::zend::IniEntryDef;
-</span><span class="boring">use ext_php_rs::flags::IniEntryPermission;
-</span>
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    let ini_entries: Vec&lt;IniEntryDef&gt; = vec![
-        IniEntryDef::new(
-            "my_extension.display_emoji".to_owned(),
-            "yes".to_owned(),
-            &amp;IniEntryPermission::All,
-        ),
-    ];
-    IniEntryDef::register(ini_entries, mod_num);
+                        <h1 id="bailout-guard"><a class="header" href="#bailout-guard">Bailout Guard</a></h1>
+<p>When PHP triggers a “bailout” (via <code>exit()</code>, <code>die()</code>, or a fatal error), it uses
+<code>longjmp</code> to unwind the stack. This bypasses Rust’s normal drop semantics,
+meaning destructors for stack-allocated values won’t run. This can lead to
+resource leaks for things like file handles, network connections, or locks.</p>
+<h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
+<p>Consider this code:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn process_file(callback: ZendCallable) {
+    let file = File::open("data.txt").unwrap();
 
-    0
+    // If callback calls exit(), the file handle leaks!
+    callback.try_call(vec![]);
+
+    // file.drop() never runs
+}</code></pre>
+<p>If the PHP callback triggers <code>exit()</code>, the <code>File</code> handle is never closed because
+<code>longjmp</code> skips Rust’s destructor calls.</p>
+<h2 id="solution-1-using-try_call"><a class="header" href="#solution-1-using-try_call">Solution 1: Using <code>try_call</code></a></h2>
+<p>The simplest solution is to use <code>try_call</code> for PHP callbacks. It catches bailouts
+internally and returns normally, allowing Rust destructors to run:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn process_file(callback: ZendCallable) {
+    let file = File::open("data.txt").unwrap();
+
+    // try_call catches bailout, function returns, file is dropped
+    let result = callback.try_call(vec![]);
+
+    if result.is_err() {
+        // Bailout occurred, but file will still be closed
+        // when this function returns
+    }
+}</code></pre>
+<h2 id="solution-2-using-bailoutguard"><a class="header" href="#solution-2-using-bailoutguard">Solution 2: Using <code>BailoutGuard</code></a></h2>
+<p>For cases where you need guaranteed cleanup even if bailout occurs directly
+(not through <code>try_call</code>), use <code>BailoutGuard</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use std::fs::File;
+
+#[php_function]
+pub fn process_file(callback: ZendCallable) {
+    // Wrap the file handle in BailoutGuard
+    let file = BailoutGuard::new(File::open("data.txt").unwrap());
+
+    // Even if bailout occurs, the file will be closed
+    callback.try_call(vec![]);
+
+    // Use the file via Deref
+    // file.read_to_string(...);
+}</code></pre>
+<h3 id="how-bailoutguard-works"><a class="header" href="#how-bailoutguard-works">How <code>BailoutGuard</code> Works</a></h3>
+<ol>
+<li>
+<p><strong>Heap allocation</strong>: The wrapped value is heap-allocated so it survives
+the <code>longjmp</code> stack unwinding.</p>
+</li>
+<li>
+<p><strong>Cleanup registration</strong>: A cleanup callback is registered in thread-local
+storage when the guard is created.</p>
+</li>
+<li>
+<p><strong>On normal drop</strong>: The cleanup is cancelled and the value is dropped normally.</p>
+</li>
+<li>
+<p><strong>On bailout</strong>: Before re-triggering the bailout, all registered cleanup
+callbacks are executed, dropping the guarded values.</p>
+</li>
+</ol>
+<h3 id="api"><a class="header" href="#api">API</a></h3>
+<pre><code class="language-rust ignore">// Create a guard
+let guard = BailoutGuard::new(value);
+
+// Access the value (implements Deref and DerefMut)
+guard.do_something();
+let inner: &amp;T = &amp;*guard;
+let inner_mut: &amp;mut T = &amp;mut *guard;
+
+// Explicitly get references
+let inner: &amp;T = guard.get();
+let inner_mut: &amp;mut T = guard.get_mut();
+
+// Extract the value, cancelling cleanup
+let value: T = guard.into_inner();</code></pre>
+<h3 id="performance-note"><a class="header" href="#performance-note">Performance Note</a></h3>
+<p><code>BailoutGuard</code> incurs a heap allocation. Only use it for values that absolutely
+must be cleaned up, such as:</p>
+<ul>
+<li>File handles</li>
+<li>Network connections</li>
+<li>Database connections</li>
+<li>Locks and mutexes</li>
+<li>Other system resources</li>
+</ul>
+<p>For simple values without cleanup requirements, the overhead isn’t worth it.</p>
+<h2 id="nested-calls"><a class="header" href="#nested-calls">Nested Calls</a></h2>
+<p><code>BailoutGuard</code> works correctly with nested function calls. Guards at all
+nesting levels are cleaned up when bailout occurs:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn outer_function(callback: ZendCallable) {
+    let _outer_resource = BailoutGuard::new(Resource::new());
+
+    inner_function(&amp;callback);
 }
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
-}
-<span class="boring">fn main() {}</span></code></pre>
-<h2 id="getting-ini-settings"><a class="header" href="#getting-ini-settings">Getting INI Settings</a></h2>
-<p>The INI values are stored as part of the <code>GlobalExecutor</code>, and can be accessed via the <code>ini_values()</code> function. To retrieve the value for a registered INI setting</p>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
-</span><span class="boring">extern crate ext_php_rs;
-</span>use ext_php_rs::{
-    prelude::*,
-    zend::ExecutorGlobals,
-};
+fn inner_function(callback: &amp;ZendCallable) {
+    let _inner_resource = BailoutGuard::new(Resource::new());
 
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    // Get all INI values
-    let ini_values = ExecutorGlobals::get().ini_values(); // HashMap&lt;String, Option&lt;String&gt;&gt;
-    let my_ini_value = ini_values.get("my_extension.display_emoji"); // Option&lt;Option&lt;String&gt;&gt;
-
-    0
-}
-
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
-}
-<span class="boring">fn main() {}</span></code></pre>
+    // If bailout occurs here, both inner and outer resources are cleaned up
+    callback.try_call(vec![]);
+}</code></pre>
+<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
+<ol>
+<li>
+<p><strong>Prefer <code>try_call</code></strong>: For most cases, using <code>try_call</code> and handling the
+error result is simpler and doesn’t require heap allocation.</p>
+</li>
+<li>
+<p><strong>Use <code>BailoutGuard</code> for critical resources</strong>: Only wrap values that
+absolutely must be cleaned up (connections, locks, etc.).</p>
+</li>
+<li>
+<p><strong>Don’t overuse</strong>: Not every value needs to be wrapped. Simple data
+structures without cleanup requirements don’t need <code>BailoutGuard</code>.</p>
+</li>
+<li>
+<p><strong>Combine approaches</strong>: Use <code>try_call</code> where possible and <code>BailoutGuard</code>
+for critical resources that must be cleaned up regardless.</p>
+</li>
+</ol>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="output.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/async_impl.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="superglobals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/observer.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -245,11 +322,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="output.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/async_impl.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="superglobals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/observer.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -269,13 +346,13 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
 

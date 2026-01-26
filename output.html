@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>INI Settings - ext-php-rs</title>
+        <title>Output - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -174,68 +174,136 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
-<p>Your PHP Extension may want to provide it’s own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
-<h2 id="registering-ini-settings"><a class="header" href="#registering-ini-settings">Registering INI Settings</a></h2>
-<p>All PHP INI definitions must be registered with PHP to get / set their values via the <code>php.ini</code> file or <code>ini_get() / ini_set()</code>.</p>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
-</span><span class="boring">extern crate ext_php_rs;
-</span><span class="boring">use ext_php_rs::prelude::*;
-</span><span class="boring">use ext_php_rs::zend::IniEntryDef;
-</span><span class="boring">use ext_php_rs::flags::IniEntryPermission;
-</span>
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    let ini_entries: Vec&lt;IniEntryDef&gt; = vec![
-        IniEntryDef::new(
-            "my_extension.display_emoji".to_owned(),
-            "yes".to_owned(),
-            &amp;IniEntryPermission::All,
-        ),
-    ];
-    IniEntryDef::register(ini_entries, mod_num);
+                        <h1 id="output"><a class="header" href="#output">Output</a></h1>
+<p><code>ext-php-rs</code> provides several macros and functions for writing output to PHP’s
+stdout and stderr streams. These are essential when your extension needs to
+produce output that integrates with PHP’s output buffering system.</p>
+<h2 id="text-output"><a class="header" href="#text-output">Text Output</a></h2>
+<p>For regular text output (strings without NUL bytes), use the <code>php_print!</code> and
+<code>php_println!</code> macros. These work similarly to Rust’s <code>print!</code> and <code>println!</code>
+macros.</p>
+<h3 id="php_print"><a class="header" href="#php_print"><code>php_print!</code></a></h3>
+<p>Prints to PHP’s standard output without a trailing newline.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 
-    0
-}
+#[php_function]
+pub fn greet(name: &amp;str) {
+    php_print!("Hello, {}!", name);
+}</code></pre>
+<h3 id="php_println"><a class="header" href="#php_println"><code>php_println!</code></a></h3>
+<p>Prints to PHP’s standard output with a trailing newline.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
-}
-<span class="boring">fn main() {}</span></code></pre>
-<h2 id="getting-ini-settings"><a class="header" href="#getting-ini-settings">Getting INI Settings</a></h2>
-<p>The INI values are stored as part of the <code>GlobalExecutor</code>, and can be accessed via the <code>ini_values()</code> function. To retrieve the value for a registered INI setting</p>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
-</span><span class="boring">extern crate ext_php_rs;
-</span>use ext_php_rs::{
-    prelude::*,
-    zend::ExecutorGlobals,
-};
+#[php_function]
+pub fn greet(name: &amp;str) {
+    php_println!("Hello, {}!", name);
+}</code></pre>
+<blockquote>
+<p><strong>Note:</strong> <code>php_print!</code> and <code>php_println!</code> will panic if the string contains
+NUL bytes (<code>\0</code>). For binary-safe output, use <code>php_output!</code> or <code>php_write!</code>.</p>
+</blockquote>
+<h2 id="binary-safe-output"><a class="header" href="#binary-safe-output">Binary-Safe Output</a></h2>
+<p>When working with binary data that may contain NUL bytes, use the binary-safe
+output functions. These are essential for outputting raw bytes, binary file
+contents, or any data that might contain <code>\0</code> characters.</p>
+<h3 id="php_output"><a class="header" href="#php_output"><code>php_output!</code></a></h3>
+<p>Writes binary data to PHP’s output stream. This macro is <strong>both binary-safe AND
+respects PHP’s output buffering</strong> (<code>ob_start()</code>). This is usually what you want
+for binary output.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 
-pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    // Get all INI values
-    let ini_values = ExecutorGlobals::get().ini_values(); // HashMap&lt;String, Option&lt;String&gt;&gt;
-    let my_ini_value = ini_values.get("my_extension.display_emoji"); // Option&lt;Option&lt;String&gt;&gt;
+#[php_function]
+pub fn output_binary() -&gt; i64 {
+    // Write binary data with NUL bytes - will be captured by ob_start()
+    let bytes_written = php_output!(b"Hello\x00World");
+    bytes_written as i64
+}</code></pre>
+<h3 id="php_write"><a class="header" href="#php_write"><code>php_write!</code></a></h3>
+<p>Writes binary data directly to the SAPI output, <strong>bypassing PHP’s output
+buffering</strong>. This macro is binary-safe but output will NOT be captured by
+<code>ob_start()</code>. The “ub” in <code>ub_write</code> stands for “unbuffered”.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 
-    0
-}
+#[php_function]
+pub fn output_binary() -&gt; i64 {
+    // Write a byte literal
+    php_write!(b"Hello World").expect("write failed");
 
-#[php_module]
-#[php(startup = "startup")]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
-}
-<span class="boring">fn main() {}</span></code></pre>
+    // Write binary data with NUL bytes (would panic with php_print!)
+    let bytes_written = php_write!(b"Hello\x00World").expect("write failed");
+
+    // Write a byte slice
+    let data: &amp;[u8] = &amp;[0x48, 0x65, 0x6c, 0x6c, 0x6f]; // "Hello"
+    php_write!(data).expect("write failed");
+
+    bytes_written as i64
+}</code></pre>
+<p>The macro returns a <code>Result&lt;usize&gt;</code> with the number of bytes written, which can
+be useful for verifying that all data was output successfully. The error case
+occurs when the SAPI’s <code>ub_write</code> function is not available.</p>
+<h2 id="function-api"><a class="header" href="#function-api">Function API</a></h2>
+<p>In addition to macros, you can use the underlying functions directly:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Binary-Safe</th><th>Output Buffering</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>zend::printf()</code></td><td>No</td><td>Yes</td><td>Printf-style output (used by <code>php_print!</code>)</td></tr>
+<tr><td><code>zend::output_write()</code></td><td>Yes</td><td>Yes</td><td>Binary-safe buffered output</td></tr>
+<tr><td><code>zend::write()</code></td><td>Yes</td><td>No</td><td>Binary-safe unbuffered output</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="example-using-functions-directly"><a class="header" href="#example-using-functions-directly">Example using functions directly</a></h3>
+<pre><code class="language-rust ignore">use ext_php_rs::zend::output_write;
+
+fn output_data(data: &amp;[u8]) {
+    let bytes_written = output_write(data);
+    if bytes_written != data.len() {
+        eprintln!("Warning: incomplete write");
+    }
+}</code></pre>
+<h2 id="comparison"><a class="header" href="#comparison">Comparison</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Macro</th><th>Binary-Safe</th><th>Output Buffering</th><th>Supports Formatting</th></tr>
+</thead>
+<tbody>
+<tr><td><code>php_print!</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>php_println!</code></td><td>No</td><td>Yes</td><td>Yes</td></tr>
+<tr><td><code>php_output!</code></td><td>Yes</td><td>Yes</td><td>No</td></tr>
+<tr><td><code>php_write!</code></td><td>Yes</td><td>No</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="when-to-use-each"><a class="header" href="#when-to-use-each">When to Use Each</a></h2>
+<ul>
+<li>
+<p><strong><code>php_print!</code> / <code>php_println!</code></strong>: Use for text output with format strings,
+similar to Rust’s <code>print!</code> and <code>println!</code>. Best for human-readable messages.</p>
+</li>
+<li>
+<p><strong><code>php_output!</code></strong>: Use for binary data that needs to work with PHP’s output
+buffering. This is the recommended choice for most binary output needs.</p>
+</li>
+<li>
+<p><strong><code>php_write!</code></strong>: Use when you need direct, unbuffered output that bypasses
+PHP’s output layer. Useful for low-level SAPI interaction or when output
+buffering must be avoided.</p>
+</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="output.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="exceptions.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="superglobals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="ini-settings.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -245,11 +313,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="output.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="exceptions.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="superglobals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="ini-settings.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
