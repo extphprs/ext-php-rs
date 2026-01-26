@@ -53,6 +53,20 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         .rename(ident_to_php_name(ident), RenameRule::Pascal);
     validate_php_name(&name, PhpNameContext::Class, ident.span())?;
     let docs = get_docs(&attr.attrs)?;
+
+    // Check if the struct derives Default - this is needed for exception classes
+    // that extend \Exception to work correctly with zend_throw_exception_ex
+    let has_derive_default = input.attrs.iter().any(|attr| {
+        if attr.path().is_ident("derive")
+            && let Ok(nested) = attr.parse_args_with(
+                syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
+            )
+        {
+            return nested.iter().any(|path| path.is_ident("Default"));
+        }
+        false
+    });
+
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let fields = match &mut input.fields {
@@ -70,6 +84,7 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         attr.flags.as_ref(),
         attr.readonly.is_present(),
         &docs,
+        has_derive_default,
     );
 
     Ok(quote! {
@@ -148,6 +163,7 @@ fn generate_registered_class_impl(
     flags: Option<&syn::Expr>,
     readonly: bool,
     docs: &[String],
+    has_derive_default: bool,
 ) -> TokenStream {
     let modifier = modifier.option_tokens();
 
@@ -266,6 +282,8 @@ fn generate_registered_class_impl(
         }
     });
 
+    let default_init_impl = generate_default_init_impl(ident, has_derive_default);
+
     quote! {
         impl ::ext_php_rs::class::RegisteredClass for #ident {
             const CLASS_NAME: &'static str = #class_name;
@@ -324,6 +342,24 @@ fn generate_registered_class_impl(
                 use ::ext_php_rs::internal::class::PhpClassImpl;
                 ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default().get_constants()
             }
+
+            #default_init_impl
         }
+    }
+}
+
+/// Generates the `default_init` method implementation for the trait.
+fn generate_default_init_impl(ident: &syn::Ident, has_derive_default: bool) -> TokenStream {
+    if has_derive_default {
+        quote! {
+            #[inline]
+            #[must_use]
+            fn default_init() -> ::std::option::Option<Self> {
+                ::std::option::Option::Some(<#ident as ::std::default::Default>::default())
+            }
+        }
+    } else {
+        // Use the default implementation from the trait (returns None)
+        quote! {}
     }
 }

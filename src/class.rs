@@ -87,6 +87,21 @@ pub trait RegisteredClass: Sized + 'static {
     )] {
         &[]
     }
+
+    /// Returns a default instance of the class for immediate initialization.
+    ///
+    /// This is used when PHP creates an object without calling the constructor,
+    /// such as when throwing exceptions via `zend_throw_exception_ex`. For types
+    /// that derive `Default`, this will return `Some(Self::default())`, allowing
+    /// the object to be properly initialized even without a constructor call.
+    ///
+    /// # Returns
+    ///
+    /// `Some(Self)` if the type can be default-initialized, `None` otherwise.
+    #[must_use]
+    fn default_init() -> Option<Self> {
+        None
+    }
 }
 
 /// Stores metadata about a classes Rust constructor, including the function

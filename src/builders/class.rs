@@ -211,6 +211,17 @@ impl ClassBuilder {
     /// class name specified when creating the builder.
     pub fn object_override<T: RegisteredClass>(mut self) -> Self {
         extern "C" fn create_object<T: RegisteredClass>(ce: *mut ClassEntry) -> *mut ZendObject {
+            // Try to initialize with a default instance if available.
+            // This is critical for exception classes that extend \Exception, because
+            // PHP's zend_throw_exception_ex creates objects via create_object without
+            // calling the constructor, then immediately accesses properties.
+            // Without default initialization, accessing properties on uninitialized
+            // objects would panic.
+            if let Some(instance) = T::default_init() {
+                let obj = ZendClassObject::<T>::new(instance);
+                return obj.into_raw().get_mut_zend_obj();
+            }
+
             // SAFETY: After calling this function, PHP will always call the constructor
             // defined below, which assumes that the object is uninitialized.
             let obj = unsafe { ZendClassObject::<T>::new_uninit(ce.as_ref()) };
@@ -242,7 +253,9 @@ impl ClassBuilder {
                         ConstructorResult::ArgError => return,
                     };
 
-                    let Some(this_obj) = ex.get_object::<T>() else {
+                    // Use get_object_uninit because the Rust backing is not yet initialized.
+                    // We need access to the ZendClassObject to call initialize() on it.
+                    let Some(this_obj) = ex.get_object_uninit::<T>() else {
                         PhpException::default("Failed to retrieve reference to `this` object.".into())
                             .throw()
                             .expect("Failed to throw exception while constructing class");
