@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.6...ext-php-rs-derive-v0.11.7) - 2026-01-26
+
+### Added
+- *(class)* Readonly and final classes ([#639](https://github.com/extphprs/ext-php-rs/pull/639)) (by @kakserpom) [[#639](https://github.com/davidcole1340/ext-php-rs/issues/639)] 
+
+### Fixed
+- *(cargo-php)* Use runtime feature for cargo-php to avoid dynamic linking on musl ([#645](https://github.com/extphprs/ext-php-rs/pull/645)) (by @ptondereau) [[#645](https://github.com/davidcole1340/ext-php-rs/issues/645)] 
+- *(macro)* Refactor allowed and forbidden keywords to match PHP parser ([#647](https://github.com/extphprs/ext-php-rs/pull/647)) (by @ptondereau) [[#647](https://github.com/davidcole1340/ext-php-rs/issues/647)] 
+- Handle PHP mocks and subclasses of Rust-backed classes ([#653](https://github.com/extphprs/ext-php-rs/pull/653)) (by @ptondereau) [[#653](https://github.com/davidcole1340/ext-php-rs/issues/653)] 
 ## [0.11.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.5...ext-php-rs-derive-v0.11.6) - 2025-12-28
 
 ### Added

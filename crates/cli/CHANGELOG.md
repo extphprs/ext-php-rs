@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.16](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.15...cargo-php-v0.1.16) - 2026-01-26
+
+### Fixed
+- *(cargo-php)* Use runtime feature for cargo-php to avoid dynamic linking on musl ([#645](https://github.com/extphprs/ext-php-rs/pull/645)) (by @ptondereau) [[#645](https://github.com/davidcole1340/ext-php-rs/issues/645)] 
 ## [0.1.15](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.14...cargo-php-v0.1.15) - 2025-12-28
 
 ### Added

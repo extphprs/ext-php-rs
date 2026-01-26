@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.3...ext-php-rs-v0.15.4) - 2026-01-26
+
+### Added
+- *(array)* Entry API (Issue #525) ([#611](https://github.com/extphprs/ext-php-rs/pull/611)) (by @kakserpom) [[#525](https://github.com/davidcole1340/ext-php-rs/issues/525)] [[#611](https://github.com/davidcole1340/ext-php-rs/issues/611)] 
+- *(class)* Readonly and final classes ([#639](https://github.com/extphprs/ext-php-rs/pull/639)) (by @kakserpom) [[#639](https://github.com/davidcole1340/ext-php-rs/issues/639)] 
+- *(core)* Add observer API ([#650](https://github.com/extphprs/ext-php-rs/pull/650)) (by @ptondereau) [[#650](https://github.com/davidcole1340/ext-php-rs/issues/650)] 
+- *(object)* Lazy ghost and Lazy Proxy ([#636](https://github.com/extphprs/ext-php-rs/pull/636)) (by @kakserpom) [[#636](https://github.com/davidcole1340/ext-php-rs/issues/636)] 
+- *(string)* Smartstring support ([#643](https://github.com/extphprs/ext-php-rs/pull/643)) (by @kakserpom) [[#643](https://github.com/davidcole1340/ext-php-rs/issues/643)] 
+
+### Fixed
+- *(cargo-php)* Use runtime feature for cargo-php to avoid dynamic linking on musl ([#645](https://github.com/extphprs/ext-php-rs/pull/645)) (by @ptondereau) [[#645](https://github.com/davidcole1340/ext-php-rs/issues/645)] 
+- *(clippy)* V1.93.0 errors ([#648](https://github.com/extphprs/ext-php-rs/pull/648)) (by @ptondereau) [[#648](https://github.com/davidcole1340/ext-php-rs/issues/648)] 
+- *(deps)* Bump parking_lot required version to 0.12.3 (by @TobiasBengtsson) [[#640](https://github.com/davidcole1340/ext-php-rs/issues/640)] 
+- *(doc)* Update mdbook config ([#651](https://github.com/extphprs/ext-php-rs/pull/651)) (by @ptondereau) [[#651](https://github.com/davidcole1340/ext-php-rs/issues/651)] 
+- *(macro)* Refactor allowed and forbidden keywords to match PHP parser ([#647](https://github.com/extphprs/ext-php-rs/pull/647)) (by @ptondereau) [[#647](https://github.com/davidcole1340/ext-php-rs/issues/647)] 
+- *(windows)* Add fallback for 404 errors in windows build ([#649](https://github.com/extphprs/ext-php-rs/pull/649)) (by @ptondereau) [[#649](https://github.com/davidcole1340/ext-php-rs/issues/649)] 
+- Handle PHP mocks and subclasses of Rust-backed classes ([#653](https://github.com/extphprs/ext-php-rs/pull/653)) (by @ptondereau) [[#653](https://github.com/davidcole1340/ext-php-rs/issues/653)] 
 ## [0.15.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.2...ext-php-rs-v0.15.3) - 2025-12-28
 
 ### Added
