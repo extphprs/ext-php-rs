@@ -58,19 +58,23 @@ impl ZendObjectHandlers {
     }
 
     unsafe extern "C" fn free_obj<T: RegisteredClass>(object: *mut ZendObject) {
-        let obj = unsafe {
+        // Try to get the ZendClassObject. This may return None for:
+        // - PHP subclasses/mocks that didn't call the parent constructor
+        // - Objects where the Rust side was never initialized
+        if let Some(obj) = unsafe {
             object
                 .as_mut()
                 .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
-                .expect("Invalid object pointer given for `free_obj`")
-        };
+        } {
+            // Manually drop the object as we don't want to free the underlying memory.
+            unsafe { ptr::drop_in_place(&raw mut obj.obj) };
+        }
 
-        // Manually drop the object as we don't want to free the underlying memory.
-        unsafe { ptr::drop_in_place(&raw mut obj.obj) };
-
+        // Always call the standard destructor to clean up the PHP object
         unsafe { zend_object_std_dtor(object) };
     }
 
+    #[allow(clippy::items_after_statements)]
     unsafe extern "C" fn read_property<T: RegisteredClass>(
         object: *mut ZendObject,
         member: *mut ZendStr,
@@ -78,22 +82,26 @@ impl ZendObjectHandlers {
         cache_slot: *mut *mut c_void,
         rv: *mut Zval,
     ) -> *mut Zval {
-        // TODO: Measure this
+        // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
+        // that didn't call the parent constructor), fall back to standard PHP handling
+        let Some(obj) = (unsafe {
+            object
+                .as_mut()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+        }) else {
+            return unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) };
+        };
+
         #[allow(clippy::inline_always)]
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
+            obj: &mut ZendClassObject<T>,
             member: *mut ZendStr,
             type_: c_int,
             cache_slot: *mut *mut c_void,
             rv: *mut Zval,
         ) -> PhpResult<*mut Zval> {
-            let obj = unsafe {
-                object
-                    .as_mut()
-                    .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
-                    .ok_or("Invalid object pointer given")?
-            };
             let prop_name = unsafe {
                 member
                     .as_ref()
@@ -129,7 +137,7 @@ impl ZendObjectHandlers {
             })
         }
 
-        match unsafe { internal::<T>(object, member, type_, cache_slot, rv) } {
+        match unsafe { internal::<T>(object, obj, member, type_, cache_slot, rv) } {
             Ok(rv) => rv,
             Err(e) => {
                 let _ = e.throw();
@@ -139,27 +147,32 @@ impl ZendObjectHandlers {
         }
     }
 
+    #[allow(clippy::items_after_statements)]
     unsafe extern "C" fn write_property<T: RegisteredClass>(
         object: *mut ZendObject,
         member: *mut ZendStr,
         value: *mut Zval,
         cache_slot: *mut *mut c_void,
     ) -> *mut Zval {
-        // TODO: Measure this
+        // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
+        // that didn't call the parent constructor), fall back to standard PHP handling
+        let Some(obj) = (unsafe {
+            object
+                .as_mut()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+        }) else {
+            return unsafe { zend_std_write_property(object, member, value, cache_slot) };
+        };
+
         #[allow(clippy::inline_always)]
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
+            obj: &mut ZendClassObject<T>,
             member: *mut ZendStr,
             value: *mut Zval,
             cache_slot: *mut *mut c_void,
         ) -> PhpResult<*mut Zval> {
-            let obj = unsafe {
-                object
-                    .as_mut()
-                    .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
-                    .ok_or("Invalid object pointer given")?
-            };
             let prop_name = unsafe {
                 member
                     .as_ref()
@@ -192,7 +205,7 @@ impl ZendObjectHandlers {
             })
         }
 
-        match unsafe { internal::<T>(object, member, value, cache_slot) } {
+        match unsafe { internal::<T>(object, obj, member, value, cache_slot) } {
             Ok(rv) => rv,
             Err(e) => {
                 let _ = e.throw();
@@ -201,22 +214,34 @@ impl ZendObjectHandlers {
         }
     }
 
+    #[allow(clippy::items_after_statements)]
     unsafe extern "C" fn get_properties<T: RegisteredClass>(
         object: *mut ZendObject,
     ) -> *mut ZendHashTable {
-        // TODO: Measure this
+        // Get the standard properties first (this works for all objects)
+        let props = unsafe {
+            zend_std_get_properties(object)
+                .as_mut()
+                .or_else(|| Some(ZendHashTable::new().into_raw()))
+                .expect("Failed to get property hashtable")
+        };
+
+        // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
+        // that didn't call the parent constructor), just return standard properties
+        let Some(obj) = (unsafe {
+            object
+                .as_mut()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+        }) else {
+            return props;
+        };
+
         #[allow(clippy::inline_always)]
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
-            object: *mut ZendObject,
+            obj: &mut ZendClassObject<T>,
             props: &mut ZendHashTable,
         ) -> PhpResult {
-            let obj = unsafe {
-                object
-                    .as_mut()
-                    .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
-                    .ok_or("Invalid object pointer given")?
-            };
             let self_ = &mut *obj;
             let struct_props = T::get_metadata().get_properties();
 
@@ -245,41 +270,39 @@ impl ZendObjectHandlers {
             Ok(())
         }
 
-        let props = unsafe {
-            zend_std_get_properties(object)
-                .as_mut()
-                .or_else(|| Some(ZendHashTable::new().into_raw()))
-                .expect("Failed to get property hashtable")
-        };
-
-        if let Err(e) = unsafe { internal::<T>(object, props) } {
+        if let Err(e) = unsafe { internal::<T>(obj, props) } {
             let _ = e.throw();
         }
 
         props
     }
 
+    #[allow(clippy::items_after_statements)]
     unsafe extern "C" fn has_property<T: RegisteredClass>(
         object: *mut ZendObject,
         member: *mut ZendStr,
         has_set_exists: c_int,
         cache_slot: *mut *mut c_void,
     ) -> c_int {
-        // TODO: Measure this
+        // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
+        // that didn't call the parent constructor), fall back to standard PHP handling
+        let Some(obj) = (unsafe {
+            object
+                .as_mut()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+        }) else {
+            return unsafe { zend_std_has_property(object, member, has_set_exists, cache_slot) };
+        };
+
         #[allow(clippy::inline_always)]
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
+            obj: &mut ZendClassObject<T>,
             member: *mut ZendStr,
             has_set_exists: c_int,
             cache_slot: *mut *mut c_void,
         ) -> PhpResult<c_int> {
-            let obj = unsafe {
-                object
-                    .as_mut()
-                    .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
-                    .ok_or("Invalid object pointer given")?
-            };
             let prop_name = unsafe {
                 member
                     .as_ref()
@@ -339,7 +362,7 @@ impl ZendObjectHandlers {
             Ok(unsafe { zend_std_has_property(object, member, has_set_exists, cache_slot) })
         }
 
-        match unsafe { internal::<T>(object, member, has_set_exists, cache_slot) } {
+        match unsafe { internal::<T>(object, obj, member, has_set_exists, cache_slot) } {
             Ok(rv) => rv,
             Err(e) => {
                 let _ = e.throw();

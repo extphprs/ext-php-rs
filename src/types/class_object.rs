@@ -156,7 +156,7 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// * If the std offset over/underflows `isize`.
     #[must_use]
     pub fn from_zend_obj(std: &zend_object) -> Option<&Self> {
-        Some(Self::internal_from_zend_obj(std)?)
+        Some(Self::internal_from_zend_obj(std, true)?)
     }
 
     /// Returns a mutable reference to the [`ZendClassObject`] of a given zend
@@ -172,13 +172,46 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// * If the std offset over/underflows `isize`.
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn from_zend_obj_mut(std: &mut zend_object) -> Option<&mut Self> {
-        Self::internal_from_zend_obj(std)
+        Self::internal_from_zend_obj(std, true)
+    }
+
+    /// Returns a mutable reference to the [`ZendClassObject`] of a given zend
+    /// object `obj`, even if the Rust object is not yet initialized.
+    ///
+    /// This is used internally by the constructor to get access to the object
+    /// before calling `initialize()`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the returned object is not dereferenced
+    /// to `T` until after `initialize()` is called. Only `initialize()` should
+    /// be called on the returned object.
+    ///
+    /// # Parameters
+    ///
+    /// * `obj` - The zend object to get the [`ZendClassObject`] for.
+    ///
+    /// # Panics
+    ///
+    /// * If the std offset over/underflows `isize`.
+    #[allow(clippy::needless_pass_by_ref_mut)]
+    pub(crate) fn from_zend_obj_mut_uninit(std: &mut zend_object) -> Option<&mut Self> {
+        Self::internal_from_zend_obj(std, false)
     }
 
     // TODO: Verify if this is safe to use, as it allows mutating the
     // hashtable while only having a reference to it. #461
     #[allow(clippy::mut_from_ref)]
-    fn internal_from_zend_obj(std: &zend_object) -> Option<&mut Self> {
+    fn internal_from_zend_obj(std: &zend_object, require_initialized: bool) -> Option<&mut Self> {
+        // First, check if this object was created by our create_object handler.
+        // We do this by comparing the handlers pointer. Objects created by PHP's
+        // mock frameworks or subclasses won't have our custom handlers, and their
+        // memory layout won't match ZendClassObject<T>.
+        let expected_handlers = T::get_metadata().handlers();
+        if !ptr::eq(std.handlers, expected_handlers) {
+            return None;
+        }
+
         let std = ptr::from_ref(std).cast::<c_char>();
         let ptr = unsafe {
             let offset = isize::try_from(Self::std_offset()).expect("Offset overflow");
@@ -186,11 +219,18 @@ impl<T: RegisteredClass> ZendClassObject<T> {
             ptr.cast_mut().as_mut()?
         };
 
-        if ptr.std.instance_of(T::get_metadata().ce()) {
-            Some(ptr)
-        } else {
-            None
+        if !ptr.std.instance_of(T::get_metadata().ce()) {
+            return None;
         }
+
+        // Check if the Rust object is initialized. Objects created via create_object
+        // for subclasses that don't call parent::__construct() will have obj = None.
+        // We must reject these to avoid panics when dereferencing.
+        if require_initialized && ptr.obj.is_none() {
+            return None;
+        }
+
+        Some(ptr)
     }
 
     /// Returns a mutable reference to the underlying Zend object.

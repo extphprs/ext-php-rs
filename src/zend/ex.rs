@@ -176,6 +176,21 @@ impl ExecuteData {
         ZendClassObject::from_zend_obj_mut(self.get_self()?)
     }
 
+    /// Attempts to retrieve the 'this' object, even if the Rust backing
+    /// is not yet initialized. This is used internally by the constructor
+    /// to get access to the object before calling `initialize()`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the returned object is not dereferenced
+    /// to `T` until after `initialize()` is called. Only `initialize()` should
+    /// be called on the returned object.
+    pub(crate) fn get_object_uninit<T: RegisteredClass>(
+        &mut self,
+    ) -> Option<&mut ZendClassObject<T>> {
+        ZendClassObject::from_zend_obj_mut_uninit(self.get_self()?)
+    }
+
     /// Attempts to retrieve the 'this' object, which can be used in class
     /// methods to retrieve the underlying Zend object.
     ///
