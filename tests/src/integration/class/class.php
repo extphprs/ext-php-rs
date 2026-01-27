@@ -200,6 +200,42 @@ assert(in_array('match', $methodNames), 'Method "match" should exist in reflecti
 assert(in_array('return', $methodNames), 'Method "return" should exist in reflection');
 assert(in_array('static', $methodNames), 'Method "static" should exist in reflection');
 
+// Test final methods
+$finalObj = new TestFinalMethods();
+assert($finalObj->finalMethod() === 'final method result', 'Final method should work');
+assert(TestFinalMethods::finalStaticMethod() === 'final static method result', 'Final static method should work');
+assert($finalObj->normalMethod() === 'normal method result', 'Normal method should work');
+
+// Verify final methods are marked as final in reflection
+$finalReflection = new ReflectionClass(TestFinalMethods::class);
+assert($finalReflection->getMethod('finalMethod')->isFinal(), 'finalMethod should be marked as final');
+assert($finalReflection->getMethod('finalStaticMethod')->isFinal(), 'finalStaticMethod should be marked as final');
+assert($finalReflection->getMethod('finalStaticMethod')->isStatic(), 'finalStaticMethod should be static');
+assert(!$finalReflection->getMethod('normalMethod')->isFinal(), 'normalMethod should NOT be marked as final');
+
+// Test abstract class
+$abstractReflection = new ReflectionClass(TestAbstractClass::class);
+assert($abstractReflection->isAbstract(), 'TestAbstractClass should be marked as abstract');
+
+// Verify abstract methods are marked as abstract in reflection
+assert($abstractReflection->getMethod('abstractMethod')->isAbstract(), 'abstractMethod should be marked as abstract');
+assert(!$abstractReflection->getMethod('concreteMethod')->isAbstract(), 'concreteMethod should NOT be marked as abstract');
+
+// Test extending the abstract class in PHP
+class ConcreteTestClass extends TestAbstractClass {
+    public function __construct() {
+        parent::__construct();
+    }
+
+    public function abstractMethod(): string {
+        return 'implemented abstract method';
+    }
+}
+
+$concreteObj = new ConcreteTestClass();
+assert($concreteObj->abstractMethod() === 'implemented abstract method', 'Implemented abstract method should work');
+assert($concreteObj->concreteMethod() === 'concrete method in abstract class', 'Concrete method from abstract class should work');
+
 // Test lazy objects (PHP 8.4+)
 if (PHP_VERSION_ID >= 80400) {
     // Test with a regular (non-lazy) Rust object first

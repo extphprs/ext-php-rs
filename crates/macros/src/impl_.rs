@@ -75,6 +75,8 @@ struct MethodArgs {
     vis: Visibility,
     /// Method type.
     ty: MethodTy,
+    /// Whether this is a final method.
+    is_final: bool,
 }
 
 #[derive(FromAttributes, Default, Debug)]
@@ -89,7 +91,10 @@ pub struct PhpFunctionImplAttribute {
     getter: Flag,
     setter: Flag,
     constructor: Flag,
+    #[darling(rename = "abstract")]
     abstract_method: Flag,
+    #[darling(rename = "final")]
+    final_method: Flag,
 }
 
 impl MethodArgs {
@@ -112,6 +117,7 @@ impl MethodArgs {
             defaults: attr.defaults,
             vis: attr.vis.unwrap_or(Visibility::Public),
             ty,
+            is_final: attr.final_method.is_present(),
         }
     }
 }
@@ -124,12 +130,14 @@ struct ParsedImpl<'a> {
     functions: Vec<FnBuilder>,
     constructor: Option<(Function<'a>, Option<Visibility>)>,
     constants: Vec<Constant<'a>>,
+    has_abstract_methods: bool,
 }
 
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub enum MethodModifier {
     Abstract,
     Static,
+    Final,
 }
 
 impl quote::ToTokens for MethodModifier {
@@ -137,6 +145,7 @@ impl quote::ToTokens for MethodModifier {
         match *self {
             Self::Abstract => quote! { ::ext_php_rs::flags::MethodFlags::Abstract },
             Self::Static => quote! { ::ext_php_rs::flags::MethodFlags::Static },
+            Self::Final => quote! { ::ext_php_rs::flags::MethodFlags::Final },
         }
         .to_tokens(tokens);
     }
@@ -178,6 +187,7 @@ impl<'a> ParsedImpl<'a> {
             functions: Vec::default(),
             constructor: Option::default(),
             constants: Vec::default(),
+            has_abstract_methods: false,
         }
     }
 
@@ -242,11 +252,21 @@ impl<'a> ParsedImpl<'a> {
                                 MethodReceiver::Static
                             },
                         };
-                        if matches!(opts.ty, MethodTy::Abstract) {
+                        let is_abstract = matches!(opts.ty, MethodTy::Abstract);
+                        if is_abstract {
                             modifiers.insert(MethodModifier::Abstract);
+                            self.has_abstract_methods = true;
+                        }
+                        if opts.is_final {
+                            modifiers.insert(MethodModifier::Final);
                         }
 
-                        let builder = func.function_builder(&call_type);
+                        // Abstract methods use a different builder that doesn't generate a handler
+                        let builder = if is_abstract {
+                            func.abstract_function_builder()
+                        } else {
+                            func.function_builder(&call_type)
+                        };
 
                         self.functions.push(FnBuilder {
                             builder,
@@ -280,7 +300,23 @@ impl<'a> ParsedImpl<'a> {
             }
         });
 
+        // Compile-time check: abstract methods can only be in abstract classes
+        let abstract_check = if self.has_abstract_methods {
+            quote! {
+                const _: () = assert!(
+                    <#path as ::ext_php_rs::class::RegisteredClass>::FLAGS
+                        .contains(::ext_php_rs::flags::ClassFlags::Abstract),
+                    "Abstract methods can only be defined in abstract classes. \
+                     Add `#[php(flags = ClassFlags::Abstract)]` to the class definition."
+                );
+            }
+        } else {
+            quote! {}
+        };
+
         quote! {
+            #abstract_check
+
             impl ::ext_php_rs::internal::class::PhpClassImpl<#path>
                 for ::ext_php_rs::internal::class::PhpClassImplCollector<#path>
             {
