@@ -109,6 +109,32 @@ fn generate_bindings(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<S
         )
         .clang_args(defines.iter().map(|(var, val)| format!("-D{var}={val}")));
 
+    // Workaround for Clang 19/20 SIMD intrinsics issues on Windows
+    // See: https://github.com/extphprs/ext-php-rs/issues/480
+    // Clang 19 has strict type checking for MMX vector types, and Clang 20 has
+    // _Float16/__bf16 type issues in AVX512 FP16 headers. We disable AVX512FP16
+    // and block its headers. For MMX, we provide a stub __m64 type definition
+    // since xmmintrin.h depends on it.
+    #[cfg(windows)]
+    {
+        bindgen = bindgen
+            // Disable AVX512FP16 (Clang 20 _Float16/__bf16 issues)
+            .clang_arg("-mno-avx512fp16")
+            // Define include guards to skip problematic FP16/BF16 headers
+            .clang_arg("-D__AVX512FP16INTRIN_H")
+            .clang_arg("-D__AVX512VLFP16INTRIN_H")
+            .clang_arg("-D__AVX512BF16INTRIN_H")
+            .clang_arg("-D__AVX512VLBF16INTRIN_H")
+            // Provide stub __m64 type and block mmintrin.h to fix Clang 19 vector type errors
+            .clang_arg("-D__MMINTRIN_H")
+            .clang_arg("-D__m64=long long")
+            .clang_arg("-D__m64_u=long long")
+            .clang_arg("-D__v1di=long long")
+            .clang_arg("-D__v2si=long long")
+            .clang_arg("-D__v4hi=long long")
+            .clang_arg("-D__v8qi=long long");
+    }
+
     // Add macOS SDK path for system headers (stdlib.h, etc.)
     // Required for libclang 19+ with preserve_none calling convention support
     #[cfg(target_os = "macos")]
