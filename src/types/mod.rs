@@ -14,7 +14,7 @@ mod string;
 mod zval;
 
 pub use array::{ArrayKey, Entry, OccupiedEntry, VacantEntry, ZendEmptyArray, ZendHashTable};
-pub use callable::ZendCallable;
+pub use callable::{CachedCallable, ZendCallable};
 pub use class_object::ZendClassObject;
 pub use iterable::Iterable;
 pub use iterator::ZendIterator;
