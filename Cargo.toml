@@ -30,7 +30,7 @@ skeptic = "0.13"
 
 [build-dependencies]
 anyhow = "1"
-bindgen = { version = "0.72", default-features = false, features = [
+ext-php-rs-bindgen = { version = "0.72.1-extphprs.1", default-features = false, features = [
     "logging",
     "prettyplease",
 ] }
@@ -54,8 +54,8 @@ anyhow = ["dep:anyhow"]
 smartstring = ["dep:smartstring"]
 enum = []
 observer = []
-runtime = ["bindgen/runtime"]
-static = ["bindgen/static"]
+runtime = ["ext-php-rs-bindgen/runtime"]
+static = ["ext-php-rs-bindgen/static"]
 
 [workspace]
 members = ["crates/macros", "crates/cli", "crates/php-build", "tests"]
@@ -87,11 +87,3 @@ path = "tests/module.rs"
 [[test]]
 name = "sapi_tests"
 path = "tests/sapi.rs"
-
-# Patch clang-sys and bindgen for preserve_none calling convention support (libclang 19/20)
-# Required for PHP 8.5+ on macOS ARM64 which uses TAILCALL VM mode
-# - clang-sys: Adds libclang 19/20 bindings (https://github.com/KyleMayes/clang-sys/pull/195)
-# - bindgen: Maps CXCallingConv_PreserveNone to C ABI
-[patch.crates-io]
-clang-sys = { git = "https://github.com/extphprs/clang-sys.git", branch = "preserve-none-support" }
-bindgen = { git = "https://github.com/extphprs/rust-bindgen.git", branch = "preserve-none-support" }
