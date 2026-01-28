@@ -248,6 +248,80 @@ echo Counter::$count; // 2
 echo Counter::getCount(); // 2
 ```
 
+## Abstract Classes
+
+Abstract classes cannot be instantiated directly and may contain abstract methods
+that must be implemented by subclasses. Use `#[php(flags = ClassFlags::Abstract)]`
+to declare an abstract class:
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Abstract)]
+pub struct AbstractAnimal;
+
+#[php_impl]
+impl AbstractAnimal {
+    // Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    // Abstract method - must be implemented by subclasses.
+    // Body is never called; use unimplemented!() as a placeholder.
+    #[php(abstract)]
+    pub fn speak(&self) -> String {
+        unimplemented!()
+    }
+
+    // Concrete method - inherited by subclasses
+    pub fn breathe(&self) {
+        println!("Breathing...");
+    }
+}
+```
+
+From PHP, you can extend this abstract class:
+
+```php
+class Dog extends AbstractAnimal {
+    public function __construct() {
+        parent::__construct();
+    }
+
+    public function speak(): string {
+        return "Woof!";
+    }
+}
+
+$dog = new Dog();
+echo $dog->speak(); // "Woof!"
+$dog->breathe();    // "Breathing..."
+
+// This would cause an error:
+// $animal = new AbstractAnimal(); // Cannot instantiate abstract class
+```
+
+See the [impl documentation](./impl.md#abstract-methods) for more details on
+abstract methods.
+
+## Final Classes
+
+Final classes cannot be extended. Use `#[php(flags = ClassFlags::Final)]` to
+declare a final class:
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Final)]
+pub struct FinalClass;
+```
+
 ## Readonly Classes (PHP 8.2+)
 
 PHP 8.2 introduced [readonly classes](https://www.php.net/manual/en/language.oop5.basic.php#language.oop5.basic.class.readonly),

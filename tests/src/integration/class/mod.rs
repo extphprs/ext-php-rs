@@ -395,6 +395,60 @@ impl TestReservedKeywordMethods {
     }
 }
 
+/// Test class with final methods
+#[php_class]
+pub struct TestFinalMethods;
+
+#[php_impl]
+impl TestFinalMethods {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// A final method that cannot be overridden
+    #[php(final)]
+    pub fn final_method(&self) -> &'static str {
+        "final method result"
+    }
+
+    /// A final static method
+    #[php(final)]
+    pub fn final_static_method() -> &'static str {
+        "final static method result"
+    }
+
+    /// A normal method that can be overridden
+    pub fn normal_method(&self) -> &'static str {
+        "normal method result"
+    }
+}
+
+/// Test abstract class with abstract methods
+#[php_class]
+#[php(flags = ext_php_rs::flags::ClassFlags::Abstract)]
+pub struct TestAbstractClass;
+
+#[php_impl]
+impl TestAbstractClass {
+    /// Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// An abstract method that must be implemented by subclasses.
+    /// The body is never called - it exists only for Rust syntax requirements.
+    #[php(abstract)]
+    pub fn abstract_method(&self) -> String {
+        unimplemented!()
+    }
+
+    /// A concrete method in the abstract class
+    pub fn concrete_method(&self) -> &'static str {
+        "concrete method in abstract class"
+    }
+}
+
 /// Test class for property visibility
 #[php_class]
 pub struct TestPropertyVisibility {
@@ -453,6 +507,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestPropertyVisibility>()
         .class::<TestReservedKeywordMethods>()
         .class::<TestLazyClass>()
+        .class::<TestFinalMethods>()
+        .class::<TestAbstractClass>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception));
 
