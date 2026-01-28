@@ -280,7 +280,9 @@ impl ClassBuilder {
         self.object_override = Some(create_object::<T>);
         let is_interface = T::FLAGS.contains(ClassFlags::Interface);
 
-        let (func, visibility) = if let Some(ConstructorMeta {
+        // For interfaces: only add __construct if explicitly declared
+        // For classes: always add __construct (PHP needs it for object creation)
+        if let Some(ConstructorMeta {
             build_fn, flags, ..
         }) = T::constructor()
         {
@@ -289,20 +291,16 @@ impl ClassBuilder {
             } else {
                 FunctionBuilder::new("__construct", constructor::<T>)
             };
-
-            (build_fn(func), flags.unwrap_or(MethodFlags::Public))
+            let visibility = flags.unwrap_or(MethodFlags::Public);
+            self.method(build_fn(func), visibility)
+        } else if is_interface {
+            // Don't add default constructor for interfaces
+            self
         } else {
-            (
-                if is_interface {
-                    FunctionBuilder::new_abstract("__construct")
-                } else {
-                    FunctionBuilder::new("__construct", constructor::<T>)
-                },
-                MethodFlags::Public,
-            )
-        };
-
-        self.method(func, visibility)
+            // Add default constructor for classes
+            let func = FunctionBuilder::new("__construct", constructor::<T>);
+            self.method(func, MethodFlags::Public)
+        }
     }
 
     /// Function to register the class with PHP. This function is called after

@@ -49,4 +49,5 @@
 
 # Migration Guides
 ---
+[v0.16](./migration-guides/v0.16.md)
 [v0.14](./migration-guides/v0.14.md)

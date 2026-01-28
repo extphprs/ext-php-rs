@@ -8,7 +8,7 @@ use darling::FromAttributes;
 use darling::util::Flag;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn};
+use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn, TypeParamBound};
 
 use crate::impl_::{FnBuilder, MethodModifier};
 use crate::parsing::{
@@ -47,11 +47,36 @@ trait Parse<'a, T> {
     fn parse(&'a mut self) -> Result<T>;
 }
 
+/// Represents a supertrait that should be converted to an interface extension.
+/// These are automatically detected from Rust trait bounds (e.g., `trait Foo:
+/// Bar`).
+struct SupertraitInterface {
+    /// The full path to the supertrait's PHP interface struct (e.g.,
+    /// `PhpInterfaceBar` or `other_module::PhpInterfaceBar`)
+    interface_struct_path: Path,
+}
+
+impl ToTokens for SupertraitInterface {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let interface_struct_path = &self.interface_struct_path;
+        quote! {
+            (
+                || <#interface_struct_path as ::ext_php_rs::class::RegisteredClass>::get_metadata().ce(),
+                <#interface_struct_path as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME
+            )
+        }
+        .to_tokens(tokens);
+    }
+}
+
 struct InterfaceData<'a> {
     ident: &'a Ident,
     name: String,
     path: Path,
+    /// Extends from `#[php(extends(...))]` attributes
     extends: Vec<ClassEntryAttribute>,
+    /// Extends from Rust trait bounds (supertraits)
+    supertrait_extends: Vec<SupertraitInterface>,
     constructor: Option<Function<'a>>,
     methods: Vec<FnBuilder>,
     constants: Vec<Constant<'a>>,
@@ -64,6 +89,7 @@ impl ToTokens for InterfaceData<'_> {
         let interface_name = format_ident!("{INTERNAL_INTERFACE_NAME_PREFIX}{}", self.ident);
         let name = &self.name;
         let implements = &self.extends;
+        let supertrait_implements = &self.supertrait_extends;
         let methods_sig = &self.methods;
         let constants = &self.constants;
         let docs = &self.docs;
@@ -88,8 +114,10 @@ impl ToTokens for InterfaceData<'_> {
 
                 const FLAGS: ::ext_php_rs::flags::ClassFlags = ::ext_php_rs::flags::ClassFlags::Interface;
 
+                // Interface inheritance from both explicit #[php(extends(...))] and Rust trait bounds
                 const IMPLEMENTS: &'static [::ext_php_rs::class::ClassEntryInfo] = &[
                     #(#implements,)*
+                    #(#supertrait_implements,)*
                 ];
 
                 const DOC_COMMENTS: &'static [&'static str] = &[
@@ -207,11 +235,16 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
         let interface_name = format_ident!("{INTERNAL_INTERFACE_NAME_PREFIX}{ident}");
         let ts = quote! { #interface_name };
         let path: Path = syn::parse2(ts)?;
+
+        // Parse supertraits to automatically generate interface inheritance
+        let supertrait_extends = parse_supertraits(&self.supertraits);
+
         let mut data = InterfaceData {
             ident,
             name,
             path,
             extends: attrs.extends,
+            supertrait_extends,
             constructor: None,
             methods: Vec::default(),
             constants: Vec::default(),
@@ -237,6 +270,34 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
 
         Ok(data)
     }
+}
+
+/// Parses the supertraits of a trait definition and converts them to interface
+/// extensions. For a trait like `trait Foo: Bar + Baz`, this will generate
+/// references to `PhpInterfaceBar` and `PhpInterfaceBaz`.
+///
+/// This function preserves the full module path, so `trait Foo: other::Bar`
+/// will generate `other::PhpInterfaceBar`.
+fn parse_supertraits(
+    supertraits: &syn::punctuated::Punctuated<TypeParamBound, syn::token::Plus>,
+) -> Vec<SupertraitInterface> {
+    supertraits
+        .iter()
+        .filter_map(|bound| {
+            if let TypeParamBound::Trait(trait_bound) = bound {
+                // Clone the path and modify the last segment to add PhpInterface prefix
+                let mut path = trait_bound.path.clone();
+                let last_segment = path.segments.last_mut()?;
+                last_segment.ident =
+                    format_ident!("{}{}", INTERNAL_INTERFACE_NAME_PREFIX, last_segment.ident);
+                Some(SupertraitInterface {
+                    interface_struct_path: path,
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 #[derive(FromAttributes, Default, Debug)]
