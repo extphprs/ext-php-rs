@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.1.0...ext-php-rs-build-v0.1.1) - 2026-01-28
+
+### Other
+- Release (by @Xenira)
 ## [0.1.0](https://github.com/extphprs/ext-php-rs/releases/tag/ext-php-rs-build-v0.1.0) - 2026-01-26
 
 ### Added

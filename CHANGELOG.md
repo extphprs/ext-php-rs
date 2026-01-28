@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.4...ext-php-rs-v0.15.5) - 2026-01-28
+
+### Fixed
+- *(bindgen)* Use fork from ext-php-rs ([#659](https://github.com/extphprs/ext-php-rs/pull/659)) (by @ptondereau) [[#659](https://github.com/davidcole1340/ext-php-rs/issues/659)] 
+
+### Other
+- *(guide)* Customize favicon ([#654](https://github.com/extphprs/ext-php-rs/pull/654)) (by @c14n) [[#654](https://github.com/davidcole1340/ext-php-rs/issues/654)] 
 ## [0.15.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.3...ext-php-rs-v0.15.4) - 2026-01-26
 
 ### Added
