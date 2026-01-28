@@ -5,9 +5,6 @@ edition = "2024"
 publish = false
 license = "MIT OR Apache-2.0"
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(php84)'] }
-
 [dependencies]
 ext-php-rs = { path = "../", default-features = false }
 
@@ -25,3 +22,6 @@ observer = ["ext-php-rs/observer"]
 
 [lib]
 crate-type = ["cdylib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(php82)', 'cfg(php84)'] }

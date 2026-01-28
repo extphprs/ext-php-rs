@@ -50,6 +50,8 @@ pub mod zend;
 /// A module typically glob-imported containing the typically required macros
 /// and imports.
 pub mod prelude {
+    pub use crate::args::TypeGroup;
+    pub use crate::convert::{PhpUnion, PhpUnionTypes};
 
     pub use crate::builders::ModuleBuilder;
     #[cfg(any(docs, feature = "closure"))]
@@ -66,8 +68,8 @@ pub mod prelude {
     #[cfg(feature = "observer")]
     pub use crate::zend::{FcallInfo, FcallObserver};
     pub use crate::{
-        ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_interface,
-        php_module, wrap_constant, wrap_function, zend_fastcall,
+        PhpUnion, ZvalConvert, php_class, php_const, php_extern, php_function, php_impl,
+        php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
     };
 }
 
@@ -98,6 +100,6 @@ pub const PHP_85: bool = cfg!(php85);
 #[cfg(feature = "enum")]
 pub use ext_php_rs_derive::php_enum;
 pub use ext_php_rs_derive::{
-    ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_interface,
+    PhpUnion, ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_interface,
     php_module, wrap_constant, wrap_function, zend_fastcall,
 };
