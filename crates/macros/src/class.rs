@@ -312,9 +312,25 @@ fn generate_registered_class_impl(
                 &'static str, ::ext_php_rs::internal::property::PropertyInfo<'a, Self>
             > {
                 use ::std::iter::FromIterator;
-                ::std::collections::HashMap::from_iter([
+                use ::ext_php_rs::internal::class::PhpClassImpl;
+
+                // Start with field properties (instance fields only, not static)
+                let mut props = ::std::collections::HashMap::from_iter([
                     #(#instance_fields,)*
-                ])
+                ]);
+
+                // Add method properties (from #[php(getter)] and #[php(setter)])
+                let method_props = ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+                    .get_method_props();
+                for (name, prop) in method_props {
+                    props.insert(name, ::ext_php_rs::internal::property::PropertyInfo {
+                        prop,
+                        flags: ::ext_php_rs::flags::PropertyFlags::Public,
+                        docs: &[],
+                    });
+                }
+
+                props
             }
 
             #[must_use]
