@@ -207,7 +207,13 @@ impl ToStub for DataType {
                 DataType::Reference => "reference",
                 DataType::Callable => "callable",
                 DataType::Iterable => "iterable",
-                _ => "mixed",
+                DataType::Void => "void",
+                DataType::Null => "null",
+                DataType::Mixed
+                | DataType::Undef
+                | DataType::Ptr
+                | DataType::Indirect
+                | DataType::ConstantExpression => "mixed",
             }
         )
     }
@@ -463,7 +469,8 @@ fn indent(s: &str, depth: usize) -> String {
 
 #[cfg(test)]
 mod test {
-    use super::split_namespace;
+    use super::{ToStub, split_namespace};
+    use crate::flags::DataType;
 
     #[test]
     pub fn test_split_ns() {
@@ -484,5 +491,34 @@ mod test {
             indent(&format!("hello{nl}world{nl}", nl = NEW_LINE_SEPARATOR), 4),
             format!("    hello{nl}    world{nl}", nl = NEW_LINE_SEPARATOR)
         );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    pub fn test_datatype_to_stub() {
+        // Test that all DataType variants produce correct PHP type strings
+        assert_eq!(DataType::Void.to_stub().unwrap(), "void");
+        assert_eq!(DataType::Null.to_stub().unwrap(), "null");
+        assert_eq!(DataType::Bool.to_stub().unwrap(), "bool");
+        assert_eq!(DataType::True.to_stub().unwrap(), "bool");
+        assert_eq!(DataType::False.to_stub().unwrap(), "bool");
+        assert_eq!(DataType::Long.to_stub().unwrap(), "int");
+        assert_eq!(DataType::Double.to_stub().unwrap(), "float");
+        assert_eq!(DataType::String.to_stub().unwrap(), "string");
+        assert_eq!(DataType::Array.to_stub().unwrap(), "array");
+        assert_eq!(DataType::Object(None).to_stub().unwrap(), "object");
+        assert_eq!(
+            DataType::Object(Some("Foo\\Bar")).to_stub().unwrap(),
+            "\\Foo\\Bar"
+        );
+        assert_eq!(DataType::Resource.to_stub().unwrap(), "resource");
+        assert_eq!(DataType::Callable.to_stub().unwrap(), "callable");
+        assert_eq!(DataType::Iterable.to_stub().unwrap(), "iterable");
+        assert_eq!(DataType::Mixed.to_stub().unwrap(), "mixed");
+        assert_eq!(DataType::Undef.to_stub().unwrap(), "mixed");
+        assert_eq!(DataType::Ptr.to_stub().unwrap(), "mixed");
+        assert_eq!(DataType::Indirect.to_stub().unwrap(), "mixed");
+        assert_eq!(DataType::ConstantExpression.to_stub().unwrap(), "mixed");
+        assert_eq!(DataType::Reference.to_stub().unwrap(), "reference");
     }
 }

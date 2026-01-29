@@ -146,6 +146,16 @@ fn generate_method_builder(
     output: &ReturnType,
     is_static: bool,
 ) -> TokenStream {
+    // Helper to check if a type is Option<T>
+    fn is_option_type(ty: &syn::Type) -> bool {
+        if let syn::Type::Path(type_path) = ty
+            && let Some(segment) = type_path.path.segments.last()
+        {
+            return segment.ident == "Option";
+        }
+        false
+    }
+
     // Collect non-self arguments
     let args: Vec<_> = inputs
         .iter()
@@ -159,16 +169,45 @@ fn generate_method_builder(
         })
         .collect();
 
-    let arg_declarations: Vec<_> = args
+    // Separate required and optional (Option<T>) arguments
+    let required_args: Vec<_> = args.iter().filter(|(_, ty)| !is_option_type(ty)).collect();
+    let optional_args: Vec<_> = args.iter().filter(|(_, ty)| is_option_type(ty)).collect();
+
+    // Create Arg declarations for each parameter
+    let required_arg_declarations: Vec<_> = required_args
         .iter()
-        .enumerate()
-        .map(|(i, (name, ty))| {
+        .map(|(name, ty)| {
             let php_name = ident_to_php_name(name);
             quote! {
-                let #name: #ty = match parse.arg(#i) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        let msg = format!("Invalid value for argument `{}`: {}", #php_name, e);
+                let mut #name = ::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE);
+            }
+        })
+        .collect();
+
+    let optional_arg_declarations: Vec<_> = optional_args
+        .iter()
+        .map(|(name, ty)| {
+            let php_name = ident_to_php_name(name);
+            quote! {
+                let mut #name = ::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE).allow_null();
+            }
+        })
+        .collect();
+
+    let required_arg_names: Vec<_> = required_args.iter().map(|(name, _)| *name).collect();
+    let optional_arg_names: Vec<_> = optional_args.iter().map(|(name, _)| *name).collect();
+    let arg_names: Vec<_> = args.iter().map(|(name, _)| name).collect();
+
+    // Value accessors that extract values from the Arg objects after parsing
+    let required_arg_value_accessors: Vec<_> = required_args
+        .iter()
+        .map(|(name, ty)| {
+            let php_name = ident_to_php_name(name);
+            quote! {
+                let #name: #ty = match #name.val() {
+                    Some(v) => v,
+                    None => {
+                        let msg = format!("Invalid value for argument `{}`", #php_name);
                         ::ext_php_rs::exception::PhpException::default(msg.into())
                             .throw()
                             .expect("Failed to throw PHP exception.");
@@ -179,15 +218,33 @@ fn generate_method_builder(
         })
         .collect();
 
-    let arg_names: Vec<_> = args.iter().map(|(name, _)| name).collect();
+    let optional_arg_value_accessors: Vec<_> = optional_args
+        .iter()
+        .map(|(name, ty)| {
+            // For Option<T>, .val() returns Option<T>, which is what we want
+            quote! {
+                let #name: #ty = #name.val();
+            }
+        })
+        .collect();
 
-    // Generate .arg() calls for PHP reflection metadata
-    let arg_builders: Vec<_> = args
+    // Generate .arg() calls for PHP reflection metadata (for FunctionBuilder)
+    let required_arg_builders: Vec<_> = required_args
         .iter()
         .map(|(name, ty)| {
             let php_name = ident_to_php_name(name);
             quote! {
                 .arg(::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE))
+            }
+        })
+        .collect();
+
+    let optional_arg_builders: Vec<_> = optional_args
+        .iter()
+        .map(|(name, ty)| {
+            let php_name = ident_to_php_name(name);
+            quote! {
+                .arg(::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE).allow_null())
             }
         })
         .collect();
@@ -214,15 +271,83 @@ fn generate_method_builder(
         }
     };
 
-    let handler_body = if is_static {
+    // Check if return type is void
+    let is_void = matches!(output, ReturnType::Default);
+
+    // Generate the method call and result handling based on whether it's void
+    let result_handling = if is_void {
         quote! {
-            let parse = ex.parser();
-            #(#arg_declarations)*
-            let result = <#struct_ty>::#method_ident(#(#arg_names),*);
+            // Void method - just call it, don't try to set return value
+        }
+    } else {
+        quote! {
             if let Err(e) = result.set_zval(retval, false) {
                 let e: ::ext_php_rs::exception::PhpException = e.into();
                 e.throw().expect("Failed to throw PHP exception.");
             }
+        }
+    };
+
+    let handler_body = if is_static {
+        if is_void {
+            quote! {
+                #(#required_arg_declarations)*
+                #(#optional_arg_declarations)*
+                let parse = ex.parser()
+                    #(.arg(&mut #required_arg_names))*
+                    .not_required()
+                    #(.arg(&mut #optional_arg_names))*
+                    .parse();
+                if parse.is_err() {
+                    return;
+                }
+                #(#required_arg_value_accessors)*
+                #(#optional_arg_value_accessors)*
+                <#struct_ty>::#method_ident(#(#arg_names),*);
+            }
+        } else {
+            quote! {
+                #(#required_arg_declarations)*
+                #(#optional_arg_declarations)*
+                let parse = ex.parser()
+                    #(.arg(&mut #required_arg_names))*
+                    .not_required()
+                    #(.arg(&mut #optional_arg_names))*
+                    .parse();
+                if parse.is_err() {
+                    return;
+                }
+                #(#required_arg_value_accessors)*
+                #(#optional_arg_value_accessors)*
+                let result = <#struct_ty>::#method_ident(#(#arg_names),*);
+                #result_handling
+            }
+        }
+    } else if is_void {
+        quote! {
+            let (parse, this) = ex.parser_method::<#struct_ty>();
+            let this = match this {
+                Some(this) => this,
+                None => {
+                    ::ext_php_rs::exception::PhpException::default("Failed to get $this".into())
+                        .throw()
+                        .expect("Failed to throw PHP exception.");
+                    return;
+                }
+            };
+            #(#required_arg_declarations)*
+            #(#optional_arg_declarations)*
+            let parse_result = parse
+                #(.arg(&mut #required_arg_names))*
+                .not_required()
+                #(.arg(&mut #optional_arg_names))*
+                .parse();
+            if parse_result.is_err() {
+                return;
+            }
+            #(#required_arg_value_accessors)*
+            #(#optional_arg_value_accessors)*
+            this.#method_ident(#(#arg_names),*);
         }
     } else {
         quote! {
@@ -236,12 +361,20 @@ fn generate_method_builder(
                     return;
                 }
             };
-            #(#arg_declarations)*
-            let result = this.#method_ident(#(#arg_names),*);
-            if let Err(e) = result.set_zval(retval, false) {
-                let e: ::ext_php_rs::exception::PhpException = e.into();
-                e.throw().expect("Failed to throw PHP exception.");
+            #(#required_arg_declarations)*
+            #(#optional_arg_declarations)*
+            let parse_result = parse
+                #(.arg(&mut #required_arg_names))*
+                .not_required()
+                #(.arg(&mut #optional_arg_names))*
+                .parse();
+            if parse_result.is_err() {
+                return;
             }
+            #(#required_arg_value_accessors)*
+            #(#optional_arg_value_accessors)*
+            let result = this.#method_ident(#(#arg_names),*);
+            #result_handling
         }
     };
 
@@ -271,7 +404,9 @@ fn generate_method_builder(
                 }
                 handler
             })
-            #(#arg_builders)*
+            #(#required_arg_builders)*
+            .not_required()
+            #(#optional_arg_builders)*
             #returns_call,
             #flags
         )
