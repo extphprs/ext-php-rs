@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.7...ext-php-rs-derive-v0.11.8) - 2026-01-29
+
+### Added
+- *(class)* Abstract and final methods ([#656](https://github.com/extphprs/ext-php-rs/pull/656)) (by @kakserpom) [[#656](https://github.com/davidcole1340/ext-php-rs/issues/656)] 
+- *(interface)* Php_impl_interface macro #590 ([#621](https://github.com/extphprs/ext-php-rs/pull/621)) (by @kakserpom) [[#590](https://github.com/davidcole1340/ext-php-rs/issues/590)] [[#621](https://github.com/davidcole1340/ext-php-rs/issues/621)] 
 ## [0.11.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.6...ext-php-rs-derive-v0.11.7) - 2026-01-26
 
 ### Added
