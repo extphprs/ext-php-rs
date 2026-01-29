@@ -1,8 +1,8 @@
 //! Collection type conversions for `ZendHashTable`.
 //!
-//! This module provides conversions between Rust collection types and PHP arrays
-//! (represented as `ZendHashTable`). Each collection type has its own module for
-//! better organization and maintainability.
+//! This module provides conversions between Rust collection types and PHP
+//! arrays (represented as `ZendHashTable`). Each collection type has its own
+//! module for better organization and maintainability.
 //!
 //! ## Supported Collections
 //!

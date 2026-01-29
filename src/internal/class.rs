@@ -1,13 +1,41 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
 use crate::{
     builders::FunctionBuilder,
-    class::{ConstructorMeta, RegisteredClass},
+    class::{ClassEntryInfo, ConstructorMeta, RegisteredClass},
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
     flags::MethodFlags,
     props::Property,
 };
+
+/// Registration entry for interface implementations.
+/// Used by `#[php_impl_interface]` macro to register interfaces across crate boundaries.
+pub struct InterfaceRegistration {
+    /// The `TypeId` of the class implementing the interface.
+    pub class_type_id: TypeId,
+    /// Function that returns the interface's `ClassEntryInfo`.
+    pub interface_getter: fn() -> ClassEntryInfo,
+}
+
+inventory::collect!(InterfaceRegistration);
+
+/// Trait for getting interface method builders.
+/// This trait uses autoref specialization to allow optional implementation.
+/// Classes with `#[php_impl_interface]` will implement this directly (not on a reference).
+pub trait InterfaceMethodsProvider<T: RegisteredClass> {
+    fn get_interface_methods(self) -> Vec<(FunctionBuilder<'static>, MethodFlags)>;
+}
+
+/// Default implementation for classes without interface implementations.
+/// Uses autoref specialization - the reference implementation is chosen when
+/// no direct implementation exists.
+impl<T: RegisteredClass> InterfaceMethodsProvider<T> for &'_ PhpClassImplCollector<T> {
+    #[inline]
+    fn get_interface_methods(self) -> Vec<(FunctionBuilder<'static>, MethodFlags)> {
+        Vec::new()
+    }
+}
 
 /// Collector used to collect methods for PHP classes.
 pub struct PhpClassImplCollector<T: RegisteredClass>(PhantomData<T>);

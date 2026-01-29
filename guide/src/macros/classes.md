@@ -449,3 +449,166 @@ The `ext-php-rs-build` crate provides several useful utilities:
 
 This is **optional** - if your extension only targets PHP 8.2+, you can use
 `#[php(readonly)]` directly without any build script setup.
+
+## Implementing Iterator
+
+To make a Rust class usable with PHP's `foreach` loop, implement the
+[`Iterator`](https://www.php.net/manual/en/class.iterator.php) interface.
+This requires implementing five methods: `current()`, `key()`, `next()`, `rewind()`, and `valid()`.
+
+The following example creates a `RangeIterator` that iterates over a range of integers:
+
+````rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::{prelude::*, zend::ce};
+
+#[php_class]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+pub struct RangeIterator {
+    start: i64,
+    end: i64,
+    current: i64,
+    index: i64,
+}
+
+#[php_impl]
+impl RangeIterator {
+    /// Create a new range iterator from start to end (inclusive).
+    pub fn __construct(start: i64, end: i64) -> Self {
+        Self {
+            start,
+            end,
+            current: start,
+            index: 0,
+        }
+    }
+
+    /// Return the current element.
+    pub fn current(&self) -> i64 {
+        self.current
+    }
+
+    /// Return the key of the current element.
+    pub fn key(&self) -> i64 {
+        self.index
+    }
+
+    /// Move forward to next element.
+    pub fn next(&mut self) {
+        self.current += 1;
+        self.index += 1;
+    }
+
+    /// Rewind the Iterator to the first element.
+    pub fn rewind(&mut self) {
+        self.current = self.start;
+        self.index = 0;
+    }
+
+    /// Checks if current position is valid.
+    pub fn valid(&self) -> bool {
+        self.current <= self.end
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.class::<RangeIterator>()
+}
+# fn main() {}
+````
+
+Using the iterator in PHP:
+
+```php
+<?php
+
+$range = new RangeIterator(1, 5);
+
+// Use with foreach
+foreach ($range as $key => $value) {
+    echo "$key => $value\n";
+}
+// Output:
+// 0 => 1
+// 1 => 2
+// 2 => 3
+// 3 => 4
+// 4 => 5
+
+// Works with iterator functions
+$arr = iterator_to_array(new RangeIterator(10, 12));
+// [0 => 10, 1 => 11, 2 => 12]
+
+$count = iterator_count(new RangeIterator(1, 100));
+// 100
+```
+
+### Iterator with Mixed Types
+
+You can return different types for keys and values. The following example uses string keys:
+
+````rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::{prelude::*, zend::ce};
+
+#[php_class]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+pub struct MapIterator {
+    keys: Vec<String>,
+    values: Vec<String>,
+    index: usize,
+}
+
+#[php_impl]
+impl MapIterator {
+    pub fn __construct() -> Self {
+        Self {
+            keys: vec!["first".into(), "second".into(), "third".into()],
+            values: vec!["one".into(), "two".into(), "three".into()],
+            index: 0,
+        }
+    }
+
+    pub fn current(&self) -> Option<String> {
+        self.values.get(self.index).cloned()
+    }
+
+    pub fn key(&self) -> Option<String> {
+        self.keys.get(self.index).cloned()
+    }
+
+    pub fn next(&mut self) {
+        self.index += 1;
+    }
+
+    pub fn rewind(&mut self) {
+        self.index = 0;
+    }
+
+    pub fn valid(&self) -> bool {
+        self.index < self.keys.len()
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.class::<MapIterator>()
+}
+# fn main() {}
+````
+
+```php
+<?php
+
+$map = new MapIterator();
+foreach ($map as $key => $value) {
+    echo "$key => $value\n";
+}
+// Output:
+// first => one
+// second => two
+// third => three
+```
