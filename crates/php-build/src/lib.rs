@@ -225,13 +225,15 @@ pub enum ApiVersion {
     Php84 = 2024_09_24,
     /// PHP 8.5
     Php85 = 2025_09_25,
+    /// PHP 8.6
+    Php86 = 2025_09_26,
 }
 
 impl ApiVersion {
     /// Returns the maximum API version supported.
     #[must_use]
     pub const fn max() -> Self {
-        ApiVersion::Php85
+        ApiVersion::Php86
     }
 
     /// Returns all known API versions.
@@ -244,6 +246,7 @@ impl ApiVersion {
             ApiVersion::Php83,
             ApiVersion::Php84,
             ApiVersion::Php85,
+            ApiVersion::Php86,
         ]
     }
 
@@ -268,6 +271,7 @@ impl ApiVersion {
             ApiVersion::Php83 => "php83",
             ApiVersion::Php84 => "php84",
             ApiVersion::Php85 => "php85",
+            ApiVersion::Php86 => "php86",
         }
     }
 
@@ -281,6 +285,7 @@ impl ApiVersion {
             ApiVersion::Php83 => "EXT_PHP_RS_PHP_83",
             ApiVersion::Php84 => "EXT_PHP_RS_PHP_84",
             ApiVersion::Php85 => "EXT_PHP_RS_PHP_85",
+            ApiVersion::Php86 => "EXT_PHP_RS_PHP_86",
         }
     }
 }
@@ -305,7 +310,10 @@ impl TryFrom<u32> for ApiVersion {
             x if ((ApiVersion::Php84 as u32)..(ApiVersion::Php85 as u32)).contains(&x) => {
                 Ok(ApiVersion::Php84)
             }
-            x if (ApiVersion::Php85 as u32) == x => Ok(ApiVersion::Php85),
+            x if ((ApiVersion::Php85 as u32)..(ApiVersion::Php86 as u32)).contains(&x) => {
+                Ok(ApiVersion::Php85)
+            }
+            x if (ApiVersion::Php86 as u32) == x => Ok(ApiVersion::Php86),
             version => bail!(
                 "The current version of PHP is not supported. Current PHP API version: {}, requires a version up to {}",
                 version,
@@ -329,7 +337,7 @@ pub fn emit_php_cfg_flags(version: ApiVersion) {
 /// Call this in your build script to avoid unknown cfg warnings.
 pub fn emit_check_cfg() {
     println!(
-        "cargo::rustc-check-cfg=cfg(php80, php81, php82, php83, php84, php85, php_zts, php_debug, docs)"
+        "cargo::rustc-check-cfg=cfg(php80, php81, php82, php83, php84, php85, php86, php_zts, php_debug, docs)"
     );
 }
 
