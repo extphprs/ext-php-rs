@@ -46,6 +46,9 @@ The rest of the options are passed as separate attributes:
   method.
 - `#[php(name = "method_name")]` - Renames the PHP method to a different identifier,
   without renaming the Rust method name.
+- `#[php(final)]` - Makes the method final (cannot be overridden in subclasses).
+- `#[php(abstract)]` - Makes the method abstract (must be implemented by subclasses).
+  Can only be used in abstract classes.
 
 The `#[php(defaults)]` and `#[php(optional)]` attributes operate the same as the
 equivalent function attribute parameters.
@@ -77,6 +80,79 @@ From PHP:
 $obj = MyClass::createDefault(); // Static call
 $val = $obj->getValue();         // Instance call
 ```
+
+### Final Methods
+
+Methods marked with `#[php(final)]` cannot be overridden in subclasses. This is
+useful when you want to prevent modification of critical functionality.
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+
+#[php_class]
+pub struct SecureClass;
+
+#[php_impl]
+impl SecureClass {
+    #[php(final)]
+    pub fn secure_method(&self) -> &str {
+        "This cannot be overridden"
+    }
+
+    // Final static methods are also supported
+    #[php(final)]
+    pub fn secure_static() -> i32 {
+        42
+    }
+}
+```
+
+### Abstract Methods
+
+Methods marked with `#[php(abstract)]` must be implemented by subclasses. Abstract
+methods can only be defined in abstract classes (classes with `ClassFlags::Abstract`).
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Abstract)]
+pub struct AbstractShape;
+
+#[php_impl]
+impl AbstractShape {
+    // Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    // Abstract method - subclasses must implement this.
+    // The body is never called; use unimplemented!() as a placeholder.
+    #[php(abstract)]
+    pub fn area(&self) -> f64 {
+        unimplemented!()
+    }
+
+    // Concrete method in abstract class
+    pub fn describe(&self) -> String {
+        format!("A shape with area {}", self.area())
+    }
+}
+```
+
+**Note:** Abstract method bodies are never called - they exist only because Rust
+syntax requires a body for methods in `impl` blocks. Use `unimplemented!()` as a
+clear placeholder.
+
+**Note:** If you try to use `#[php(abstract)]` on a method in a non-abstract class,
+you will get a compile-time error.
+
+**Note:** PHP does not support abstract static methods. If you need static behavior
+that can be customized by subclasses, use a regular instance method or the
+[late static binding](https://www.php.net/manual/en/language.oop5.late-static-bindings.php)
+pattern in PHP.
 
 ### Constructors
 

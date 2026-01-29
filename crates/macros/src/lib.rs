@@ -279,6 +279,80 @@ extern crate proc_macro;
 /// echo Counter::getCount(); // 2
 /// ```
 ///
+/// ## Abstract Classes
+///
+/// Abstract classes cannot be instantiated directly and may contain abstract
+/// methods that must be implemented by subclasses. Use `#[php(flags =
+/// ClassFlags::Abstract)]` to declare an abstract class:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::flags::ClassFlags;
+///
+/// #[php_class]
+/// #[php(flags = ClassFlags::Abstract)]
+/// pub struct AbstractAnimal;
+///
+/// #[php_impl]
+/// impl AbstractAnimal {
+///     // Protected constructor for subclasses
+///     #[php(vis = "protected")]
+///     pub fn __construct() -> Self {
+///         Self
+///     }
+///
+///     // Abstract method - must be implemented by subclasses.
+///     // Body is never called; use unimplemented!() as a placeholder.
+///     #[php(abstract)]
+///     pub fn speak(&self) -> String {
+///         unimplemented!()
+///     }
+///
+///     // Concrete method - inherited by subclasses
+///     pub fn breathe(&self) {
+///         println!("Breathing...");
+///     }
+/// }
+/// ```
+///
+/// From PHP, you can extend this abstract class:
+///
+/// ```php
+/// class Dog extends AbstractAnimal {
+///     public function __construct() {
+///         parent::__construct();
+///     }
+///
+///     public function speak(): string {
+///         return "Woof!";
+///     }
+/// }
+///
+/// $dog = new Dog();
+/// echo $dog->speak(); // "Woof!"
+/// $dog->breathe();    // "Breathing..."
+///
+/// // This would cause an error:
+/// // $animal = new AbstractAnimal(); // Cannot instantiate abstract class
+/// ```
+///
+/// See the [impl documentation](./impl.md#abstract-methods) for more details on
+/// abstract methods.
+///
+/// ## Final Classes
+///
+/// Final classes cannot be extended. Use `#[php(flags = ClassFlags::Final)]` to
+/// declare a final class:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::flags::ClassFlags;
+///
+/// #[php_class]
+/// #[php(flags = ClassFlags::Final)]
+/// pub struct FinalClass;
+/// ```
+///
 /// ## Readonly Classes (PHP 8.2+)
 ///
 /// PHP 8.2 introduced [readonly classes](https://www.php.net/manual/en/language.oop5.basic.php#language.oop5.basic.class.readonly),
@@ -1012,6 +1086,10 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///   "private")]` - Sets the visibility of the method.
 /// - `#[php(name = "method_name")]` - Renames the PHP method to a different
 ///   identifier, without renaming the Rust method name.
+/// - `#[php(final)]` - Makes the method final (cannot be overridden in
+///   subclasses).
+/// - `#[php(abstract)]` - Makes the method abstract (must be implemented by
+///   subclasses). Can only be used in abstract classes.
 ///
 /// The `#[php(defaults)]` and `#[php(optional)]` attributes operate the same as
 /// the equivalent function attribute parameters.
@@ -1043,6 +1121,80 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// $obj = MyClass::createDefault(); // Static call
 /// $val = $obj->getValue();         // Instance call
 /// ```
+///
+/// ### Final Methods
+///
+/// Methods marked with `#[php(final)]` cannot be overridden in subclasses. This
+/// is useful when you want to prevent modification of critical functionality.
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_class]
+/// pub struct SecureClass;
+///
+/// #[php_impl]
+/// impl SecureClass {
+///     #[php(final)]
+///     pub fn secure_method(&self) -> &str {
+///         "This cannot be overridden"
+///     }
+///
+///     // Final static methods are also supported
+///     #[php(final)]
+///     pub fn secure_static() -> i32 {
+///         42
+///     }
+/// }
+/// ```
+///
+/// ### Abstract Methods
+///
+/// Methods marked with `#[php(abstract)]` must be implemented by subclasses.
+/// Abstract methods can only be defined in abstract classes (classes with
+/// `ClassFlags::Abstract`).
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::flags::ClassFlags;
+///
+/// #[php_class]
+/// #[php(flags = ClassFlags::Abstract)]
+/// pub struct AbstractShape;
+///
+/// #[php_impl]
+/// impl AbstractShape {
+///     // Protected constructor for subclasses
+///     #[php(vis = "protected")]
+///     pub fn __construct() -> Self {
+///         Self
+///     }
+///
+///     // Abstract method - subclasses must implement this.
+///     // The body is never called; use unimplemented!() as a placeholder.
+///     #[php(abstract)]
+///     pub fn area(&self) -> f64 {
+///         unimplemented!()
+///     }
+///
+///     // Concrete method in abstract class
+///     pub fn describe(&self) -> String {
+///         format!("A shape with area {}", self.area())
+///     }
+/// }
+/// ```
+///
+/// **Note:** Abstract method bodies are never called - they exist only because
+/// Rust syntax requires a body for methods in `impl` blocks. Use
+/// `unimplemented!()` as a clear placeholder.
+///
+/// **Note:** If you try to use `#[php(abstract)]` on a method in a non-abstract
+/// class, you will get a compile-time error.
+///
+/// **Note:** PHP does not support abstract static methods. If you need static
+/// behavior that can be customized by subclasses, use a regular instance method
+/// or the [late static binding](https://www.php.net/manual/en/language.oop5.late-static-bindings.php)
+/// pattern in PHP.
 ///
 /// ### Constructors
 ///
