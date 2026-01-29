@@ -82,10 +82,13 @@ impl From<ModuleBuilder<'_>> for Module {
     fn from(builder: ModuleBuilder) -> Self {
         let functions = builder.functions;
 
+        // Include both classes and interfaces in the classes list.
+        // Interfaces are distinguished by ClassFlags::Interface.
         #[allow(unused_mut)]
         let mut classes = builder
-            .classes
+            .interfaces
             .into_iter()
+            .chain(builder.classes)
             .map(|c| c().into())
             .collect::<StdVec<_>>();
 
