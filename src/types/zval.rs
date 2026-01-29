@@ -779,6 +779,92 @@ impl Zval {
         FromZval::from_zval(self)
     }
 
+    /// Coerce the value into a string. Mimics the PHP type coercion rules.
+    pub fn coerce_into_string(&mut self) -> Result<()> {
+        if self.is_string() {
+            return Ok(());
+        }
+
+        if let Some(val) = self.string() {
+            self.set_string(&val, false)?;
+            return Ok(());
+        } else if let Some(val) = self.double() {
+            self.set_string(&val.to_string(), false)?;
+            return Ok(());
+        } else if let Some(val) = self.long() {
+            self.set_string(&val.to_string(), false)?;
+            return Ok(());
+        } else if let Some(val) = self.bool() {
+            self.set_string(if val { "1" } else { "0" }, false)?;
+            return Ok(());
+        } else if self.is_array() {
+            self.set_string("Array", false)?;
+            return Ok(());
+        }
+
+        Err(Error::ZvalConversion(self.get_type()))
+    }
+
+    /// Coerce the value into a boolean. Mimics the PHP type coercion rules.
+    pub fn coerce_into_bool(&mut self) -> Result<()> {
+        if self.is_bool() {
+            return Ok(());
+        }
+
+        if let Some(val) = self.long() {
+            self.set_bool(val != 0 );
+            return Ok(());
+        } else if let Some(val) = self.double() {
+            self.set_bool(val != 0.0 );
+            return Ok(());
+        } else if let Some(val) = self.string() {
+            self.set_bool(val != "0" && val != "");
+            return Ok(());
+        } else if let Some(val) = self.array() {
+            self.set_bool(val.len() != 0);
+        }
+
+        Err(Error::ZvalConversion(self.get_type()))
+    }
+
+    /// Coerce the value into a long. Mimics the PHP type coercion rules.
+    pub fn coerce_into_long(&mut self) -> Result<()> {
+        if self.is_long() {
+            return Ok(());
+        }
+
+        if let Some(val) = self.double() {
+            self.set_long(val as i64);
+            return Ok(());
+        } else if let Some(val) = self.string() {
+            self.set_long(val.parse::<i64>().map_err(|_| Error::ZvalConversion(self.get_type()))?);
+            return Ok(());
+        } else if let Some(val) = self.array() {
+            self.set_long(if val.len() > 0 { 1 } else { 0 });
+        }
+
+        Err(Error::ZvalConversion(self.get_type()))
+    }
+
+    /// Coerce the value into a double. Mimics the PHP type coercion rules.
+    pub fn coerce_into_double(&mut self) -> Result<()> {
+        if self.is_double() {
+            return Ok(());
+        }
+
+        if let Some(val) = self.long() {
+            self.set_double(val as f64);
+            return Ok(());
+        } else if let Some(val) = self.string() {
+            self.set_double(val.parse::<f64>().map_err(|_| Error::ZvalConversion(self.get_type()))?);
+            return Ok(());
+        } else if let Some(val) = self.array() {
+            self.set_double(if val.len() > 0 { 1.0 } else { 0.0 });
+        }
+
+        Err(Error::ZvalConversion(self.get_type()))
+    }
+
     /// Creates a shallow clone of the [`Zval`].
     ///
     /// This copies the contents of the [`Zval`], and increments the reference
