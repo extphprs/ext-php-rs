@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.15.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.5...ext-php-rs-v0.15.6) - 2026-01-29
+
+### Added
+- *(class)* Abstract and final methods ([#656](https://github.com/extphprs/ext-php-rs/pull/656)) (by @kakserpom) [[#656](https://github.com/davidcole1340/ext-php-rs/issues/656)] 
+- *(interface)* Php_impl_interface macro #590 ([#621](https://github.com/extphprs/ext-php-rs/pull/621)) (by @kakserpom) [[#590](https://github.com/davidcole1340/ext-php-rs/issues/590)] [[#621](https://github.com/davidcole1340/ext-php-rs/issues/621)] 
+
+### Other
+- Add context7 claim ([#664](https://github.com/extphprs/ext-php-rs/pull/664)) (by @ptondereau) [[#664](https://github.com/davidcole1340/ext-php-rs/issues/664)] 
 ### BREAKING CHANGES
 
 - *(macro)* [**breaking**] Functions and methods without an explicit return type now declare `void` as their PHP return type instead of having no return type (implicit `mixed`). This improves type safety but may cause errors if your function actually returns a value without declaring it. Magic methods `__destruct` and `__clone` are excluded as PHP forbids return types on them. See [migration guide](guide/src/migration-guides/v0.16.md).
