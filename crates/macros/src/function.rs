@@ -317,46 +317,59 @@ impl<'a> Function<'a> {
         }
     }
 
-    fn build_returns(&self, call_type: Option<&CallType>) -> Option<TokenStream> {
-        self.output.cloned().map(|mut output| {
-            output.drop_lifetimes();
-
-            // If returning &Self or &mut Self from a method, use the class type
-            // for return type information since we return `this` (ZendClassObject)
-            if returns_self_ref(self.output)
-                && let Some(CallType::Method { class, .. }) = call_type
+    fn build_returns(&self, call_type: Option<&CallType>) -> TokenStream {
+        let Some(output) = self.output.cloned() else {
+            // PHP magic methods __destruct and __clone cannot have return types
+            // (only applies to class methods, not standalone functions)
+            if matches!(call_type, Some(CallType::Method { .. }))
+                && (self.name == "__destruct" || self.name == "__clone")
             {
-                return quote! {
-                    .returns(
-                        <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::TYPE,
-                        false,
-                        <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                    )
-                };
+                return quote! {};
             }
+            // No return type means void in PHP
+            return quote! {
+                .returns(::ext_php_rs::flags::DataType::Void, false, false)
+            };
+        };
 
-            // If returning Self (new instance) from a method, replace Self with
-            // the actual class type since Self won't resolve in generated code
-            if returns_self(self.output)
-                && let Some(CallType::Method { class, .. }) = call_type
-            {
-                return quote! {
-                    .returns(
-                        <#class as ::ext_php_rs::convert::IntoZval>::TYPE,
-                        false,
-                        <#class as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                    )
-                };
-            }
+        let mut output = output;
+        output.drop_lifetimes();
 
-            quote! {
+        // If returning &Self or &mut Self from a method, use the class type
+        // for return type information since we return `this` (ZendClassObject)
+        if returns_self_ref(self.output)
+            && let Some(CallType::Method { class, .. }) = call_type
+        {
+            return quote! {
                 .returns(
-                    <#output as ::ext_php_rs::convert::IntoZval>::TYPE,
+                    <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::TYPE,
                     false,
-                    <#output as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                 )
-            }
-        })
+            };
+        }
+
+        // If returning Self (new instance) from a method, replace Self with
+        // the actual class type since Self won't resolve in generated code
+        if returns_self(self.output)
+            && let Some(CallType::Method { class, .. }) = call_type
+        {
+            return quote! {
+                .returns(
+                    <#class as ::ext_php_rs::convert::IntoZval>::TYPE,
+                    false,
+                    <#class as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                )
+            };
+        }
+
+        quote! {
+            .returns(
+                <#output as ::ext_php_rs::convert::IntoZval>::TYPE,
+                false,
+                <#output as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+            )
+        }
     }
 
     fn build_result(

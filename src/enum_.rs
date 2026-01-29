@@ -1,4 +1,5 @@
-//! This module defines the `PhpEnum` trait and related types for Rust enums that are exported to PHP.
+//! This module defines the `PhpEnum` trait and related types for Rust enums
+//! that are exported to PHP.
 use std::ptr;
 
 use crate::{
@@ -19,7 +20,8 @@ pub trait RegisteredEnum {
 
     /// # Errors
     ///
-    /// - [`Error::InvalidProperty`] if the enum does not have a case with the given name, an error is returned.
+    /// - [`Error::InvalidProperty`] if the enum does not have a case with the
+    ///   given name, an error is returned.
     fn from_name(name: &str) -> Result<Self>
     where
         Self: Sized;
@@ -125,7 +127,8 @@ impl EnumCase {
     }
 }
 
-/// Represents the discriminant of an enum case in PHP, which can be either an integer or a string.
+/// Represents the discriminant of an enum case in PHP, which can be either an
+/// integer or a string.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Discriminant {
     /// An integer discriminant.
