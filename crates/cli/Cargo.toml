@@ -23,6 +23,7 @@ dialoguer = "0.12"
 libloading = "0.9"
 cargo_metadata = "0.23"
 semver = "1.0"
+libc = "0.2"
 
 [lints.rust]
 missing_docs = "warn"

@@ -756,15 +756,27 @@ impl Zval {
         // the IS_STR_PERSISTENT flag and uses the correct deallocator (free vs efree).
         // This fixes heap corruption issues when dropping Zvals containing persistent
         // strings (see issue #424).
+        //
+        // For simple types (Long, Double, Bool, Null, Undef, True, False), we don't
+        // need to call zval_ptr_dtor because they don't have heap-allocated data.
+        // This is important for cargo-php stub generation where zval_ptr_dtor is
+        // stubbed as a null pointer - calling it would crash.
         if self.is_string() {
             unsafe {
                 if let Some(str_ptr) = self.value.str_.as_mut() {
                     ext_php_rs_zend_string_release(str_ptr);
                 }
             }
-        } else {
+        } else if self.is_array()
+            || self.is_object()
+            || self.is_resource()
+            || self.is_reference()
+            || self.get_type() == DataType::ConstantExpression
+        {
+            // Only call zval_ptr_dtor for reference-counted types
             unsafe { zval_ptr_dtor(self) };
         }
+        // Simple types (Long, Double, Bool, Null, etc.) need no cleanup
         self.u1.type_info = ty.bits();
     }
 
