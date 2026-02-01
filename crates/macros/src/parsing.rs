@@ -294,7 +294,7 @@ const MAGIC_METHOD: [&str; 17] = [
     "__debug_info",
 ];
 
-#[derive(Debug, FromMeta)]
+#[derive(Debug, Clone, Copy, PartialEq, FromMeta)]
 pub enum Visibility {
     #[darling(rename = "public")]
     Public,

@@ -6,7 +6,7 @@ use crate::{
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
     flags::MethodFlags,
-    props::Property,
+    internal::property::PropertyInfo,
 };
 
 /// Registration entry for interface implementations.
@@ -49,7 +49,7 @@ impl<T: RegisteredClass> Default for PhpClassImplCollector<T> {
 
 pub trait PhpClassImpl<T: RegisteredClass> {
     fn get_methods(self) -> Vec<(FunctionBuilder<'static>, MethodFlags)>;
-    fn get_method_props<'a>(self) -> HashMap<&'static str, Property<'a, T>>;
+    fn get_method_props<'a>(self) -> HashMap<&'static str, PropertyInfo<'a, T>>;
     fn get_constructor(self) -> Option<ConstructorMeta<T>>;
     fn get_constants(self) -> &'static [(&'static str, &'static dyn IntoZvalDyn, DocComments)];
 }
@@ -65,7 +65,7 @@ impl<T: RegisteredClass> PhpClassImpl<T> for &'_ PhpClassImplCollector<T> {
     }
 
     #[inline]
-    fn get_method_props<'a>(self) -> HashMap<&'static str, Property<'a, T>> {
+    fn get_method_props<'a>(self) -> HashMap<&'static str, PropertyInfo<'a, T>> {
         HashMap::default()
     }
 
