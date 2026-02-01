@@ -1702,6 +1702,47 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// As the same as field properties, method property types must implement both
 /// `IntoZval` and `FromZval`.
 ///
+/// ### Overriding field properties with getters/setters
+///
+/// If you have a field property defined with `#[php(prop)]` on your struct, you
+/// can override its access by defining a getter or setter method with the same
+/// property name. The method-based property will take precedence:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_class]
+/// pub struct Book {
+///     #[php(prop)]
+///     pub title: String,  // Direct field access
+/// }
+///
+/// #[php_impl]
+/// impl Book {
+///     pub fn __construct(title: String) -> Self {
+///         Self { title }
+///     }
+///
+///     // This getter overrides $book->title access
+///     #[php(getter)]
+///     pub fn get_title(&self) -> String {
+///         format!("Title: {}", self.title)
+///     }
+/// }
+/// ```
+///
+/// In PHP, accessing `$book->title` will now call the `get_title()` method
+/// instead of directly accessing the field:
+///
+/// ```php
+/// $book = new Book("The Rust Book");
+/// echo $book->title; // Output: "Title: The Rust Book"
+/// ```
+///
+/// This is useful when you need to add validation, transformation, or side
+/// effects to property access while still having the convenience of a public
+/// field in Rust.
+///
 /// ## Example
 ///
 /// Continuing on from our `Human` example in the structs section, we will

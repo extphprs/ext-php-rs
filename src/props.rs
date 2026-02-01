@@ -167,6 +167,121 @@ impl<'a, T: 'a> Property<'a, T> {
         Self::Method { get, set }
     }
 
+    /// Creates a getter-only method property.
+    ///
+    /// This is useful when the getter returns a type that only implements
+    /// [`IntoZval`] but not [`FromZval`] for all lifetimes, such as
+    /// `&'static str`.
+    ///
+    /// # Parameters
+    ///
+    /// * `get` - Function used to get the value of the property.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ext_php_rs::props::Property;
+    /// struct Test;
+    ///
+    /// impl Test {
+    ///     pub fn get_prop(&self) -> &'static str {
+    ///         "Hello"
+    ///     }
+    /// }
+    ///
+    /// let prop: Property<Test> = Property::method_getter(Test::get_prop);
+    /// ```
+    #[must_use]
+    pub fn method_getter<V>(get: fn(&T) -> V) -> Self
+    where
+        V: IntoZval + 'a,
+    {
+        let get = Box::new(move |self_: &T, retval: &mut Zval| -> PhpResult {
+            let value = get(self_);
+            value
+                .set_zval(retval, false)
+                .map_err(|e| format!("Failed to return property value to PHP: {e:?}"))?;
+            Ok(())
+        }) as Box<dyn Fn(&T, &mut Zval) -> PhpResult + Send + Sync + 'a>;
+
+        Self::Method {
+            get: Some(get),
+            set: None,
+        }
+    }
+
+    /// Creates a setter-only method property.
+    ///
+    /// This is useful when the setter accepts a type that only implements
+    /// [`FromZval`] but not [`IntoZval`].
+    ///
+    /// # Parameters
+    ///
+    /// * `set` - Function used to set the value of the property.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ext_php_rs::props::Property;
+    /// struct Test {
+    ///     value: String,
+    /// }
+    ///
+    /// impl Test {
+    ///     pub fn set_prop(&mut self, val: String) {
+    ///         self.value = val;
+    ///     }
+    /// }
+    ///
+    /// let prop: Property<Test> = Property::method_setter(Test::set_prop);
+    /// ```
+    #[must_use]
+    pub fn method_setter<V>(set: fn(&mut T, V)) -> Self
+    where
+        for<'b> V: FromZval<'b> + 'a,
+    {
+        let set = Box::new(move |self_: &mut T, value: &Zval| -> PhpResult {
+            let val = V::from_zval(value)
+                .ok_or("Unable to convert property value into required type.")?;
+            set(self_, val);
+            Ok(())
+        }) as Box<dyn Fn(&mut T, &Zval) -> PhpResult + Send + Sync + 'a>;
+
+        Self::Method {
+            get: None,
+            set: Some(set),
+        }
+    }
+
+    /// Adds a setter to an existing getter-only property, or combines with
+    /// another property.
+    ///
+    /// # Parameters
+    ///
+    /// * `other` - Another property to combine with this one. If `other` has a
+    ///   getter and this property doesn't, the getter from `other` is used. If
+    ///   `other` has a setter and this property doesn't, the setter from
+    ///   `other` is used.
+    ///
+    /// # Returns
+    ///
+    /// A new property with the combined getters and setters.
+    #[must_use]
+    pub fn combine(self, other: Self) -> Self {
+        match (self, other) {
+            (Property::Method { get: g1, set: s1 }, Property::Method { get: g2, set: s2 }) => {
+                Property::Method {
+                    get: g1.or(g2),
+                    set: s1.or(s2),
+                }
+            }
+            // If either is a field property, prefer the method property
+            (Property::Field(_), other @ Property::Method { .. }) => other,
+            // If first is method or both are fields, prefer the first one
+            (this @ (Property::Method { .. } | Property::Field(_)), Property::Field(_)) => this,
+        }
+    }
+
     /// Attempts to retrieve the value of the property from the given object
     /// `self_`.
     ///

@@ -163,6 +163,21 @@ impl MethodArgs {
     }
 }
 
+/// A property getter or setter method.
+#[derive(Debug)]
+struct PropertyMethod<'a> {
+    /// Property name in PHP (e.g., "name" for `get_name`/`set_name`).
+    prop_name: String,
+    /// The Rust method identifier.
+    method_ident: &'a syn::Ident,
+    /// Whether this is a getter (true) or setter (false).
+    is_getter: bool,
+    /// Visibility of the property.
+    vis: Visibility,
+    /// Documentation comments for the property.
+    docs: Vec<String>,
+}
+
 #[derive(Debug)]
 struct ParsedImpl<'a> {
     path: &'a syn::Path,
@@ -172,6 +187,8 @@ struct ParsedImpl<'a> {
     constructor: Option<(Function<'a>, Option<Visibility>)>,
     constants: Vec<Constant<'a>>,
     has_abstract_methods: bool,
+    /// Property getter/setter methods.
+    properties: Vec<PropertyMethod<'a>>,
 }
 
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -229,6 +246,7 @@ impl<'a> ParsedImpl<'a> {
             constructor: Option::default(),
             constants: Vec::default(),
             has_abstract_methods: false,
+            properties: Vec::default(),
         }
     }
 
@@ -262,6 +280,36 @@ impl<'a> ParsedImpl<'a> {
                     method.attrs.retain(|attr| !attr.path().is_ident("php"));
 
                     let opts = MethodArgs::new(name, attr)?;
+
+                    // Handle getter/setter methods
+                    if matches!(opts.ty, MethodTy::Getter | MethodTy::Setter) {
+                        let is_getter = matches!(opts.ty, MethodTy::Getter);
+                        // Extract property name from the Rust method name by stripping
+                        // get_/set_ prefix. We use the Rust name (not the PHP-renamed name)
+                        // to preserve the expected property naming convention.
+                        let method_name = method.sig.ident.to_string();
+                        let prop_name = if is_getter {
+                            method_name
+                                .strip_prefix("get_")
+                                .unwrap_or(&method_name)
+                                .to_string()
+                        } else {
+                            method_name
+                                .strip_prefix("set_")
+                                .unwrap_or(&method_name)
+                                .to_string()
+                        };
+
+                        self.properties.push(PropertyMethod {
+                            prop_name,
+                            method_ident: &method.sig.ident,
+                            is_getter,
+                            vis: opts.vis,
+                            docs,
+                        });
+                        continue;
+                    }
+
                     let args = Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
                     let mut func = Function::new(&method.sig, opts.name, args, opts.optional, docs);
 
@@ -324,6 +372,7 @@ impl<'a> ParsedImpl<'a> {
 
     /// Generates an `impl PhpClassImpl<Self> for PhpClassImplCollector<Self>`
     /// block.
+    #[allow(clippy::too_many_lines)]
     fn generate_php_class_impl(&self) -> TokenStream {
         let path = &self.path;
         let functions = &self.functions;
@@ -355,6 +404,87 @@ impl<'a> ParsedImpl<'a> {
             quote! {}
         };
 
+        // Group properties by name to combine getters and setters
+        // Store: (getter_ident, setter_ident, visibility, docs)
+        #[allow(clippy::items_after_statements)]
+        struct PropGroup<'a> {
+            getter: Option<&'a syn::Ident>,
+            setter: Option<&'a syn::Ident>,
+            vis: Visibility,
+            docs: Vec<String>,
+        }
+        let mut prop_groups: HashMap<&str, PropGroup> = HashMap::new();
+        for prop in &self.properties {
+            let entry = prop_groups
+                .entry(&prop.prop_name)
+                .or_insert_with(|| PropGroup {
+                    getter: None,
+                    setter: None,
+                    vis: prop.vis,
+                    docs: prop.docs.clone(),
+                });
+            if prop.is_getter {
+                entry.getter = Some(prop.method_ident);
+            } else {
+                entry.setter = Some(prop.method_ident);
+            }
+            // Use the most permissive visibility and combine docs
+            if prop.vis == Visibility::Public {
+                entry.vis = Visibility::Public;
+            }
+            if !prop.docs.is_empty() && entry.docs.is_empty() {
+                entry.docs.clone_from(&prop.docs);
+            }
+        }
+
+        // Generate property creation code
+        let property_inserts: Vec<TokenStream> = prop_groups
+            .iter()
+            .map(|(prop_name, group)| {
+                let flags = match group.vis {
+                    Visibility::Public => quote! { ::ext_php_rs::flags::PropertyFlags::Public },
+                    Visibility::Protected => quote! { ::ext_php_rs::flags::PropertyFlags::Protected },
+                    Visibility::Private => quote! { ::ext_php_rs::flags::PropertyFlags::Private },
+                };
+                let docs = &group.docs;
+                let prop_expr = match (group.getter, group.setter) {
+                    (Some(getter_ident), Some(setter_ident)) => {
+                        // Both getter and setter - use combine
+                        quote! {
+                            ::ext_php_rs::props::Property::method_getter(#path::#getter_ident)
+                                .combine(::ext_php_rs::props::Property::method_setter(#path::#setter_ident))
+                        }
+                    }
+                    (Some(getter_ident), None) => {
+                        // Only getter
+                        quote! {
+                            ::ext_php_rs::props::Property::method_getter(#path::#getter_ident)
+                        }
+                    }
+                    (None, Some(setter_ident)) => {
+                        // Only setter
+                        quote! {
+                            ::ext_php_rs::props::Property::method_setter(#path::#setter_ident)
+                        }
+                    }
+                    (None, None) => {
+                        // Should not happen
+                        return quote! {};
+                    }
+                };
+                quote! {
+                    props.insert(
+                        #prop_name,
+                        ::ext_php_rs::internal::property::PropertyInfo {
+                            prop: #prop_expr,
+                            flags: #flags,
+                            docs: &[#(#docs),*],
+                        }
+                    );
+                }
+            })
+            .collect();
+
         quote! {
             #abstract_check
 
@@ -367,8 +497,10 @@ impl<'a> ParsedImpl<'a> {
                     vec![#(#functions),*]
                 }
 
-                fn get_method_props<'a>(self) -> ::std::collections::HashMap<&'static str, ::ext_php_rs::props::Property<'a, #path>> {
-                    todo!()
+                fn get_method_props<'a>(self) -> ::std::collections::HashMap<&'static str, ::ext_php_rs::internal::property::PropertyInfo<'a, #path>> {
+                    let mut props = ::std::collections::HashMap::new();
+                    #(#property_inserts)*
+                    props
                 }
 
                 fn get_constructor(self) -> ::std::option::Option<::ext_php_rs::class::ConstructorMeta<#path>> {
