@@ -118,6 +118,27 @@ OPTIONS:
             Print stubs to stdout rather than write to file. Cannot be used with `out`
 ```
 
+### Custom Allocators
+
+If your extension uses a custom global allocator (e.g., `mimalloc`, `jemalloc`),
+you may encounter a crash when running `cargo php stubs` with an error like
+"pointer being freed was not allocated".
+
+This happens because `cargo php stubs` builds your extension in debug mode and
+loads it to extract type information. Custom allocators can conflict with this
+process.
+
+**Workaround:** Conditionally enable your custom allocator only in release builds:
+
+```rust,ignore
+#[cfg(not(debug_assertions))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+```
+
+See [issue #523](https://github.com/extphprs/ext-php-rs/issues/523) for more
+details.
+
 ## Extension Installation
 
 When PHP is in your PATH, the application can automatically build and copy your
