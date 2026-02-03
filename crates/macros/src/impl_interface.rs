@@ -169,10 +169,11 @@ fn generate_method_builder(
         })
         .collect();
 
-    // Find the optional boundary: the first index where all remaining args are Option<T>.
-    // Args before this boundary are required (even if Option<T>), args at/after are optional.
-    // This handles cases like `fn foo(opt: Option<i64>, required: i64)` correctly -
-    // `opt` is effectively required because a required param follows it.
+    // Find the optional boundary: the first index where all remaining args are
+    // Option<T>. Args before this boundary are required (even if Option<T>),
+    // args at/after are optional. This handles cases like `fn foo(opt:
+    // Option<i64>, required: i64)` correctly - `opt` is effectively required
+    // because a required param follows it.
     let optional_boundary = {
         let mut boundary = args.len();
         for i in (0..args.len()).rev() {

@@ -4,6 +4,8 @@
 
 use std::{convert::TryInto, ffi::c_void, fmt::Debug, ptr};
 
+use cfg_if::cfg_if;
+
 use crate::types::ZendIterator;
 use crate::types::iterable::Iterable;
 use crate::{
@@ -14,8 +16,8 @@ use crate::{
     error::{Error, Result},
     ffi::{
         _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, ext_php_rs_zend_string_release,
-        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_resource,
-        zend_value, zval, zval_ptr_dtor,
+        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_is_true,
+        zend_resource, zend_value, zval, zval_ptr_dtor,
     },
     flags::DataType,
     flags::ZvalTypeFlags,
@@ -530,6 +532,248 @@ impl Zval {
         )
     }
 
+    // =========================================================================
+    // Type Coercion Methods
+    // =========================================================================
+    //
+    // These methods convert the zval's value to a different type following
+    // PHP's type coercion rules. Unlike the mutating `coerce_into_*` methods
+    // in some implementations, these are pure functions that return a new value.
+
+    /// Coerces the value to a boolean following PHP's type coercion rules.
+    ///
+    /// This uses PHP's internal `zend_is_true` function to determine the
+    /// boolean value, which handles all PHP types correctly:
+    /// - `null` → `false`
+    /// - `false` → `false`, `true` → `true`
+    /// - `0`, `0.0`, `""`, `"0"` → `false`
+    /// - Empty arrays → `false`
+    /// - Everything else → `true`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_long(0);
+    /// assert_eq!(zv.coerce_to_bool(), false);
+    ///
+    /// zv.set_long(42);
+    /// assert_eq!(zv.coerce_to_bool(), true);
+    /// ```
+    #[must_use]
+    pub fn coerce_to_bool(&self) -> bool {
+        cfg_if! {
+            if #[cfg(php84)] {
+                let ptr: *const Self = self;
+                unsafe { zend_is_true(ptr) }
+            } else {
+                // Pre-PHP 8.4: zend_is_true takes *mut and returns c_int
+                let ptr = self as *const Self as *mut Self;
+                unsafe { zend_is_true(ptr) != 0 }
+            }
+        }
+    }
+
+    /// Coerces the value to a string following PHP's type coercion rules.
+    ///
+    /// This is a Rust implementation that matches PHP's behavior. Returns `None`
+    /// for types that cannot be meaningfully converted to strings (arrays,
+    /// resources, objects without `__toString`).
+    ///
+    /// Conversion rules:
+    /// - Strings → returned as-is
+    /// - Integers → decimal string representation
+    /// - Floats → string representation (uses uppercase `E` for scientific
+    ///   notation when exponent >= 14 or <= -5, matching PHP)
+    /// - `true` → `"1"`, `false` → `""`
+    /// - `null` → `""`
+    /// - `INF` → `"INF"`, `-INF` → `"-INF"`, `NAN` → `"NAN"` (uppercase)
+    /// - Objects with `__toString()` → result of calling `__toString()`
+    /// - Arrays, resources, objects without `__toString()` → `None`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_long(42);
+    /// assert_eq!(zv.coerce_to_string(), Some("42".to_string()));
+    ///
+    /// zv.set_bool(true);
+    /// assert_eq!(zv.coerce_to_string(), Some("1".to_string()));
+    /// ```
+    #[must_use]
+    pub fn coerce_to_string(&self) -> Option<String> {
+        // Already a string
+        if let Some(s) = self.str() {
+            return Some(s.to_string());
+        }
+
+        // Boolean
+        if let Some(b) = self.bool() {
+            return Some(if b { "1".to_string() } else { String::new() });
+        }
+
+        // Null
+        if self.is_null() {
+            return Some(String::new());
+        }
+
+        // Integer
+        if let Some(l) = self.long() {
+            return Some(l.to_string());
+        }
+
+        // Float
+        if let Some(d) = self.double() {
+            // PHP uses uppercase for special float values
+            if d.is_nan() {
+                return Some("NAN".to_string());
+            }
+            if d.is_infinite() {
+                return Some(if d.is_sign_positive() {
+                    "INF".to_string()
+                } else {
+                    "-INF".to_string()
+                });
+            }
+            // PHP uses a format similar to printf's %G with ~14 digits precision
+            // and uppercase E for scientific notation
+            return Some(php_float_to_string(d));
+        }
+
+        // Object with __toString
+        if let Some(obj) = self.object()
+            && let Ok(result) = obj.try_call_method("__toString", vec![])
+        {
+            return result.str().map(ToString::to_string);
+        }
+
+        // Arrays, resources, and objects without __toString cannot be converted
+        None
+    }
+
+    /// Coerces the value to an integer following PHP's type coercion rules.
+    ///
+    /// This is a Rust implementation that matches PHP's behavior. Returns `None`
+    /// for types that cannot be meaningfully converted to integers (arrays,
+    /// resources, objects).
+    ///
+    /// Conversion rules:
+    /// - Integers → returned as-is
+    /// - Floats → truncated toward zero
+    /// - `true` → `1`, `false` → `0`
+    /// - `null` → `0`
+    /// - Strings → parsed as integer (leading numeric portion only; stops at
+    ///   first non-digit; returns 0 if non-numeric; saturates on overflow)
+    /// - Arrays, resources, objects → `None`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_string("42abc", false);
+    /// assert_eq!(zv.coerce_to_long(), Some(42));
+    ///
+    /// zv.set_double(3.7);
+    /// assert_eq!(zv.coerce_to_long(), Some(3));
+    /// ```
+    #[must_use]
+    pub fn coerce_to_long(&self) -> Option<ZendLong> {
+        // Already an integer
+        if let Some(l) = self.long() {
+            return Some(l);
+        }
+
+        // Boolean
+        if let Some(b) = self.bool() {
+            return Some(ZendLong::from(b));
+        }
+
+        // Null
+        if self.is_null() {
+            return Some(0);
+        }
+
+        // Float - truncate toward zero
+        if let Some(d) = self.double() {
+            #[allow(clippy::cast_possible_truncation)]
+            return Some(d as ZendLong);
+        }
+
+        // String - parse leading numeric portion
+        if let Some(s) = self.str() {
+            return Some(parse_long_from_str(s));
+        }
+
+        // Arrays, resources, objects cannot be converted
+        None
+    }
+
+    /// Coerces the value to a float following PHP's type coercion rules.
+    ///
+    /// This is a Rust implementation that matches PHP's behavior. Returns `None`
+    /// for types that cannot be meaningfully converted to floats (arrays,
+    /// resources, objects).
+    ///
+    /// Conversion rules:
+    /// - Floats → returned as-is
+    /// - Integers → converted to float
+    /// - `true` → `1.0`, `false` → `0.0`
+    /// - `null` → `0.0`
+    /// - Strings → parsed as float (leading numeric portion including decimal
+    ///   point and scientific notation; returns 0.0 if non-numeric)
+    /// - Arrays, resources, objects → `None`
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// let mut zv = Zval::new();
+    /// zv.set_string("3.14abc", false);
+    /// assert_eq!(zv.coerce_to_double(), Some(3.14));
+    ///
+    /// zv.set_long(42);
+    /// assert_eq!(zv.coerce_to_double(), Some(42.0));
+    /// ```
+    #[must_use]
+    pub fn coerce_to_double(&self) -> Option<f64> {
+        // Already a float
+        if let Some(d) = self.double() {
+            return Some(d);
+        }
+
+        // Integer
+        if let Some(l) = self.long() {
+            #[allow(clippy::cast_precision_loss)]
+            return Some(l as f64);
+        }
+
+        // Boolean
+        if let Some(b) = self.bool() {
+            return Some(if b { 1.0 } else { 0.0 });
+        }
+
+        // Null
+        if self.is_null() {
+            return Some(0.0);
+        }
+
+        // String - parse leading numeric portion
+        if let Some(s) = self.str() {
+            return Some(parse_double_from_str(s));
+        }
+
+        // Arrays, resources, objects cannot be converted
+        None
+    }
+
     /// Sets the value of the zval as a string. Returns nothing in a result when
     /// successful.
     ///
@@ -899,8 +1143,174 @@ impl<'a> FromZvalMut<'a> for &'a mut Zval {
     }
 }
 
+/// Formats a float to a string following PHP's type coercion rules.
+///
+/// This is a Rust implementation that matches PHP's behavior. PHP uses a format
+/// similar to printf's `%G` with 14 significant digits:
+/// - Uses scientific notation when exponent >= 14 or <= -5
+/// - Uses uppercase 'E' for the exponent (e.g., "1.0E+52")
+/// - Removes trailing zeros after the decimal point
+fn php_float_to_string(d: f64) -> String {
+    // Use Rust's %G-like formatting: format with precision, uppercase E
+    // PHP uses ~14 significant digits
+    let formatted = format!("{d:.14E}");
+
+    // Parse the formatted string to clean it up
+    if let Some(e_pos) = formatted.find('E') {
+        let mantissa_part = &formatted[..e_pos];
+        let exp_part = &formatted[e_pos..];
+
+        // Parse exponent to decide format
+        let exp: i32 = exp_part[1..].parse().unwrap_or(0);
+
+        // PHP uses scientific notation when exponent >= 14 or <= -5
+        if exp >= 14 || exp <= -5 {
+            // Keep scientific notation, but clean up mantissa
+            let mantissa = mantissa_part.trim_end_matches('0').trim_end_matches('.');
+
+            // Ensure mantissa has at least one decimal digit if there's a decimal point
+            let mantissa = if mantissa.contains('.') && mantissa.ends_with('.') {
+                format!("{mantissa}0")
+            } else if !mantissa.contains('.') {
+                format!("{mantissa}.0")
+            } else {
+                mantissa.to_string()
+            };
+
+            // Format exponent with sign
+            if exp >= 0 {
+                format!("{mantissa}E+{exp}")
+            } else {
+                format!("{mantissa}E{exp}")
+            }
+        } else {
+            // Use decimal notation
+            let s = d.to_string();
+            // Clean up trailing zeros
+            if s.contains('.') {
+                s.trim_end_matches('0').trim_end_matches('.').to_string()
+            } else {
+                s
+            }
+        }
+    } else {
+        formatted
+    }
+}
+
+/// Parses an integer from a string following PHP's type coercion rules.
+///
+/// This is a Rust implementation that matches PHP's behavior. It extracts the
+/// leading numeric portion of a string:
+/// - `"42"` → 42
+/// - `"42abc"` → 42
+/// - `"  42"` → 42 (leading whitespace is skipped)
+/// - `"-42"` → -42
+/// - `"abc"` → 0
+/// - `""` → 0
+/// - Hexadecimal (`"0xFF"`) → 0 (not interpreted, stops at 'x')
+/// - Octal (`"010"`) → 10 (not interpreted as octal)
+/// - Overflow saturates to `ZendLong::MAX` or `ZendLong::MIN`
+fn parse_long_from_str(s: &str) -> ZendLong {
+    let s = s.trim_start();
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
+        return 0;
+    }
+
+    let mut i = 0;
+    let mut is_negative = false;
+
+    // Handle optional sign
+    if bytes[i] == b'-' || bytes[i] == b'+' {
+        is_negative = bytes[i] == b'-';
+        i += 1;
+    }
+
+    let digits_start = i;
+
+    // Collect digits
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+
+    // No digits found
+    if i == digits_start {
+        return 0;
+    }
+
+    // Parse the slice, saturating on overflow (matching PHP behavior)
+    match s[..i].parse::<ZendLong>() {
+        Ok(n) => n,
+        Err(_) => {
+            // Overflow: saturate to max or min depending on sign
+            if is_negative {
+                ZendLong::MIN
+            } else {
+                ZendLong::MAX
+            }
+        }
+    }
+}
+
+/// Parses a float from a string following PHP's type coercion rules.
+///
+/// This is a Rust implementation that matches PHP's behavior. It extracts the
+/// leading numeric portion of a string:
+/// - `"3.14"` → 3.14
+/// - `"3.14abc"` → 3.14
+/// - `"  3.14"` → 3.14 (leading whitespace is skipped)
+/// - `"-3.14"` → -3.14
+/// - `"1e10"` → 1e10 (scientific notation supported)
+/// - `".5"` → 0.5 (leading decimal point)
+/// - `"5."` → 5.0 (trailing decimal point)
+/// - `"abc"` → 0.0
+/// - `""` → 0.0
+fn parse_double_from_str(s: &str) -> f64 {
+    let s = s.trim_start();
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
+        return 0.0;
+    }
+
+    let mut i = 0;
+    let mut has_decimal = false;
+    let mut has_exponent = false;
+    let mut has_digits = false;
+
+    // Handle optional sign
+    if bytes[i] == b'-' || bytes[i] == b'+' {
+        i += 1;
+    }
+
+    // Collect digits, decimal point, and exponent
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c.is_ascii_digit() {
+            has_digits = true;
+            i += 1;
+        } else if c == b'.' && !has_decimal && !has_exponent {
+            has_decimal = true;
+            i += 1;
+        } else if (c == b'e' || c == b'E') && !has_exponent && has_digits {
+            has_exponent = true;
+            i += 1;
+            // Handle optional sign after exponent
+            if i < bytes.len() && (bytes[i] == b'-' || bytes[i] == b'+') {
+                i += 1;
+            }
+        } else {
+            break;
+        }
+    }
+
+    // Parse the slice or return 0.0
+    s[..i].parse().unwrap_or(0.0)
+}
+
 #[cfg(test)]
 #[cfg(feature = "embed")]
+#[allow(clippy::unwrap_used, clippy::approx_constant)]
 mod tests {
     use super::*;
     use crate::embed::Embed;
@@ -946,5 +1356,529 @@ mod tests {
             let zval_array = Zval::new_array();
             assert!(!zval_array.is_scalar());
         });
+    }
+
+    #[test]
+    fn test_coerce_to_bool() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // === Truthy values ===
+            // Integers
+            zv.set_long(42);
+            assert!(zv.coerce_to_bool(), "(bool)42 should be true");
+
+            zv.set_long(1);
+            assert!(zv.coerce_to_bool(), "(bool)1 should be true");
+
+            zv.set_long(-1);
+            assert!(zv.coerce_to_bool(), "(bool)-1 should be true");
+
+            // Floats
+            zv.set_double(0.1);
+            assert!(zv.coerce_to_bool(), "(bool)0.1 should be true");
+
+            zv.set_double(-0.1);
+            assert!(zv.coerce_to_bool(), "(bool)-0.1 should be true");
+
+            // Strings - non-empty and not "0"
+            zv.set_string("hello", false).unwrap();
+            assert!(zv.coerce_to_bool(), "(bool)'hello' should be true");
+
+            zv.set_string("1", false).unwrap();
+            assert!(zv.coerce_to_bool(), "(bool)'1' should be true");
+
+            // PHP: (bool)"false" is true (non-empty string)
+            zv.set_string("false", false).unwrap();
+            assert!(zv.coerce_to_bool(), "(bool)'false' should be true");
+
+            // PHP: (bool)"true" is true
+            zv.set_string("true", false).unwrap();
+            assert!(zv.coerce_to_bool(), "(bool)'true' should be true");
+
+            // PHP: (bool)" " (space) is true
+            zv.set_string(" ", false).unwrap();
+            assert!(zv.coerce_to_bool(), "(bool)' ' should be true");
+
+            // PHP: (bool)"00" is true (only exactly "0" is false)
+            zv.set_string("00", false).unwrap();
+            assert!(zv.coerce_to_bool(), "(bool)'00' should be true");
+
+            zv.set_bool(true);
+            assert!(zv.coerce_to_bool(), "(bool)true should be true");
+
+            // === Falsy values ===
+            // Integer zero
+            zv.set_long(0);
+            assert!(!zv.coerce_to_bool(), "(bool)0 should be false");
+
+            // Float zero (both positive and negative)
+            zv.set_double(0.0);
+            assert!(!zv.coerce_to_bool(), "(bool)0.0 should be false");
+
+            zv.set_double(-0.0);
+            assert!(!zv.coerce_to_bool(), "(bool)-0.0 should be false");
+
+            // Empty string
+            zv.set_string("", false).unwrap();
+            assert!(!zv.coerce_to_bool(), "(bool)'' should be false");
+
+            // String "0" - the only non-empty falsy string
+            zv.set_string("0", false).unwrap();
+            assert!(!zv.coerce_to_bool(), "(bool)'0' should be false");
+
+            zv.set_bool(false);
+            assert!(!zv.coerce_to_bool(), "(bool)false should be false");
+
+            // Null
+            let null_zv = Zval::null();
+            assert!(!null_zv.coerce_to_bool(), "(bool)null should be false");
+
+            // Empty array
+            let empty_array = Zval::new_array();
+            assert!(!empty_array.coerce_to_bool(), "(bool)[] should be false");
+        });
+    }
+
+    #[test]
+    fn test_coerce_to_string() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // === Integer to string ===
+            zv.set_long(42);
+            assert_eq!(zv.coerce_to_string(), Some("42".to_string()));
+
+            zv.set_long(-123);
+            assert_eq!(zv.coerce_to_string(), Some("-123".to_string()));
+
+            zv.set_long(0);
+            assert_eq!(zv.coerce_to_string(), Some("0".to_string()));
+
+            // === Float to string ===
+            zv.set_double(3.14);
+            assert_eq!(zv.coerce_to_string(), Some("3.14".to_string()));
+
+            zv.set_double(-3.14);
+            assert_eq!(zv.coerce_to_string(), Some("-3.14".to_string()));
+
+            zv.set_double(0.0);
+            assert_eq!(zv.coerce_to_string(), Some("0".to_string()));
+
+            zv.set_double(1.0);
+            assert_eq!(zv.coerce_to_string(), Some("1".to_string()));
+
+            zv.set_double(1.5);
+            assert_eq!(zv.coerce_to_string(), Some("1.5".to_string()));
+
+            zv.set_double(100.0);
+            assert_eq!(zv.coerce_to_string(), Some("100".to_string()));
+
+            // Special float values (uppercase like PHP)
+            zv.set_double(f64::INFINITY);
+            assert_eq!(zv.coerce_to_string(), Some("INF".to_string()));
+
+            zv.set_double(f64::NEG_INFINITY);
+            assert_eq!(zv.coerce_to_string(), Some("-INF".to_string()));
+
+            zv.set_double(f64::NAN);
+            assert_eq!(zv.coerce_to_string(), Some("NAN".to_string()));
+
+            // Scientific notation thresholds (PHP uses E notation at exp >= 14 or <= -5)
+            // PHP: (string)1e13 -> "10000000000000"
+            zv.set_double(1e13);
+            assert_eq!(zv.coerce_to_string(), Some("10000000000000".to_string()));
+
+            // PHP: (string)1e14 -> "1.0E+14"
+            zv.set_double(1e14);
+            assert_eq!(zv.coerce_to_string(), Some("1.0E+14".to_string()));
+
+            // PHP: (string)1e52 -> "1.0E+52"
+            zv.set_double(1e52);
+            assert_eq!(zv.coerce_to_string(), Some("1.0E+52".to_string()));
+
+            // PHP: (string)0.0001 -> "0.0001"
+            zv.set_double(0.0001);
+            assert_eq!(zv.coerce_to_string(), Some("0.0001".to_string()));
+
+            // PHP: (string)1e-5 -> "1.0E-5"
+            zv.set_double(1e-5);
+            assert_eq!(zv.coerce_to_string(), Some("1.0E-5".to_string()));
+
+            // Negative scientific notation
+            // PHP: (string)(-1e52) -> "-1.0E+52"
+            zv.set_double(-1e52);
+            assert_eq!(zv.coerce_to_string(), Some("-1.0E+52".to_string()));
+
+            // PHP: (string)(-1e-10) -> "-1.0E-10"
+            zv.set_double(-1e-10);
+            assert_eq!(zv.coerce_to_string(), Some("-1.0E-10".to_string()));
+
+            // === Boolean to string ===
+            // PHP: (string)true -> "1"
+            zv.set_bool(true);
+            assert_eq!(zv.coerce_to_string(), Some("1".to_string()));
+
+            // PHP: (string)false -> ""
+            zv.set_bool(false);
+            assert_eq!(zv.coerce_to_string(), Some(String::new()));
+
+            // === Null to string ===
+            // PHP: (string)null -> ""
+            let null_zv = Zval::null();
+            assert_eq!(null_zv.coerce_to_string(), Some(String::new()));
+
+            // === String unchanged ===
+            zv.set_string("hello", false).unwrap();
+            assert_eq!(zv.coerce_to_string(), Some("hello".to_string()));
+
+            // === Array cannot be converted ===
+            let arr_zv = Zval::new_array();
+            assert_eq!(arr_zv.coerce_to_string(), None);
+        });
+    }
+
+    #[test]
+    fn test_coerce_to_long() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // === Integer unchanged ===
+            zv.set_long(42);
+            assert_eq!(zv.coerce_to_long(), Some(42));
+
+            zv.set_long(-42);
+            assert_eq!(zv.coerce_to_long(), Some(-42));
+
+            zv.set_long(0);
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // === Float truncated (towards zero) ===
+            // PHP: (int)3.14 -> 3
+            zv.set_double(3.14);
+            assert_eq!(zv.coerce_to_long(), Some(3));
+
+            // PHP: (int)3.99 -> 3
+            zv.set_double(3.99);
+            assert_eq!(zv.coerce_to_long(), Some(3));
+
+            // PHP: (int)-3.14 -> -3
+            zv.set_double(-3.14);
+            assert_eq!(zv.coerce_to_long(), Some(-3));
+
+            // PHP: (int)-3.99 -> -3
+            zv.set_double(-3.99);
+            assert_eq!(zv.coerce_to_long(), Some(-3));
+
+            // PHP: (int)0.0 -> 0
+            zv.set_double(0.0);
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // PHP: (int)-0.0 -> 0
+            zv.set_double(-0.0);
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // === Boolean to integer ===
+            // PHP: (int)true -> 1
+            zv.set_bool(true);
+            assert_eq!(zv.coerce_to_long(), Some(1));
+
+            // PHP: (int)false -> 0
+            zv.set_bool(false);
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // === Null to integer ===
+            // PHP: (int)null -> 0
+            let null_zv = Zval::null();
+            assert_eq!(null_zv.coerce_to_long(), Some(0));
+
+            // === String to integer (leading numeric portion) ===
+            // PHP: (int)"123" -> 123
+            zv.set_string("123", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(123));
+
+            // PHP: (int)"  123" -> 123
+            zv.set_string("  123", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(123));
+
+            // PHP: (int)"123abc" -> 123
+            zv.set_string("123abc", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(123));
+
+            // PHP: (int)"abc123" -> 0
+            zv.set_string("abc123", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // PHP: (int)"" -> 0
+            zv.set_string("", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // PHP: (int)"0" -> 0
+            zv.set_string("0", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // PHP: (int)"-0" -> 0
+            zv.set_string("-0", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // PHP: (int)"+123" -> 123
+            zv.set_string("+123", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(123));
+
+            // PHP: (int)"   -456" -> -456
+            zv.set_string("   -456", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(-456));
+
+            // PHP: (int)"3.14" -> 3 (stops at decimal point)
+            zv.set_string("3.14", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(3));
+
+            // PHP: (int)"3.99" -> 3
+            zv.set_string("3.99", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(3));
+
+            // PHP: (int)"-3.99" -> -3
+            zv.set_string("-3.99", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(-3));
+
+            // PHP: (int)"abc" -> 0
+            zv.set_string("abc", false).unwrap();
+            assert_eq!(zv.coerce_to_long(), Some(0));
+
+            // === Array cannot be converted ===
+            let arr_zv = Zval::new_array();
+            assert_eq!(arr_zv.coerce_to_long(), None);
+        });
+    }
+
+    #[test]
+    fn test_coerce_to_double() {
+        Embed::run(|| {
+            let mut zv = Zval::new();
+
+            // === Float unchanged ===
+            zv.set_double(3.14);
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            zv.set_double(-3.14);
+            assert!((zv.coerce_to_double().unwrap() - (-3.14)).abs() < f64::EPSILON);
+
+            zv.set_double(0.0);
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // === Integer to float ===
+            // PHP: (float)42 -> 42.0
+            zv.set_long(42);
+            assert!((zv.coerce_to_double().unwrap() - 42.0).abs() < f64::EPSILON);
+
+            // PHP: (float)-42 -> -42.0
+            zv.set_long(-42);
+            assert!((zv.coerce_to_double().unwrap() - (-42.0)).abs() < f64::EPSILON);
+
+            // PHP: (float)0 -> 0.0
+            zv.set_long(0);
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // === Boolean to float ===
+            // PHP: (float)true -> 1.0
+            zv.set_bool(true);
+            assert!((zv.coerce_to_double().unwrap() - 1.0).abs() < f64::EPSILON);
+
+            // PHP: (float)false -> 0.0
+            zv.set_bool(false);
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // === Null to float ===
+            // PHP: (float)null -> 0.0
+            let null_zv = Zval::null();
+            assert!((null_zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // === String to float ===
+            // PHP: (float)"3.14" -> 3.14
+            zv.set_string("3.14", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            // PHP: (float)"  3.14" -> 3.14
+            zv.set_string("  3.14", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            // PHP: (float)"3.14abc" -> 3.14
+            zv.set_string("3.14abc", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            // PHP: (float)"abc3.14" -> 0.0
+            zv.set_string("abc3.14", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // PHP: (float)"" -> 0.0
+            zv.set_string("", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // PHP: (float)"0" -> 0.0
+            zv.set_string("0", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // PHP: (float)"0.0" -> 0.0
+            zv.set_string("0.0", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // PHP: (float)"+3.14" -> 3.14
+            zv.set_string("+3.14", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 3.14).abs() < f64::EPSILON);
+
+            // PHP: (float)"   -3.14" -> -3.14
+            zv.set_string("   -3.14", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - (-3.14)).abs() < f64::EPSILON);
+
+            // Scientific notation
+            // PHP: (float)"1e10" -> 1e10
+            zv.set_string("1e10", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 1e10).abs() < 1.0);
+
+            // PHP: (float)"1E10" -> 1e10
+            zv.set_string("1E10", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 1e10).abs() < 1.0);
+
+            // PHP: (float)"1.5e-3" -> 0.0015
+            zv.set_string("1.5e-3", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0015).abs() < f64::EPSILON);
+
+            // PHP: (float)".5" -> 0.5
+            zv.set_string(".5", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.5).abs() < f64::EPSILON);
+
+            // PHP: (float)"5." -> 5.0
+            zv.set_string("5.", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 5.0).abs() < f64::EPSILON);
+
+            // PHP: (float)"abc" -> 0.0
+            zv.set_string("abc", false).unwrap();
+            assert!((zv.coerce_to_double().unwrap() - 0.0).abs() < f64::EPSILON);
+
+            // === Array cannot be converted ===
+            let arr_zv = Zval::new_array();
+            assert_eq!(arr_zv.coerce_to_double(), None);
+        });
+    }
+
+    #[test]
+    fn test_parse_long_from_str() {
+        use crate::ffi::zend_long as ZendLong;
+
+        // Basic cases
+        assert_eq!(parse_long_from_str("42"), 42);
+        assert_eq!(parse_long_from_str("0"), 0);
+        assert_eq!(parse_long_from_str("-42"), -42);
+        assert_eq!(parse_long_from_str("+42"), 42);
+
+        // Leading/trailing content
+        assert_eq!(parse_long_from_str("42abc"), 42);
+        assert_eq!(parse_long_from_str("  42"), 42);
+        assert_eq!(parse_long_from_str("\t\n42"), 42);
+        assert_eq!(parse_long_from_str("  -42"), -42);
+        assert_eq!(parse_long_from_str("42.5"), 42); // stops at decimal point
+
+        // Non-numeric strings
+        assert_eq!(parse_long_from_str("abc"), 0);
+        assert_eq!(parse_long_from_str(""), 0);
+        assert_eq!(parse_long_from_str("  "), 0);
+        assert_eq!(parse_long_from_str("-"), 0);
+        assert_eq!(parse_long_from_str("+"), 0);
+        assert_eq!(parse_long_from_str("abc123"), 0);
+
+        // Edge cases matching PHP behavior:
+        // - Hexadecimal: PHP's (int)"0xFF" returns 0 (stops at 'x')
+        assert_eq!(parse_long_from_str("0xFF"), 0);
+        assert_eq!(parse_long_from_str("0x10"), 0);
+
+        // - Octal notation is NOT interpreted, just reads leading digits
+        assert_eq!(parse_long_from_str("010"), 10); // not 8
+
+        // - Binary notation is NOT interpreted
+        assert_eq!(parse_long_from_str("0b101"), 0);
+
+        // Overflow tests - saturates to max/min
+        assert_eq!(
+            parse_long_from_str("99999999999999999999999999"),
+            ZendLong::MAX
+        );
+        assert_eq!(
+            parse_long_from_str("-99999999999999999999999999"),
+            ZendLong::MIN
+        );
+
+        // Large but valid numbers
+        assert_eq!(parse_long_from_str("9223372036854775807"), ZendLong::MAX); // i64::MAX
+        assert_eq!(parse_long_from_str("-9223372036854775808"), ZendLong::MIN); // i64::MIN
+    }
+
+    #[test]
+    fn test_parse_double_from_str() {
+        // Basic cases
+        assert!((parse_double_from_str("3.14") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("0.0") - 0.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("-3.14") - (-3.14)).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("+3.14") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str(".5") - 0.5).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("5.") - 5.0).abs() < f64::EPSILON);
+
+        // Scientific notation
+        assert!((parse_double_from_str("1e10") - 1e10).abs() < 1.0);
+        assert!((parse_double_from_str("1E10") - 1e10).abs() < 1.0);
+        assert!((parse_double_from_str("1.5e-3") - 1.5e-3).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("1.5E+3") - 1500.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("-1.5e2") - (-150.0)).abs() < f64::EPSILON);
+
+        // Leading/trailing content
+        assert!((parse_double_from_str("3.14abc") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("  3.14") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("\t\n3.14") - 3.14).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("1e10xyz") - 1e10).abs() < 1.0);
+
+        // Non-numeric strings
+        assert!((parse_double_from_str("abc") - 0.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("") - 0.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("  ") - 0.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("-") - 0.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("e10") - 0.0).abs() < f64::EPSILON); // no digits before e
+
+        // Integer values
+        assert!((parse_double_from_str("42") - 42.0).abs() < f64::EPSILON);
+        assert!((parse_double_from_str("-42") - (-42.0)).abs() < f64::EPSILON);
+
+        // Edge cases:
+        // - Hexadecimal: not supported, returns 0
+        assert!((parse_double_from_str("0xFF") - 0.0).abs() < f64::EPSILON);
+
+        // - Multiple decimal points: stops at second
+        assert!((parse_double_from_str("1.2.3") - 1.2).abs() < f64::EPSILON);
+
+        // - Multiple exponents: stops at second e
+        assert!((parse_double_from_str("1e2e3") - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_php_float_to_string() {
+        // Basic decimal values
+        assert_eq!(php_float_to_string(3.14), "3.14");
+        assert_eq!(php_float_to_string(42.0), "42");
+        assert_eq!(php_float_to_string(-3.14), "-3.14");
+        assert_eq!(php_float_to_string(0.0), "0");
+
+        // Large numbers use scientific notation with uppercase E
+        // PHP: (string)(float)'999...9' -> "1.0E+52"
+        assert_eq!(php_float_to_string(1e52), "1.0E+52");
+        assert_eq!(php_float_to_string(1e20), "1.0E+20");
+        assert_eq!(php_float_to_string(1e14), "1.0E+14");
+
+        // Very small numbers also use scientific notation (at exp <= -5)
+        assert_eq!(php_float_to_string(1e-10), "1.0E-10");
+        assert_eq!(php_float_to_string(1e-5), "1.0E-5");
+        assert_eq!(php_float_to_string(0.00001), "1.0E-5");
+
+        // Numbers that don't need scientific notation
+        assert_eq!(php_float_to_string(1e13), "10000000000000");
+        assert_eq!(php_float_to_string(0.001), "0.001");
+        assert_eq!(php_float_to_string(0.0001), "0.0001"); // 1e-4 is decimal
     }
 }

@@ -1,0 +1,3 @@
+[default.extend-words]
+# Rust standard library module name
+consts = "consts"
