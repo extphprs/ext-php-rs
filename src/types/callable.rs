@@ -10,7 +10,7 @@ use crate::{
     zend::ExecutorGlobals,
 };
 
-use super::Zval;
+use super::{ZendHashTable, Zval};
 
 /// Acts as a wrapper around a callable [`Zval`]. Allows the owner to call the
 /// [`Zval`] as if it was a PHP function through the [`try_call`] method.
@@ -147,6 +147,137 @@ impl<'a> ZendCallable<'a> {
         } else {
             Ok(retval)
         }
+    }
+
+    /// Attempts to call the callable with both positional and named arguments.
+    ///
+    /// This method supports PHP 8.0+ named arguments, allowing you to pass
+    /// arguments by name rather than position. Named arguments are passed
+    /// after positional arguments.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A list of positional parameters to call the function with.
+    /// * `named_params` - A list of named parameters as (name, value) tuples.
+    ///
+    /// # Returns
+    ///
+    /// Returns the result wrapped in [`Ok`] upon success.
+    ///
+    /// # Errors
+    ///
+    /// * If calling the callable fails, or an exception is thrown, an [`Err`]
+    ///   is returned.
+    /// * If the number of parameters exceeds `u32::MAX`.
+    /// * If a parameter name contains a NUL byte.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendCallable;
+    ///
+    /// // Call str_replace with named arguments
+    /// let str_replace = ZendCallable::try_from_name("str_replace").unwrap();
+    /// let result = str_replace.try_call_with_named(
+    ///     &[],  // no positional args
+    ///     &[("search", &"world"), ("replace", &"PHP"), ("subject", &"Hello world")],
+    /// ).unwrap();
+    /// assert_eq!(result.string(), Some("Hello PHP".into()));
+    /// ```
+    // TODO: Measure this
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    pub fn try_call_with_named(
+        &self,
+        params: &[&dyn IntoZvalDyn],
+        named_params: &[(&str, &dyn IntoZvalDyn)],
+    ) -> Result<Zval> {
+        if !self.0.is_callable() {
+            return Err(Error::Callable);
+        }
+
+        let mut retval = Zval::new();
+        let len = params.len();
+        let params = params
+            .iter()
+            .map(|val| val.as_zval(false))
+            .collect::<Result<Vec<_>>>()?;
+        let packed = params.into_boxed_slice();
+
+        // Build the named parameters hash table
+        let named_ht = if named_params.is_empty() {
+            None
+        } else {
+            let mut ht = ZendHashTable::new();
+            for &(name, val) in named_params {
+                let zval = val.as_zval(false)?;
+                ht.insert(name, zval)?;
+            }
+            Some(ht)
+        };
+
+        let named_ptr = named_ht
+            .as_ref()
+            .map_or(ptr::null_mut(), |ht| ptr::from_ref(&**ht).cast_mut());
+
+        let result = unsafe {
+            #[allow(clippy::used_underscore_items)]
+            _call_user_function_impl(
+                ptr::null_mut(),
+                ptr::from_ref(self.0.as_ref()).cast_mut(),
+                &raw mut retval,
+                len.try_into()?,
+                packed.as_ptr().cast_mut(),
+                named_ptr,
+            )
+        };
+
+        if result < 0 {
+            Err(Error::Callable)
+        } else if let Some(e) = ExecutorGlobals::take_exception() {
+            Err(Error::Exception(e))
+        } else {
+            Ok(retval)
+        }
+    }
+
+    /// Attempts to call the callable with only named arguments.
+    ///
+    /// This is a convenience method equivalent to calling
+    /// [`try_call_with_named`] with an empty positional arguments vector.
+    ///
+    /// # Parameters
+    ///
+    /// * `named_params` - A list of named parameters as (name, value) tuples.
+    ///
+    /// # Returns
+    ///
+    /// Returns the result wrapped in [`Ok`] upon success.
+    ///
+    /// # Errors
+    ///
+    /// * If calling the callable fails, or an exception is thrown, an [`Err`]
+    ///   is returned.
+    /// * If a parameter name contains a NUL byte.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendCallable;
+    ///
+    /// // Call array_fill with named arguments only
+    /// let array_fill = ZendCallable::try_from_name("array_fill").unwrap();
+    /// let result = array_fill.try_call_named(&[
+    ///     ("start_index", &0i64),
+    ///     ("count", &3i64),
+    ///     ("value", &"PHP"),
+    /// ]).unwrap();
+    /// ```
+    ///
+    /// [`try_call_with_named`]: #method.try_call_with_named
+    #[inline]
+    pub fn try_call_named(&self, named_params: &[(&str, &dyn IntoZvalDyn)]) -> Result<Zval> {
+        self.try_call_with_named(&[], named_params)
     }
 }
 

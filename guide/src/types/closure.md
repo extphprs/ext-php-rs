@@ -123,3 +123,54 @@ pub fn callable_parameter(call: ZendCallable) {
 }
 # fn main() {}
 ```
+
+### Named Arguments (PHP 8.0+)
+
+You can call PHP functions with named arguments using `try_call_named` or
+`try_call_with_named`. Named arguments allow you to pass parameters by name
+rather than position, which is especially useful when dealing with functions
+that have many optional parameters.
+
+```rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::prelude::*;
+use ext_php_rs::call_user_func_named;
+
+#[php_function]
+pub fn call_with_named_args() -> String {
+    // Get str_replace function
+    let str_replace = ZendCallable::try_from_name("str_replace")
+        .expect("str_replace not found");
+
+    // Call with named arguments in any order
+    let result = str_replace.try_call_named(&[
+        ("subject", &"Hello world"),
+        ("search", &"world"),
+        ("replace", &"PHP"),
+    ]).expect("Failed to call str_replace");
+
+    result.string().unwrap_or_default()
+}
+
+#[php_function]
+pub fn call_with_mixed_args(callback: ZendCallable) {
+    // Mix positional and named arguments
+    let result = callback.try_call_with_named(
+        &[&"positional_arg"],  // positional args first
+        &[("named", &"named_value")],  // then named args
+    ).expect("Failed to call function");
+    dbg!(result);
+}
+# fn main() {}
+```
+
+There's also a convenient `call_user_func_named!` macro:
+
+```rust,ignore
+// Named arguments only
+call_user_func_named!(callable, arg1: value1, arg2: value2)?;
+
+// Positional arguments followed by named arguments
+call_user_func_named!(callable, [pos1, pos2], named1: val1, named2: val2)?;
+```
