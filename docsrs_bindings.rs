@@ -2497,6 +2497,16 @@ unsafe extern "C" {
     ) -> zend_result;
 }
 unsafe extern "C" {
+    pub fn zend_read_property(
+        scope: *mut zend_class_entry,
+        object: *mut zend_object,
+        name: *const ::std::os::raw::c_char,
+        name_length: usize,
+        silent: bool,
+        rv: *mut zval,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
     pub fn zend_read_static_property(
         scope: *mut zend_class_entry,
         name: *const ::std::os::raw::c_char,
@@ -3485,6 +3495,10 @@ unsafe extern "C" {
     pub fn zend_throw_exception_object(exception: *mut zval);
 }
 unsafe extern "C" {
+    pub static mut zend_throw_exception_hook:
+        ::std::option::Option<unsafe extern "C" fn(ex: *mut zend_object)>;
+}
+unsafe extern "C" {
     pub fn zend_do_implement_interface(ce: *mut zend_class_entry, iface: *mut zend_class_entry);
 }
 unsafe extern "C" {
@@ -3801,4 +3815,15 @@ pub type zend_observer_fcall_init = ::std::option::Option<
 >;
 unsafe extern "C" {
     pub fn zend_observer_fcall_register(arg1: zend_observer_fcall_init);
+}
+pub type zend_observer_error_cb = ::std::option::Option<
+    unsafe extern "C" fn(
+        type_: ::std::os::raw::c_int,
+        error_filename: *mut zend_string,
+        error_lineno: u32,
+        message: *mut zend_string,
+    ),
+>;
+unsafe extern "C" {
+    pub fn zend_observer_error_register(callback: zend_observer_error_cb);
 }

@@ -4,7 +4,11 @@ mod _type;
 mod bailout_guard;
 pub mod ce;
 mod class;
+#[cfg(feature = "observer")]
+pub(crate) mod error_observer;
 mod ex;
+#[cfg(feature = "observer")]
+pub(crate) mod exception_observer;
 mod function;
 mod globals;
 mod handlers;
@@ -27,7 +31,11 @@ pub use _type::ZendType;
 pub use bailout_guard::BailoutGuard;
 pub use bailout_guard::run_bailout_cleanups;
 pub use class::ClassEntry;
+#[cfg(feature = "observer")]
+pub use error_observer::{BacktraceFrame, ErrorInfo, ErrorObserver, ErrorType};
 pub use ex::ExecuteData;
+#[cfg(feature = "observer")]
+pub use exception_observer::{ExceptionInfo, ExceptionObserver};
 pub use function::Function;
 pub use function::FunctionEntry;
 pub use globals::ExecutorGlobals;

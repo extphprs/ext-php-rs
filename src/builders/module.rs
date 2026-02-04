@@ -213,6 +213,111 @@ impl ModuleBuilder<'_> {
         self
     }
 
+    /// Registers an error observer for monitoring PHP errors.
+    ///
+    /// The factory function is called once during MINIT to create
+    /// a singleton observer instance shared across all requests.
+    /// The observer must be `Send + Sync` for ZTS builds.
+    ///
+    /// # Arguments
+    ///
+    /// * `factory` - A function that creates an observer instance
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::prelude::*;
+    ///
+    /// struct MyErrorLogger;
+    ///
+    /// impl ErrorObserver for MyErrorLogger {
+    ///     fn should_observe(&self, error_type: ErrorType) -> bool {
+    ///         ErrorType::FATAL.contains(error_type)
+    ///     }
+    ///
+    ///     fn on_error(&self, error: &ErrorInfo) {
+    ///         eprintln!("[{}:{}] {}",
+    ///             error.filename.unwrap_or("<unknown>"),
+    ///             error.lineno,
+    ///             error.message
+    ///         );
+    ///     }
+    /// }
+    ///
+    /// #[php_module]
+    /// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    ///     module.error_observer(MyErrorLogger)
+    /// }
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if called more than once on the same module.
+    #[cfg(feature = "observer")]
+    pub fn error_observer<F, O>(self, factory: F) -> Self
+    where
+        F: Fn() -> O + Send + Sync + 'static,
+        O: crate::zend::ErrorObserver + Send + Sync,
+    {
+        let boxed_factory: Box<
+            dyn Fn() -> Box<dyn crate::zend::ErrorObserver + Send + Sync> + Send + Sync,
+        > = Box::new(move || Box::new(factory()));
+        crate::zend::error_observer::register_error_observer_factory(boxed_factory);
+        self
+    }
+
+    /// Registers an exception observer for monitoring thrown PHP exceptions.
+    ///
+    /// The factory function is called once during MINIT to create
+    /// a singleton observer instance shared across all requests.
+    /// The observer must be `Send + Sync` for ZTS builds.
+    ///
+    /// The observer is called at throw time, before any catch blocks are evaluated.
+    ///
+    /// # Arguments
+    ///
+    /// * `factory` - A function that creates an observer instance
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::prelude::*;
+    ///
+    /// struct MyExceptionLogger;
+    ///
+    /// impl ExceptionObserver for MyExceptionLogger {
+    ///     fn on_exception(&self, exception: &ExceptionInfo) {
+    ///         eprintln!("[EXCEPTION] {}: {} at {}:{}",
+    ///             exception.class_name,
+    ///             exception.message.as_deref().unwrap_or("<no message>"),
+    ///             exception.file.as_deref().unwrap_or("<unknown>"),
+    ///             exception.line
+    ///         );
+    ///     }
+    /// }
+    ///
+    /// #[php_module]
+    /// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    ///     module.exception_observer(|| MyExceptionLogger)
+    /// }
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if called more than once on the same module.
+    #[cfg(feature = "observer")]
+    pub fn exception_observer<F, O>(self, factory: F) -> Self
+    where
+        F: Fn() -> O + Send + Sync + 'static,
+        O: crate::zend::ExceptionObserver + Send + Sync,
+    {
+        let boxed_factory: Box<
+            dyn Fn() -> Box<dyn crate::zend::ExceptionObserver + Send + Sync> + Send + Sync,
+        > = Box::new(move || Box::new(factory()));
+        crate::zend::exception_observer::register_exception_observer_factory(boxed_factory);
+        self
+    }
+
     /// Adds a function to the extension.
     ///
     /// # Arguments
@@ -407,10 +512,12 @@ impl ModuleStartup {
                 e.register().expect("Failed to build enum");
             });
 
-        // Initialize observer system if registered
+        // Initialize observer systems if registered
         #[cfg(feature = "observer")]
         unsafe {
             crate::zend::observer::observer_startup();
+            crate::zend::error_observer::error_observer_startup();
+            crate::zend::exception_observer::exception_observer_startup();
         }
 
         Ok(())
