@@ -30,17 +30,82 @@ pub struct StructAttributes {
     attrs: Vec<Attribute>,
 }
 
-#[derive(FromMeta, Debug)]
-pub struct ClassEntryAttribute {
-    pub ce: syn::Expr,
-    pub stub: String,
+/// Represents a class entry reference, either explicit (with `ce` and `stub`)
+/// or a simple type reference to a Rust type implementing `RegisteredClass`.
+///
+/// # Examples
+///
+/// Explicit form (for built-in PHP classes):
+/// ```ignore
+/// #[php(extends(ce = ce::exception, stub = "\\Exception"))]
+/// ```
+///
+/// Simple type form (for Rust-defined classes):
+/// ```ignore
+/// #[php(extends(Base))]
+/// ```
+#[derive(Debug)]
+pub enum ClassEntryAttribute {
+    /// Explicit class entry with a function returning `&'static ClassEntry` and
+    /// a stub name
+    Explicit { ce: syn::Expr, stub: String },
+    /// A Rust type that implements `RegisteredClass`
+    Type(syn::Path),
+}
+
+impl FromMeta for ClassEntryAttribute {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        match item {
+            syn::Meta::List(list) => {
+                // Try to parse as explicit form first: extends(ce = ..., stub = "...")
+                // by checking if it contains '='
+                let tokens_str = list.tokens.to_string();
+                if tokens_str.contains('=') {
+                    // Parse as explicit form with named parameters
+                    #[derive(FromMeta)]
+                    struct ExplicitForm {
+                        ce: syn::Expr,
+                        stub: String,
+                    }
+                    let explicit: ExplicitForm = FromMeta::from_meta(item)?;
+                    Ok(ClassEntryAttribute::Explicit {
+                        ce: explicit.ce,
+                        stub: explicit.stub,
+                    })
+                } else {
+                    // Parse as simple type form: extends(TypeName)
+                    let path: syn::Path = list.parse_args().map_err(|e| {
+                        darling::Error::custom(format!(
+                            "Expected a type path (e.g., `MyClass`) or explicit form \
+                             (e.g., `ce = expr, stub = \"Name\"`): {e}"
+                        ))
+                    })?;
+                    Ok(ClassEntryAttribute::Type(path))
+                }
+            }
+            _ => Err(darling::Error::unsupported_format("expected list format")),
+        }
+    }
 }
 
 impl ToTokens for ClassEntryAttribute {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let ce = &self.ce;
-        let stub = &self.stub;
-        let token = quote! { (#ce, #stub) };
+        let token = match self {
+            ClassEntryAttribute::Explicit { ce, stub } => {
+                // For explicit form, `ce` is expected to be a function like `ce::exception`
+                quote! { (#ce, #stub) }
+            }
+            ClassEntryAttribute::Type(path) => {
+                // For a Rust type, generate a closure that calls get_metadata().ce()
+                // The closure can be coerced to a function pointer since it captures nothing
+                quote! {
+                    (
+                        || <#path as ::ext_php_rs::class::RegisteredClass>::get_metadata().ce(),
+                        <#path as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME
+                    )
+                }
+            }
+        };
         tokens.append_all(token);
     }
 }
@@ -275,11 +340,7 @@ fn generate_registered_class_impl(
     };
 
     let implements = implements.iter().map(|imp| {
-        let ce = &imp.ce;
-        let stub = &imp.stub;
-        quote! {
-            (#ce, #stub)
-        }
+        quote! { #imp }
     });
 
     let default_init_impl = generate_default_init_impl(ident, has_derive_default);

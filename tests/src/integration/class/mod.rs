@@ -512,6 +512,62 @@ impl TestClassStaticStrGetter {
     }
 }
 
+// Test for simple type syntax in extends (Issue #173)
+//
+// When both parent and child are Rust-defined classes, inherited methods don't work
+// automatically because each Rust type has its own object handlers. The workaround
+// is to use a Rust trait for shared behavior.
+
+/// Trait for shared behavior between base and child classes
+trait BaseClassBehavior {
+    fn get_base_info(&self) -> &'static str {
+        "I am the base class"
+    }
+}
+
+#[php_class]
+#[derive(Default)]
+pub struct TestBaseClass;
+
+impl BaseClassBehavior for TestBaseClass {}
+
+#[php_impl]
+impl TestBaseClass {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// Method exposed to PHP - delegates to trait
+    pub fn get_base_info(&self) -> &'static str {
+        BaseClassBehavior::get_base_info(self)
+    }
+}
+
+// Child class using the new simple type syntax for extends
+#[php_class]
+#[php(extends(TestBaseClass))]
+#[derive(Default)]
+pub struct TestChildClass;
+
+impl BaseClassBehavior for TestChildClass {}
+
+#[php_impl]
+impl TestChildClass {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    /// Re-export the inherited method - this is required because PHP inheritance
+    /// doesn't automatically work for methods when both classes are Rust-defined
+    pub fn get_base_info(&self) -> &'static str {
+        BaseClassBehavior::get_base_info(self)
+    }
+
+    pub fn get_child_info(&self) -> &'static str {
+        "I am the child class"
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -528,6 +584,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestFinalMethods>()
         .class::<TestAbstractClass>()
         .class::<TestClassStaticStrGetter>()
+        .class::<TestBaseClass>()
+        .class::<TestChildClass>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception));
 

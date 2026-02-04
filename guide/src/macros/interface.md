@@ -78,7 +78,9 @@ PHP interfaces can extend other interfaces. You can achieve this in two ways:
 
 ### Using `#[php(extends(...))]`
 
-Use the `extends` attribute to extend a built-in PHP interface or another interface:
+Use the `extends` attribute to extend a built-in PHP interface or another Rust-defined interface.
+
+For built-in PHP interfaces, use the explicit form:
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -91,6 +93,27 @@ use ext_php_rs::zend::ce;
 #[php(name = "MyException")]
 trait MyExceptionInterface {
     fn get_error_code(&self) -> i32;
+}
+
+# fn main() {}
+```
+
+For Rust-defined interfaces, you can use the simpler type syntax:
+
+```rust,ignore
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::prelude::*;
+
+#[php_interface]
+trait BaseInterface {
+    fn base_method(&self) -> i32;
+}
+
+#[php_interface]
+#[php(extends(BaseInterface))]
+trait ExtendedInterface {
+    fn extended_method(&self) -> String;
 }
 
 # fn main() {}
