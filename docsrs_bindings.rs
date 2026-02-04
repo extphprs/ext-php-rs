@@ -2518,6 +2518,12 @@ unsafe extern "C" {
     ) -> zend_result;
 }
 unsafe extern "C" {
+    pub fn zend_call_function(
+        fci: *mut zend_fcall_info,
+        fci_cache: *mut zend_fcall_info_cache,
+    ) -> zend_result;
+}
+unsafe extern "C" {
     pub fn zend_call_known_function(
         fn_: *mut zend_function,
         object: *mut zend_object,

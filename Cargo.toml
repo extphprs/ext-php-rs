@@ -28,6 +28,12 @@ ext-php-rs-derive = { version = "=0.11.7", path = "./crates/macros" }
 
 [dev-dependencies]
 skeptic = "0.13"
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "function_call"
+harness = false
+required-features = ["embed"]
 
 [build-dependencies]
 anyhow = "1"
@@ -88,3 +94,13 @@ path = "tests/module.rs"
 [[test]]
 name = "sapi_tests"
 path = "tests/sapi.rs"
+
+[[test]]
+name = "raw_functions_tests"
+path = "tests/raw_functions.rs"
+required-features = ["embed"]
+
+[[test]]
+name = "cached_callable_tests"
+path = "tests/cached_callable.rs"
+required-features = ["embed"]

@@ -1325,6 +1325,75 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 /// You can also return a `Result` from the function. The error variant will be
 /// translated into an exception and thrown. See the section on
 /// [exceptions](../exceptions.md) for more details.
+///
+/// ## Raw Functions
+///
+/// For performance-critical code, you can use the `#[php(raw)]` attribute to
+/// bypass all argument parsing and type conversion overhead. Raw functions
+/// receive direct access to the `ExecuteData` and return `Zval`, giving you
+/// complete control over argument handling.
+///
+/// This is useful when:
+/// - You need maximum performance and want to avoid allocation overhead
+/// - You want to handle variadic arguments manually
+/// - You need direct access to the PHP execution context
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+/// use ext_php_rs::zend::ExecuteData;
+///
+/// #[php_function]
+/// #[php(raw)]
+/// pub fn fast_add(ex: &mut ExecuteData, retval: &mut Zval) {
+///     // Get arguments directly without type conversion overhead
+///     let a = unsafe { ex.get_arg(0) }
+///         .and_then(|zv| zv.long())
+///         .unwrap_or(0);
+///     let b = unsafe { ex.get_arg(1) }
+///         .and_then(|zv| zv.long())
+///         .unwrap_or(0);
+///
+///     retval.set_long(a + b);
+/// }
+///
+/// /// Sum all arguments passed to the function
+/// #[php_function]
+/// #[php(raw)]
+/// pub fn sum_all(ex: &mut ExecuteData, retval: &mut Zval) {
+///     let num_args = ex.num_args();
+///     let mut sum: i64 = 0;
+///
+///     for i in 0..num_args {
+///         if let Some(zv) = unsafe { ex.get_arg(i as usize) } {
+///             sum += zv.long().unwrap_or(0);
+///         }
+///     }
+///
+///     retval.set_long(sum);
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module
+///         .function(wrap_function!(fast_add))
+///         .function(wrap_function!(sum_all))
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ### `ExecuteData` Methods
+///
+/// When using raw functions, you have access to these `ExecuteData` methods:
+///
+/// - `num_args()` - Returns the number of arguments passed to the function
+/// - `get_arg(n)` - Returns a reference to the argument at index `n` (0-based).
+///   This is an unsafe method; the caller must ensure `n < num_args()`
+///
+/// Raw functions bypass the standard argument parser, so you are responsible
+/// for validating argument count and types yourself.
 // END DOCS FROM function.md
 #[proc_macro_attribute]
 pub fn php_function(args: TokenStream, input: TokenStream) -> TokenStream {

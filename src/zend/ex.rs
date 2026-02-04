@@ -1,7 +1,7 @@
 use crate::ffi::{ZEND_MM_ALIGNMENT, ZEND_MM_ALIGNMENT_MASK, zend_execute_data};
 
 use crate::{
-    args::ArgParser,
+    args::{ArgParser, ArgZvals},
     class::RegisteredClass,
     types::{ZendClassObject, ZendObject, Zval},
 };
@@ -78,18 +78,18 @@ impl ExecuteData {
     pub fn parser_object(&mut self) -> (ArgParser<'_, '_>, Option<&mut ZendObject>) {
         // SAFETY: All fields of the `u2` union are the same type.
         let n_args = unsafe { self.This.u2.num_args };
-        let mut args = vec![];
 
-        for i in 0..n_args {
+        // Use stack-based storage for <= 8 arguments (the common case)
+        // This avoids heap allocation for most function calls
+        let args = ArgZvals::from_iter((0..n_args).map(|i| {
             // SAFETY: Function definition ensures arg lifetime doesn't exceed execution
             // data lifetime.
-            let arg = unsafe { self.zend_call_arg(i as usize) };
-            args.push(arg);
-        }
+            unsafe { self.zend_call_arg(i as usize) }
+        }));
 
         let obj = self.This.object_mut();
 
-        (ArgParser::new(args), obj)
+        (ArgParser::from_arg_zvals(args), obj)
     }
 
     /// Returns an [`ArgParser`] pre-loaded with the arguments contained inside
@@ -223,6 +223,59 @@ impl ExecuteData {
         unsafe { self.prev_execute_data.as_ref() }
     }
 
+    /// Returns the number of arguments passed to this function call.
+    ///
+    /// This is useful for raw functions that need to know how many arguments
+    /// were passed without using the full argument parser.
+    #[inline]
+    #[must_use]
+    pub fn num_args(&self) -> u32 {
+        // SAFETY: All fields of the `u2` union are the same type.
+        unsafe { self.This.u2.num_args }
+    }
+
+    /// Gets a reference to the argument at the given index (0-based).
+    ///
+    /// This is a low-level method for raw function implementations that need
+    /// direct access to arguments without type conversion overhead. For most
+    /// use cases, prefer using the [`ArgParser`] via [`parser()`].
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure:
+    /// - `n` is less than [`num_args()`]
+    /// - The returned reference is not held longer than the function call
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::{types::Zval, zend::ExecuteData};
+    ///
+    /// fn raw_handler(ex: &mut ExecuteData, retval: &mut Zval) {
+    ///     if ex.num_args() >= 1 {
+    ///         if let Some(arg) = unsafe { ex.get_arg(0) } {
+    ///             if let Some(n) = arg.long() {
+    ///                 retval.set_long(n + 1);
+    ///                 return;
+    ///             }
+    ///         }
+    ///     }
+    ///     retval.set_null();
+    /// }
+    /// ```
+    ///
+    /// [`parser()`]: #method.parser
+    /// [`num_args()`]: #method.num_args
+    #[inline]
+    #[must_use]
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn get_arg<'a>(&self, n: usize) -> Option<&'a mut Zval> {
+        // SAFETY: Caller must ensure n < num_args() and reference is not held
+        // longer than the function call. The lifetime 'a is unbound from &self
+        // following the same pattern as zend_call_arg() for PHP internal reasons.
+        unsafe { self.zend_call_arg(n) }
+    }
+
     /// Translation of macro `ZEND_CALL_ARG(call, n)`
     /// zend_compile.h:578
     ///
@@ -232,6 +285,7 @@ impl ExecuteData {
     /// Since this is a private method it's up to the caller to ensure the
     /// lifetime isn't exceeded.
     #[doc(hidden)]
+    #[inline]
     unsafe fn zend_call_arg<'a>(&self, n: usize) -> Option<&'a mut Zval> {
         let n = isize::try_from(n).expect("n is too large");
         let ptr = unsafe { self.zend_call_var_num(n) };
@@ -274,4 +328,11 @@ mod tests {
         // Zend Engine v4.0.2, Copyright (c) Zend Technologies
         assert_eq!(ExecuteData::zend_call_frame_slot(), 5);
     }
+
+    // Note: num_args() and get_arg() tests require a real PHP execution context
+    // and are tested indirectly through the raw function benchmarks and
+    // integration tests. The methods are simple wrappers around PHP
+    // internals and the implementation is straightforward enough that unit
+    // testing the edge cases isn't practical without a full PHP execution
+    // context.
 }

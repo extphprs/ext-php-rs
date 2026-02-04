@@ -49,7 +49,6 @@ update_docs "extern"
 update_docs "function"
 update_docs "impl"
 update_docs "module"
-update_docs "zval_convert"
 update_docs "enum"
 update_docs "interface"
 

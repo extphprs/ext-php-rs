@@ -208,17 +208,155 @@ impl From<Arg<'_>> for Parameter {
 /// Internal argument information used by Zend.
 pub type ArgInfo = zend_internal_arg_info;
 
+/// Maximum number of arguments that can be stored on the stack.
+/// Arguments beyond this count will be stored on the heap.
+pub const MAX_STACK_ARGS: usize = 8;
+
+/// Storage for zval arguments that avoids heap allocation for common cases.
+///
+/// For functions with <= 8 arguments, the zvals are stored directly on the
+/// stack. For functions with more arguments, they are stored in a Vec on the
+/// heap.
+#[derive(Debug)]
+pub enum ArgZvals<'a> {
+    /// Stack-allocated storage for up to `MAX_STACK_ARGS` arguments.
+    Stack {
+        /// The array of arguments stored on the stack.
+        args: [Option<&'a mut Zval>; MAX_STACK_ARGS],
+        /// The actual number of arguments (may be less than array size).
+        len: usize,
+    },
+    /// Heap-allocated storage for more than `MAX_STACK_ARGS` arguments.
+    Heap(Vec<Option<&'a mut Zval>>),
+}
+
+impl<'a> ArgZvals<'a> {
+    /// Creates a new stack-based storage from an iterator of zvals.
+    /// Falls back to heap allocation if there are more than `MAX_STACK_ARGS`
+    /// arguments.
+    #[inline]
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_iter<I: Iterator<Item = Option<&'a mut Zval>>>(mut iter: I) -> Self {
+        let mut args: [Option<&'a mut Zval>; MAX_STACK_ARGS] = Default::default();
+        let mut len = 0;
+
+        // Fill the stack array
+        for i in 0..MAX_STACK_ARGS {
+            match iter.next() {
+                Some(arg) => {
+                    args[i] = arg;
+                    len = i + 1;
+                }
+                None => {
+                    // All arguments fit on the stack
+                    return Self::Stack { args, len };
+                }
+            }
+        }
+
+        // Check if there are more arguments that don't fit on the stack
+        if let Some(extra_arg) = iter.next() {
+            // Exceeded stack capacity, convert to heap
+            let mut vec: Vec<Option<&'a mut Zval>> = args.into_iter().collect();
+            vec.push(extra_arg);
+            vec.extend(iter);
+            return Self::Heap(vec);
+        }
+
+        Self::Stack { args, len }
+    }
+
+    /// Returns the number of arguments.
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Stack { len, .. } => *len,
+            Self::Heap(vec) => vec.len(),
+        }
+    }
+
+    /// Returns true if there are no arguments.
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Converts self into an iterator over the arguments.
+    #[inline]
+    #[allow(clippy::should_implement_trait)]
+    pub fn into_iter(self) -> impl Iterator<Item = Option<&'a mut Zval>> {
+        ArgZvalsIter {
+            inner: self,
+            pos: 0,
+        }
+    }
+}
+
+/// Iterator over `ArgZvals`.
+struct ArgZvalsIter<'a> {
+    inner: ArgZvals<'a>,
+    pos: usize,
+}
+
+impl<'a> Iterator for ArgZvalsIter<'a> {
+    type Item = Option<&'a mut Zval>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let len = self.inner.len();
+        if self.pos >= len {
+            return None;
+        }
+        let pos = self.pos;
+        self.pos += 1;
+
+        match &mut self.inner {
+            ArgZvals::Stack { args, .. } => {
+                // Take the value out and replace with None
+                Some(args[pos].take())
+            }
+            ArgZvals::Heap(vec) => Some(vec[pos].take()),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.inner.len().saturating_sub(self.pos);
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for ArgZvalsIter<'_> {}
+
 /// Parses the arguments of a function.
 #[must_use]
 pub struct ArgParser<'a, 'b> {
     args: Vec<&'b mut Arg<'a>>,
     min_num_args: Option<usize>,
-    arg_zvals: Vec<Option<&'a mut Zval>>,
+    arg_zvals: ArgZvals<'a>,
 }
 
 impl<'a, 'b> ArgParser<'a, 'b> {
     /// Builds a new function argument parser.
+    ///
+    /// Note: For better performance, prefer using [`from_arg_zvals`] which
+    /// avoids heap allocation for functions with <= 8 arguments.
+    ///
+    /// [`from_arg_zvals`]: #method.from_arg_zvals
     pub fn new(arg_zvals: Vec<Option<&'a mut Zval>>) -> Self {
+        ArgParser {
+            args: vec![],
+            min_num_args: None,
+            arg_zvals: ArgZvals::Heap(arg_zvals),
+        }
+    }
+
+    /// Builds a new function argument parser with optimized storage.
+    ///
+    /// This constructor uses stack-based storage for functions with <= 8
+    /// arguments, avoiding heap allocation for the common case.
+    #[inline]
+    pub fn from_arg_zvals(arg_zvals: ArgZvals<'a>) -> Self {
         ArgParser {
             args: vec![],
             min_num_args: None,
@@ -282,6 +420,7 @@ impl<'a, 'b> ArgParser<'a, 'b> {
             return Err(Error::IncorrectArguments(num_args, min_num_args));
         }
 
+        // Use the optimized iterator that works with both stack and heap storage
         for (i, arg_zval) in self.arg_zvals.into_iter().enumerate() {
             let arg = match self.args.get_mut(i) {
                 Some(arg) => Some(arg),
@@ -568,4 +707,75 @@ mod tests {
     }
 
     // TODO: test parse
+
+    // =========================================================================
+    // ArgZvals tests - Stack-based argument storage
+    // =========================================================================
+
+    #[test]
+    fn test_arg_zvals_empty() {
+        let zvals: ArgZvals = ArgZvals::from_iter(std::iter::empty());
+        assert!(zvals.is_empty());
+        assert_eq!(zvals.len(), 0);
+    }
+
+    #[test]
+    fn test_arg_zvals_stack_single() {
+        let zvals = ArgZvals::from_iter([None::<&mut Zval>].into_iter());
+        assert!(!zvals.is_empty());
+        assert_eq!(zvals.len(), 1);
+        matches!(zvals, ArgZvals::Stack { len: 1, .. });
+    }
+
+    #[test]
+    fn test_arg_zvals_stack_max() {
+        // Test with exactly MAX_STACK_ARGS elements
+        let items: Vec<Option<&mut Zval>> = (0..MAX_STACK_ARGS).map(|_| None).collect();
+        let zvals = ArgZvals::from_iter(items.into_iter());
+        assert_eq!(zvals.len(), MAX_STACK_ARGS);
+        matches!(zvals, ArgZvals::Stack { .. });
+    }
+
+    #[test]
+    fn test_arg_zvals_heap_overflow() {
+        // Test with more than MAX_STACK_ARGS elements - should use heap
+        let items: Vec<Option<&mut Zval>> = (0..=MAX_STACK_ARGS).map(|_| None).collect();
+        let zvals = ArgZvals::from_iter(items.into_iter());
+        assert_eq!(zvals.len(), MAX_STACK_ARGS + 1);
+        matches!(zvals, ArgZvals::Heap(_));
+    }
+
+    #[test]
+    fn test_arg_zvals_heap_large() {
+        // Test with many more elements
+        let items: Vec<Option<&mut Zval>> = (0..20).map(|_| None).collect();
+        let zvals = ArgZvals::from_iter(items.into_iter());
+        assert_eq!(zvals.len(), 20);
+        matches!(zvals, ArgZvals::Heap(_));
+    }
+
+    #[test]
+    fn test_arg_zvals_into_iter_stack() {
+        let items: Vec<Option<&mut Zval>> = (0..3).map(|_| None).collect();
+        let zvals = ArgZvals::from_iter(items.into_iter());
+        let collected: Vec<_> = zvals.into_iter().collect();
+        assert_eq!(collected.len(), 3);
+    }
+
+    #[test]
+    fn test_arg_zvals_into_iter_heap() {
+        let items: Vec<Option<&mut Zval>> = (0..12).map(|_| None).collect();
+        let zvals = ArgZvals::from_iter(items.into_iter());
+        let collected: Vec<_> = zvals.into_iter().collect();
+        assert_eq!(collected.len(), 12);
+    }
+
+    #[test]
+    fn test_arg_parser_from_arg_zvals() {
+        let items: Vec<Option<&mut Zval>> = (0..3).map(|_| None).collect();
+        let zvals = ArgZvals::from_iter(items.into_iter());
+        let parser = ArgParser::from_arg_zvals(zvals);
+        assert_eq!(parser.arg_zvals.len(), 3);
+        assert!(parser.args.is_empty());
+    }
 }
