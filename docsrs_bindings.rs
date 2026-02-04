@@ -3802,3 +3802,6 @@ pub type zend_observer_fcall_init = ::std::option::Option<
 unsafe extern "C" {
     pub fn zend_observer_fcall_register(arg1: zend_observer_fcall_init);
 }
+unsafe extern "C" {
+    pub static mut php_json_serializable_ce: *mut zend_class_entry;
+}

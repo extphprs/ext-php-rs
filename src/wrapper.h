@@ -40,6 +40,7 @@
 #include "zend_ini.h"
 #include "zend_observer.h"
 #include "main/SAPI.h"
+#include "ext/json/php_json.h"
 
 zend_string *ext_php_rs_zend_string_init(const char *str, size_t len, bool persistent);
 void ext_php_rs_zend_string_release(zend_string *zs);

@@ -83,6 +83,7 @@ bind! {
     zend_ce_serializable,
     zend_ce_countable,
     zend_ce_stringable,
+    php_json_serializable_ce,
     zend_class_entry,
     zend_declare_class_constant,
     zend_declare_property,
