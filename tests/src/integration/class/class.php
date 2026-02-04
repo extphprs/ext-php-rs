@@ -303,3 +303,18 @@ if (PHP_VERSION_ID >= 80400) {
 // Test issue #325 - returning &'static str from getter
 $staticStrClass = new TestClassStaticStrGetter();
 assert($staticStrClass->static_value === 'Hello from static str');
+
+// Test issue #173 - simple type syntax for extends
+$baseObj = new TestBaseClass();
+assert($baseObj->getBaseInfo() === 'I am the base class', 'Base class method should work');
+
+$childObj = new TestChildClass();
+assert($childObj->getChildInfo() === 'I am the child class', 'Child class method should work');
+
+// With the trait-based workaround, inherited methods work on child instances
+assert($childObj->getBaseInfo() === 'I am the base class', 'Child should have base class method via trait');
+
+// Verify inheritance through reflection
+$childReflection = new ReflectionClass(TestChildClass::class);
+assert($childReflection->getParentClass()->getName() === TestBaseClass::class, 'TestChildClass should extend TestBaseClass');
+assert($childObj instanceof TestBaseClass, 'TestChildClass instance should be instanceof TestBaseClass');

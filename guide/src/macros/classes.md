@@ -17,11 +17,16 @@ placed underneath the `#[php_class]` attribute.
   readonly class are implicitly readonly.
 - `flags` - Sets class flags using `ClassFlags`, e.g.
   `#[php(flags = ClassFlags::Final)]` for a final class.
-- `#[php(extends(ce = ce_fn, stub = "ParentClass"))]` - Sets the parent class of the class. Can only be used once.
-  `ce_fn` must be a function with the signature `fn() -> &'static ClassEntry`.
-- `#[php(implements(ce = ce_fn, stub = "InterfaceName"))]` - Implements the given interface on the class. Can be used
-  multiple times. `ce_fn` must be a valid function with the signature
-  `fn() -> &'static ClassEntry`.
+- `#[php(extends(...))]` - Sets the parent class of the class. Can only be used once.
+  Two forms are supported:
+  - Simple type form: `#[php(extends(MyBaseClass))]` - For Rust-defined classes that implement `RegisteredClass`.
+  - Explicit form: `#[php(extends(ce = ce_fn, stub = "ParentClass"))]` - For built-in PHP classes.
+    `ce_fn` must be a function with the signature `fn() -> &'static ClassEntry`.
+- `#[php(implements(...))]` - Implements the given interface on the class. Can be used multiple times.
+  Two forms are supported:
+  - Simple type form: `#[php(implements(MyInterface))]` — For Rust-defined interfaces that implement `RegisteredClass`.
+  - Explicit form: `#[php(implements(ce = ce_fn, stub = "InterfaceName"))]` — For built-in PHP interfaces.
+    `ce_fn` must be a valid function with the signature `fn() -> &'static ClassEntry`.
 
 You may also use the `#[php(prop)]` attribute on a struct field to use the field as a
 PHP property. By default, the field will be accessible from PHP publicly with
@@ -124,9 +129,116 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 # fn main() {}
 ```
 
+### Extending a Rust-defined Class
+
+When extending another Rust-defined class, you can use the simpler type syntax:
+
+```rust,ignore
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::prelude::*;
+
+#[php_class]
+#[derive(Default)]
+pub struct Animal;
+
+#[php_impl]
+impl Animal {
+    pub fn speak(&self) -> &'static str {
+        "..."
+    }
+}
+
+#[php_class]
+#[php(extends(Animal))]
+#[derive(Default)]
+pub struct Dog;
+
+#[php_impl]
+impl Dog {
+    pub fn speak(&self) -> &'static str {
+        "Woof!"
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module
+        .class::<Animal>()
+        .class::<Dog>()
+}
+# fn main() {}
+```
+
+#### Sharing Methods Between Parent and Child Classes
+
+When both parent and child are Rust-defined classes, methods defined only in the parent
+won't automatically work when called on a child instance. This is because each Rust type
+has its own object handlers.
+
+The recommended workaround is to use a Rust trait for shared behavior:
+
+```rust,ignore
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::prelude::*;
+
+/// Trait for shared behavior
+trait AnimalBehavior {
+    fn speak(&self) -> &'static str {
+        "..."
+    }
+}
+
+#[php_class]
+#[derive(Default)]
+pub struct Animal;
+
+impl AnimalBehavior for Animal {}
+
+#[php_impl]
+impl Animal {
+    pub fn speak(&self) -> &'static str {
+        AnimalBehavior::speak(self)
+    }
+}
+
+#[php_class]
+#[php(extends(Animal))]
+#[derive(Default)]
+pub struct Dog;
+
+impl AnimalBehavior for Dog {
+    fn speak(&self) -> &'static str {
+        "Woof!"
+    }
+}
+
+#[php_impl]
+impl Dog {
+    // Re-export the method so it works on Dog instances
+    pub fn speak(&self) -> &'static str {
+        AnimalBehavior::speak(self)
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module
+        .class::<Animal>()
+        .class::<Dog>()
+}
+# fn main() {}
+```
+
+This pattern ensures that:
+- `$animal->speak()` returns `"..."`
+- `$dog->speak()` returns `"Woof!"`
+- `$dog instanceof Animal` is `true`
+
 ## Implementing an Interface
 
-To implement an interface, use `#[php(implements(ce = ce_fn, stub = "InterfaceName")]` where `ce_fn` is an function returning a `ClassEntry`.
+To implement an interface, use `#[php(implements(...))]`. For built-in PHP interfaces, use the explicit form with `ce` and `stub`. For Rust-defined interfaces, you can use the simple type form.
 The following example implements [`ArrayAccess`](https://www.php.net/manual/en/class.arrayaccess.php):
 
 ````rust,no_run
