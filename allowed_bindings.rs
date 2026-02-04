@@ -88,6 +88,7 @@ bind! {
     zend_declare_property,
     zend_do_implement_interface,
     zend_empty_array,
+    zend_read_property,
     zend_read_static_property,
     zend_update_static_property,
     zend_enum_add_case,
@@ -368,6 +369,9 @@ bind! {
     zend_observer_fcall_end_handler,
     zend_observer_fcall_init,
     zend_observer_fcall_register,
+    zend_observer_error_cb,
+    zend_observer_error_register,
     zend_function,
-    zend_op_array
+    zend_op_array,
+    zend_throw_exception_hook
 }
