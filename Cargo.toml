@@ -23,6 +23,7 @@ cfg-if = "1.0"
 once_cell = "1.21"
 anyhow = { version = "1", optional = true }
 smartstring = { version = "1", optional = true }
+indexmap = { version = "2", optional = true }
 inventory = "0.3"
 ext-php-rs-derive = { version = "=0.11.7", path = "./crates/macros" }
 
@@ -53,6 +54,7 @@ closure = []
 embed = []
 anyhow = ["dep:anyhow"]
 smartstring = ["dep:smartstring"]
+indexmap = ["dep:indexmap"]
 enum = []
 observer = []
 runtime = ["ext-php-rs-bindgen/runtime"]
