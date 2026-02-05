@@ -21,6 +21,7 @@ pub mod observer;
 pub mod persistent_string;
 pub mod string;
 pub mod types;
+pub mod union;
 pub mod variadic_args;
 
 #[cfg(test)]

@@ -18,12 +18,86 @@ use crate::{
     zend::ZendType,
 };
 
+/// Represents a single element in a DNF type - either a simple class or an
+/// intersection group.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TypeGroup {
+    /// A single class/interface type: `ArrayAccess`
+    Single(String),
+    /// An intersection of class/interface types: `Countable&Traversable`
+    Intersection(Vec<String>),
+}
+
+/// Represents the PHP type(s) for an argument.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgType {
+    /// A single type (e.g., `int`, `string`, `MyClass`)
+    Single(DataType),
+    /// A union of primitive types (e.g., `int|string|null`)
+    /// Note: For unions containing class types, use `UnionClasses`.
+    Union(Vec<DataType>),
+    /// An intersection of class/interface types (e.g., `Countable&Traversable`)
+    /// Only available in PHP 8.1+.
+    Intersection(Vec<String>),
+    /// A union of class/interface types (e.g., `Foo|Bar`)
+    UnionClasses(Vec<String>),
+    /// A DNF (Disjunctive Normal Form) type (e.g.,
+    /// `(Countable&Traversable)|ArrayAccess`) Only available in PHP 8.2+.
+    Dnf(Vec<TypeGroup>),
+}
+
+impl PartialEq<DataType> for ArgType {
+    fn eq(&self, other: &DataType) -> bool {
+        match self {
+            ArgType::Single(dt) => dt == other,
+            ArgType::Union(_)
+            | ArgType::Intersection(_)
+            | ArgType::UnionClasses(_)
+            | ArgType::Dnf(_) => false,
+        }
+    }
+}
+
+impl From<DataType> for ArgType {
+    fn from(dt: DataType) -> Self {
+        ArgType::Single(dt)
+    }
+}
+
+impl ArgType {
+    /// Returns the primary [`DataType`] for this argument type.
+    /// For complex types, returns Mixed as a fallback for runtime type
+    /// checking.
+    #[must_use]
+    pub fn primary_type(&self) -> DataType {
+        match self {
+            ArgType::Single(dt) => *dt,
+            ArgType::Union(_)
+            | ArgType::Intersection(_)
+            | ArgType::UnionClasses(_)
+            | ArgType::Dnf(_) => DataType::Mixed,
+        }
+    }
+
+    /// Returns true if this type allows null values.
+    #[must_use]
+    pub fn allows_null(&self) -> bool {
+        match self {
+            ArgType::Single(dt) => matches!(dt, DataType::Null),
+            ArgType::Union(types) => types.iter().any(|t| matches!(t, DataType::Null)),
+            // Intersection, class union, and DNF types cannot directly include null
+            // (use allow_null() for nullable variants)
+            ArgType::Intersection(_) | ArgType::UnionClasses(_) | ArgType::Dnf(_) => false,
+        }
+    }
+}
+
 /// Represents an argument to a function.
 #[must_use]
 #[derive(Debug)]
 pub struct Arg<'a> {
     name: String,
-    r#type: DataType,
+    r#type: ArgType,
     as_ref: bool,
     allow_null: bool,
     pub(crate) variadic: bool,
@@ -42,7 +116,149 @@ impl<'a> Arg<'a> {
     pub fn new<T: Into<String>>(name: T, r#type: DataType) -> Self {
         Arg {
             name: name.into(),
-            r#type,
+            r#type: ArgType::Single(r#type),
+            as_ref: false,
+            allow_null: false,
+            variadic: false,
+            default_value: None,
+            zval: None,
+            variadic_zvals: vec![],
+        }
+    }
+
+    /// Creates a new argument with a union type.
+    ///
+    /// This creates a PHP union type (e.g., `int|string`) for the argument.
+    /// Only primitive types are currently supported in unions.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the parameter.
+    /// * `types` - The types to include in the union.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::args::Arg;
+    /// use ext_php_rs::flags::DataType;
+    ///
+    /// // Creates an argument with type `int|string`
+    /// let arg = Arg::new_union("value", vec![DataType::Long, DataType::String]);
+    ///
+    /// // Creates an argument with type `int|string|null`
+    /// let nullable_arg = Arg::new_union("value", vec![
+    ///     DataType::Long,
+    ///     DataType::String,
+    ///     DataType::Null,
+    /// ]);
+    /// ```
+    pub fn new_union<T: Into<String>>(name: T, types: Vec<DataType>) -> Self {
+        Arg {
+            name: name.into(),
+            r#type: ArgType::Union(types),
+            as_ref: false,
+            allow_null: false,
+            variadic: false,
+            default_value: None,
+            zval: None,
+            variadic_zvals: vec![],
+        }
+    }
+
+    /// Creates a new argument with an intersection type (PHP 8.1+).
+    ///
+    /// This creates a PHP intersection type (e.g., `Countable&Traversable`) for
+    /// the argument. The value must implement ALL of the specified interfaces.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the parameter.
+    /// * `class_names` - The class/interface names that form the intersection.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::args::Arg;
+    ///
+    /// // Creates an argument with type `Countable&Traversable`
+    /// let arg = Arg::new_intersection("value", vec![
+    ///     "Countable".to_string(),
+    ///     "Traversable".to_string(),
+    /// ]);
+    /// ```
+    pub fn new_intersection<T: Into<String>>(name: T, class_names: Vec<String>) -> Self {
+        Arg {
+            name: name.into(),
+            r#type: ArgType::Intersection(class_names),
+            as_ref: false,
+            allow_null: false,
+            variadic: false,
+            default_value: None,
+            zval: None,
+            variadic_zvals: vec![],
+        }
+    }
+
+    /// Creates a new argument with a union of class types (PHP 8.0+).
+    ///
+    /// This creates a PHP union type where each element is a class/interface
+    /// (e.g., `Foo|Bar`). For primitive type unions, use [`Self::new_union`].
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the parameter.
+    /// * `class_names` - The class/interface names that form the union.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::args::Arg;
+    ///
+    /// // Creates an argument with type `Iterator|IteratorAggregate`
+    /// let arg = Arg::new_union_classes("value", vec![
+    ///     "Iterator".to_string(),
+    ///     "IteratorAggregate".to_string(),
+    /// ]);
+    /// ```
+    pub fn new_union_classes<T: Into<String>>(name: T, class_names: Vec<String>) -> Self {
+        Arg {
+            name: name.into(),
+            r#type: ArgType::UnionClasses(class_names),
+            as_ref: false,
+            allow_null: false,
+            variadic: false,
+            default_value: None,
+            zval: None,
+            variadic_zvals: vec![],
+        }
+    }
+
+    /// Creates a new argument with a DNF (Disjunctive Normal Form) type (PHP
+    /// 8.2+).
+    ///
+    /// DNF types allow combining intersection and union types, such as
+    /// `(Countable&Traversable)|ArrayAccess`.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the parameter.
+    /// * `groups` - Type groups using explicit `TypeGroup` variants.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::args::{Arg, TypeGroup};
+    ///
+    /// // Creates an argument with type `(Countable&Traversable)|ArrayAccess`
+    /// let arg = Arg::new_dnf("value", vec![
+    ///     TypeGroup::Intersection(vec!["Countable".to_string(), "Traversable".to_string()]),
+    ///     TypeGroup::Single("ArrayAccess".to_string()),
+    /// ]);
+    /// ```
+    pub fn new_dnf<T: Into<String>>(name: T, groups: Vec<TypeGroup>) -> Self {
+        Arg {
+            name: name.into(),
+            r#type: ArgType::Dnf(groups),
             as_ref: false,
             allow_null: false,
             variadic: false,
@@ -157,16 +373,91 @@ impl<'a> Arg<'a> {
     }
 
     /// Returns the internal PHP argument info.
+    ///
+    /// Note: Intersection, class union, and DNF types for internal function
+    /// parameters are only supported in PHP 8.3+. On earlier versions,
+    /// these fall back to `mixed` type. See: <https://github.com/php/php-src/pull/11969>
     pub(crate) fn as_arg_info(&self) -> Result<ArgInfo> {
+        let type_ = match &self.r#type {
+            ArgType::Single(dt) => {
+                ZendType::empty_from_type(*dt, self.as_ref, self.variadic, self.allow_null)
+                    .ok_or(Error::InvalidCString)?
+            }
+            ArgType::Union(types) => {
+                // Primitive union types (int|string|null etc.) work on all PHP 8.x versions
+                ZendType::union_primitive(types, self.as_ref, self.variadic)
+            }
+            #[cfg(php83)]
+            ArgType::Intersection(class_names) => {
+                // Intersection types for internal functions require PHP 8.3+
+                let names: Vec<&str> = class_names.iter().map(String::as_str).collect();
+                ZendType::intersection(&names, self.as_ref, self.variadic)
+                    .ok_or(Error::InvalidCString)?
+            }
+            #[cfg(not(php83))]
+            ArgType::Intersection(_) => {
+                // PHP < 8.3 doesn't support intersection types for internal functions.
+                // Fall back to mixed type with allow_null handling.
+                ZendType::empty_from_type(
+                    DataType::Mixed,
+                    self.as_ref,
+                    self.variadic,
+                    self.allow_null,
+                )
+                .ok_or(Error::InvalidCString)?
+            }
+            #[cfg(php83)]
+            ArgType::UnionClasses(class_names) => {
+                // Class union types for internal functions require PHP 8.3+
+                let names: Vec<&str> = class_names.iter().map(String::as_str).collect();
+                ZendType::union_classes(&names, self.as_ref, self.variadic, self.allow_null)
+                    .ok_or(Error::InvalidCString)?
+            }
+            #[cfg(not(php83))]
+            ArgType::UnionClasses(_) => {
+                // PHP < 8.3 doesn't support class union types for internal functions.
+                // Fall back to mixed type.
+                ZendType::empty_from_type(
+                    DataType::Mixed,
+                    self.as_ref,
+                    self.variadic,
+                    self.allow_null,
+                )
+                .ok_or(Error::InvalidCString)?
+            }
+            #[cfg(php83)]
+            ArgType::Dnf(groups) => {
+                // DNF types for internal functions require PHP 8.3+
+                let groups: Vec<Vec<&str>> = groups
+                    .iter()
+                    .map(|g| match g {
+                        TypeGroup::Single(name) => vec![name.as_str()],
+                        TypeGroup::Intersection(names) => {
+                            names.iter().map(String::as_str).collect()
+                        }
+                    })
+                    .collect();
+                let groups_refs: Vec<&[&str]> = groups.iter().map(Vec::as_slice).collect();
+                ZendType::dnf(&groups_refs, self.as_ref, self.variadic)
+                    .ok_or(Error::InvalidCString)?
+            }
+            #[cfg(not(php83))]
+            ArgType::Dnf(_) => {
+                // PHP < 8.3 doesn't support DNF types for internal functions.
+                // Fall back to mixed type.
+                ZendType::empty_from_type(
+                    DataType::Mixed,
+                    self.as_ref,
+                    self.variadic,
+                    self.allow_null,
+                )
+                .ok_or(Error::InvalidCString)?
+            }
+        };
+
         Ok(ArgInfo {
             name: CString::new(self.name.as_str())?.into_raw(),
-            type_: ZendType::empty_from_type(
-                self.r#type,
-                self.as_ref,
-                self.variadic,
-                self.allow_null,
-            )
-            .ok_or(Error::InvalidCString)?,
+            type_,
             default_value: match &self.default_value {
                 Some(val) if val.as_str() == "None" => CString::new("null")?.into_raw(),
                 Some(val) => CString::new(val.as_str())?.into_raw(),
@@ -178,15 +469,17 @@ impl<'a> Arg<'a> {
 
 impl From<Arg<'_>> for _zend_expected_type {
     fn from(arg: Arg) -> Self {
-        let type_id = match arg.r#type {
+        // For union types, we use the primary type for expected type errors
+        let dt = arg.r#type.primary_type();
+        let type_id = match dt {
             DataType::False | DataType::True => _zend_expected_type_Z_EXPECTED_BOOL,
             DataType::Long => _zend_expected_type_Z_EXPECTED_LONG,
             DataType::Double => _zend_expected_type_Z_EXPECTED_DOUBLE,
             DataType::String => _zend_expected_type_Z_EXPECTED_STRING,
             DataType::Array => _zend_expected_type_Z_EXPECTED_ARRAY,
-            DataType::Object(_) => _zend_expected_type_Z_EXPECTED_OBJECT,
             DataType::Resource => _zend_expected_type_Z_EXPECTED_RESOURCE,
-            _ => unreachable!(),
+            // Object, Mixed (used by unions), and other types use OBJECT as a fallback
+            _ => _zend_expected_type_Z_EXPECTED_OBJECT,
         };
 
         if arg.allow_null { type_id + 1 } else { type_id }
@@ -195,10 +488,21 @@ impl From<Arg<'_>> for _zend_expected_type {
 
 impl From<Arg<'_>> for Parameter {
     fn from(val: Arg<'_>) -> Self {
+        // For Parameter (used in describe), use the primary type
+        // TODO: Extend Parameter to support union/intersection/DNF types for better
+        // stub generation
+        let ty = match &val.r#type {
+            ArgType::Single(dt) => Some(*dt),
+            // For complex types, fall back to Mixed (Object would be more accurate for class types)
+            ArgType::Union(_)
+            | ArgType::Intersection(_)
+            | ArgType::UnionClasses(_)
+            | ArgType::Dnf(_) => Some(DataType::Mixed),
+        };
         Parameter {
             name: val.name.into(),
-            ty: Some(val.r#type).into(),
-            nullable: val.allow_null,
+            ty: ty.into(),
+            nullable: val.allow_null || val.r#type.allows_null(),
             variadic: val.variadic,
             default: val.default_value.map(abi::RString::from).into(),
         }
@@ -565,6 +869,57 @@ mod tests {
         assert_eq!(parser.args.len(), 1);
         assert_eq!(parser.args[0].name, "test");
         assert_eq!(parser.args[0].r#type, DataType::Long);
+    }
+
+    #[test]
+    fn test_new_union() {
+        let arg = Arg::new_union("test", vec![DataType::Long, DataType::String]);
+        assert_eq!(arg.name, "test");
+        assert!(matches!(arg.r#type, ArgType::Union(_)));
+        if let ArgType::Union(types) = &arg.r#type {
+            assert_eq!(types.len(), 2);
+            assert!(types.contains(&DataType::Long));
+            assert!(types.contains(&DataType::String));
+        }
+        assert!(!arg.as_ref);
+        assert!(!arg.allow_null);
+        assert!(!arg.variadic);
+    }
+
+    #[test]
+    fn test_union_with_null() {
+        let arg = Arg::new_union(
+            "nullable",
+            vec![DataType::Long, DataType::String, DataType::Null],
+        );
+        assert!(arg.r#type.allows_null());
+    }
+
+    #[test]
+    fn test_union_without_null() {
+        let arg = Arg::new_union("non_nullable", vec![DataType::Long, DataType::String]);
+        assert!(!arg.r#type.allows_null());
+    }
+
+    #[test]
+    fn test_argtype_primary_type() {
+        let single = ArgType::Single(DataType::Long);
+        assert_eq!(single.primary_type(), DataType::Long);
+
+        let union = ArgType::Union(vec![DataType::Long, DataType::String]);
+        assert_eq!(union.primary_type(), DataType::Mixed);
+    }
+
+    #[test]
+    fn test_argtype_eq_datatype() {
+        let single = ArgType::Single(DataType::Long);
+        assert_eq!(single, DataType::Long);
+        assert_ne!(single, DataType::String);
+
+        let union = ArgType::Union(vec![DataType::Long, DataType::String]);
+        // Union should not equal any single DataType
+        assert_ne!(union, DataType::Long);
+        assert_ne!(union, DataType::Mixed);
     }
 
     // TODO: test parse

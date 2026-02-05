@@ -478,6 +478,9 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
 pub const ZEND_DEBUG: u32 = 1;
 pub const _ZEND_TYPE_NAME_BIT: u32 = 16777216;
 pub const _ZEND_TYPE_LITERAL_NAME_BIT: u32 = 8388608;
+pub const _ZEND_TYPE_LIST_BIT: u32 = 4194304;
+pub const _ZEND_TYPE_INTERSECTION_BIT: u32 = 524288;
+pub const _ZEND_TYPE_UNION_BIT: u32 = 262144;
 pub const _ZEND_TYPE_NULLABLE_BIT: u32 = 2;
 pub const HT_MIN_SIZE: u32 = 8;
 pub const IS_UNDEF: u32 = 0;
@@ -747,6 +750,12 @@ pub type dtor_func_t = ::std::option::Option<unsafe extern "C" fn(pDest: *mut zv
 pub struct zend_type {
     pub ptr: *mut ::std::os::raw::c_void,
     pub type_mask: u32,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zend_type_list {
+    pub num_types: u32,
+    pub types: [zend_type; 1usize],
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
