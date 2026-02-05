@@ -111,3 +111,31 @@ bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void 
 void ext_php_rs_zend_bailout() {
   zend_bailout();
 }
+
+zend_op_array *ext_php_rs_zend_compile_string(zend_string *source, const char *filename) {
+#if PHP_VERSION_ID >= 80200
+  return zend_compile_string(source, filename, ZEND_COMPILE_POSITION_AFTER_OPEN_TAG);
+#else
+  return zend_compile_string(source, filename);
+#endif
+}
+
+void ext_php_rs_zend_execute(zend_op_array *op_array) {
+  zval local_retval;
+  ZVAL_UNDEF(&local_retval);
+
+  op_array->scope = zend_get_executed_scope();
+
+  zend_try {
+    zend_execute(op_array, &local_retval);
+  } zend_catch {
+    destroy_op_array(op_array);
+    efree_size(op_array, sizeof(zend_op_array));
+    zend_bailout();
+  } zend_end_try();
+
+  zval_ptr_dtor(&local_retval);
+  zend_destroy_static_vars(op_array);
+  destroy_op_array(op_array);
+  efree_size(op_array, sizeof(zend_op_array));
+}

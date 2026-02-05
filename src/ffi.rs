@@ -44,6 +44,11 @@ unsafe extern "C" {
     ) -> bool;
 
     pub fn ext_php_rs_zend_bailout() -> !;
+    pub fn ext_php_rs_zend_compile_string(
+        source: *mut zend_string,
+        filename: *const c_char,
+    ) -> *mut zend_op_array;
+    pub fn ext_php_rs_zend_execute(op_array: *mut zend_op_array);
 }
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

@@ -31,6 +31,7 @@ pub mod describe;
 pub mod embed;
 #[cfg(feature = "enum")]
 pub mod enum_;
+pub mod php_eval;
 #[cfg(feature = "observer")]
 #[cfg_attr(docs, doc(cfg(feature = "observer")))]
 pub mod observer {
