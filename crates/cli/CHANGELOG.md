@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.17](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.16...cargo-php-v0.1.17) - 2026-02-05
+
+### Fixed
+- *(stubs)* Proper stub generation for interfaces ([#662](https://github.com/extphprs/ext-php-rs/pull/662)) (by @kakserpom) [[#662](https://github.com/extphprs/ext-php-rs/issues/662)] 
 ## [0.1.16](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.15...cargo-php-v0.1.16) - 2026-01-26
 
 ### Fixed

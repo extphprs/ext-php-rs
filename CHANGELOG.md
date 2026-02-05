@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## [0.15.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.5...ext-php-rs-v0.15.6) - 2026-02-05
+
+### Added
+- *(class)* Getter/setter implementation #325 ([#624](https://github.com/extphprs/ext-php-rs/pull/624)) (by @kakserpom) [[#325](https://github.com/extphprs/ext-php-rs/issues/325)] [[#624](https://github.com/extphprs/ext-php-rs/issues/624)] 
+- *(class)* Abstract and final methods ([#656](https://github.com/extphprs/ext-php-rs/pull/656)) (by @kakserpom) [[#656](https://github.com/extphprs/ext-php-rs/issues/656)] 
+- *(interface)* Php_impl_interface macro #590 ([#621](https://github.com/extphprs/ext-php-rs/pull/621)) (by @kakserpom) [[#590](https://github.com/extphprs/ext-php-rs/issues/590)] [[#621](https://github.com/extphprs/ext-php-rs/issues/621)] 
+- *(observer)* Add error and exception tracking ([#669](https://github.com/extphprs/ext-php-rs/pull/669)) (by @ptondereau) [[#669](https://github.com/extphprs/ext-php-rs/issues/669)] 
+- *(oop)* Simplified form of `extends` and `implements`  #173 ([#667](https://github.com/extphprs/ext-php-rs/pull/667)) (by @kakserpom) [[#173](https://github.com/extphprs/ext-php-rs/issues/173)] [[#667](https://github.com/extphprs/ext-php-rs/issues/667)] 
+- *(types)* Indexmap feature #522 ([#670](https://github.com/extphprs/ext-php-rs/pull/670)) (by @kakserpom) [[#522](https://github.com/extphprs/ext-php-rs/issues/522)] [[#670](https://github.com/extphprs/ext-php-rs/issues/670)] 
+- *(zval)* Zval coercion ([#632](https://github.com/extphprs/ext-php-rs/pull/632)) (by @kakserpom) [[#632](https://github.com/extphprs/ext-php-rs/issues/632)] 
+
+### Fixed
+- *(stubs)* Proper stub generation for interfaces ([#662](https://github.com/extphprs/ext-php-rs/pull/662)) (by @kakserpom) [[#662](https://github.com/extphprs/ext-php-rs/issues/662)] 
+
+### Other
+- *(cargo-php)* Custom Allocators #523 ([#618](https://github.com/extphprs/ext-php-rs/pull/618)) (by @kakserpom) [[#523](https://github.com/extphprs/ext-php-rs/issues/523)] [[#618](https://github.com/extphprs/ext-php-rs/issues/618)] 
+- *(deps)* Update convert_case requirement from 0.10.0 to 0.11.0 ([#666](https://github.com/extphprs/ext-php-rs/pull/666)) (by @dependabot[bot]) [[#666](https://github.com/extphprs/ext-php-rs/issues/666)] 
+- Add context7 claim ([#664](https://github.com/extphprs/ext-php-rs/pull/664)) (by @ptondereau) [[#664](https://github.com/extphprs/ext-php-rs/issues/664)] 
 ### BREAKING CHANGES
 
 - *(macro)* [**breaking**] Functions and methods without an explicit return type now declare `void` as their PHP return type instead of having no return type (implicit `mixed`). This improves type safety but may cause errors if your function actually returns a value without declaring it. Magic methods `__destruct` and `__clone` are excluded as PHP forbids return types on them. See [migration guide](guide/src/migration-guides/v0.16.md).
