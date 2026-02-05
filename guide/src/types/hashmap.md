@@ -3,7 +3,7 @@
 `HashMap`s are represented as associative arrays in PHP.
 
 | `T` parameter | `&T` parameter | `T` Return type | `&T` Return type | PHP representation |
-| ------------- | -------------- | --------------- | ---------------- | ------------------ |
+|---------------|----------------|-----------------|------------------|--------------------|
 | Yes           | No             | Yes             | No               | `ZendHashTable`    |
 
 Converting from a zval to a `HashMap` is valid when the key is a `String`, and
@@ -16,13 +16,13 @@ Converting from a `HashMap` to a zval is valid when the key implements
 
 <div class="warning">
 
-    When using `HashMap` the order of the elements it not preserved.
+    When using `HashMap` the order of the elements is not preserved.
 
     HashMaps are unordered collections, so the order of elements may not be the same
     when converting from PHP to Rust and back.
 
-    If you need to preserve the order of elements, consider using `Vec<(K, V)>` or
-    `Vec<ArrayKey, V)>` instead.
+    If you need to preserve the order of elements, consider using `IndexMap` (requires
+    the `indexmap` feature) or `Vec<(K, V)>`.
 </div>
 
 ## Rust example
@@ -68,6 +68,64 @@ array(3) {
     [1] => string(5) "world",
     [2] => string(3) "okk"
 }
+```
+
+## `IndexMap` (Order-Preserving)
+
+`IndexMap` is like `HashMap` but preserves insertion order, making it ideal for
+working with PHP arrays where key order matters. This requires the `indexmap`
+feature.
+
+```toml
+[dependencies]
+ext-php-rs = { version = "...", features = ["indexmap"] }
+```
+
+| `T` parameter | `&T` parameter | `T` Return type | `&T` Return type | PHP representation |
+|---------------|----------------|-----------------|------------------|--------------------|
+| Yes           | No             | Yes             | No               | `ZendHashTable`    |
+
+### Rust example
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use indexmap::IndexMap;
+
+#[php_function]
+pub fn test_indexmap(map: IndexMap<String, String>) -> IndexMap<String, i32> {
+    // Order is preserved when iterating
+    for (k, v) in map.iter() {
+        println!("k: {} v: {}", k, v);
+    }
+
+    // Return an ordered map
+    let mut result = IndexMap::new();
+    result.insert("first".to_string(), 1);
+    result.insert("second".to_string(), 2);
+    result.insert("third".to_string(), 3);
+    result  // Order preserved: first, second, third
+}
+```
+
+### PHP example
+
+```php
+<?php
+
+// Keys maintain their order
+$result = test_indexmap([
+    'z' => 'last',
+    'a' => 'first',
+    'm' => 'middle',
+]);
+
+// Output preserves insertion order
+foreach ($result as $key => $value) {
+    echo "$key => $value\n";
+}
+// first => 1
+// second => 2
+// third => 3
 ```
 
 ## `Vec<(K, V)>` and `Vec<ArrayKey, V>`
