@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-fc22e4c1.js"></script>
+        <script src="toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -493,6 +493,19 @@ OPTIONS:
         --stdout
             Print stubs to stdout rather than write to file. Cannot be used with `out`
 </code></pre>
+<h3 id="custom-allocators"><a class="header" href="#custom-allocators">Custom Allocators</a></h3>
+<p>If your extension uses a custom global allocator (e.g., <code>mimalloc</code>, <code>jemalloc</code>),
+you may encounter a crash when running <code>cargo php stubs</code> with an error like
+“pointer being freed was not allocated”.</p>
+<p>This happens because <code>cargo php stubs</code> builds your extension in debug mode and
+loads it to extract type information. Custom allocators can conflict with this
+process.</p>
+<p><strong>Workaround:</strong> Conditionally enable your custom allocator only in release builds:</p>
+<pre><code class="language-rust ignore">#[cfg(not(debug_assertions))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;</code></pre>
+<p>See <a href="https://github.com/extphprs/ext-php-rs/issues/523">issue #523</a> for more
+details.</p>
 <h2 id="extension-installation"><a class="header" href="#extension-installation">Extension Installation</a></h2>
 <p>When PHP is in your PATH, the application can automatically build and copy your
 extension into PHP. This requires <code>php-config</code> to be installed alongside PHP.</p>
@@ -814,6 +827,116 @@ pub fn test_vec(vec: Vec&lt;String&gt;) -&gt; String {
 
 var_dump(test_vec(['hello', 'world', 5])); // string(13) "hello world 5"
 </code></pre>
+<h1 id="hashset"><a class="header" href="#hashset"><code>HashSet</code></a></h1>
+<p><code>HashSet</code> is an unordered collection of unique values. When converting to a PHP array,
+values are stored with sequential integer keys (0, 1, 2, …).</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rust-example-1-1"><a class="header" href="#rust-example-1-1">Rust example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>use std::collections::HashSet;
+
+#[php_function]
+pub fn test_hashset(set: HashSet&lt;String&gt;) -&gt; HashSet&lt;String&gt; {
+    // Duplicates are automatically removed
+    set
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example-1-1"><a class="header" href="#php-example-1-1">PHP example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Duplicates are removed, order is not preserved
+$result = test_hashset(['a', 'b', 'a', 'c']);
+var_dump($result); // array with 3 unique values
+</code></pre>
+<h1 id="btreeset"><a class="header" href="#btreeset"><code>BTreeSet</code></a></h1>
+<p><code>BTreeSet</code> is a sorted collection of unique values. Elements are ordered by their <code>Ord</code>
+implementation. When converting to a PHP array, values are stored with sequential integer
+keys (0, 1, 2, …) in sorted order.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rust-example-2-1"><a class="header" href="#rust-example-2-1">Rust example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>use std::collections::BTreeSet;
+
+#[php_function]
+pub fn test_btreeset(set: BTreeSet&lt;String&gt;) -&gt; BTreeSet&lt;String&gt; {
+    // Duplicates removed, values sorted
+    set
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example-2-1"><a class="header" href="#php-example-2-1">PHP example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Values are sorted and deduplicated
+$result = test_btreeset(['z', 'a', 'm', 'a']);
+foreach ($result as $value) {
+    echo "$value\n";
+}
+// a
+// m
+// z
+</code></pre>
+<h1 id="indexset"><a class="header" href="#indexset"><code>IndexSet</code></a></h1>
+<p><code>IndexSet</code> is like <code>HashSet</code> but preserves insertion order. This requires the <code>indexmap</code>
+feature.</p>
+<pre><code class="language-toml">[dependencies]
+ext-php-rs = { version = "...", features = ["indexmap"] }
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rust-example-3-1"><a class="header" href="#rust-example-3-1">Rust example</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use indexmap::IndexSet;
+
+#[php_function]
+pub fn test_indexset(set: IndexSet&lt;String&gt;) -&gt; IndexSet&lt;String&gt; {
+    // Order is preserved, duplicates removed
+    for v in set.iter() {
+        println!("v: {}", v);
+    }
+    set
+}</code></pre>
+<h2 id="php-example-3-1"><a class="header" href="#php-example-3-1">PHP example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Order is preserved, duplicates removed
+$result = test_indexset(['z', 'a', 'm', 'a']);
+foreach ($result as $value) {
+    echo "$value\n";
+}
+// z
+// a
+// m
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hashmap"><a class="header" href="#hashmap"><code>HashMap</code></a></h1>
 <p><code>HashMap</code>s are represented as associative arrays in PHP.</p>
@@ -834,13 +957,13 @@ numeric key, the key is represented as a string before being inserted.</p>
 <p>Converting from a <code>HashMap</code> to a zval is valid when the key implements
 <code>AsRef&lt;str&gt;</code>, and the value implements <code>IntoZval</code>.</p>
 <div class="warning">
-<pre><code>When using `HashMap` the order of the elements it not preserved.
+<pre><code>When using `HashMap` the order of the elements is not preserved.
 
 HashMaps are unordered collections, so the order of elements may not be the same
 when converting from PHP to Rust and back.
 
-If you need to preserve the order of elements, consider using `Vec&lt;(K, V)&gt;` or
-`Vec&lt;ArrayKey, V)&gt;` instead.
+If you need to preserve the order of elements, consider using `IndexMap` (requires
+the `indexmap` feature) or `Vec&lt;(K, V)&gt;`.
 </code></pre>
 </div>
 
@@ -879,6 +1002,59 @@ array(3) {
     [2] =&gt; string(3) "okk"
 }
 </code></pre>
+<h2 id="indexmap-order-preserving"><a class="header" href="#indexmap-order-preserving"><code>IndexMap</code> (Order-Preserving)</a></h2>
+<p><code>IndexMap</code> is like <code>HashMap</code> but preserves insertion order, making it ideal for
+working with PHP arrays where key order matters. This requires the <code>indexmap</code>
+feature.</p>
+<pre><code class="language-toml">[dependencies]
+ext-php-rs = { version = "...", features = ["indexmap"] }
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="rust-example-1-2"><a class="header" href="#rust-example-1-2">Rust example</a></h3>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use indexmap::IndexMap;
+
+#[php_function]
+pub fn test_indexmap(map: IndexMap&lt;String, String&gt;) -&gt; IndexMap&lt;String, i32&gt; {
+    // Order is preserved when iterating
+    for (k, v) in map.iter() {
+        println!("k: {} v: {}", k, v);
+    }
+
+    // Return an ordered map
+    let mut result = IndexMap::new();
+    result.insert("first".to_string(), 1);
+    result.insert("second".to_string(), 2);
+    result.insert("third".to_string(), 3);
+    result  // Order preserved: first, second, third
+}</code></pre>
+<h3 id="php-example-1-2"><a class="header" href="#php-example-1-2">PHP example</a></h3>
+<pre><code class="language-php">&lt;?php
+
+// Keys maintain their order
+$result = test_indexmap([
+    'z' =&gt; 'last',
+    'a' =&gt; 'first',
+    'm' =&gt; 'middle',
+]);
+
+// Output preserves insertion order
+foreach ($result as $key =&gt; $value) {
+    echo "$key =&gt; $value\n";
+}
+// first =&gt; 1
+// second =&gt; 2
+// third =&gt; 3
+</code></pre>
 <h2 id="veck-v-and-vecarraykey-v"><a class="header" href="#veck-v-and-vecarraykey-v"><code>Vec&lt;(K, V)&gt;</code> and <code>Vec&lt;ArrayKey, V&gt;</code></a></h2>
 <p><code>Vec&lt;(K, V)&gt;</code> and <code>Vec&lt;ArrayKey, V&gt;</code> are used to represent associative arrays in PHP
 where the keys can be strings or integers.</p>
@@ -886,7 +1062,7 @@ where the keys can be strings or integers.</p>
 <p>For <code>i64</code> keys, string keys that can be parsed as integers will be accepted, and
 converted to <code>i64</code>.</p>
 <p>If you need to accept both string and integer keys, use <code>ArrayKey</code> as the key type.</p>
-<h3 id="rust-example-1-1"><a class="header" href="#rust-example-1-1">Rust example</a></h3>
+<h3 id="rust-example-2-2"><a class="header" href="#rust-example-2-2">Rust example</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
@@ -913,7 +1089,7 @@ pub fn test_vec_arraykey(vec: Vec&lt;(ArrayKey, String)&gt;) -&gt; Vec&lt;String
         .collect::&lt;Vec&lt;_&gt;&gt;()
 }
 <span class="boring">fn main() {}</span></code></pre>
-<h2 id="php-example-1-1"><a class="header" href="#php-example-1-1">PHP example</a></h2>
+<h2 id="php-example-2-2"><a class="header" href="#php-example-2-2">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 declare(strict_types=1);
@@ -2014,6 +2190,270 @@ class B implements Rust\TestInterface {
 }
 
 </code></pre>
+<h2 id="interface-inheritance"><a class="header" href="#interface-inheritance">Interface Inheritance</a></h2>
+<p>PHP interfaces can extend other interfaces. You can achieve this in two ways:</p>
+<h3 id="using-phpextends"><a class="header" href="#using-phpextends">Using <code>#[php(extends(...))]</code></a></h3>
+<p>Use the <code>extends</code> attribute to extend a built-in PHP interface or another Rust-defined interface.</p>
+<p>For built-in PHP interfaces, use the explicit form:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ce;
+
+#[php_interface]
+#[php(extends(ce = ce::throwable, stub = "\\Throwable"))]
+#[php(name = "MyException")]
+trait MyExceptionInterface {
+    fn get_error_code(&amp;self) -&gt; i32;
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>For Rust-defined interfaces, you can use the simpler type syntax:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_interface]
+trait BaseInterface {
+    fn base_method(&amp;self) -&gt; i32;
+}
+
+#[php_interface]
+#[php(extends(BaseInterface))]
+trait ExtendedInterface {
+    fn extended_method(&amp;self) -&gt; String;
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="using-rust-trait-bounds"><a class="header" href="#using-rust-trait-bounds">Using Rust Trait Bounds</a></h3>
+<p>You can also use Rust’s trait bound syntax. When a trait marked with <code>#[php_interface]</code>
+has supertraits, the PHP interface will automatically extend those parent interfaces:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_interface]
+#[php(name = "Rust\\ParentInterface")]
+trait ParentInterface {
+    fn parent_method(&amp;self) -&gt; String;
+}
+
+// ChildInterface extends ParentInterface in PHP
+#[php_interface]
+#[php(name = "Rust\\ChildInterface")]
+trait ChildInterface: ParentInterface {
+    fn child_method(&amp;self) -&gt; String;
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .interface::&lt;PhpInterfaceParentInterface&gt;()
+        .interface::&lt;PhpInterfaceChildInterface&gt;()
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>In PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+// ChildInterface extends ParentInterface
+assert(is_a('Rust\ChildInterface', 'Rust\ParentInterface', true));
+</code></pre>
+<h1 id="php_impl_interface-attribute"><a class="header" href="#php_impl_interface-attribute"><code>#[php_impl_interface]</code> Attribute</a></h1>
+<p>The <code>#[php_impl_interface]</code> attribute allows a Rust class to implement a custom PHP
+interface defined with <code>#[php_interface]</code>. This creates a relationship where PHP’s
+<code>instanceof</code> and <code>is_a()</code> recognize the implementation.</p>
+<p><strong>Key feature</strong>: The macro automatically registers the trait methods as PHP methods
+on the class. You don’t need to duplicate them in a separate <code>#[php_impl]</code> block.</p>
+<h2 id="example-1-1"><a class="header" href="#example-1-1">Example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+// Define a custom interface
+#[php_interface]
+#[php(name = "Rust\\Greetable")]
+trait Greetable {
+    fn greet(&amp;self) -&gt; String;
+}
+
+// Define a class
+#[php_class]
+#[php(name = "Rust\\Greeter")]
+pub struct Greeter {
+    name: String,
+}
+
+#[php_impl]
+impl Greeter {
+    pub fn __construct(name: String) -&gt; Self {
+        Self { name }
+    }
+
+    // Note: No need to add greet() here - it's automatically
+    // registered by #[php_impl_interface] below
+}
+
+// Implement the interface for the class
+// This automatically registers greet() as a PHP method
+#[php_impl_interface]
+impl Greetable for Greeter {
+    fn greet(&amp;self) -&gt; String {
+        format!("Hello, {}!", self.name)
+    }
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .interface::&lt;PhpInterfaceGreetable&gt;()
+        .class::&lt;Greeter&gt;()
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>Using in PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+$greeter = new Rust\Greeter("World");
+
+// instanceof works
+assert($greeter instanceof Rust\Greetable);
+
+// is_a() works
+assert(is_a($greeter, 'Rust\Greetable'));
+
+// The greet() method is available (registered by #[php_impl_interface])
+echo $greeter-&gt;greet(); // Output: Hello, World!
+
+// Can be used as type hint
+function greet(Rust\Greetable $obj): void {
+    echo $obj-&gt;greet();
+}
+
+greet($greeter);
+</code></pre>
+<h2 id="when-to-use"><a class="header" href="#when-to-use">When to Use</a></h2>
+<ul>
+<li>Use <code>#[php_impl_interface]</code> for custom interfaces you define with <code>#[php_interface]</code></li>
+<li>Use <code>#[php(implements(ce = ...))]</code> on <code>#[php_class]</code> for built-in PHP interfaces
+like <code>Iterator</code>, <code>ArrayAccess</code>, <code>Countable</code>, etc.</li>
+</ul>
+<p>See the <a href="#implementing-an-interface">Classes documentation</a> for examples
+of implementing built-in interfaces.</p>
+<h2 id="cross-crate-support"><a class="header" href="#cross-crate-support">Cross-Crate Support</a></h2>
+<p>The <code>#[php_impl_interface]</code> macro supports cross-crate interface discovery via the
+<a href="https://crates.io/crates/inventory"><code>inventory</code></a> crate. This means you can define
+an interface in one crate and implement it in another crate, and the implementation
+will be automatically discovered at link time.</p>
+<h3 id="example-defining-an-interface-in-a-library-crate"><a class="header" href="#example-defining-an-interface-in-a-library-crate">Example: Defining an Interface in a Library Crate</a></h3>
+<p>First, create a library crate that defines the interface:</p>
+<pre><code class="language-toml"># my-interfaces/Cargo.toml
+[package]
+name = "my-interfaces"
+version = "0.1.0"
+
+[dependencies]
+ext-php-rs = "0.15"
+</code></pre>
+<pre><code class="language-rust no_run ignore">// my-interfaces/src/lib.rs
+use ext_php_rs::prelude::*;
+
+/// A serializable interface that can convert objects to JSON.
+#[php_interface]
+#[php(name = "MyInterfaces\\Serializable")]
+pub trait Serializable {
+    fn to_json(&amp;self) -&gt; String;
+}
+
+// Re-export the generated PHP interface struct for consumers
+pub use PhpInterfaceSerializable;</code></pre>
+<h3 id="example-implementing-the-interface-in-another-crate"><a class="header" href="#example-implementing-the-interface-in-another-crate">Example: Implementing the Interface in Another Crate</a></h3>
+<p>Now create your extension crate that implements the interface:</p>
+<pre><code class="language-toml"># my-extension/Cargo.toml
+[package]
+name = "my-extension"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ext-php-rs = "0.15"
+my-interfaces = { path = "../my-interfaces" }
+</code></pre>
+<pre><code class="language-rust no_run ignore">// my-extension/src/lib.rs
+use ext_php_rs::prelude::*;
+use my_interfaces::Serializable;
+
+#[php_class]
+#[php(name = "MyExtension\\User")]
+pub struct User {
+    name: String,
+    email: String,
+}
+
+#[php_impl]
+impl User {
+    pub fn __construct(name: String, email: String) -&gt; Self {
+        Self { name, email }
+    }
+
+    // Note: No need to add to_json() here - it's automatically
+    // registered by #[php_impl_interface] below
+}
+
+// Register the interface implementation
+// This automatically registers to_json() as a PHP method
+#[php_impl_interface]
+impl Serializable for User {
+    fn to_json(&amp;self) -&gt; String {
+        format!(r#"{{"name":"{}","email":"{}"}}"#, self.name, self.email)
+    }
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        // Register the interface from the library crate
+        .interface::&lt;my_interfaces::PhpInterfaceSerializable&gt;()
+        .class::&lt;User&gt;()
+}</code></pre>
+<h3 id="using-in-php"><a class="header" href="#using-in-php">Using in PHP</a></h3>
+<pre><code class="language-php">&lt;?php
+
+use MyExtension\User;
+use MyInterfaces\Serializable;
+
+$user = new User("John", "john@example.com");
+
+// instanceof works across crates
+assert($user instanceof Serializable);
+
+// Type hints work
+function serialize_object(Serializable $obj): string {
+    return $obj-&gt;toJson();
+}
+
+echo serialize_object($user);
+// Output: {"name":"John","email":"john@example.com"}
+</code></pre>
+<h3 id="important-notes"><a class="header" href="#important-notes">Important Notes</a></h3>
+<ol>
+<li>
+<p><strong>Automatic method registration</strong>: The <code>#[php_impl_interface]</code> macro automatically
+registers all trait methods as PHP methods on the class. You don’t need to duplicate
+them in a <code>#[php_impl]</code> block.</p>
+</li>
+<li>
+<p><strong>Interface registration</strong>: The interface must be registered in the <code>#[php_module]</code>
+function using <code>.interface::&lt;PhpInterfaceName&gt;()</code>.</p>
+</li>
+<li>
+<p><strong>Link-time discovery</strong>: The <code>inventory</code> crate uses link-time registration for
+interface discovery, so all implementations are automatically discovered when the
+final binary is linked.</p>
+</li>
+</ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="php_class-attribute"><a class="header" href="#php_class-attribute"><code>#[php_class]</code> Attribute</a></h1>
 <p>Structs can be exported to PHP as classes with the <code>#[php_class]</code> attribute
@@ -2031,11 +2471,22 @@ Useful for namespacing classes.</li>
 readonly class are implicitly readonly.</li>
 <li><code>flags</code> - Sets class flags using <code>ClassFlags</code>, e.g.
 <code>#[php(flags = ClassFlags::Final)]</code> for a final class.</li>
-<li><code>#[php(extends(ce = ce_fn, stub = "ParentClass"))]</code> - Sets the parent class of the class. Can only be used once.
+<li><code>#[php(extends(...))]</code> - Sets the parent class of the class. Can only be used once.
+Two forms are supported:
+<ul>
+<li>Simple type form: <code>#[php(extends(MyBaseClass))]</code> - For Rust-defined classes that implement <code>RegisteredClass</code>.</li>
+<li>Explicit form: <code>#[php(extends(ce = ce_fn, stub = "ParentClass"))]</code> - For built-in PHP classes.
 <code>ce_fn</code> must be a function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
-<li><code>#[php(implements(ce = ce_fn, stub = "InterfaceName"))]</code> - Implements the given interface on the class. Can be used
-multiple times. <code>ce_fn</code> must be a valid function with the signature
-<code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
+</ul>
+</li>
+<li><code>#[php(implements(...))]</code> - Implements the given interface on the class. Can be used multiple times.
+Two forms are supported:
+<ul>
+<li>Simple type form: <code>#[php(implements(MyInterface))]</code> — For Rust-defined interfaces that implement <code>RegisteredClass</code>.</li>
+<li>Explicit form: <code>#[php(implements(ce = ce_fn, stub = "InterfaceName"))]</code> — For built-in PHP interfaces.
+<code>ce_fn</code> must be a valid function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
+</ul>
+</li>
 </ul>
 <p>You may also use the <code>#[php(prop)]</code> attribute on a struct field to use the field as a
 PHP property. By default, the field will be accessible from PHP publicly with
@@ -2121,8 +2572,105 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .function(wrap_function!(throw_exception))
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h3 id="extending-a-rust-defined-class"><a class="header" href="#extending-a-rust-defined-class">Extending a Rust-defined Class</a></h3>
+<p>When extending another Rust-defined class, you can use the simpler type syntax:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_class]
+#[derive(Default)]
+pub struct Animal;
+
+#[php_impl]
+impl Animal {
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        "..."
+    }
+}
+
+#[php_class]
+#[php(extends(Animal))]
+#[derive(Default)]
+pub struct Dog;
+
+#[php_impl]
+impl Dog {
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        "Woof!"
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .class::&lt;Animal&gt;()
+        .class::&lt;Dog&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h4 id="sharing-methods-between-parent-and-child-classes"><a class="header" href="#sharing-methods-between-parent-and-child-classes">Sharing Methods Between Parent and Child Classes</a></h4>
+<p>When both parent and child are Rust-defined classes, methods defined only in the parent
+won’t automatically work when called on a child instance. This is because each Rust type
+has its own object handlers.</p>
+<p>The recommended workaround is to use a Rust trait for shared behavior:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+/// Trait for shared behavior
+trait AnimalBehavior {
+    fn speak(&amp;self) -&gt; &amp;'static str {
+        "..."
+    }
+}
+
+#[php_class]
+#[derive(Default)]
+pub struct Animal;
+
+impl AnimalBehavior for Animal {}
+
+#[php_impl]
+impl Animal {
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        AnimalBehavior::speak(self)
+    }
+}
+
+#[php_class]
+#[php(extends(Animal))]
+#[derive(Default)]
+pub struct Dog;
+
+impl AnimalBehavior for Dog {
+    fn speak(&amp;self) -&gt; &amp;'static str {
+        "Woof!"
+    }
+}
+
+#[php_impl]
+impl Dog {
+    // Re-export the method so it works on Dog instances
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        AnimalBehavior::speak(self)
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .class::&lt;Animal&gt;()
+        .class::&lt;Dog&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>This pattern ensures that:</p>
+<ul>
+<li><code>$animal-&gt;speak()</code> returns <code>"..."</code></li>
+<li><code>$dog-&gt;speak()</code> returns <code>"Woof!"</code></li>
+<li><code>$dog instanceof Animal</code> is <code>true</code></li>
+</ul>
 <h2 id="implementing-an-interface"><a class="header" href="#implementing-an-interface">Implementing an Interface</a></h2>
-<p>To implement an interface, use <code>#[php(implements(ce = ce_fn, stub = "InterfaceName")]</code> where <code>ce_fn</code> is an function returning a <code>ClassEntry</code>.
+<p>To implement an interface, use <code>#[php(implements(...))]</code>. For built-in PHP interfaces, use the explicit form with <code>ce</code> and <code>stub</code>. For Rust-defined interfaces, you can use the simple type form.
 The following example implements <a href="https://www.php.net/manual/en/class.arrayaccess.php"><code>ArrayAccess</code></a>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
@@ -2231,6 +2779,66 @@ Counter::increment();
 echo Counter::$count; // 2
 echo Counter::getCount(); // 2
 </code></pre>
+<h2 id="abstract-classes"><a class="header" href="#abstract-classes">Abstract Classes</a></h2>
+<p>Abstract classes cannot be instantiated directly and may contain abstract methods
+that must be implemented by subclasses. Use <code>#[php(flags = ClassFlags::Abstract)]</code>
+to declare an abstract class:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Abstract)]
+pub struct AbstractAnimal;
+
+#[php_impl]
+impl AbstractAnimal {
+    // Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -&gt; Self {
+        Self
+    }
+
+    // Abstract method - must be implemented by subclasses.
+    // Body is never called; use unimplemented!() as a placeholder.
+    #[php(abstract)]
+    pub fn speak(&amp;self) -&gt; String {
+        unimplemented!()
+    }
+
+    // Concrete method - inherited by subclasses
+    pub fn breathe(&amp;self) {
+        println!("Breathing...");
+    }
+}</code></pre>
+<p>From PHP, you can extend this abstract class:</p>
+<pre><code class="language-php">class Dog extends AbstractAnimal {
+    public function __construct() {
+        parent::__construct();
+    }
+
+    public function speak(): string {
+        return "Woof!";
+    }
+}
+
+$dog = new Dog();
+echo $dog-&gt;speak(); // "Woof!"
+$dog-&gt;breathe();    // "Breathing..."
+
+// This would cause an error:
+// $animal = new AbstractAnimal(); // Cannot instantiate abstract class
+</code></pre>
+<p>See the <a href="#abstract-methods">impl documentation</a> for more details on
+abstract methods.</p>
+<h2 id="final-classes"><a class="header" href="#final-classes">Final Classes</a></h2>
+<p>Final classes cannot be extended. Use <code>#[php(flags = ClassFlags::Final)]</code> to
+declare a final class:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Final)]
+pub struct FinalClass;</code></pre>
 <h2 id="readonly-classes-php-82"><a class="header" href="#readonly-classes-php-82">Readonly Classes (PHP 8.2+)</a></h2>
 <p>PHP 8.2 introduced <a href="https://www.php.net/manual/en/language.oop5.basic.php#language.oop5.basic.class.readonly">readonly classes</a>,
 where all properties are implicitly readonly. You can create a readonly class using
@@ -2332,6 +2940,153 @@ pub struct MaybeReadonlyClass {
 </ul>
 <p>This is <strong>optional</strong> - if your extension only targets PHP 8.2+, you can use
 <code>#[php(readonly)]</code> directly without any build script setup.</p>
+<h2 id="implementing-iterator"><a class="header" href="#implementing-iterator">Implementing Iterator</a></h2>
+<p>To make a Rust class usable with PHP’s <code>foreach</code> loop, implement the
+<a href="https://www.php.net/manual/en/class.iterator.php"><code>Iterator</code></a> interface.
+This requires implementing five methods: <code>current()</code>, <code>key()</code>, <code>next()</code>, <code>rewind()</code>, and <code>valid()</code>.</p>
+<p>The following example creates a <code>RangeIterator</code> that iterates over a range of integers:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, zend::ce};
+
+#[php_class]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+pub struct RangeIterator {
+    start: i64,
+    end: i64,
+    current: i64,
+    index: i64,
+}
+
+#[php_impl]
+impl RangeIterator {
+    /// Create a new range iterator from start to end (inclusive).
+    pub fn __construct(start: i64, end: i64) -&gt; Self {
+        Self {
+            start,
+            end,
+            current: start,
+            index: 0,
+        }
+    }
+
+    /// Return the current element.
+    pub fn current(&amp;self) -&gt; i64 {
+        self.current
+    }
+
+    /// Return the key of the current element.
+    pub fn key(&amp;self) -&gt; i64 {
+        self.index
+    }
+
+    /// Move forward to next element.
+    pub fn next(&amp;mut self) {
+        self.current += 1;
+        self.index += 1;
+    }
+
+    /// Rewind the Iterator to the first element.
+    pub fn rewind(&amp;mut self) {
+        self.current = self.start;
+        self.index = 0;
+    }
+
+    /// Checks if current position is valid.
+    pub fn valid(&amp;self) -&gt; bool {
+        self.current &lt;= self.end
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.class::&lt;RangeIterator&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>Using the iterator in PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+$range = new RangeIterator(1, 5);
+
+// Use with foreach
+foreach ($range as $key =&gt; $value) {
+    echo "$key =&gt; $value\n";
+}
+// Output:
+// 0 =&gt; 1
+// 1 =&gt; 2
+// 2 =&gt; 3
+// 3 =&gt; 4
+// 4 =&gt; 5
+
+// Works with iterator functions
+$arr = iterator_to_array(new RangeIterator(10, 12));
+// [0 =&gt; 10, 1 =&gt; 11, 2 =&gt; 12]
+
+$count = iterator_count(new RangeIterator(1, 100));
+// 100
+</code></pre>
+<h3 id="iterator-with-mixed-types"><a class="header" href="#iterator-with-mixed-types">Iterator with Mixed Types</a></h3>
+<p>You can return different types for keys and values. The following example uses string keys:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, zend::ce};
+
+#[php_class]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+pub struct MapIterator {
+    keys: Vec&lt;String&gt;,
+    values: Vec&lt;String&gt;,
+    index: usize,
+}
+
+#[php_impl]
+impl MapIterator {
+    pub fn __construct() -&gt; Self {
+        Self {
+            keys: vec!["first".into(), "second".into(), "third".into()],
+            values: vec!["one".into(), "two".into(), "three".into()],
+            index: 0,
+        }
+    }
+
+    pub fn current(&amp;self) -&gt; Option&lt;String&gt; {
+        self.values.get(self.index).cloned()
+    }
+
+    pub fn key(&amp;self) -&gt; Option&lt;String&gt; {
+        self.keys.get(self.index).cloned()
+    }
+
+    pub fn next(&amp;mut self) {
+        self.index += 1;
+    }
+
+    pub fn rewind(&amp;mut self) {
+        self.index = 0;
+    }
+
+    pub fn valid(&amp;self) -&gt; bool {
+        self.index &lt; self.keys.len()
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.class::&lt;MapIterator&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<pre><code class="language-php">&lt;?php
+
+$map = new MapIterator();
+foreach ($map as $key =&gt; $value) {
+    echo "$key =&gt; $value\n";
+}
+// Output:
+// first =&gt; one
+// second =&gt; two
+// third =&gt; three
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="php_impl-attribute"><a class="header" href="#php_impl-attribute"><code>#[php_impl]</code> Attribute</a></h1>
 <p>You can export an entire <code>impl</code> block to PHP. This exports all methods as well
@@ -2371,6 +3126,9 @@ variant of <code>Option&lt;T&gt;</code>.</li>
 method.</li>
 <li><code>#[php(name = "method_name")]</code> - Renames the PHP method to a different identifier,
 without renaming the Rust method name.</li>
+<li><code>#[php(final)]</code> - Makes the method final (cannot be overridden in subclasses).</li>
+<li><code>#[php(abstract)]</code> - Makes the method abstract (must be implemented by subclasses).
+Can only be used in abstract classes.</li>
 </ul>
 <p>The <code>#[php(defaults)]</code> and <code>#[php(optional)]</code> attributes operate the same as the
 equivalent function attribute parameters.</p>
@@ -2394,6 +3152,66 @@ impl MyClass {
 <pre><code class="language-php">$obj = MyClass::createDefault(); // Static call
 $val = $obj-&gt;getValue();         // Instance call
 </code></pre>
+<h3 id="final-methods"><a class="header" href="#final-methods">Final Methods</a></h3>
+<p>Methods marked with <code>#[php(final)]</code> cannot be overridden in subclasses. This is
+useful when you want to prevent modification of critical functionality.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_class]
+pub struct SecureClass;
+
+#[php_impl]
+impl SecureClass {
+    #[php(final)]
+    pub fn secure_method(&amp;self) -&gt; &amp;str {
+        "This cannot be overridden"
+    }
+
+    // Final static methods are also supported
+    #[php(final)]
+    pub fn secure_static() -&gt; i32 {
+        42
+    }
+}</code></pre>
+<h3 id="abstract-methods"><a class="header" href="#abstract-methods">Abstract Methods</a></h3>
+<p>Methods marked with <code>#[php(abstract)]</code> must be implemented by subclasses. Abstract
+methods can only be defined in abstract classes (classes with <code>ClassFlags::Abstract</code>).</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Abstract)]
+pub struct AbstractShape;
+
+#[php_impl]
+impl AbstractShape {
+    // Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -&gt; Self {
+        Self
+    }
+
+    // Abstract method - subclasses must implement this.
+    // The body is never called; use unimplemented!() as a placeholder.
+    #[php(abstract)]
+    pub fn area(&amp;self) -&gt; f64 {
+        unimplemented!()
+    }
+
+    // Concrete method in abstract class
+    pub fn describe(&amp;self) -&gt; String {
+        format!("A shape with area {}", self.area())
+    }
+}</code></pre>
+<p><strong>Note:</strong> Abstract method bodies are never called - they exist only because Rust
+syntax requires a body for methods in <code>impl</code> blocks. Use <code>unimplemented!()</code> as a
+clear placeholder.</p>
+<p><strong>Note:</strong> If you try to use <code>#[php(abstract)]</code> on a method in a non-abstract class,
+you will get a compile-time error.</p>
+<p><strong>Note:</strong> PHP does not support abstract static methods. If you need static behavior
+that can be customized by subclasses, use a regular instance method or the
+<a href="https://www.php.net/manual/en/language.oop5.late-static-bindings.php">late static binding</a>
+pattern in PHP.</p>
 <h3 id="constructors"><a class="header" href="#constructors">Constructors</a></h3>
 <p>By default, if a class does not have a constructor, it is not constructable from
 PHP. It can only be returned from a Rust function to PHP.</p>
@@ -2423,6 +3241,37 @@ Properties cannot have multiple getters or setters, and the property name cannot
 conflict with field properties defined on the struct.</p>
 <p>As the same as field properties, method property types must implement both
 <code>IntoZval</code> and <code>FromZval</code>.</p>
+<h3 id="overriding-field-properties-with-getterssetters"><a class="header" href="#overriding-field-properties-with-getterssetters">Overriding field properties with getters/setters</a></h3>
+<p>If you have a field property defined with <code>#[php(prop)]</code> on your struct, you can
+override its access by defining a getter or setter method with the same property
+name. The method-based property will take precedence:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_class]
+pub struct Book {
+    #[php(prop)]
+    pub title: String,  // Direct field access
+}
+
+#[php_impl]
+impl Book {
+    pub fn __construct(title: String) -&gt; Self {
+        Self { title }
+    }
+
+    // This getter overrides $book-&gt;title access
+    #[php(getter)]
+    pub fn get_title(&amp;self) -&gt; String {
+        format!("Title: {}", self.title)
+    }
+}</code></pre>
+<p>In PHP, accessing <code>$book-&gt;title</code> will now call the <code>get_title()</code> method instead
+of directly accessing the field:</p>
+<pre><code class="language-php">$book = new Book("The Rust Book");
+echo $book-&gt;title; // Output: "Title: The Rust Book"
+</code></pre>
+<p>This is useful when you need to add validation, transformation, or side effects
+to property access while still having the convenience of a public field in Rust.</p>
 <h2 id="example-4"><a class="header" href="#example-4">Example</a></h2>
 <p>Continuing on from our <code>Human</code> example in the structs section, we will define a
 constructor, as well as getters for the properties. We will also define a
@@ -3556,10 +4405,11 @@ for critical resources that must be cleaned up regardless.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="observer-api"><a class="header" href="#observer-api">Observer API</a></h1>
 <p>The Observer API allows you to build profilers, tracers, and instrumentation tools
-that observe PHP function calls. This is useful for:</p>
+that observe PHP function calls and errors. This is useful for:</p>
 <ul>
 <li>Performance profiling</li>
 <li>Request tracing (APM)</li>
+<li>Error monitoring</li>
 <li>Code coverage tools</li>
 <li>Debugging tools</li>
 </ul>
@@ -3568,14 +4418,13 @@ that observe PHP function calls. This is useful for:</p>
 <pre><code class="language-toml">[dependencies]
 ext-php-rs = { version = "0.15", features = ["observer"] }
 </code></pre>
-<h2 id="basic-usage-1"><a class="header" href="#basic-usage-1">Basic Usage</a></h2>
-<p>Implement the <code>FcallObserver</code> trait to create an observer:</p>
+<h2 id="function-call-observer"><a class="header" href="#function-call-observer">Function Call Observer</a></h2>
+<p>Implement the <code>FcallObserver</code> trait to observe function calls:</p>
 <pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 use ext_php_rs::types::Zval;
 use ext_php_rs::zend::ExecuteData;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// A simple profiler that counts function calls.
 struct CallCounter {
     count: AtomicU64,
 }
@@ -3590,7 +4439,6 @@ impl CallCounter {
 
 impl FcallObserver for CallCounter {
     fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
-        // Only observe user-defined functions (not internal PHP functions)
         !info.is_internal
     }
 
@@ -3598,41 +4446,27 @@ impl FcallObserver for CallCounter {
         self.count.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {
-        // Called when the function returns
-    }
+    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {}
 }
 
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.fcall_observer(CallCounter::new)
 }</code></pre>
-<h2 id="the-fcallobserver-trait"><a class="header" href="#the-fcallobserver-trait">The <code>FcallObserver</code> Trait</a></h2>
-<p>The trait has three methods:</p>
-<h3 id="should_observe"><a class="header" href="#should_observe"><code>should_observe</code></a></h3>
-<pre><code class="language-rust ignore">fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool;</code></pre>
-<p>Called once per unique function to determine if it should be observed.
-The result is cached by PHP, so this is only called once per function definition.</p>
-<p>Return <code>true</code> to observe the function, <code>false</code> to skip it.</p>
-<h3 id="begin"><a class="header" href="#begin"><code>begin</code></a></h3>
-<pre><code class="language-rust ignore">fn begin(&amp;self, execute_data: &amp;ExecuteData);</code></pre>
-<p>Called when an observed function begins execution. Use this to:</p>
-<ul>
-<li>Record start timestamps for profiling</li>
-<li>Push to a call stack for tracing</li>
-<li>Log function entry</li>
-</ul>
-<h3 id="end"><a class="header" href="#end"><code>end</code></a></h3>
-<pre><code class="language-rust ignore">fn end(&amp;self, execute_data: &amp;ExecuteData, retval: Option&lt;&amp;Zval&gt;);</code></pre>
-<p>Called when an observed function ends execution. This is called even if
-the function throws an exception. Use this to:</p>
-<ul>
-<li>Calculate execution duration</li>
-<li>Pop from a call stack</li>
-<li>Record return values</li>
-</ul>
-<h2 id="fcallinfo---function-metadata"><a class="header" href="#fcallinfo---function-metadata"><code>FcallInfo</code> - Function Metadata</a></h2>
-<p>The <code>FcallInfo</code> struct provides metadata about the function being called:</p>
+<h3 id="the-fcallobserver-trait"><a class="header" href="#the-fcallobserver-trait">The <code>FcallObserver</code> Trait</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool</code></td><td>Called once per function definition. Result is cached by PHP.</td></tr>
+<tr><td><code>begin(&amp;self, execute_data: &amp;ExecuteData)</code></td><td>Called when function begins execution.</td></tr>
+<tr><td><code>end(&amp;self, execute_data: &amp;ExecuteData, retval: Option&lt;&amp;Zval&gt;)</code></td><td>Called when function ends (even on exceptions).</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="fcallinfo---function-metadata"><a class="header" href="#fcallinfo---function-metadata"><code>FcallInfo</code> - Function Metadata</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -3647,101 +4481,253 @@ the function throws an exception. Use this to:</p>
 </tbody>
 </table>
 </div>
-<h2 id="thread-safety-1"><a class="header" href="#thread-safety-1">Thread Safety</a></h2>
-<p>The observer is created once during MINIT and stored as a global singleton
-shared across all requests. The observer must implement <code>Send + Sync</code> because:</p>
-<ul>
-<li><strong>NTS (Non-Thread-Safe)</strong>: A single global observer instance handles all requests</li>
-<li><strong>ZTS (Thread-Safe)</strong>: The same observer instance may be called from different threads</li>
-</ul>
-<p>Use thread-safe primitives like <code>AtomicU64</code>, <code>Mutex</code>, or <code>RwLock</code> for
-any mutable state in your observer.</p>
-<h2 id="example-simple-profiler"><a class="header" href="#example-simple-profiler">Example: Simple Profiler</a></h2>
-<p>Here’s a more complete example that tracks function timing:</p>
+<h2 id="error-observer"><a class="header" href="#error-observer">Error Observer</a></h2>
+<p>Implement the <code>ErrorObserver</code> trait to observe PHP errors:</p>
 <pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::Zval;
-use ext_php_rs::zend::ExecuteData;
-use std::sync::Mutex;
-use std::time::Instant;
-use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-struct TimingProfiler {
-    // Track start times per call (thread-safe)
-    call_stack: Mutex&lt;Vec&lt;(String, Instant)&gt;&gt;,
-    // Accumulated timings
-    timings: Mutex&lt;HashMap&lt;String, u128&gt;&gt;,
+struct ErrorTracker {
+    fatal_count: AtomicU64,
+    warning_count: AtomicU64,
 }
 
-impl TimingProfiler {
+impl ErrorTracker {
     fn new() -&gt; Self {
         Self {
-            call_stack: Mutex::new(Vec::new()),
-            timings: Mutex::new(HashMap::new()),
+            fatal_count: AtomicU64::new(0),
+            warning_count: AtomicU64::new(0),
         }
     }
 }
 
-impl FcallObserver for TimingProfiler {
-    fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
-        // Only observe user functions
-        !info.is_internal
+impl ErrorObserver for ErrorTracker {
+    fn should_observe(&amp;self, error_type: ErrorType) -&gt; bool {
+        (ErrorType::FATAL | ErrorType::WARNING).contains(error_type)
     }
 
-    fn begin(&amp;self, execute_data: &amp;ExecuteData) {
-        let func_name = execute_data
-            .get_function_name()
-            .unwrap_or_else(|| "unknown".to_string());
+    fn on_error(&amp;self, error: &amp;ErrorInfo) {
+        if ErrorType::FATAL.contains(error.error_type) {
+            self.fatal_count.fetch_add(1, Ordering::Relaxed);
 
-        if let Ok(mut stack) = self.call_stack.lock() {
-            stack.push((func_name, Instant::now()));
-        }
-    }
-
-    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {
-        if let Ok(mut stack) = self.call_stack.lock() {
-            if let Some((func_name, start)) = stack.pop() {
-                let duration = start.elapsed().as_micros();
-
-                if let Ok(mut timings) = self.timings.lock() {
-                    *timings.entry(func_name).or_insert(0) += duration;
+            if let Some(trace) = error.backtrace() {
+                for frame in trace {
+                    eprintln!("  at {}:{}",
+                        frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
+                        frame.line
+                    );
                 }
             }
+        } else {
+            self.warning_count.fetch_add(1, Ordering::Relaxed);
         }
     }
 }
 
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module.fcall_observer(TimingProfiler::new)
+    module.error_observer(ErrorTracker::new)
 }</code></pre>
+<h3 id="the-errorobserver-trait"><a class="header" href="#the-errorobserver-trait">The <code>ErrorObserver</code> Trait</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>should_observe(&amp;self, error_type: ErrorType) -&gt; bool</code></td><td>Filter which error types to observe.</td></tr>
+<tr><td><code>on_error(&amp;self, error: &amp;ErrorInfo)</code></td><td>Called when an observed error occurs.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="errortype---error-level-bitflags"><a class="header" href="#errortype---error-level-bitflags"><code>ErrorType</code> - Error Level Bitflags</a></h3>
+<pre><code class="language-rust ignore">ErrorType::ERROR           // E_ERROR
+ErrorType::WARNING         // E_WARNING
+ErrorType::PARSE           // E_PARSE
+ErrorType::NOTICE          // E_NOTICE
+ErrorType::CORE_ERROR      // E_CORE_ERROR
+ErrorType::CORE_WARNING    // E_CORE_WARNING
+ErrorType::COMPILE_ERROR   // E_COMPILE_ERROR
+ErrorType::COMPILE_WARNING // E_COMPILE_WARNING
+ErrorType::USER_ERROR      // E_USER_ERROR
+ErrorType::USER_WARNING    // E_USER_WARNING
+ErrorType::USER_NOTICE     // E_USER_NOTICE
+ErrorType::RECOVERABLE_ERROR // E_RECOVERABLE_ERROR
+ErrorType::DEPRECATED      // E_DEPRECATED
+ErrorType::USER_DEPRECATED // E_USER_DEPRECATED
+
+// Convenience groups
+ErrorType::ALL   // All error types
+ErrorType::FATAL // ERROR | CORE_ERROR | COMPILE_ERROR | USER_ERROR | RECOVERABLE_ERROR | PARSE
+ErrorType::CORE  // CORE_ERROR | CORE_WARNING</code></pre>
+<h3 id="errorinfo---error-metadata"><a class="header" href="#errorinfo---error-metadata"><code>ErrorInfo</code> - Error Metadata</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>error_type</code></td><td><code>ErrorType</code></td><td>The error level/severity</td></tr>
+<tr><td><code>filename</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Source file where error occurred</td></tr>
+<tr><td><code>lineno</code></td><td><code>u32</code></td><td>Line number</td></tr>
+<tr><td><code>message</code></td><td><code>&amp;str</code></td><td>The error message</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="lazy-backtrace"><a class="header" href="#lazy-backtrace">Lazy Backtrace</a></h3>
+<p>The <code>backtrace()</code> method captures the PHP call stack on demand:</p>
+<pre><code class="language-rust ignore">fn on_error(&amp;self, error: &amp;ErrorInfo) {
+    if let Some(trace) = error.backtrace() {
+        for frame in trace {
+            println!("{}::{}() at {}:{}",
+                frame.class.as_deref().unwrap_or(""),
+                frame.function.as_deref().unwrap_or("&lt;main&gt;"),
+                frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
+                frame.line
+            );
+        }
+    }
+}</code></pre>
+<p>The backtrace is only captured when called, so there’s zero cost if unused.</p>
+<h2 id="exception-observer"><a class="header" href="#exception-observer">Exception Observer</a></h2>
+<p>Implement the <code>ExceptionObserver</code> trait to observe thrown PHP exceptions:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+struct ExceptionTracker {
+    exception_count: AtomicU64,
+}
+
+impl ExceptionTracker {
+    fn new() -&gt; Self {
+        Self {
+            exception_count: AtomicU64::new(0),
+        }
+    }
+}
+
+impl ExceptionObserver for ExceptionTracker {
+    fn on_exception(&amp;self, exception: &amp;ExceptionInfo) {
+        self.exception_count.fetch_add(1, Ordering::Relaxed);
+        eprintln!("[EXCEPTION] {}: {} at {}:{}",
+            exception.class_name,
+            exception.message.as_deref().unwrap_or("&lt;no message&gt;"),
+            exception.file.as_deref().unwrap_or("&lt;unknown&gt;"),
+            exception.line
+        );
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.exception_observer(ExceptionTracker::new)
+}</code></pre>
+<h3 id="the-exceptionobserver-trait"><a class="header" href="#the-exceptionobserver-trait">The <code>ExceptionObserver</code> Trait</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>on_exception(&amp;self, exception: &amp;ExceptionInfo)</code></td><td>Called when an exception is thrown, before any catch blocks.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="exceptioninfo---exception-metadata"><a class="header" href="#exceptioninfo---exception-metadata"><code>ExceptionInfo</code> - Exception Metadata</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class_name</code></td><td><code>String</code></td><td>Exception class name (e.g., “RuntimeException”)</td></tr>
+<tr><td><code>message</code></td><td><code>Option&lt;String&gt;</code></td><td>The exception message</td></tr>
+<tr><td><code>code</code></td><td><code>i64</code></td><td>The exception code</td></tr>
+<tr><td><code>file</code></td><td><code>Option&lt;String&gt;</code></td><td>Source file where thrown</td></tr>
+<tr><td><code>line</code></td><td><code>u32</code></td><td>Line number where thrown</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="exception-backtrace"><a class="header" href="#exception-backtrace">Exception Backtrace</a></h3>
+<p>The <code>backtrace()</code> method captures the PHP call stack at exception throw time:</p>
+<pre><code class="language-rust ignore">impl ExceptionObserver for MyObserver {
+    fn on_exception(&amp;self, exception: &amp;ExceptionInfo) {
+        eprintln!("[EXCEPTION] {}: {}",
+            exception.class_name,
+            exception.message.as_deref().unwrap_or("&lt;no message&gt;")
+        );
+
+        if let Some(trace) = exception.backtrace() {
+            for frame in trace {
+                eprintln!("  at {}::{}() in {}:{}",
+                    frame.class.as_deref().unwrap_or(""),
+                    frame.function.as_deref().unwrap_or("&lt;main&gt;"),
+                    frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
+                    frame.line
+                );
+            }
+        }
+    }
+}</code></pre>
+<p>The backtrace is lazy - only captured when called, so there’s zero cost if unused.</p>
+<h3 id="backtraceframe---stack-frame-metadata"><a class="header" href="#backtraceframe---stack-frame-metadata"><code>BacktraceFrame</code> - Stack Frame Metadata</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>function</code></td><td><code>Option&lt;String&gt;</code></td><td>Function name (None for main script)</td></tr>
+<tr><td><code>class</code></td><td><code>Option&lt;String&gt;</code></td><td>Class name for method calls</td></tr>
+<tr><td><code>file</code></td><td><code>Option&lt;String&gt;</code></td><td>Source file</td></tr>
+<tr><td><code>line</code></td><td><code>u32</code></td><td>Line number</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="using-all-observers"><a class="header" href="#using-all-observers">Using All Observers</a></h2>
+<p>You can register all observers on the same module:</p>
+<pre><code class="language-rust ignore">#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .fcall_observer(MyProfiler::new)
+        .error_observer(MyErrorTracker::new)
+        .exception_observer(MyExceptionTracker::new)
+}</code></pre>
+<h2 id="thread-safety-1"><a class="header" href="#thread-safety-1">Thread Safety</a></h2>
+<p>Observers are created once during MINIT and stored as global singletons.
+They must implement <code>Send + Sync</code> because:</p>
+<ul>
+<li><strong>NTS</strong>: A single instance handles all requests</li>
+<li><strong>ZTS</strong>: The same instance may be called from different threads</li>
+</ul>
+<p>Use thread-safe primitives like <code>AtomicU64</code>, <code>Mutex</code>, or <code>RwLock</code> for mutable state.</p>
 <h2 id="best-practices-1"><a class="header" href="#best-practices-1">Best Practices</a></h2>
 <ol>
 <li>
-<p><strong>Keep observers lightweight</strong>: The <code>begin</code> and <code>end</code> methods are called
-for every function invocation. Avoid heavy computations or I/O.</p>
+<p><strong>Keep observers lightweight</strong>: Observer methods are called frequently.
+Avoid heavy computations or I/O.</p>
 </li>
 <li>
-<p><strong>Use <code>should_observe</code> wisely</strong>: Filter out functions you don’t need
-to observe. This is cached by PHP, so complex logic here is acceptable.</p>
+<p><strong>Use filtering wisely</strong>: <code>should_observe</code> results are cached for fcall observers.
+For error observers, filter early to avoid unnecessary processing.</p>
 </li>
 <li>
-<p><strong>Handle errors gracefully</strong>: Don’t panic in observer methods. Use
-<code>Result</code> types and log errors instead.</p>
+<p><strong>Handle errors gracefully</strong>: Don’t panic in observer methods.</p>
 </li>
 <li>
-<p><strong>Consider memory usage</strong>: If storing call data, implement limits or
-periodic flushing to avoid unbounded memory growth.</p>
+<p><strong>Consider memory usage</strong>: Implement limits or periodic flushing to avoid
+unbounded memory growth.</p>
 </li>
 <li>
-<p><strong>Test with real workloads</strong>: Profile your observer itself to ensure
-it doesn’t add significant overhead.</p>
+<p><strong>Use lazy backtrace</strong>: Only call <code>backtrace()</code> when needed. Both <code>ErrorInfo</code>
+and <code>ExceptionInfo</code> support lazy backtrace capture.</p>
 </li>
 </ol>
 <h2 id="limitations-1"><a class="header" href="#limitations-1">Limitations</a></h2>
 <ul>
-<li>Only function calls can be observed (not opcodes or other events)</li>
-<li>The observer is registered globally for the entire PHP process</li>
-<li>Only one observer can be registered per extension</li>
+<li>Only one fcall observer can be registered per extension</li>
+<li>Only one error observer can be registered per extension</li>
+<li>Only one exception observer can be registered per extension</li>
+<li>Observers are registered globally for the entire PHP process</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="allowed-bindings"><a class="header" href="#allowed-bindings">Allowed Bindings</a></h1>
@@ -3761,6 +4747,33 @@ Pay attention to the PHP version
 
 <h2 id="contributing"><a class="header" href="#contributing">Contributing</a></h2>
 <p>If you think that a binding should be added to the allowed bindings, please open an issue or a pull request on the <a href="https://github.com/extphprs/ext-php-rs">GitHub repository</a> so that everyone can benefit from it.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="migrating-to-v016"><a class="header" href="#migrating-to-v016">Migrating to <code>v0.16</code></a></h1>
+<h2 id="void-return-type-for-functions-without-explicit-return"><a class="header" href="#void-return-type-for-functions-without-explicit-return">Void Return Type for Functions Without Explicit Return</a></h2>
+<p>Functions and methods without an explicit Rust return type now declare <code>void</code> as their PHP return type.</p>
+<h3 id="before-v015"><a class="header" href="#before-v015">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn do_something() {
+    println!("Hello");
+}</code></pre>
+<p>Generated PHP signature: <code>function do_something()</code> (implicit <code>mixed</code> return)</p>
+<h3 id="after-v016"><a class="header" href="#after-v016">After (v0.16)</a></h3>
+<p>The same Rust code now generates: <code>function do_something(): void</code></p>
+<h3 id="migration"><a class="header" href="#migration">Migration</a></h3>
+<p>If your function actually returns a value but didn’t declare it, you must now add the return type:</p>
+<pre><code class="language-rust ignore">// Before: worked but was incorrect
+#[php_function]
+pub fn get_value() {
+    42  // implicitly returned, but no declared type
+}
+
+// After: must declare return type
+#[php_function]
+pub fn get_value() -&gt; i32 {
+    42
+}</code></pre>
+<h3 id="exceptions-1"><a class="header" href="#exceptions-1">Exceptions</a></h3>
+<p>The magic methods <code>__destruct</code> and <code>__clone</code> are excluded from this change, as PHP forbids return type declarations on them.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="migrating-to-v014"><a class="header" href="#migrating-to-v014">Migrating to <code>v0.14</code></a></h1>
 <h2 id="new-macro-transition"><a class="header" href="#new-macro-transition">New Macro Transition</a></h2>

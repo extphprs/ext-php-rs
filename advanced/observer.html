@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,10 +175,11 @@
                     <main>
                         <h1 id="observer-api"><a class="header" href="#observer-api">Observer API</a></h1>
 <p>The Observer API allows you to build profilers, tracers, and instrumentation tools
-that observe PHP function calls. This is useful for:</p>
+that observe PHP function calls and errors. This is useful for:</p>
 <ul>
 <li>Performance profiling</li>
 <li>Request tracing (APM)</li>
+<li>Error monitoring</li>
 <li>Code coverage tools</li>
 <li>Debugging tools</li>
 </ul>
@@ -187,14 +188,13 @@ that observe PHP function calls. This is useful for:</p>
 <pre><code class="language-toml">[dependencies]
 ext-php-rs = { version = "0.15", features = ["observer"] }
 </code></pre>
-<h2 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h2>
-<p>Implement the <code>FcallObserver</code> trait to create an observer:</p>
+<h2 id="function-call-observer"><a class="header" href="#function-call-observer">Function Call Observer</a></h2>
+<p>Implement the <code>FcallObserver</code> trait to observe function calls:</p>
 <pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 use ext_php_rs::types::Zval;
 use ext_php_rs::zend::ExecuteData;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// A simple profiler that counts function calls.
 struct CallCounter {
     count: AtomicU64,
 }
@@ -209,7 +209,6 @@ impl CallCounter {
 
 impl FcallObserver for CallCounter {
     fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
-        // Only observe user-defined functions (not internal PHP functions)
         !info.is_internal
     }
 
@@ -217,41 +216,27 @@ impl FcallObserver for CallCounter {
         self.count.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {
-        // Called when the function returns
-    }
+    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {}
 }
 
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.fcall_observer(CallCounter::new)
 }</code></pre>
-<h2 id="the-fcallobserver-trait"><a class="header" href="#the-fcallobserver-trait">The <code>FcallObserver</code> Trait</a></h2>
-<p>The trait has three methods:</p>
-<h3 id="should_observe"><a class="header" href="#should_observe"><code>should_observe</code></a></h3>
-<pre><code class="language-rust ignore">fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool;</code></pre>
-<p>Called once per unique function to determine if it should be observed.
-The result is cached by PHP, so this is only called once per function definition.</p>
-<p>Return <code>true</code> to observe the function, <code>false</code> to skip it.</p>
-<h3 id="begin"><a class="header" href="#begin"><code>begin</code></a></h3>
-<pre><code class="language-rust ignore">fn begin(&amp;self, execute_data: &amp;ExecuteData);</code></pre>
-<p>Called when an observed function begins execution. Use this to:</p>
-<ul>
-<li>Record start timestamps for profiling</li>
-<li>Push to a call stack for tracing</li>
-<li>Log function entry</li>
-</ul>
-<h3 id="end"><a class="header" href="#end"><code>end</code></a></h3>
-<pre><code class="language-rust ignore">fn end(&amp;self, execute_data: &amp;ExecuteData, retval: Option&lt;&amp;Zval&gt;);</code></pre>
-<p>Called when an observed function ends execution. This is called even if
-the function throws an exception. Use this to:</p>
-<ul>
-<li>Calculate execution duration</li>
-<li>Pop from a call stack</li>
-<li>Record return values</li>
-</ul>
-<h2 id="fcallinfo---function-metadata"><a class="header" href="#fcallinfo---function-metadata"><code>FcallInfo</code> - Function Metadata</a></h2>
-<p>The <code>FcallInfo</code> struct provides metadata about the function being called:</p>
+<h3 id="the-fcallobserver-trait"><a class="header" href="#the-fcallobserver-trait">The <code>FcallObserver</code> Trait</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool</code></td><td>Called once per function definition. Result is cached by PHP.</td></tr>
+<tr><td><code>begin(&amp;self, execute_data: &amp;ExecuteData)</code></td><td>Called when function begins execution.</td></tr>
+<tr><td><code>end(&amp;self, execute_data: &amp;ExecuteData, retval: Option&lt;&amp;Zval&gt;)</code></td><td>Called when function ends (even on exceptions).</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="fcallinfo---function-metadata"><a class="header" href="#fcallinfo---function-metadata"><code>FcallInfo</code> - Function Metadata</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -266,101 +251,253 @@ the function throws an exception. Use this to:</p>
 </tbody>
 </table>
 </div>
-<h2 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h2>
-<p>The observer is created once during MINIT and stored as a global singleton
-shared across all requests. The observer must implement <code>Send + Sync</code> because:</p>
-<ul>
-<li><strong>NTS (Non-Thread-Safe)</strong>: A single global observer instance handles all requests</li>
-<li><strong>ZTS (Thread-Safe)</strong>: The same observer instance may be called from different threads</li>
-</ul>
-<p>Use thread-safe primitives like <code>AtomicU64</code>, <code>Mutex</code>, or <code>RwLock</code> for
-any mutable state in your observer.</p>
-<h2 id="example-simple-profiler"><a class="header" href="#example-simple-profiler">Example: Simple Profiler</a></h2>
-<p>Here’s a more complete example that tracks function timing:</p>
+<h2 id="error-observer"><a class="header" href="#error-observer">Error Observer</a></h2>
+<p>Implement the <code>ErrorObserver</code> trait to observe PHP errors:</p>
 <pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::Zval;
-use ext_php_rs::zend::ExecuteData;
-use std::sync::Mutex;
-use std::time::Instant;
-use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-struct TimingProfiler {
-    // Track start times per call (thread-safe)
-    call_stack: Mutex&lt;Vec&lt;(String, Instant)&gt;&gt;,
-    // Accumulated timings
-    timings: Mutex&lt;HashMap&lt;String, u128&gt;&gt;,
+struct ErrorTracker {
+    fatal_count: AtomicU64,
+    warning_count: AtomicU64,
 }
 
-impl TimingProfiler {
+impl ErrorTracker {
     fn new() -&gt; Self {
         Self {
-            call_stack: Mutex::new(Vec::new()),
-            timings: Mutex::new(HashMap::new()),
+            fatal_count: AtomicU64::new(0),
+            warning_count: AtomicU64::new(0),
         }
     }
 }
 
-impl FcallObserver for TimingProfiler {
-    fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
-        // Only observe user functions
-        !info.is_internal
+impl ErrorObserver for ErrorTracker {
+    fn should_observe(&amp;self, error_type: ErrorType) -&gt; bool {
+        (ErrorType::FATAL | ErrorType::WARNING).contains(error_type)
     }
 
-    fn begin(&amp;self, execute_data: &amp;ExecuteData) {
-        let func_name = execute_data
-            .get_function_name()
-            .unwrap_or_else(|| "unknown".to_string());
+    fn on_error(&amp;self, error: &amp;ErrorInfo) {
+        if ErrorType::FATAL.contains(error.error_type) {
+            self.fatal_count.fetch_add(1, Ordering::Relaxed);
 
-        if let Ok(mut stack) = self.call_stack.lock() {
-            stack.push((func_name, Instant::now()));
-        }
-    }
-
-    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {
-        if let Ok(mut stack) = self.call_stack.lock() {
-            if let Some((func_name, start)) = stack.pop() {
-                let duration = start.elapsed().as_micros();
-
-                if let Ok(mut timings) = self.timings.lock() {
-                    *timings.entry(func_name).or_insert(0) += duration;
+            if let Some(trace) = error.backtrace() {
+                for frame in trace {
+                    eprintln!("  at {}:{}",
+                        frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
+                        frame.line
+                    );
                 }
             }
+        } else {
+            self.warning_count.fetch_add(1, Ordering::Relaxed);
         }
     }
 }
 
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module.fcall_observer(TimingProfiler::new)
+    module.error_observer(ErrorTracker::new)
 }</code></pre>
+<h3 id="the-errorobserver-trait"><a class="header" href="#the-errorobserver-trait">The <code>ErrorObserver</code> Trait</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>should_observe(&amp;self, error_type: ErrorType) -&gt; bool</code></td><td>Filter which error types to observe.</td></tr>
+<tr><td><code>on_error(&amp;self, error: &amp;ErrorInfo)</code></td><td>Called when an observed error occurs.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="errortype---error-level-bitflags"><a class="header" href="#errortype---error-level-bitflags"><code>ErrorType</code> - Error Level Bitflags</a></h3>
+<pre><code class="language-rust ignore">ErrorType::ERROR           // E_ERROR
+ErrorType::WARNING         // E_WARNING
+ErrorType::PARSE           // E_PARSE
+ErrorType::NOTICE          // E_NOTICE
+ErrorType::CORE_ERROR      // E_CORE_ERROR
+ErrorType::CORE_WARNING    // E_CORE_WARNING
+ErrorType::COMPILE_ERROR   // E_COMPILE_ERROR
+ErrorType::COMPILE_WARNING // E_COMPILE_WARNING
+ErrorType::USER_ERROR      // E_USER_ERROR
+ErrorType::USER_WARNING    // E_USER_WARNING
+ErrorType::USER_NOTICE     // E_USER_NOTICE
+ErrorType::RECOVERABLE_ERROR // E_RECOVERABLE_ERROR
+ErrorType::DEPRECATED      // E_DEPRECATED
+ErrorType::USER_DEPRECATED // E_USER_DEPRECATED
+
+// Convenience groups
+ErrorType::ALL   // All error types
+ErrorType::FATAL // ERROR | CORE_ERROR | COMPILE_ERROR | USER_ERROR | RECOVERABLE_ERROR | PARSE
+ErrorType::CORE  // CORE_ERROR | CORE_WARNING</code></pre>
+<h3 id="errorinfo---error-metadata"><a class="header" href="#errorinfo---error-metadata"><code>ErrorInfo</code> - Error Metadata</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>error_type</code></td><td><code>ErrorType</code></td><td>The error level/severity</td></tr>
+<tr><td><code>filename</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Source file where error occurred</td></tr>
+<tr><td><code>lineno</code></td><td><code>u32</code></td><td>Line number</td></tr>
+<tr><td><code>message</code></td><td><code>&amp;str</code></td><td>The error message</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="lazy-backtrace"><a class="header" href="#lazy-backtrace">Lazy Backtrace</a></h3>
+<p>The <code>backtrace()</code> method captures the PHP call stack on demand:</p>
+<pre><code class="language-rust ignore">fn on_error(&amp;self, error: &amp;ErrorInfo) {
+    if let Some(trace) = error.backtrace() {
+        for frame in trace {
+            println!("{}::{}() at {}:{}",
+                frame.class.as_deref().unwrap_or(""),
+                frame.function.as_deref().unwrap_or("&lt;main&gt;"),
+                frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
+                frame.line
+            );
+        }
+    }
+}</code></pre>
+<p>The backtrace is only captured when called, so there’s zero cost if unused.</p>
+<h2 id="exception-observer"><a class="header" href="#exception-observer">Exception Observer</a></h2>
+<p>Implement the <code>ExceptionObserver</code> trait to observe thrown PHP exceptions:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+struct ExceptionTracker {
+    exception_count: AtomicU64,
+}
+
+impl ExceptionTracker {
+    fn new() -&gt; Self {
+        Self {
+            exception_count: AtomicU64::new(0),
+        }
+    }
+}
+
+impl ExceptionObserver for ExceptionTracker {
+    fn on_exception(&amp;self, exception: &amp;ExceptionInfo) {
+        self.exception_count.fetch_add(1, Ordering::Relaxed);
+        eprintln!("[EXCEPTION] {}: {} at {}:{}",
+            exception.class_name,
+            exception.message.as_deref().unwrap_or("&lt;no message&gt;"),
+            exception.file.as_deref().unwrap_or("&lt;unknown&gt;"),
+            exception.line
+        );
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.exception_observer(ExceptionTracker::new)
+}</code></pre>
+<h3 id="the-exceptionobserver-trait"><a class="header" href="#the-exceptionobserver-trait">The <code>ExceptionObserver</code> Trait</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>on_exception(&amp;self, exception: &amp;ExceptionInfo)</code></td><td>Called when an exception is thrown, before any catch blocks.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="exceptioninfo---exception-metadata"><a class="header" href="#exceptioninfo---exception-metadata"><code>ExceptionInfo</code> - Exception Metadata</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>class_name</code></td><td><code>String</code></td><td>Exception class name (e.g., “RuntimeException”)</td></tr>
+<tr><td><code>message</code></td><td><code>Option&lt;String&gt;</code></td><td>The exception message</td></tr>
+<tr><td><code>code</code></td><td><code>i64</code></td><td>The exception code</td></tr>
+<tr><td><code>file</code></td><td><code>Option&lt;String&gt;</code></td><td>Source file where thrown</td></tr>
+<tr><td><code>line</code></td><td><code>u32</code></td><td>Line number where thrown</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="exception-backtrace"><a class="header" href="#exception-backtrace">Exception Backtrace</a></h3>
+<p>The <code>backtrace()</code> method captures the PHP call stack at exception throw time:</p>
+<pre><code class="language-rust ignore">impl ExceptionObserver for MyObserver {
+    fn on_exception(&amp;self, exception: &amp;ExceptionInfo) {
+        eprintln!("[EXCEPTION] {}: {}",
+            exception.class_name,
+            exception.message.as_deref().unwrap_or("&lt;no message&gt;")
+        );
+
+        if let Some(trace) = exception.backtrace() {
+            for frame in trace {
+                eprintln!("  at {}::{}() in {}:{}",
+                    frame.class.as_deref().unwrap_or(""),
+                    frame.function.as_deref().unwrap_or("&lt;main&gt;"),
+                    frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
+                    frame.line
+                );
+            }
+        }
+    }
+}</code></pre>
+<p>The backtrace is lazy - only captured when called, so there’s zero cost if unused.</p>
+<h3 id="backtraceframe---stack-frame-metadata"><a class="header" href="#backtraceframe---stack-frame-metadata"><code>BacktraceFrame</code> - Stack Frame Metadata</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>function</code></td><td><code>Option&lt;String&gt;</code></td><td>Function name (None for main script)</td></tr>
+<tr><td><code>class</code></td><td><code>Option&lt;String&gt;</code></td><td>Class name for method calls</td></tr>
+<tr><td><code>file</code></td><td><code>Option&lt;String&gt;</code></td><td>Source file</td></tr>
+<tr><td><code>line</code></td><td><code>u32</code></td><td>Line number</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="using-all-observers"><a class="header" href="#using-all-observers">Using All Observers</a></h2>
+<p>You can register all observers on the same module:</p>
+<pre><code class="language-rust ignore">#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .fcall_observer(MyProfiler::new)
+        .error_observer(MyErrorTracker::new)
+        .exception_observer(MyExceptionTracker::new)
+}</code></pre>
+<h2 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h2>
+<p>Observers are created once during MINIT and stored as global singletons.
+They must implement <code>Send + Sync</code> because:</p>
+<ul>
+<li><strong>NTS</strong>: A single instance handles all requests</li>
+<li><strong>ZTS</strong>: The same instance may be called from different threads</li>
+</ul>
+<p>Use thread-safe primitives like <code>AtomicU64</code>, <code>Mutex</code>, or <code>RwLock</code> for mutable state.</p>
 <h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
 <ol>
 <li>
-<p><strong>Keep observers lightweight</strong>: The <code>begin</code> and <code>end</code> methods are called
-for every function invocation. Avoid heavy computations or I/O.</p>
+<p><strong>Keep observers lightweight</strong>: Observer methods are called frequently.
+Avoid heavy computations or I/O.</p>
 </li>
 <li>
-<p><strong>Use <code>should_observe</code> wisely</strong>: Filter out functions you don’t need
-to observe. This is cached by PHP, so complex logic here is acceptable.</p>
+<p><strong>Use filtering wisely</strong>: <code>should_observe</code> results are cached for fcall observers.
+For error observers, filter early to avoid unnecessary processing.</p>
 </li>
 <li>
-<p><strong>Handle errors gracefully</strong>: Don’t panic in observer methods. Use
-<code>Result</code> types and log errors instead.</p>
+<p><strong>Handle errors gracefully</strong>: Don’t panic in observer methods.</p>
 </li>
 <li>
-<p><strong>Consider memory usage</strong>: If storing call data, implement limits or
-periodic flushing to avoid unbounded memory growth.</p>
+<p><strong>Consider memory usage</strong>: Implement limits or periodic flushing to avoid
+unbounded memory growth.</p>
 </li>
 <li>
-<p><strong>Test with real workloads</strong>: Profile your observer itself to ensure
-it doesn’t add significant overhead.</p>
+<p><strong>Use lazy backtrace</strong>: Only call <code>backtrace()</code> when needed. Both <code>ErrorInfo</code>
+and <code>ExceptionInfo</code> support lazy backtrace capture.</p>
 </li>
 </ol>
 <h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
 <ul>
-<li>Only function calls can be observed (not opcodes or other events)</li>
-<li>The observer is registered globally for the entire PHP process</li>
-<li>Only one observer can be registered per extension</li>
+<li>Only one fcall observer can be registered per extension</li>
+<li>Only one error observer can be registered per extension</li>
+<li>Only one exception observer can be registered per extension</li>
+<li>Observers are registered globally for the entire PHP process</li>
 </ul>
 
                     </main>

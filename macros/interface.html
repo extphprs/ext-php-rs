@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -231,6 +231,270 @@ class B implements Rust\TestInterface {
 }
 
 </code></pre>
+<h2 id="interface-inheritance"><a class="header" href="#interface-inheritance">Interface Inheritance</a></h2>
+<p>PHP interfaces can extend other interfaces. You can achieve this in two ways:</p>
+<h3 id="using-phpextends"><a class="header" href="#using-phpextends">Using <code>#[php(extends(...))]</code></a></h3>
+<p>Use the <code>extends</code> attribute to extend a built-in PHP interface or another Rust-defined interface.</p>
+<p>For built-in PHP interfaces, use the explicit form:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::zend::ce;
+
+#[php_interface]
+#[php(extends(ce = ce::throwable, stub = "\\Throwable"))]
+#[php(name = "MyException")]
+trait MyExceptionInterface {
+    fn get_error_code(&amp;self) -&gt; i32;
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>For Rust-defined interfaces, you can use the simpler type syntax:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_interface]
+trait BaseInterface {
+    fn base_method(&amp;self) -&gt; i32;
+}
+
+#[php_interface]
+#[php(extends(BaseInterface))]
+trait ExtendedInterface {
+    fn extended_method(&amp;self) -&gt; String;
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="using-rust-trait-bounds"><a class="header" href="#using-rust-trait-bounds">Using Rust Trait Bounds</a></h3>
+<p>You can also use Rust’s trait bound syntax. When a trait marked with <code>#[php_interface]</code>
+has supertraits, the PHP interface will automatically extend those parent interfaces:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_interface]
+#[php(name = "Rust\\ParentInterface")]
+trait ParentInterface {
+    fn parent_method(&amp;self) -&gt; String;
+}
+
+// ChildInterface extends ParentInterface in PHP
+#[php_interface]
+#[php(name = "Rust\\ChildInterface")]
+trait ChildInterface: ParentInterface {
+    fn child_method(&amp;self) -&gt; String;
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .interface::&lt;PhpInterfaceParentInterface&gt;()
+        .interface::&lt;PhpInterfaceChildInterface&gt;()
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>In PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+// ChildInterface extends ParentInterface
+assert(is_a('Rust\ChildInterface', 'Rust\ParentInterface', true));
+</code></pre>
+<h1 id="php_impl_interface-attribute"><a class="header" href="#php_impl_interface-attribute"><code>#[php_impl_interface]</code> Attribute</a></h1>
+<p>The <code>#[php_impl_interface]</code> attribute allows a Rust class to implement a custom PHP
+interface defined with <code>#[php_interface]</code>. This creates a relationship where PHP’s
+<code>instanceof</code> and <code>is_a()</code> recognize the implementation.</p>
+<p><strong>Key feature</strong>: The macro automatically registers the trait methods as PHP methods
+on the class. You don’t need to duplicate them in a separate <code>#[php_impl]</code> block.</p>
+<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+// Define a custom interface
+#[php_interface]
+#[php(name = "Rust\\Greetable")]
+trait Greetable {
+    fn greet(&amp;self) -&gt; String;
+}
+
+// Define a class
+#[php_class]
+#[php(name = "Rust\\Greeter")]
+pub struct Greeter {
+    name: String,
+}
+
+#[php_impl]
+impl Greeter {
+    pub fn __construct(name: String) -&gt; Self {
+        Self { name }
+    }
+
+    // Note: No need to add greet() here - it's automatically
+    // registered by #[php_impl_interface] below
+}
+
+// Implement the interface for the class
+// This automatically registers greet() as a PHP method
+#[php_impl_interface]
+impl Greetable for Greeter {
+    fn greet(&amp;self) -&gt; String {
+        format!("Hello, {}!", self.name)
+    }
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .interface::&lt;PhpInterfaceGreetable&gt;()
+        .class::&lt;Greeter&gt;()
+}
+
+<span class="boring">fn main() {}</span></code></pre>
+<p>Using in PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+$greeter = new Rust\Greeter("World");
+
+// instanceof works
+assert($greeter instanceof Rust\Greetable);
+
+// is_a() works
+assert(is_a($greeter, 'Rust\Greetable'));
+
+// The greet() method is available (registered by #[php_impl_interface])
+echo $greeter-&gt;greet(); // Output: Hello, World!
+
+// Can be used as type hint
+function greet(Rust\Greetable $obj): void {
+    echo $obj-&gt;greet();
+}
+
+greet($greeter);
+</code></pre>
+<h2 id="when-to-use"><a class="header" href="#when-to-use">When to Use</a></h2>
+<ul>
+<li>Use <code>#[php_impl_interface]</code> for custom interfaces you define with <code>#[php_interface]</code></li>
+<li>Use <code>#[php(implements(ce = ...))]</code> on <code>#[php_class]</code> for built-in PHP interfaces
+like <code>Iterator</code>, <code>ArrayAccess</code>, <code>Countable</code>, etc.</li>
+</ul>
+<p>See the <a href="./classes.html#implementing-an-interface">Classes documentation</a> for examples
+of implementing built-in interfaces.</p>
+<h2 id="cross-crate-support"><a class="header" href="#cross-crate-support">Cross-Crate Support</a></h2>
+<p>The <code>#[php_impl_interface]</code> macro supports cross-crate interface discovery via the
+<a href="https://crates.io/crates/inventory"><code>inventory</code></a> crate. This means you can define
+an interface in one crate and implement it in another crate, and the implementation
+will be automatically discovered at link time.</p>
+<h3 id="example-defining-an-interface-in-a-library-crate"><a class="header" href="#example-defining-an-interface-in-a-library-crate">Example: Defining an Interface in a Library Crate</a></h3>
+<p>First, create a library crate that defines the interface:</p>
+<pre><code class="language-toml"># my-interfaces/Cargo.toml
+[package]
+name = "my-interfaces"
+version = "0.1.0"
+
+[dependencies]
+ext-php-rs = "0.15"
+</code></pre>
+<pre><code class="language-rust no_run ignore">// my-interfaces/src/lib.rs
+use ext_php_rs::prelude::*;
+
+/// A serializable interface that can convert objects to JSON.
+#[php_interface]
+#[php(name = "MyInterfaces\\Serializable")]
+pub trait Serializable {
+    fn to_json(&amp;self) -&gt; String;
+}
+
+// Re-export the generated PHP interface struct for consumers
+pub use PhpInterfaceSerializable;</code></pre>
+<h3 id="example-implementing-the-interface-in-another-crate"><a class="header" href="#example-implementing-the-interface-in-another-crate">Example: Implementing the Interface in Another Crate</a></h3>
+<p>Now create your extension crate that implements the interface:</p>
+<pre><code class="language-toml"># my-extension/Cargo.toml
+[package]
+name = "my-extension"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ext-php-rs = "0.15"
+my-interfaces = { path = "../my-interfaces" }
+</code></pre>
+<pre><code class="language-rust no_run ignore">// my-extension/src/lib.rs
+use ext_php_rs::prelude::*;
+use my_interfaces::Serializable;
+
+#[php_class]
+#[php(name = "MyExtension\\User")]
+pub struct User {
+    name: String,
+    email: String,
+}
+
+#[php_impl]
+impl User {
+    pub fn __construct(name: String, email: String) -&gt; Self {
+        Self { name, email }
+    }
+
+    // Note: No need to add to_json() here - it's automatically
+    // registered by #[php_impl_interface] below
+}
+
+// Register the interface implementation
+// This automatically registers to_json() as a PHP method
+#[php_impl_interface]
+impl Serializable for User {
+    fn to_json(&amp;self) -&gt; String {
+        format!(r#"{{"name":"{}","email":"{}"}}"#, self.name, self.email)
+    }
+}
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        // Register the interface from the library crate
+        .interface::&lt;my_interfaces::PhpInterfaceSerializable&gt;()
+        .class::&lt;User&gt;()
+}</code></pre>
+<h3 id="using-in-php"><a class="header" href="#using-in-php">Using in PHP</a></h3>
+<pre><code class="language-php">&lt;?php
+
+use MyExtension\User;
+use MyInterfaces\Serializable;
+
+$user = new User("John", "john@example.com");
+
+// instanceof works across crates
+assert($user instanceof Serializable);
+
+// Type hints work
+function serialize_object(Serializable $obj): string {
+    return $obj-&gt;toJson();
+}
+
+echo serialize_object($user);
+// Output: {"name":"John","email":"john@example.com"}
+</code></pre>
+<h3 id="important-notes"><a class="header" href="#important-notes">Important Notes</a></h3>
+<ol>
+<li>
+<p><strong>Automatic method registration</strong>: The <code>#[php_impl_interface]</code> macro automatically
+registers all trait methods as PHP methods on the class. You don’t need to duplicate
+them in a <code>#[php_impl]</code> block.</p>
+</li>
+<li>
+<p><strong>Interface registration</strong>: The interface must be registered in the <code>#[php_module]</code>
+function using <code>.interface::&lt;PhpInterfaceName&gt;()</code>.</p>
+</li>
+<li>
+<p><strong>Link-time discovery</strong>: The <code>inventory</code> crate uses link-time registration for
+interface discovery, so all implementations are automatically discovered when the
+final binary is linked.</p>
+</li>
+</ol>
 
                     </main>
 

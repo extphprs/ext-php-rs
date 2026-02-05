@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -189,11 +189,22 @@ Useful for namespacing classes.</li>
 readonly class are implicitly readonly.</li>
 <li><code>flags</code> - Sets class flags using <code>ClassFlags</code>, e.g.
 <code>#[php(flags = ClassFlags::Final)]</code> for a final class.</li>
-<li><code>#[php(extends(ce = ce_fn, stub = "ParentClass"))]</code> - Sets the parent class of the class. Can only be used once.
+<li><code>#[php(extends(...))]</code> - Sets the parent class of the class. Can only be used once.
+Two forms are supported:
+<ul>
+<li>Simple type form: <code>#[php(extends(MyBaseClass))]</code> - For Rust-defined classes that implement <code>RegisteredClass</code>.</li>
+<li>Explicit form: <code>#[php(extends(ce = ce_fn, stub = "ParentClass"))]</code> - For built-in PHP classes.
 <code>ce_fn</code> must be a function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
-<li><code>#[php(implements(ce = ce_fn, stub = "InterfaceName"))]</code> - Implements the given interface on the class. Can be used
-multiple times. <code>ce_fn</code> must be a valid function with the signature
-<code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
+</ul>
+</li>
+<li><code>#[php(implements(...))]</code> - Implements the given interface on the class. Can be used multiple times.
+Two forms are supported:
+<ul>
+<li>Simple type form: <code>#[php(implements(MyInterface))]</code> — For Rust-defined interfaces that implement <code>RegisteredClass</code>.</li>
+<li>Explicit form: <code>#[php(implements(ce = ce_fn, stub = "InterfaceName"))]</code> — For built-in PHP interfaces.
+<code>ce_fn</code> must be a valid function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
+</ul>
+</li>
 </ul>
 <p>You may also use the <code>#[php(prop)]</code> attribute on a struct field to use the field as a
 PHP property. By default, the field will be accessible from PHP publicly with
@@ -279,8 +290,105 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .function(wrap_function!(throw_exception))
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h3 id="extending-a-rust-defined-class"><a class="header" href="#extending-a-rust-defined-class">Extending a Rust-defined Class</a></h3>
+<p>When extending another Rust-defined class, you can use the simpler type syntax:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_class]
+#[derive(Default)]
+pub struct Animal;
+
+#[php_impl]
+impl Animal {
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        "..."
+    }
+}
+
+#[php_class]
+#[php(extends(Animal))]
+#[derive(Default)]
+pub struct Dog;
+
+#[php_impl]
+impl Dog {
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        "Woof!"
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .class::&lt;Animal&gt;()
+        .class::&lt;Dog&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h4 id="sharing-methods-between-parent-and-child-classes"><a class="header" href="#sharing-methods-between-parent-and-child-classes">Sharing Methods Between Parent and Child Classes</a></h4>
+<p>When both parent and child are Rust-defined classes, methods defined only in the parent
+won’t automatically work when called on a child instance. This is because each Rust type
+has its own object handlers.</p>
+<p>The recommended workaround is to use a Rust trait for shared behavior:</p>
+<pre><code class="language-rust ignore"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+/// Trait for shared behavior
+trait AnimalBehavior {
+    fn speak(&amp;self) -&gt; &amp;'static str {
+        "..."
+    }
+}
+
+#[php_class]
+#[derive(Default)]
+pub struct Animal;
+
+impl AnimalBehavior for Animal {}
+
+#[php_impl]
+impl Animal {
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        AnimalBehavior::speak(self)
+    }
+}
+
+#[php_class]
+#[php(extends(Animal))]
+#[derive(Default)]
+pub struct Dog;
+
+impl AnimalBehavior for Dog {
+    fn speak(&amp;self) -&gt; &amp;'static str {
+        "Woof!"
+    }
+}
+
+#[php_impl]
+impl Dog {
+    // Re-export the method so it works on Dog instances
+    pub fn speak(&amp;self) -&gt; &amp;'static str {
+        AnimalBehavior::speak(self)
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module
+        .class::&lt;Animal&gt;()
+        .class::&lt;Dog&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>This pattern ensures that:</p>
+<ul>
+<li><code>$animal-&gt;speak()</code> returns <code>"..."</code></li>
+<li><code>$dog-&gt;speak()</code> returns <code>"Woof!"</code></li>
+<li><code>$dog instanceof Animal</code> is <code>true</code></li>
+</ul>
 <h2 id="implementing-an-interface"><a class="header" href="#implementing-an-interface">Implementing an Interface</a></h2>
-<p>To implement an interface, use <code>#[php(implements(ce = ce_fn, stub = "InterfaceName")]</code> where <code>ce_fn</code> is an function returning a <code>ClassEntry</code>.
+<p>To implement an interface, use <code>#[php(implements(...))]</code>. For built-in PHP interfaces, use the explicit form with <code>ce</code> and <code>stub</code>. For Rust-defined interfaces, you can use the simple type form.
 The following example implements <a href="https://www.php.net/manual/en/class.arrayaccess.php"><code>ArrayAccess</code></a>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
@@ -389,6 +497,66 @@ Counter::increment();
 echo Counter::$count; // 2
 echo Counter::getCount(); // 2
 </code></pre>
+<h2 id="abstract-classes"><a class="header" href="#abstract-classes">Abstract Classes</a></h2>
+<p>Abstract classes cannot be instantiated directly and may contain abstract methods
+that must be implemented by subclasses. Use <code>#[php(flags = ClassFlags::Abstract)]</code>
+to declare an abstract class:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Abstract)]
+pub struct AbstractAnimal;
+
+#[php_impl]
+impl AbstractAnimal {
+    // Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -&gt; Self {
+        Self
+    }
+
+    // Abstract method - must be implemented by subclasses.
+    // Body is never called; use unimplemented!() as a placeholder.
+    #[php(abstract)]
+    pub fn speak(&amp;self) -&gt; String {
+        unimplemented!()
+    }
+
+    // Concrete method - inherited by subclasses
+    pub fn breathe(&amp;self) {
+        println!("Breathing...");
+    }
+}</code></pre>
+<p>From PHP, you can extend this abstract class:</p>
+<pre><code class="language-php">class Dog extends AbstractAnimal {
+    public function __construct() {
+        parent::__construct();
+    }
+
+    public function speak(): string {
+        return "Woof!";
+    }
+}
+
+$dog = new Dog();
+echo $dog-&gt;speak(); // "Woof!"
+$dog-&gt;breathe();    // "Breathing..."
+
+// This would cause an error:
+// $animal = new AbstractAnimal(); // Cannot instantiate abstract class
+</code></pre>
+<p>See the <a href="./impl.html#abstract-methods">impl documentation</a> for more details on
+abstract methods.</p>
+<h2 id="final-classes"><a class="header" href="#final-classes">Final Classes</a></h2>
+<p>Final classes cannot be extended. Use <code>#[php(flags = ClassFlags::Final)]</code> to
+declare a final class:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Final)]
+pub struct FinalClass;</code></pre>
 <h2 id="readonly-classes-php-82"><a class="header" href="#readonly-classes-php-82">Readonly Classes (PHP 8.2+)</a></h2>
 <p>PHP 8.2 introduced <a href="https://www.php.net/manual/en/language.oop5.basic.php#language.oop5.basic.class.readonly">readonly classes</a>,
 where all properties are implicitly readonly. You can create a readonly class using
@@ -490,6 +658,153 @@ pub struct MaybeReadonlyClass {
 </ul>
 <p>This is <strong>optional</strong> - if your extension only targets PHP 8.2+, you can use
 <code>#[php(readonly)]</code> directly without any build script setup.</p>
+<h2 id="implementing-iterator"><a class="header" href="#implementing-iterator">Implementing Iterator</a></h2>
+<p>To make a Rust class usable with PHP’s <code>foreach</code> loop, implement the
+<a href="https://www.php.net/manual/en/class.iterator.php"><code>Iterator</code></a> interface.
+This requires implementing five methods: <code>current()</code>, <code>key()</code>, <code>next()</code>, <code>rewind()</code>, and <code>valid()</code>.</p>
+<p>The following example creates a <code>RangeIterator</code> that iterates over a range of integers:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, zend::ce};
+
+#[php_class]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+pub struct RangeIterator {
+    start: i64,
+    end: i64,
+    current: i64,
+    index: i64,
+}
+
+#[php_impl]
+impl RangeIterator {
+    /// Create a new range iterator from start to end (inclusive).
+    pub fn __construct(start: i64, end: i64) -&gt; Self {
+        Self {
+            start,
+            end,
+            current: start,
+            index: 0,
+        }
+    }
+
+    /// Return the current element.
+    pub fn current(&amp;self) -&gt; i64 {
+        self.current
+    }
+
+    /// Return the key of the current element.
+    pub fn key(&amp;self) -&gt; i64 {
+        self.index
+    }
+
+    /// Move forward to next element.
+    pub fn next(&amp;mut self) {
+        self.current += 1;
+        self.index += 1;
+    }
+
+    /// Rewind the Iterator to the first element.
+    pub fn rewind(&amp;mut self) {
+        self.current = self.start;
+        self.index = 0;
+    }
+
+    /// Checks if current position is valid.
+    pub fn valid(&amp;self) -&gt; bool {
+        self.current &lt;= self.end
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.class::&lt;RangeIterator&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>Using the iterator in PHP:</p>
+<pre><code class="language-php">&lt;?php
+
+$range = new RangeIterator(1, 5);
+
+// Use with foreach
+foreach ($range as $key =&gt; $value) {
+    echo "$key =&gt; $value\n";
+}
+// Output:
+// 0 =&gt; 1
+// 1 =&gt; 2
+// 2 =&gt; 3
+// 3 =&gt; 4
+// 4 =&gt; 5
+
+// Works with iterator functions
+$arr = iterator_to_array(new RangeIterator(10, 12));
+// [0 =&gt; 10, 1 =&gt; 11, 2 =&gt; 12]
+
+$count = iterator_count(new RangeIterator(1, 100));
+// 100
+</code></pre>
+<h3 id="iterator-with-mixed-types"><a class="header" href="#iterator-with-mixed-types">Iterator with Mixed Types</a></h3>
+<p>You can return different types for keys and values. The following example uses string keys:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::{prelude::*, zend::ce};
+
+#[php_class]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+pub struct MapIterator {
+    keys: Vec&lt;String&gt;,
+    values: Vec&lt;String&gt;,
+    index: usize,
+}
+
+#[php_impl]
+impl MapIterator {
+    pub fn __construct() -&gt; Self {
+        Self {
+            keys: vec!["first".into(), "second".into(), "third".into()],
+            values: vec!["one".into(), "two".into(), "three".into()],
+            index: 0,
+        }
+    }
+
+    pub fn current(&amp;self) -&gt; Option&lt;String&gt; {
+        self.values.get(self.index).cloned()
+    }
+
+    pub fn key(&amp;self) -&gt; Option&lt;String&gt; {
+        self.keys.get(self.index).cloned()
+    }
+
+    pub fn next(&amp;mut self) {
+        self.index += 1;
+    }
+
+    pub fn rewind(&amp;mut self) {
+        self.index = 0;
+    }
+
+    pub fn valid(&amp;self) -&gt; bool {
+        self.index &lt; self.keys.len()
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.class::&lt;MapIterator&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<pre><code class="language-php">&lt;?php
+
+$map = new MapIterator();
+foreach ($map as $key =&gt; $value) {
+    echo "$key =&gt; $value\n";
+}
+// Output:
+// first =&gt; one
+// second =&gt; two
+// third =&gt; three
+</code></pre>
 
                     </main>
 

@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -192,13 +192,13 @@ numeric key, the key is represented as a string before being inserted.</p>
 <p>Converting from a <code>HashMap</code> to a zval is valid when the key implements
 <code>AsRef&lt;str&gt;</code>, and the value implements <code>IntoZval</code>.</p>
 <div class="warning">
-<pre><code>When using `HashMap` the order of the elements it not preserved.
+<pre><code>When using `HashMap` the order of the elements is not preserved.
 
 HashMaps are unordered collections, so the order of elements may not be the same
 when converting from PHP to Rust and back.
 
-If you need to preserve the order of elements, consider using `Vec&lt;(K, V)&gt;` or
-`Vec&lt;ArrayKey, V)&gt;` instead.
+If you need to preserve the order of elements, consider using `IndexMap` (requires
+the `indexmap` feature) or `Vec&lt;(K, V)&gt;`.
 </code></pre>
 </div>
 
@@ -237,6 +237,59 @@ array(3) {
     [2] =&gt; string(3) "okk"
 }
 </code></pre>
+<h2 id="indexmap-order-preserving"><a class="header" href="#indexmap-order-preserving"><code>IndexMap</code> (Order-Preserving)</a></h2>
+<p><code>IndexMap</code> is like <code>HashMap</code> but preserves insertion order, making it ideal for
+working with PHP arrays where key order matters. This requires the <code>indexmap</code>
+feature.</p>
+<pre><code class="language-toml">[dependencies]
+ext-php-rs = { version = "...", features = ["indexmap"] }
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="rust-example-1"><a class="header" href="#rust-example-1">Rust example</a></h3>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use indexmap::IndexMap;
+
+#[php_function]
+pub fn test_indexmap(map: IndexMap&lt;String, String&gt;) -&gt; IndexMap&lt;String, i32&gt; {
+    // Order is preserved when iterating
+    for (k, v) in map.iter() {
+        println!("k: {} v: {}", k, v);
+    }
+
+    // Return an ordered map
+    let mut result = IndexMap::new();
+    result.insert("first".to_string(), 1);
+    result.insert("second".to_string(), 2);
+    result.insert("third".to_string(), 3);
+    result  // Order preserved: first, second, third
+}</code></pre>
+<h3 id="php-example-1"><a class="header" href="#php-example-1">PHP example</a></h3>
+<pre><code class="language-php">&lt;?php
+
+// Keys maintain their order
+$result = test_indexmap([
+    'z' =&gt; 'last',
+    'a' =&gt; 'first',
+    'm' =&gt; 'middle',
+]);
+
+// Output preserves insertion order
+foreach ($result as $key =&gt; $value) {
+    echo "$key =&gt; $value\n";
+}
+// first =&gt; 1
+// second =&gt; 2
+// third =&gt; 3
+</code></pre>
 <h2 id="veck-v-and-vecarraykey-v"><a class="header" href="#veck-v-and-vecarraykey-v"><code>Vec&lt;(K, V)&gt;</code> and <code>Vec&lt;ArrayKey, V&gt;</code></a></h2>
 <p><code>Vec&lt;(K, V)&gt;</code> and <code>Vec&lt;ArrayKey, V&gt;</code> are used to represent associative arrays in PHP
 where the keys can be strings or integers.</p>
@@ -244,7 +297,7 @@ where the keys can be strings or integers.</p>
 <p>For <code>i64</code> keys, string keys that can be parsed as integers will be accepted, and
 converted to <code>i64</code>.</p>
 <p>If you need to accept both string and integer keys, use <code>ArrayKey</code> as the key type.</p>
-<h3 id="rust-example-1"><a class="header" href="#rust-example-1">Rust example</a></h3>
+<h3 id="rust-example-2"><a class="header" href="#rust-example-2">Rust example</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
@@ -271,7 +324,7 @@ pub fn test_vec_arraykey(vec: Vec&lt;(ArrayKey, String)&gt;) -&gt; Vec&lt;String
         .collect::&lt;Vec&lt;_&gt;&gt;()
 }
 <span class="boring">fn main() {}</span></code></pre>
-<h2 id="php-example-1"><a class="header" href="#php-example-1">PHP example</a></h2>
+<h2 id="php-example-2"><a class="header" href="#php-example-2">PHP example</a></h2>
 <pre><code class="language-php">&lt;?php
 
 declare(strict_types=1);

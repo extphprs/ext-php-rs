@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -211,6 +211,9 @@ variant of <code>Option&lt;T&gt;</code>.</li>
 method.</li>
 <li><code>#[php(name = "method_name")]</code> - Renames the PHP method to a different identifier,
 without renaming the Rust method name.</li>
+<li><code>#[php(final)]</code> - Makes the method final (cannot be overridden in subclasses).</li>
+<li><code>#[php(abstract)]</code> - Makes the method abstract (must be implemented by subclasses).
+Can only be used in abstract classes.</li>
 </ul>
 <p>The <code>#[php(defaults)]</code> and <code>#[php(optional)]</code> attributes operate the same as the
 equivalent function attribute parameters.</p>
@@ -234,6 +237,66 @@ impl MyClass {
 <pre><code class="language-php">$obj = MyClass::createDefault(); // Static call
 $val = $obj-&gt;getValue();         // Instance call
 </code></pre>
+<h3 id="final-methods"><a class="header" href="#final-methods">Final Methods</a></h3>
+<p>Methods marked with <code>#[php(final)]</code> cannot be overridden in subclasses. This is
+useful when you want to prevent modification of critical functionality.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_class]
+pub struct SecureClass;
+
+#[php_impl]
+impl SecureClass {
+    #[php(final)]
+    pub fn secure_method(&amp;self) -&gt; &amp;str {
+        "This cannot be overridden"
+    }
+
+    // Final static methods are also supported
+    #[php(final)]
+    pub fn secure_static() -&gt; i32 {
+        42
+    }
+}</code></pre>
+<h3 id="abstract-methods"><a class="header" href="#abstract-methods">Abstract Methods</a></h3>
+<p>Methods marked with <code>#[php(abstract)]</code> must be implemented by subclasses. Abstract
+methods can only be defined in abstract classes (classes with <code>ClassFlags::Abstract</code>).</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::flags::ClassFlags;
+
+#[php_class]
+#[php(flags = ClassFlags::Abstract)]
+pub struct AbstractShape;
+
+#[php_impl]
+impl AbstractShape {
+    // Protected constructor for subclasses
+    #[php(vis = "protected")]
+    pub fn __construct() -&gt; Self {
+        Self
+    }
+
+    // Abstract method - subclasses must implement this.
+    // The body is never called; use unimplemented!() as a placeholder.
+    #[php(abstract)]
+    pub fn area(&amp;self) -&gt; f64 {
+        unimplemented!()
+    }
+
+    // Concrete method in abstract class
+    pub fn describe(&amp;self) -&gt; String {
+        format!("A shape with area {}", self.area())
+    }
+}</code></pre>
+<p><strong>Note:</strong> Abstract method bodies are never called - they exist only because Rust
+syntax requires a body for methods in <code>impl</code> blocks. Use <code>unimplemented!()</code> as a
+clear placeholder.</p>
+<p><strong>Note:</strong> If you try to use <code>#[php(abstract)]</code> on a method in a non-abstract class,
+you will get a compile-time error.</p>
+<p><strong>Note:</strong> PHP does not support abstract static methods. If you need static behavior
+that can be customized by subclasses, use a regular instance method or the
+<a href="https://www.php.net/manual/en/language.oop5.late-static-bindings.php">late static binding</a>
+pattern in PHP.</p>
 <h3 id="constructors"><a class="header" href="#constructors">Constructors</a></h3>
 <p>By default, if a class does not have a constructor, it is not constructable from
 PHP. It can only be returned from a Rust function to PHP.</p>
@@ -263,6 +326,37 @@ Properties cannot have multiple getters or setters, and the property name cannot
 conflict with field properties defined on the struct.</p>
 <p>As the same as field properties, method property types must implement both
 <code>IntoZval</code> and <code>FromZval</code>.</p>
+<h3 id="overriding-field-properties-with-getterssetters"><a class="header" href="#overriding-field-properties-with-getterssetters">Overriding field properties with getters/setters</a></h3>
+<p>If you have a field property defined with <code>#[php(prop)]</code> on your struct, you can
+override its access by defining a getter or setter method with the same property
+name. The method-based property will take precedence:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_class]
+pub struct Book {
+    #[php(prop)]
+    pub title: String,  // Direct field access
+}
+
+#[php_impl]
+impl Book {
+    pub fn __construct(title: String) -&gt; Self {
+        Self { title }
+    }
+
+    // This getter overrides $book-&gt;title access
+    #[php(getter)]
+    pub fn get_title(&amp;self) -&gt; String {
+        format!("Title: {}", self.title)
+    }
+}</code></pre>
+<p>In PHP, accessing <code>$book-&gt;title</code> will now call the <code>get_title()</code> method instead
+of directly accessing the field:</p>
+<pre><code class="language-php">$book = new Book("The Rust Book");
+echo $book-&gt;title; // Output: "Title: The Rust Book"
+</code></pre>
+<p>This is useful when you need to add validation, transformation, or side effects
+to property access while still having the convenience of a public field in Rust.</p>
 <h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p>Continuing on from our <code>Human</code> example in the structs section, we will define a
 constructor, as well as getters for the properties. We will also define a

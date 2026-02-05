@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -206,6 +206,116 @@ pub fn test_vec(vec: Vec&lt;String&gt;) -&gt; String {
 <pre><code class="language-php">&lt;?php
 
 var_dump(test_vec(['hello', 'world', 5])); // string(13) "hello world 5"
+</code></pre>
+<h1 id="hashset"><a class="header" href="#hashset"><code>HashSet</code></a></h1>
+<p><code>HashSet</code> is an unordered collection of unique values. When converting to a PHP array,
+values are stored with sequential integer keys (0, 1, 2, …).</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rust-example-1"><a class="header" href="#rust-example-1">Rust example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>use std::collections::HashSet;
+
+#[php_function]
+pub fn test_hashset(set: HashSet&lt;String&gt;) -&gt; HashSet&lt;String&gt; {
+    // Duplicates are automatically removed
+    set
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example-1"><a class="header" href="#php-example-1">PHP example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Duplicates are removed, order is not preserved
+$result = test_hashset(['a', 'b', 'a', 'c']);
+var_dump($result); // array with 3 unique values
+</code></pre>
+<h1 id="btreeset"><a class="header" href="#btreeset"><code>BTreeSet</code></a></h1>
+<p><code>BTreeSet</code> is a sorted collection of unique values. Elements are ordered by their <code>Ord</code>
+implementation. When converting to a PHP array, values are stored with sequential integer
+keys (0, 1, 2, …) in sorted order.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rust-example-2"><a class="header" href="#rust-example-2">Rust example</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>use std::collections::BTreeSet;
+
+#[php_function]
+pub fn test_btreeset(set: BTreeSet&lt;String&gt;) -&gt; BTreeSet&lt;String&gt; {
+    // Duplicates removed, values sorted
+    set
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="php-example-2"><a class="header" href="#php-example-2">PHP example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Values are sorted and deduplicated
+$result = test_btreeset(['z', 'a', 'm', 'a']);
+foreach ($result as $value) {
+    echo "$value\n";
+}
+// a
+// m
+// z
+</code></pre>
+<h1 id="indexset"><a class="header" href="#indexset"><code>IndexSet</code></a></h1>
+<p><code>IndexSet</code> is like <code>HashSet</code> but preserves insertion order. This requires the <code>indexmap</code>
+feature.</p>
+<pre><code class="language-toml">[dependencies]
+ext-php-rs = { version = "...", features = ["indexmap"] }
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+</thead>
+<tbody>
+<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>ZendHashTable</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rust-example-3"><a class="header" href="#rust-example-3">Rust example</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use indexmap::IndexSet;
+
+#[php_function]
+pub fn test_indexset(set: IndexSet&lt;String&gt;) -&gt; IndexSet&lt;String&gt; {
+    // Order is preserved, duplicates removed
+    for v in set.iter() {
+        println!("v: {}", v);
+    }
+    set
+}</code></pre>
+<h2 id="php-example-3"><a class="header" href="#php-example-3">PHP example</a></h2>
+<pre><code class="language-php">&lt;?php
+
+// Order is preserved, duplicates removed
+$result = test_indexset(['z', 'a', 'm', 'a']);
+foreach ($result as $value) {
+    echo "$value\n";
+}
+// z
+// a
+// m
 </code></pre>
 
                     </main>

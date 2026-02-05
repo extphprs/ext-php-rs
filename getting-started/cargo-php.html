@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5db2da77.js";
+            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-fc22e4c1.js"></script>
+        <script src="../toc-89b70999.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -274,6 +274,19 @@ OPTIONS:
         --stdout
             Print stubs to stdout rather than write to file. Cannot be used with `out`
 </code></pre>
+<h3 id="custom-allocators"><a class="header" href="#custom-allocators">Custom Allocators</a></h3>
+<p>If your extension uses a custom global allocator (e.g., <code>mimalloc</code>, <code>jemalloc</code>),
+you may encounter a crash when running <code>cargo php stubs</code> with an error like
+“pointer being freed was not allocated”.</p>
+<p>This happens because <code>cargo php stubs</code> builds your extension in debug mode and
+loads it to extract type information. Custom allocators can conflict with this
+process.</p>
+<p><strong>Workaround:</strong> Conditionally enable your custom allocator only in release builds:</p>
+<pre><code class="language-rust ignore">#[cfg(not(debug_assertions))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;</code></pre>
+<p>See <a href="https://github.com/extphprs/ext-php-rs/issues/523">issue #523</a> for more
+details.</p>
 <h2 id="extension-installation"><a class="header" href="#extension-installation">Extension Installation</a></h2>
 <p>When PHP is in your PATH, the application can automatically build and copy your
 extension into PHP. This requires <code>php-config</code> to be installed alongside PHP.</p>
