@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.7...ext-php-rs-derive-v0.11.8) - 2026-02-05
+
+### Added
+- *(class)* Getter/setter implementation #325 ([#624](https://github.com/extphprs/ext-php-rs/pull/624)) (by @kakserpom) [[#325](https://github.com/extphprs/ext-php-rs/issues/325)] [[#624](https://github.com/extphprs/ext-php-rs/issues/624)] 
+- *(class)* Abstract and final methods ([#656](https://github.com/extphprs/ext-php-rs/pull/656)) (by @kakserpom) [[#656](https://github.com/extphprs/ext-php-rs/issues/656)] 
+- *(interface)* Php_impl_interface macro #590 ([#621](https://github.com/extphprs/ext-php-rs/pull/621)) (by @kakserpom) [[#590](https://github.com/extphprs/ext-php-rs/issues/590)] [[#621](https://github.com/extphprs/ext-php-rs/issues/621)] 
+- *(oop)* Simplified form of `extends` and `implements`  #173 ([#667](https://github.com/extphprs/ext-php-rs/pull/667)) (by @kakserpom) [[#173](https://github.com/extphprs/ext-php-rs/issues/173)] [[#667](https://github.com/extphprs/ext-php-rs/issues/667)] 
+- *(zval)* Zval coercion ([#632](https://github.com/extphprs/ext-php-rs/pull/632)) (by @kakserpom) [[#632](https://github.com/extphprs/ext-php-rs/issues/632)] 
+
+### Fixed
+- *(stubs)* Proper stub generation for interfaces ([#662](https://github.com/extphprs/ext-php-rs/pull/662)) (by @kakserpom) [[#662](https://github.com/extphprs/ext-php-rs/issues/662)] 
+
+### Other
+- *(deps)* Update convert_case requirement from 0.10.0 to 0.11.0 ([#666](https://github.com/extphprs/ext-php-rs/pull/666)) (by @dependabot[bot]) [[#666](https://github.com/extphprs/ext-php-rs/issues/666)] 
 ## [0.11.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.6...ext-php-rs-derive-v0.11.7) - 2026-01-26
 
 ### Added
