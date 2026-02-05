@@ -568,6 +568,45 @@ impl TestChildClass {
     }
 }
 
+// Test for issue #182 - class structs containing class struct properties
+// The inner class must derive Clone and PhpClone
+
+#[php_class]
+#[derive(Clone, Default, PhpClone)]
+pub struct InnerClass {
+    #[php(prop)]
+    pub value: String,
+}
+
+#[php_impl]
+impl InnerClass {
+    pub fn __construct(value: String) -> Self {
+        Self { value }
+    }
+
+    pub fn get_value(&self) -> String {
+        self.value.clone()
+    }
+}
+
+#[php_class]
+#[derive(Default)]
+pub struct OuterClass {
+    #[php(prop)]
+    pub inner: InnerClass,
+}
+
+#[php_impl]
+impl OuterClass {
+    pub fn __construct(inner: InnerClass) -> Self {
+        Self { inner }
+    }
+
+    pub fn get_inner_value(&self) -> String {
+        self.inner.value.clone()
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -586,6 +625,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassStaticStrGetter>()
         .class::<TestBaseClass>()
         .class::<TestChildClass>()
+        .class::<InnerClass>()
+        .class::<OuterClass>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception));
 

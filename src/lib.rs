@@ -76,8 +76,8 @@ pub mod prelude {
         FcallInfo, FcallObserver,
     };
     pub use crate::{
-        ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_impl_interface,
-        php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
+        PhpClone, ZvalConvert, php_class, php_const, php_extern, php_function, php_impl,
+        php_impl_interface, php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
     };
 }
 
@@ -108,6 +108,6 @@ pub const PHP_85: bool = cfg!(php85);
 #[cfg(feature = "enum")]
 pub use ext_php_rs_derive::php_enum;
 pub use ext_php_rs_derive::{
-    ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_impl_interface,
-    php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
+    PhpClone, ZvalConvert, php_class, php_const, php_extern, php_function, php_impl,
+    php_impl_interface, php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
 };

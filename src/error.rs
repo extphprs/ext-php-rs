@@ -74,6 +74,14 @@ pub enum Error {
     SapiWriteUnavailable,
     /// Failed to make an object lazy (PHP 8.4+)
     LazyObjectFailed,
+    /// Failed to extract a [`ZendClassObject`] from a [`ZendObject`].
+    ///
+    /// This typically occurs when trying to convert a PHP object to a specific
+    /// Rust type, but the object is not an instance of the expected class.
+    ///
+    /// [`ZendClassObject`]: crate::types::ZendClassObject
+    /// [`ZendObject`]: crate::types::ZendObject
+    ZendClassObjectExtraction,
 }
 
 impl Display for Error {
@@ -122,6 +130,12 @@ impl Display for Error {
             }
             Error::LazyObjectFailed => {
                 write!(f, "Failed to make the object lazy")
+            }
+            Error::ZendClassObjectExtraction => {
+                write!(
+                    f,
+                    "Failed to extract ZendClassObject: object is not an instance of the expected class"
+                )
             }
         }
     }
