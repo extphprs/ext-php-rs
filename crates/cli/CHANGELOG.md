@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.18](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.17...cargo-php-v0.1.18) - 2026-02-06
+
+### Added
+- Eval PHP code from files ([#671](https://github.com/extphprs/ext-php-rs/pull/671)) (by @ptondereau) [[#671](https://github.com/extphprs/ext-php-rs/issues/671)] 
 ## [0.1.17](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.16...cargo-php-v0.1.17) - 2026-02-05
 
 ### Fixed

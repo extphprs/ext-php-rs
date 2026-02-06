@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.15.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.6...ext-php-rs-v0.15.7) - 2026-02-06
+
+### Added
+- Eval PHP code from files ([#671](https://github.com/extphprs/ext-php-rs/pull/671)) (by @ptondereau) [[#671](https://github.com/extphprs/ext-php-rs/issues/671)] 
 ## [0.15.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.5...ext-php-rs-v0.15.6) - 2026-02-05
 
 ### Added
