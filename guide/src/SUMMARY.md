@@ -45,6 +45,7 @@
 - [Async](./advanced/async_impl.md)
 - [Bailout Guard](./advanced/bailout_guard.md)
 - [Observer API](./advanced/observer.md)
+- [Embedded PHP](./advanced/embedded_php.md)
 - [Allowed Bindings](./advanced/allowed_bindings.md)
 
 # Migration Guides

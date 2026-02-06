@@ -57,3 +57,5 @@ sapi_module_struct *ext_php_rs_sapi_module();
 bool ext_php_rs_zend_try_catch(void* (*callback)(void *), void *ctx, void **result);
 bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void **result);
 void ext_php_rs_zend_bailout();
+zend_op_array *ext_php_rs_zend_compile_string(zend_string *source, const char *filename);
+void ext_php_rs_zend_execute(zend_op_array *op_array);
