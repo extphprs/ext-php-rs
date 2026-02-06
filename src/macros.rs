@@ -333,6 +333,128 @@ macro_rules! class_derives {
     };
 }
 
+/// Derives additional traits for cloneable [`RegisteredClass`] types to enable
+/// using them as properties of other `#[php_class]` structs.
+///
+/// # Prefer `#[derive(PhpClone)]`
+///
+/// This macro is superseded by [`#[derive(PhpClone)]`](crate::PhpClone).
+/// The derive macro is more ergonomic and follows Rust conventions:
+///
+/// ```ignore
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_class]
+/// #[derive(Clone, PhpClone)]  // Preferred approach
+/// struct Bar {
+///     #[php(prop)]
+///     value: String,
+/// }
+/// ```
+///
+/// This macro is kept for backward compatibility.
+///
+/// ---
+///
+/// This macro should be called for any `#[php_class]` struct that:
+/// 1. Implements [`Clone`]
+/// 2. Needs to be used as a property in another `#[php_class]` struct
+///
+/// The macro implements [`FromZendObject`] and [`FromZval`] for the owned type,
+/// allowing PHP objects to be cloned into Rust values.
+///
+/// # Important: Clone Semantics
+///
+/// This macro creates a **clone** of the PHP object's underlying Rust data when
+/// reading the property. This has important implications:
+///
+/// - **Reading** the property returns a cloned copy of the data
+/// - **Writing** to the cloned object will NOT modify the original PHP object
+/// - Each read creates a new independent clone
+///
+/// If you need to modify the original object, you should use methods on the
+/// parent class that directly access the inner object, rather than reading
+/// the property and modifying the clone.
+///
+/// # Rc/Arc Considerations
+///
+/// If your type contains [`Rc`], [`Arc`], or other reference-counted smart
+/// pointers, be aware that cloning will create a new handle that shares the
+/// underlying data with the original. This means:
+///
+/// - Mutations through the shared reference WILL affect both the original and clone
+/// - The reference count will be incremented
+/// - This may lead to unexpected shared state between PHP objects
+///
+/// Consider using deep cloning strategies if you need complete isolation.
+///
+/// [`Rc`]: std::rc::Rc
+/// [`Arc`]: std::sync::Arc
+///
+/// # Example
+///
+/// ```ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::class_derives_clone;
+///
+/// #[php_class]
+/// #[derive(Clone)]
+/// struct Bar {
+///     #[php(prop)]
+///     value: String,
+/// }
+///
+/// class_derives_clone!(Bar);
+///
+/// #[php_class]
+/// struct Foo {
+///     #[php(prop)]
+///     bar: Bar, // Now works because Bar implements FromZval
+/// }
+/// ```
+///
+/// PHP usage demonstrating clone semantics:
+/// ```php
+/// $bar = new Bar("original");
+/// $foo = new Foo($bar);
+///
+/// // Reading $foo->bar returns a clone
+/// $barCopy = $foo->bar;
+/// $barCopy->value = "modified";
+///
+/// // Original is unchanged because $barCopy is a clone
+/// echo $foo->bar->value; // Outputs: "original"
+/// ```
+///
+/// See: <https://github.com/extphprs/ext-php-rs/issues/182>
+///
+/// [`RegisteredClass`]: crate::class::RegisteredClass
+/// [`FromZendObject`]: crate::convert::FromZendObject
+/// [`FromZval`]: crate::convert::FromZval
+#[macro_export]
+macro_rules! class_derives_clone {
+    ($type: ty) => {
+        impl $crate::convert::FromZendObject<'_> for $type {
+            fn from_zend_object(obj: &$crate::types::ZendObject) -> $crate::error::Result<Self> {
+                let class_obj = $crate::types::ZendClassObject::<$type>::from_zend_obj(obj)
+                    .ok_or($crate::error::Error::ZendClassObjectExtraction)?;
+                Ok((**class_obj).clone())
+            }
+        }
+
+        impl $crate::convert::FromZval<'_> for $type {
+            const TYPE: $crate::flags::DataType = $crate::flags::DataType::Object(Some(
+                <$type as $crate::class::RegisteredClass>::CLASS_NAME,
+            ));
+
+            fn from_zval(zval: &$crate::types::Zval) -> ::std::option::Option<Self> {
+                let obj = zval.object()?;
+                <Self as $crate::convert::FromZendObject>::from_zend_object(obj).ok()
+            }
+        }
+    };
+}
+
 /// Derives `From<T> for Zval` and `IntoZval` for a given type.
 macro_rules! into_zval {
     ($type: ty, $fn: ident, $dt: ident) => {

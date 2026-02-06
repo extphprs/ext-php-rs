@@ -360,6 +360,120 @@ echo Counter::$count; // 2
 echo Counter::getCount(); // 2
 ```
 
+## Using Classes as Properties
+
+By default, `#[php_class]` types cannot be used directly as properties of other
+`#[php_class]` types because they don't implement `FromZval`. To enable this,
+derive `PhpClone` on any class that needs to be used as a property.
+
+The class must implement `Clone`, and deriving `PhpClone` will implement
+`FromZval` and `FromZendObject` for the type, allowing PHP objects to be
+cloned into Rust values.
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+
+// Inner class that will be used as a property
+#[php_class]
+#[derive(Clone, PhpClone)]  // PhpClone enables use as a property
+pub struct Address {
+    #[php(prop)]
+    pub street: String,
+    #[php(prop)]
+    pub city: String,
+}
+
+#[php_impl]
+impl Address {
+    pub fn __construct(street: String, city: String) -> Self {
+        Self { street, city }
+    }
+}
+
+// Outer class containing the inner class as a property
+#[php_class]
+pub struct Person {
+    #[php(prop)]
+    pub name: String,
+    #[php(prop)]
+    pub address: Address,  // Works because Address derives PhpClone
+}
+
+#[php_impl]
+impl Person {
+    pub fn __construct(name: String, address: Address) -> Self {
+        Self { name, address }
+    }
+
+    pub fn get_city(&self) -> String {
+        self.address.city.clone()
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module
+        .class::<Address>()
+        .class::<Person>()
+}
+```
+
+From PHP:
+
+```php
+<?php
+
+$address = new Address("123 Main St", "Springfield");
+$person = new Person("John Doe", $address);
+
+echo $person->name;           // "John Doe"
+echo $person->address->city;  // "Springfield"
+echo $person->getCity();      // "Springfield"
+
+// You can also set the nested property
+$newAddress = new Address("456 Oak Ave", "Shelbyville");
+$person->address = $newAddress;
+echo $person->address->city;  // "Shelbyville"
+```
+
+### Clone Semantics
+
+When reading a property that uses `PhpClone`, PHP receives a **clone** of the
+Rust value. This has important implications:
+
+```php
+$address = new Address("123 Main St", "Springfield");
+$person = new Person("John Doe", $address);
+
+// Reading $person->address returns a CLONE
+$addressCopy = $person->address;
+$addressCopy->city = "Modified City";
+
+// The original is unchanged because $addressCopy is a clone
+echo $person->address->city;  // Still "Springfield"
+
+// To modify the original, you must reassign the property
+$person->address = $addressCopy;
+echo $person->address->city;  // Now "Modified City"
+```
+
+### Rc/Arc Considerations
+
+If your type contains `Rc`, `Arc`, or other reference-counted smart pointers,
+cloning will create a new handle that **shares** the underlying data with the
+original. This means mutations through the shared reference will affect both
+the original and the clone.
+
+**Important notes:**
+
+- The inner class must derive both `Clone` and `PhpClone`
+- When accessed from PHP, the property returns a clone of the Rust value
+- Modifications to the returned object don't affect the original unless reassigned
+- Types with `Rc`/`Arc` will share interior data after cloning
+
+See [GitHub issue #182](https://github.com/extphprs/ext-php-rs/issues/182)
+for more context.
+
 ## Abstract Classes
 
 Abstract classes cannot be instantiated directly and may contain abstract methods
