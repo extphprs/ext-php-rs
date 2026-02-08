@@ -57,7 +57,7 @@ pub enum ClassEntryAttribute {
     Explicit { ce: syn::Expr, stub: String },
     /// A Rust type that implements `RegisteredClass`
     Type(syn::Path),
-    /// A PHP class name to be looked up at runtime via `ClassEntry::try_find`
+    /// A PHP class name to be looked up at runtime via `ClassEntry::try_find_no_autoload`
     Name(String),
 }
 
@@ -121,9 +121,12 @@ impl ToTokens for ClassEntryAttribute {
             ClassEntryAttribute::Name(name) => {
                 // For a string literal, generate a function that looks up the class at runtime
                 // Uses try_find_no_autoload to avoid triggering autoloading during MINIT
+                // Strip leading backslash since PHP's class table stores names without it
+                // Note: zend_hash_str_find_ptr_lc handles lowercase conversion internally
+                let lookup_name = name.strip_prefix('\\').unwrap_or(name);
                 quote! {
                     (
-                        || ::ext_php_rs::zend::ClassEntry::try_find_no_autoload(#name)
+                        || ::ext_php_rs::zend::ClassEntry::try_find_no_autoload(#lookup_name)
                             .expect(concat!("Failed to find class entry for ", #name)),
                         #name
                     )
