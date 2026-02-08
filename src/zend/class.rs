@@ -35,6 +35,32 @@ impl ClassEntry {
         unsafe { crate::ffi::zend_lookup_class_ex(&raw mut *name, ptr::null_mut(), 0).as_ref() }
     }
 
+    /// Attempts to find a reference to a class in the global class table without
+    /// triggering autoloading.
+    ///
+    /// This is useful during module initialization when autoloading might not be
+    /// available or could cause issues.
+    ///
+    /// Returns a reference to the class if found, or [`None`] if the class
+    /// could not be found or the class table has not been initialized.
+    #[must_use]
+    pub fn try_find_no_autoload(name: &str) -> Option<&'static Self> {
+        // ZEND_FETCH_CLASS_NO_AUTOLOAD = 0x80
+        const ZEND_FETCH_CLASS_NO_AUTOLOAD: u32 = 0x80;
+
+        ExecutorGlobals::get().class_table()?;
+        let mut name = ZendStr::new(name, false);
+
+        unsafe {
+            crate::ffi::zend_lookup_class_ex(
+                &raw mut *name,
+                ptr::null_mut(),
+                ZEND_FETCH_CLASS_NO_AUTOLOAD,
+            )
+            .as_ref()
+        }
+    }
+
     /// Creates a new [`ZendObject`], returned inside an [`ZBox<ZendObject>`]
     /// wrapper.
     ///
