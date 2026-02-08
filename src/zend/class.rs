@@ -39,25 +39,31 @@ impl ClassEntry {
     /// triggering autoloading.
     ///
     /// This is useful during module initialization when autoloading might not be
-    /// available or could cause issues.
+    /// available or could cause issues. It uses the compiler globals class table
+    /// which is available during MINIT.
     ///
     /// Returns a reference to the class if found, or [`None`] if the class
     /// could not be found or the class table has not been initialized.
     #[must_use]
     pub fn try_find_no_autoload(name: &str) -> Option<&'static Self> {
-        // ZEND_FETCH_CLASS_NO_AUTOLOAD = 0x80
-        const ZEND_FETCH_CLASS_NO_AUTOLOAD: u32 = 0x80;
+        use crate::zend::CompilerGlobals;
 
-        ExecutorGlobals::get().class_table()?;
-        let mut name = ZendStr::new(name, false);
+        let cg = CompilerGlobals::get();
+        let class_table = cg.class_table()?;
 
-        unsafe {
-            crate::ffi::zend_lookup_class_ex(
-                &raw mut *name,
-                ptr::null_mut(),
-                ZEND_FETCH_CLASS_NO_AUTOLOAD,
+        // zend_hash_str_find_ptr_lc handles lowercase conversion internally
+        let ce_ptr = unsafe {
+            crate::ffi::zend_hash_str_find_ptr_lc(
+                ptr::from_ref(class_table),
+                name.as_ptr().cast(),
+                name.len(),
             )
-            .as_ref()
+        };
+
+        if ce_ptr.is_null() {
+            None
+        } else {
+            unsafe { (ce_ptr as *const Self).as_ref() }
         }
     }
 
