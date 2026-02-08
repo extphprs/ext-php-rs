@@ -12,52 +12,74 @@ namespace {
 
     const HELLO_WORLD = 100;
 
+    /**
+     * A simple test class demonstrating ext-php-rs features.
+     *
+     * This class showcases property definitions, constants, and various
+     * method types including constructors and static methods.
+     */
     class TestClass {
         const NEW_CONSTANT_NAME = 5;
 
         const SOME_OTHER_STR = 'Hello, world!';
 
-        public $a;
+        public int $a;
 
-        public $b;
+        public int $b;
 
         /**
-         * @param int $a
-         * @param int $b
+         * Creates a new `TestClass` instance.
+         *
+         * Both values are incremented by 10 before being stored.
+         *
+         * @param int $a First value to store
+         * @param int $b Second value to store
          */
         public function __construct(int $a, int $b) {}
 
         /**
-         * @return \TestClass
+         * Demonstrates the builder pattern by returning self.
+         *
+         * @return \TestClass Returns the same instance for method chaining.
          */
         public function builderPattern(): \TestClass {}
 
         /**
-         * @param int $a
-         * @param int $test
+         * Tests camelCase conversion and default parameter values.
+         *
+         * @param int $a First parameter with default value 5
+         * @param int $test Second parameter with default value 100
          * @return void
          */
         public function testCamelCase(int $a = 5, int $test = 100): void {}
 
         /**
-         * @return int
+         * Returns a static value.
+         *
+         * @return int Always returns 5.
          */
         public static function x(): int {}
     }
 
     /**
-     * @param object $z
-     * @return int
+     * Demonstrates `ZvalConvert` derive macro usage.
+     *
+     * @param object $z An object that will be converted from a PHP value
+     * @return int Always returns 5.
      */
     function get_zval_convert(object $z): int {}
 
     /**
-     * @return string
+     * Returns a friendly greeting.
+     *
+     * @return string The string "Hello, world!".
      */
     function hello_world(): string {}
 
     /**
-     * @return \TestClass
+     * Creates a new `TestClass` instance with default values.
+     *
+     * @return \TestClass A `TestClass` with a=1 and b=2.
      */
     function new_class(): \TestClass {}
 }

@@ -2,7 +2,12 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use ext_php_rs::describe::Description;
+
+#[cfg(unix)]
 use libloading::os::unix::{Library, RTLD_LAZY, RTLD_LOCAL, Symbol};
+
+#[cfg(windows)]
+use libloading::{Library, Symbol};
 
 #[allow(improper_ctypes_definitions)]
 pub struct Ext {
@@ -11,7 +16,10 @@ pub struct Ext {
     // Module>` where `ext_lib: 'a`.
     #[allow(dead_code)]
     ext_lib: Library,
+    #[cfg(unix)]
     describe_fn: Symbol<extern "C" fn() -> Description>,
+    #[cfg(windows)]
+    describe_fn: Symbol<'static, extern "C" fn() -> Description>,
 }
 
 impl Ext {
@@ -25,8 +33,13 @@ impl Ext {
                 .with_context(|| "Failed to load extension library")?;
 
         // On other Unix platforms, RTLD_LAZY | RTLD_LOCAL is sufficient
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(all(unix, not(target_os = "macos")))]
         let ext_lib = unsafe { Library::open(Some(ext_path), RTLD_LAZY | RTLD_LOCAL) }
+            .with_context(|| "Failed to load extension library")?;
+
+        // On Windows, use the standard Library::new
+        #[cfg(windows)]
+        let ext_lib = unsafe { Library::new(ext_path) }
             .with_context(|| "Failed to load extension library")?;
 
         let describe_fn = unsafe {

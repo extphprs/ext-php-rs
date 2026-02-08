@@ -736,6 +736,7 @@ impl ToStub for Property {
         }
         if let Option::Some(ty) = &self.ty {
             ty.fmt_stub(buf)?;
+            write!(buf, " ")?;
         }
         write!(buf, "${}", self.name)?;
         if let Option::Some(default) = &self.default {
