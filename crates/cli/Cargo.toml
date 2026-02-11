@@ -33,3 +33,6 @@ default = ["enum"]
 enum = ["ext-php-rs/enum"]
 runtime = ["ext-php-rs/runtime"]
 static = ["ext-php-rs/static"]
+
+[dev-dependencies]
+insta = "1"
