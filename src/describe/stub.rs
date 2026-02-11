@@ -91,6 +91,10 @@ impl ToStub for Module {
             insert(ns, r#enum.to_stub()?);
         }
 
+        for bucket in entries.values_mut() {
+            bucket.sort();
+        }
+
         let mut entries: StdVec<_> = entries.iter().collect();
         entries.sort_by(|(l, _), (r, _)| match (l, r) {
             (None, _) => Ordering::Greater,
@@ -282,11 +286,19 @@ impl ToStub for Class {
 
         writeln!(buf, "{{")?;
 
+        let mut constants: StdVec<_> = stub(&self.constants).collect::<Result<_, FmtError>>()?;
+        let mut properties: StdVec<_> = stub(&self.properties).collect::<Result<_, FmtError>>()?;
+        let mut methods: StdVec<_> = stub(&self.methods).collect::<Result<_, FmtError>>()?;
+        constants.sort();
+        properties.sort();
+        methods.sort();
+
         buf.push_str(
-            &stub(&self.constants)
-                .chain(stub(&self.properties))
-                .chain(stub(&self.methods))
-                .collect::<Result<StdVec<_>, FmtError>>()?
+            &constants
+                .into_iter()
+                .chain(properties)
+                .chain(methods)
+                .collect::<StdVec<_>>()
                 .join(NEW_LINE_SEPARATOR),
         );
 

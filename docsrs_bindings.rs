@@ -2273,6 +2273,26 @@ pub struct _zend_executor_globals {
     pub strtod_state: zend_strtod_state,
     pub reserved: [*mut ::std::os::raw::c_void; 6usize],
 }
+pub const _zend_compile_position_ZEND_COMPILE_POSITION_AT_SHEBANG: _zend_compile_position = 0;
+pub const _zend_compile_position_ZEND_COMPILE_POSITION_AT_OPEN_TAG: _zend_compile_position = 1;
+pub const _zend_compile_position_ZEND_COMPILE_POSITION_AFTER_OPEN_TAG: _zend_compile_position = 2;
+pub type _zend_compile_position = ::std::os::raw::c_uint;
+pub use self::_zend_compile_position as zend_compile_position;
+unsafe extern "C" {
+    pub static mut zend_compile_string: ::std::option::Option<
+        unsafe extern "C" fn(
+            source_string: *mut zend_string,
+            filename: *const ::std::os::raw::c_char,
+            position: zend_compile_position,
+        ) -> *mut zend_op_array,
+    >;
+}
+unsafe extern "C" {
+    pub fn destroy_op_array(op_array: *mut zend_op_array);
+}
+unsafe extern "C" {
+    pub fn zend_destroy_static_vars(op_array: *mut zend_op_array);
+}
 unsafe extern "C" {
     pub fn zend_is_auto_global(name: *mut zend_string) -> bool;
 }
@@ -2380,6 +2400,9 @@ unsafe extern "C" {
     ) -> *mut zend_constant;
 }
 unsafe extern "C" {
+    pub fn zend_execute(op_array: *mut zend_op_array, return_value: *mut zval);
+}
+unsafe extern "C" {
     pub fn zend_lookup_class_ex(
         name: *mut zend_string,
         lcname: *mut zend_string,
@@ -2399,6 +2422,9 @@ pub struct _zend_vm_stack {
     pub top: *mut zval,
     pub end: *mut zval,
     pub prev: zend_vm_stack,
+}
+unsafe extern "C" {
+    pub fn zend_get_executed_scope() -> *mut zend_class_entry;
 }
 unsafe extern "C" {
     pub fn zend_fetch_function_str(

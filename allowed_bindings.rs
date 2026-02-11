@@ -373,5 +373,10 @@ bind! {
     zend_observer_error_register,
     zend_function,
     zend_op_array,
-    zend_throw_exception_hook
+    zend_throw_exception_hook,
+    zend_compile_string,
+    zend_execute,
+    zend_get_executed_scope,
+    zend_destroy_static_vars,
+    destroy_op_array
 }

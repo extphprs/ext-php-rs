@@ -1,0 +1,38 @@
+---
+source: crates/cli/tests/stubs_snapshot.rs
+assertion_line: 69
+expression: stubs
+---
+<?php
+
+// Stubs for ext-php-rs
+
+namespace {
+    class TestClass {
+        const NEW_CONSTANT_NAME = 5;
+
+        const SOME_OTHER_STR = 'Hello, world!';
+
+        public $a;
+
+        public $b;
+
+        public function __construct(int $a, int $b) {}
+
+        public function builderPattern(): \TestClass {}
+
+        public function testCamelCase(int $a = 5, int $test = 100): void {}
+
+        public static function x(): int {}
+    }
+
+    const CONST_NAME = 100;
+
+    const HELLO_WORLD = 100;
+
+    function get_zval_convert(object $z): int {}
+
+    function hello_world(): string {}
+
+    function new_class(): \TestClass {}
+}
