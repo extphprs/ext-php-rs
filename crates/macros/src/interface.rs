@@ -36,6 +36,17 @@ pub fn parser(mut input: ItemTrait) -> Result<TokenStream> {
     let interface_data: InterfaceData = input.parse()?;
     let interface_tokens = quote! { #interface_data };
 
+    // Strip #[php(...)] attributes from method parameters before emitting output
+    for item in &mut input.items {
+        if let TraitItem::Fn(method) = item {
+            for arg in &mut method.sig.inputs {
+                if let syn::FnArg::Typed(pat_type) = arg {
+                    pat_type.attrs.retain(|attr| !attr.path().is_ident("php"));
+                }
+            }
+        }
+    }
+
     Ok(quote! {
         #input
 

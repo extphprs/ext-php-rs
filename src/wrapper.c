@@ -139,3 +139,7 @@ void ext_php_rs_zend_execute(zend_op_array *op_array) {
   destroy_op_array(op_array);
   efree(op_array);
 }
+
+void *ext_php_rs_pemalloc(size_t size) {
+  return pemalloc(size, 1);
+}

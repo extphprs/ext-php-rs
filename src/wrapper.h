@@ -59,3 +59,4 @@ bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void 
 void ext_php_rs_zend_bailout();
 zend_op_array *ext_php_rs_zend_compile_string(zend_string *source, const char *filename);
 void ext_php_rs_zend_execute(zend_op_array *op_array);
+void *ext_php_rs_pemalloc(size_t size);
