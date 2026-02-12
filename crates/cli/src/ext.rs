@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use ext_php_rs::describe::Description;
-use libloading::os::unix::{Library, Symbol};
+use libloading::os::unix::{Library, RTLD_LAZY, RTLD_LOCAL, Symbol};
 
 #[allow(improper_ctypes_definitions)]
 pub struct Ext {
@@ -17,7 +17,16 @@ pub struct Ext {
 impl Ext {
     /// Loads an extension.
     pub fn load(ext_path: PathBuf) -> Result<Self> {
-        let ext_lib = unsafe { Library::new(ext_path) }
+        // On macOS, add RTLD_FIRST for two-level namespace which properly defers
+        // resolution of symbols not needed for stub generation.
+        #[cfg(target_os = "macos")]
+        let ext_lib =
+            unsafe { Library::open(Some(ext_path), RTLD_LAZY | RTLD_LOCAL | libc::RTLD_FIRST) }
+                .with_context(|| "Failed to load extension library")?;
+
+        // On other Unix platforms, RTLD_LAZY | RTLD_LOCAL is sufficient
+        #[cfg(not(target_os = "macos"))]
+        let ext_lib = unsafe { Library::open(Some(ext_path), RTLD_LAZY | RTLD_LOCAL) }
             .with_context(|| "Failed to load extension library")?;
 
         let describe_fn = unsafe {

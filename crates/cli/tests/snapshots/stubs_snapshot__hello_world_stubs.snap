@@ -1,6 +1,6 @@
 ---
 source: crates/cli/tests/stubs_snapshot.rs
-assertion_line: 69
+assertion_line: 74
 expression: stubs
 ---
 <?php
@@ -8,6 +8,10 @@ expression: stubs
 // Stubs for ext-php-rs
 
 namespace {
+    const CONST_NAME = 100;
+
+    const HELLO_WORLD = 100;
+
     class TestClass {
         const NEW_CONSTANT_NAME = 5;
 
@@ -17,22 +21,43 @@ namespace {
 
         public $b;
 
+        /**
+         * @param int $a
+         * @param int $b
+         */
         public function __construct(int $a, int $b) {}
 
+        /**
+         * @return \TestClass
+         */
         public function builderPattern(): \TestClass {}
 
+        /**
+         * @param int $a
+         * @param int $test
+         * @return void
+         */
         public function testCamelCase(int $a = 5, int $test = 100): void {}
 
+        /**
+         * @return int
+         */
         public static function x(): int {}
     }
 
-    const CONST_NAME = 100;
-
-    const HELLO_WORLD = 100;
-
+    /**
+     * @param object $z
+     * @return int
+     */
     function get_zval_convert(object $z): int {}
 
+    /**
+     * @return string
+     */
     function hello_world(): string {}
 
+    /**
+     * @return \TestClass
+     */
     function new_class(): \TestClass {}
 }
