@@ -1,0 +1,19 @@
+[package]
+name = "ext-php-rs-hotload"
+description = "Hot-load Rust code into PHP at runtime"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/extphprs/ext-php-rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ext-php-rs = { path = "../.." }
+libloading = "0.8"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+parking_lot = "0.12"
+tree-sitter = "0.23"
+tree-sitter-rust = "0.23"
+fs2 = "0.4"
