@@ -12,6 +12,7 @@ mod impl_interface;
 mod interface;
 mod module;
 mod parsing;
+mod php_clone;
 mod syn_ext;
 mod zval;
 
@@ -397,6 +398,122 @@ extern crate proc_macro;
 /// echo Counter::$count; // 2
 /// echo Counter::getCount(); // 2
 /// ```
+///
+/// ## Using Classes as Properties
+///
+/// By default, `#[php_class]` types cannot be used directly as properties of
+/// other `#[php_class]` types because they don't implement `FromZval`. To
+/// enable this, derive `PhpClone` on any class that needs to be used as a
+/// property.
+///
+/// The class must implement `Clone`, and deriving `PhpClone` will implement
+/// `FromZval` and `FromZendObject` for the type, allowing PHP objects to be
+/// cloned into Rust values.
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+///
+/// // Inner class that will be used as a property
+/// #[php_class]
+/// #[derive(Clone, PhpClone)]  // PhpClone enables use as a property
+/// pub struct Address {
+///     #[php(prop)]
+///     pub street: String,
+///     #[php(prop)]
+///     pub city: String,
+/// }
+///
+/// #[php_impl]
+/// impl Address {
+///     pub fn __construct(street: String, city: String) -> Self {
+///         Self { street, city }
+///     }
+/// }
+///
+/// // Outer class containing the inner class as a property
+/// #[php_class]
+/// pub struct Person {
+///     #[php(prop)]
+///     pub name: String,
+///     #[php(prop)]
+///     pub address: Address,  // Works because Address derives PhpClone
+/// }
+///
+/// #[php_impl]
+/// impl Person {
+///     pub fn __construct(name: String, address: Address) -> Self {
+///         Self { name, address }
+///     }
+///
+///     pub fn get_city(&self) -> String {
+///         self.address.city.clone()
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module
+///         .class::<Address>()
+///         .class::<Person>()
+/// }
+/// ```
+///
+/// From PHP:
+///
+/// ```php
+/// <?php
+///
+/// $address = new Address("123 Main St", "Springfield");
+/// $person = new Person("John Doe", $address);
+///
+/// echo $person->name;           // "John Doe"
+/// echo $person->address->city;  // "Springfield"
+/// echo $person->getCity();      // "Springfield"
+///
+/// // You can also set the nested property
+/// $newAddress = new Address("456 Oak Ave", "Shelbyville");
+/// $person->address = $newAddress;
+/// echo $person->address->city;  // "Shelbyville"
+/// ```
+///
+/// ### Clone Semantics
+///
+/// When reading a property that uses `PhpClone`, PHP receives a **clone** of
+/// the Rust value. This has important implications:
+///
+/// ```php
+/// $address = new Address("123 Main St", "Springfield");
+/// $person = new Person("John Doe", $address);
+///
+/// // Reading $person->address returns a CLONE
+/// $addressCopy = $person->address;
+/// $addressCopy->city = "Modified City";
+///
+/// // The original is unchanged because $addressCopy is a clone
+/// echo $person->address->city;  // Still "Springfield"
+///
+/// // To modify the original, you must reassign the property
+/// $person->address = $addressCopy;
+/// echo $person->address->city;  // Now "Modified City"
+/// ```
+///
+/// ### Rc/Arc Considerations
+///
+/// If your type contains `Rc`, `Arc`, or other reference-counted smart
+/// pointers, cloning will create a new handle that **shares** the underlying
+/// data with the original. This means mutations through the shared reference
+/// will affect both the original and the clone.
+///
+/// **Important notes:**
+///
+/// - The inner class must derive both `Clone` and `PhpClone`
+/// - When accessed from PHP, the property returns a clone of the Rust value
+/// - Modifications to the returned object don't affect the original unless
+///   reassigned
+/// - Types with `Rc`/`Arc` will share interior data after cloning
+///
+/// See [GitHub issue #182](https://github.com/extphprs/ext-php-rs/issues/182)
+/// for more context.
 ///
 /// ## Abstract Classes
 ///
@@ -2316,6 +2433,88 @@ fn zval_convert_derive_internal(input: TokenStream2) -> TokenStream2 {
     zval::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
 
+/// # `PhpClone` Derive Macro
+///
+/// Derives [`FromZendObject`] and [`FromZval`] for **owned** (non-reference)
+/// types that implement [`Clone`] and [`RegisteredClass`]. This enables using
+/// `#[php_class]` structs as properties of other `#[php_class]` structs.
+///
+/// ## Important: Clone Semantics
+///
+/// This macro creates a **clone** of the PHP object's underlying Rust data when
+/// reading the property. This has important implications:
+///
+/// - **Reading** the property returns a cloned copy of the data
+/// - **Writing** to the cloned object will NOT modify the original PHP object
+/// - Each read creates a new independent clone
+///
+/// If you need to modify the original object, you should use methods on the
+/// parent class that directly access the inner object, rather than reading
+/// the property and modifying the clone.
+///
+/// ## Rc/Arc Considerations
+///
+/// If your type contains [`Rc`], [`Arc`], or other reference-counted smart
+/// pointers, be aware that cloning will create a new handle that shares the
+/// underlying data with the original. This means:
+///
+/// - Mutations through the shared reference WILL affect both the original and
+///   clone
+/// - The reference count will be incremented
+/// - This may lead to unexpected shared state between PHP objects
+///
+/// Consider using deep cloning strategies if you need complete isolation.
+///
+/// [`Rc`]: std::rc::Rc
+/// [`Arc`]: std::sync::Arc
+/// [`FromZendObject`]: ext_php_rs::convert::FromZendObject
+/// [`FromZval`]: ext_php_rs::convert::FromZval
+/// [`RegisteredClass`]: ext_php_rs::class::RegisteredClass
+///
+/// ## Example
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_class]
+/// #[derive(Clone, PhpClone)]
+/// struct Bar {
+///     #[php(prop)]
+///     value: String,
+/// }
+///
+/// #[php_class]
+/// struct Foo {
+///     #[php(prop)]
+///     bar: Bar, // Now works because Bar implements FromZval via PhpClone
+/// }
+/// ```
+///
+/// PHP usage demonstrating clone semantics:
+/// ```php
+/// $bar = new Bar("original");
+/// $foo = new Foo($bar);
+///
+/// // Reading $foo->bar returns a clone
+/// $barCopy = $foo->bar;
+/// $barCopy->value = "modified";
+///
+/// // Original is unchanged because $barCopy is a clone
+/// echo $foo->bar->value; // Outputs: "original"
+/// ```
+///
+/// See: <https://github.com/extphprs/ext-php-rs/issues/182>
+#[proc_macro_derive(PhpClone)]
+pub fn php_clone_derive(input: TokenStream) -> TokenStream {
+    php_clone_derive_internal(input.into()).into()
+}
+
+fn php_clone_derive_internal(input: TokenStream2) -> TokenStream2 {
+    let input = parse_macro_input2!(input as DeriveInput);
+
+    php_clone::parser(input)
+}
+
 /// Defines an `extern` function with the Zend fastcall convention based on
 /// operating system.
 ///
@@ -2500,10 +2699,14 @@ mod tests {
     }
 
     fn runtime_expand_derive(path: &PathBuf) {
+        type DeriveFn = fn(TokenStream2) -> TokenStream2;
         let file = std::fs::File::open(path).expect("Failed to open expand test file");
         runtime_macros::emulate_derive_macro_expansion(
             file,
-            &[("ZvalConvert", zval_convert_derive_internal)],
+            &[
+                ("ZvalConvert", zval_convert_derive_internal as DeriveFn),
+                ("PhpClone", php_clone_derive_internal as DeriveFn),
+            ],
         )
         .expect("Failed to expand derive macros in test file");
     }

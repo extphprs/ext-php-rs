@@ -329,3 +329,55 @@ assert($childObj->getBaseInfo() === 'I am the base class', 'Child should have ba
 $childReflection = new ReflectionClass(TestChildClass::class);
 assert($childReflection->getParentClass()->getName() === TestBaseClass::class, 'TestChildClass should extend TestBaseClass');
 assert($childObj instanceof TestBaseClass, 'TestChildClass instance should be instanceof TestBaseClass');
+
+// Test issue #182 - class structs containing class struct properties
+$inner = new InnerClass('hello world');
+assert($inner->getValue() === 'hello world', 'InnerClass getValue should work');
+assert($inner->value === 'hello world', 'InnerClass property should be accessible');
+
+$outer = new OuterClass($inner);
+assert($outer->getInnerValue() === 'hello world', 'OuterClass should be able to access inner value');
+
+// Test that the inner property is properly accessible
+assert($outer->inner instanceof InnerClass, 'outer->inner should be InnerClass instance');
+assert($outer->inner->value === 'hello world', 'outer->inner->value should be accessible');
+
+// Test setting inner property
+$newInner = new InnerClass('new value');
+$outer->inner = $newInner;
+assert($outer->getInnerValue() === 'new value', 'After setting inner, value should be updated');
+
+// Test clone semantics - reading returns a clone, writes don't affect original
+// This is important behavior to understand when using #[derive(PhpClone)]
+$inner2 = new InnerClass('clone test');
+$outer2 = new OuterClass($inner2);
+
+// Verify initial state
+assert($outer2->inner->value === 'clone test', 'Initial inner value should be "clone test"');
+
+// Get a reference to inner - this is actually a CLONE
+$innerCopy = $outer2->inner;
+assert($innerCopy instanceof InnerClass, 'innerCopy should be an InnerClass instance');
+assert($innerCopy->value === 'clone test', 'innerCopy should have the original value');
+
+// Modify the copy's value
+$innerCopy->value = 'modified by copy';
+assert($innerCopy->value === 'modified by copy', 'innerCopy should have modified value');
+
+// The ORIGINAL should be unchanged because innerCopy was a clone
+assert($outer2->inner->value === 'clone test', 'Original inner value should be unchanged after modifying copy');
+assert($outer2->getInnerValue() === 'clone test', 'getInnerValue should still return original value');
+
+// Verify that each read creates a new clone
+$copy1 = $outer2->inner;
+$copy2 = $outer2->inner;
+$copy1->value = 'copy1 modified';
+assert($copy1->value === 'copy1 modified', 'copy1 should have modified value');
+assert($copy2->value === 'clone test', 'copy2 should still have original value (independent clone)');
+assert($outer2->inner->value === 'clone test', 'Original should still be unchanged');
+
+// To actually modify the inner object, we need to set the whole property
+$modifiedInner = new InnerClass('actually modified');
+$outer2->inner = $modifiedInner;
+assert($outer2->inner->value === 'actually modified', 'After setting property, value should be updated');
+assert($outer2->getInnerValue() === 'actually modified', 'getInnerValue should return new value');
