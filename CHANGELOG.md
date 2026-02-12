@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [0.15.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.6...ext-php-rs-v0.15.7) - 2026-02-12
+
+### Added
+- *(stubs)* Proper phpdoc-style comments in stubs #369 ([#676](https://github.com/extphprs/ext-php-rs/pull/676)) (by @kakserpom) [[#369](https://github.com/extphprs/ext-php-rs/issues/369)] [[#676](https://github.com/extphprs/ext-php-rs/issues/676)] 
+- Eval PHP code from files ([#671](https://github.com/extphprs/ext-php-rs/pull/671)) (by @ptondereau) [[#671](https://github.com/extphprs/ext-php-rs/issues/671)] 
+
+### Other
+- *(cargo-php)* Add tests and generate deterministic output ([#677](https://github.com/extphprs/ext-php-rs/pull/677)) (by @ptondereau) [[#677](https://github.com/extphprs/ext-php-rs/issues/677)] 
+- *(tests)* Test to close #176 ([#675](https://github.com/extphprs/ext-php-rs/pull/675)) (by @kakserpom) [[#176](https://github.com/extphprs/ext-php-rs/issues/176)] [[#675](https://github.com/extphprs/ext-php-rs/issues/675)] 
 ## [0.15.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.5...ext-php-rs-v0.15.6) - 2026-02-05
 
 ### Added
