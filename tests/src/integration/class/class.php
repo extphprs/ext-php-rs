@@ -33,6 +33,17 @@ assert($class->booleanProp);
 $class->booleanProp = false;
 assert($class->booleanProp === false);
 
+// Test Issue #176 - getter/setter methods should NOT be exposed, properties SHOULD be
+$testClassReflection = new ReflectionClass(TestClass::class);
+$methodNames = array_map(fn($m) => $m->getName(), $testClassReflection->getMethods());
+$propertyNames = array_map(fn($p) => $p->getName(), $testClassReflection->getProperties());
+assert(!in_array('get_string', $methodNames) && !in_array('getString', $methodNames), 'Getter methods should NOT appear in reflection');
+assert(!in_array('set_string', $methodNames) && !in_array('setString', $methodNames), 'Setter methods should NOT appear in reflection');
+assert(in_array('string', $propertyNames), 'Property "string" from getter/setter SHOULD appear in reflection');
+assert(in_array('number', $propertyNames), 'Property "number" from getter/setter SHOULD appear in reflection');
+assert(in_array('booleanProp', $propertyNames), 'Property "booleanProp" from #[php(prop)] SHOULD appear in reflection');
+assert($testClassReflection->getProperty('string')->isPublic(), 'Property "string" should be public');
+
 // Call regular from object
 assert($class->staticCall('Php') === 'Hello Php');
 
