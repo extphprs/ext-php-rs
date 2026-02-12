@@ -226,6 +226,7 @@ impl ExecutorGlobals {
     }
 }
 
+/// Stores global variables used in the PHP compiler.
 pub type CompilerGlobals = _zend_compiler_globals;
 
 impl CompilerGlobals {
@@ -283,6 +284,15 @@ impl CompilerGlobals {
         }
 
         GlobalWriteGuard { globals, guard }
+    }
+
+    /// Attempts to retrieve the global class hash table from compiler globals.
+    ///
+    /// This is useful during module initialization (MINIT) when the executor
+    /// globals class table may not be available yet.
+    #[must_use]
+    pub fn class_table(&self) -> Option<&ZendHashTable> {
+        unsafe { self.class_table.as_ref() }
     }
 }
 

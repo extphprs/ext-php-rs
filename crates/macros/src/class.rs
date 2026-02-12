@@ -30,8 +30,9 @@ pub struct StructAttributes {
     attrs: Vec<Attribute>,
 }
 
-/// Represents a class entry reference, either explicit (with `ce` and `stub`)
-/// or a simple type reference to a Rust type implementing `RegisteredClass`.
+/// Represents a class entry reference, either explicit (with `ce` and `stub`),
+/// a simple type reference to a Rust type implementing `RegisteredClass`,
+/// or a string literal for runtime class lookup.
 ///
 /// # Examples
 ///
@@ -44,6 +45,11 @@ pub struct StructAttributes {
 /// ```ignore
 /// #[php(extends(Base))]
 /// ```
+///
+/// String literal form (for runtime class lookup):
+/// ```ignore
+/// #[php(implements("\\JsonSerializable"))]
+/// ```
 #[derive(Debug)]
 pub enum ClassEntryAttribute {
     /// Explicit class entry with a function returning `&'static ClassEntry` and
@@ -51,6 +57,8 @@ pub enum ClassEntryAttribute {
     Explicit { ce: syn::Expr, stub: String },
     /// A Rust type that implements `RegisteredClass`
     Type(syn::Path),
+    /// A PHP class name to be looked up at runtime via `ClassEntry::try_find_no_autoload`
+    Name(String),
 }
 
 impl FromMeta for ClassEntryAttribute {
@@ -73,10 +81,15 @@ impl FromMeta for ClassEntryAttribute {
                         stub: explicit.stub,
                     })
                 } else {
+                    // Try to parse as string literal first: implements("\\JsonSerializable")
+                    if let Ok(lit) = list.parse_args::<syn::LitStr>() {
+                        return Ok(ClassEntryAttribute::Name(lit.value()));
+                    }
                     // Parse as simple type form: extends(TypeName)
                     let path: syn::Path = list.parse_args().map_err(|e| {
                         darling::Error::custom(format!(
-                            "Expected a type path (e.g., `MyClass`) or explicit form \
+                            "Expected a type path (e.g., `MyClass`), string literal \
+                             (e.g., `\"\\\\JsonSerializable\"`), or explicit form \
                              (e.g., `ce = expr, stub = \"Name\"`): {e}"
                         ))
                     })?;
@@ -102,6 +115,20 @@ impl ToTokens for ClassEntryAttribute {
                     (
                         || <#path as ::ext_php_rs::class::RegisteredClass>::get_metadata().ce(),
                         <#path as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME
+                    )
+                }
+            }
+            ClassEntryAttribute::Name(name) => {
+                // For a string literal, generate a function that looks up the class at runtime
+                // Uses try_find_no_autoload to avoid triggering autoloading during MINIT
+                // Strip leading backslash since PHP's class table stores names without it
+                // Note: zend_hash_str_find_ptr_lc handles lowercase conversion internally
+                let lookup_name = name.strip_prefix('\\').unwrap_or(name);
+                quote! {
+                    (
+                        || ::ext_php_rs::zend::ClassEntry::try_find_no_autoload(#lookup_name)
+                            .expect(concat!("Failed to find class entry for ", #name)),
+                        #name
                     )
                 }
             }

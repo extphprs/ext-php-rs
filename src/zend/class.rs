@@ -35,6 +35,38 @@ impl ClassEntry {
         unsafe { crate::ffi::zend_lookup_class_ex(&raw mut *name, ptr::null_mut(), 0).as_ref() }
     }
 
+    /// Attempts to find a reference to a class in the global class table without
+    /// triggering autoloading.
+    ///
+    /// This is useful during module initialization when autoloading might not be
+    /// available or could cause issues. It uses the compiler globals class table
+    /// which is available during MINIT.
+    ///
+    /// Returns a reference to the class if found, or [`None`] if the class
+    /// could not be found or the class table has not been initialized.
+    #[must_use]
+    pub fn try_find_no_autoload(name: &str) -> Option<&'static Self> {
+        use crate::zend::CompilerGlobals;
+
+        let cg = CompilerGlobals::get();
+        let class_table = cg.class_table()?;
+
+        // zend_hash_str_find_ptr_lc handles lowercase conversion internally
+        let ce_ptr = unsafe {
+            crate::ffi::zend_hash_str_find_ptr_lc(
+                ptr::from_ref(class_table),
+                name.as_ptr().cast(),
+                name.len(),
+            )
+        };
+
+        if ce_ptr.is_null() {
+            None
+        } else {
+            unsafe { (ce_ptr as *const Self).as_ref() }
+        }
+    }
+
     /// Creates a new [`ZendObject`], returned inside an [`ZBox<ZendObject>`]
     /// wrapper.
     ///
