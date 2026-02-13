@@ -279,6 +279,84 @@ The backtrace is lazy - only captured when called, so there's zero cost if unuse
 | `file` | `Option<String>` | Source file |
 | `line` | `u32` | Line number |
 
+## Zend Extension Handler
+
+For low-level engine hooks beyond the Observer API -- per-statement profiling,
+bytecode instrumentation, or `op_array` lifecycle tracking -- register a
+`ZendExtensionHandler`. This registers your extension as a `zend_extension`
+alongside the regular PHP extension, the same mechanism used by OPcache,
+Xdebug, and dd-trace-php.
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::ffi::zend_op_array;
+use ext_php_rs::zend::ExecuteData;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+struct StatementProfiler { count: AtomicU64 }
+
+impl ZendExtensionHandler for StatementProfiler {
+    fn on_statement(&self, _execute_data: &ExecuteData) {
+        self.count.fetch_add(1, Ordering::Relaxed);
+    }
+    fn on_activate(&self) {
+        self.count.store(0, Ordering::Relaxed);
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module
+        .zend_extension(|| StatementProfiler { count: AtomicU64::new(0) })
+        .hook_statements()
+        .finish()
+}
+```
+
+### Opt-in hooks
+
+| Method | Enables | Cost when enabled |
+|--------|---------|-------------------|
+| `hook_op_array_compile()` | `on_op_array_compiled` | One callback per compiled function |
+| `hook_statements()` | `on_statement` | Extra `ZEND_EXT_STMT` opcode on every statement of every compiled script |
+| `hook_fcalls()` | `on_fcall_begin` / `on_fcall_end` | Extra `ZEND_EXT_FCALL_BEGIN`/`END` opcodes around every call site |
+
+### Why opt in?
+
+`hook_statements()` and `hook_fcalls()` tell the PHP engine to emit extra
+opcodes in every compiled script. Paying that tax by default would slow every
+PHP script, even when your profiler doesn't need the data. The builder makes
+the trade-off explicit.
+
+`hook_op_array_compile()` has no compile-time cost: PHP's default
+`CG(compiler_options)` already includes `ZEND_COMPILE_HANDLE_OP_ARRAY`. Opting
+in only registers the dispatcher, so enabling it just adds one callback per
+compiled function.
+
+The other hooks -- `on_activate`, `on_deactivate`, `on_message`,
+`on_op_array_ctor`, `on_op_array_dtor` -- are always wired when you register
+an extension; they don't need opt-in because they're cold-path.
+
+### ZTS note
+
+Flags are re-asserted in `on_activate` so worker threads created after MINIT
+get them on their first request. Scripts pre-compiled by opcache before a
+thread's first activation may miss hooks -- for full coverage in ZTS with
+opcache, load the extension via `zend_extension=...` in `php.ini`.
+
+### Zend Extension vs Observer API
+
+| Feature | Observer API (`FcallObserver`) | Zend Extension (`ZendExtensionHandler`) |
+|---------|------|------|
+| Function call hooks | `begin` / `end` with return value | `on_fcall_begin` / `on_fcall_end` (legacy) |
+| Filtering | `should_observe` (cached per function) | No built-in filtering |
+| Statement-level hooks | Not available | `on_statement` |
+| Bytecode access | Not available | `on_op_array_compiled`, `on_op_array_ctor`, `on_op_array_dtor` |
+| Request lifecycle | Not available | `on_activate` / `on_deactivate` |
+| Best for | Function-level profiling, tracing | Statement-level profiling, code coverage, bytecode instrumentation |
+
+Both can be registered on the same module simultaneously.
+
 ## Using All Observers
 
 You can register all observers on the same module:
@@ -290,6 +368,9 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
         .fcall_observer(MyProfiler::new)
         .error_observer(MyErrorTracker::new)
         .exception_observer(MyExceptionTracker::new)
+        .zend_extension(MyStatementProfiler::new)
+        .hook_statements()
+        .finish()
 }
 ```
 
@@ -324,4 +405,5 @@ Use thread-safe primitives like `AtomicU64`, `Mutex`, or `RwLock` for mutable st
 - Only one fcall observer can be registered per extension
 - Only one error observer can be registered per extension
 - Only one exception observer can be registered per extension
-- Observers are registered globally for the entire PHP process
+- Only one zend extension handler can be registered per extension
+- Observers and handlers are registered globally for the entire PHP process

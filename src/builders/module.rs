@@ -575,9 +575,50 @@ impl ModuleBuilder<'_> {
     }
 }
 
+#[cfg(feature = "observer")]
+impl<'a> ModuleBuilder<'a> {
+    /// Register a [`ZendExtensionHandler`] and configure which hooks PHP should
+    /// call.
+    ///
+    /// Returns a [`ZendExtensionBuilder`] that exposes three opt-in methods
+    /// (`hook_statements`, `hook_fcalls`, `hook_op_array_compile`). Call
+    /// [`ZendExtensionBuilder::finish`] to return to `ModuleBuilder`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// module
+    ///     .zend_extension(|| MyProfiler::new())
+    ///     .hook_statements()
+    ///     .finish()
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if called more than once on the same module.
+    ///
+    /// [`ZendExtensionHandler`]: crate::zend::ZendExtensionHandler
+    /// [`ZendExtensionBuilder`]: crate::zend::ZendExtensionBuilder
+    /// [`ZendExtensionBuilder::finish`]: crate::zend::ZendExtensionBuilder::finish
+    pub fn zend_extension<F, H>(
+        self,
+        factory: F,
+    ) -> crate::zend::zend_extension::ZendExtensionBuilder<'a>
+    where
+        F: Fn() -> H + Send + Sync + 'static,
+        H: crate::zend::ZendExtensionHandler,
+    {
+        crate::zend::zend_extension::ZendExtensionBuilder::new(self, factory)
+    }
+}
+
 /// Artifacts from the [`ModuleBuilder`] that should be revisited inside the
 /// extension startup function.
 pub struct ModuleStartup {
+    #[cfg(feature = "observer")]
+    name: String,
+    #[cfg(feature = "observer")]
+    version: String,
     constants: Vec<(String, Box<dyn IntoConst + Send>)>,
     classes: Vec<fn() -> ClassBuilder>,
     interfaces: Vec<fn() -> ClassBuilder>,
@@ -625,6 +666,7 @@ impl ModuleStartup {
             crate::zend::observer::observer_startup();
             crate::zend::error_observer::error_observer_startup();
             crate::zend::exception_observer::exception_observer_startup();
+            crate::zend::zend_extension::zend_extension_startup(&self.name, &self.version);
         }
 
         Ok(())
@@ -651,10 +693,19 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
         functions.push(FunctionEntry::end());
         let functions = Box::into_raw(functions.into_boxed_slice()) as *const FunctionEntry;
 
+        #[cfg(feature = "observer")]
+        let ext_name = builder.name.clone();
+        #[cfg(feature = "observer")]
+        let ext_version = builder.version.clone();
+
         let name = CString::new(builder.name)?.into_raw();
         let version = CString::new(builder.version)?.into_raw();
 
         let startup = ModuleStartup {
+            #[cfg(feature = "observer")]
+            name: ext_name,
+            #[cfg(feature = "observer")]
+            version: ext_version,
             constants: builder
                 .constants
                 .into_iter()
