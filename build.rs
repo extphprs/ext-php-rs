@@ -250,6 +250,9 @@ fn main() -> Result<()> {
     let mut defines = provider.get_defines()?;
     add_php_version_defines(&mut defines, &info)?;
 
+    #[cfg(feature = "observer")]
+    defines.push(("EXT_PHP_RS_OBSERVER", "1"));
+
     check_php_version(&info)?;
     build_wrapper(&defines, &includes)?;
 
