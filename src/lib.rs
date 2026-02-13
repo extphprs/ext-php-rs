@@ -39,6 +39,7 @@ pub mod observer {
     pub use crate::zend::error_observer::{BacktraceFrame, ErrorInfo, ErrorObserver, ErrorType};
     pub use crate::zend::exception_observer::{ExceptionInfo, ExceptionObserver};
     pub use crate::zend::observer::{FcallInfo, FcallObserver};
+    pub use crate::zend::zend_extension::ZendExtensionHandler;
 }
 #[doc(hidden)]
 pub mod internal;
@@ -73,7 +74,7 @@ pub mod prelude {
     #[cfg(feature = "observer")]
     pub use crate::zend::{
         BacktraceFrame, ErrorInfo, ErrorObserver, ErrorType, ExceptionInfo, ExceptionObserver,
-        FcallInfo, FcallObserver,
+        FcallInfo, FcallObserver, ZendExtensionHandler,
     };
     pub use crate::{
         ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_impl_interface,

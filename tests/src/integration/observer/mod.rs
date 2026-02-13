@@ -1,5 +1,7 @@
-//! Integration tests for the Observer API (fcall, error, and exception observers).
+//! Integration tests for the Observer API (fcall, error, exception observers,
+//! and zend_extension handler).
 
+use ext_php_rs::ffi;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::Zval;
 use ext_php_rs::zend::ExecuteData;
@@ -397,6 +399,121 @@ impl ExceptionObserver for TestExceptionObserverWrapper {
 }
 
 // ============================================================================
+// Zend Extension Handler Tests
+// ============================================================================
+
+/// Shared state for the zend extension test handler.
+struct ZendExtTestState {
+    activate_count: AtomicU64,
+    op_array_handler_count: AtomicU64,
+    statement_count: AtomicU64,
+    fcall_begin_count: AtomicU64,
+    fcall_end_count: AtomicU64,
+}
+
+impl ZendExtTestState {
+    fn new() -> Self {
+        Self {
+            activate_count: AtomicU64::new(0),
+            op_array_handler_count: AtomicU64::new(0),
+            statement_count: AtomicU64::new(0),
+            fcall_begin_count: AtomicU64::new(0),
+            fcall_end_count: AtomicU64::new(0),
+        }
+    }
+}
+
+static ZEND_EXT_STATE: std::sync::OnceLock<ZendExtTestState> = std::sync::OnceLock::new();
+
+fn get_or_init_zend_ext_state() -> &'static ZendExtTestState {
+    ZEND_EXT_STATE.get_or_init(ZendExtTestState::new)
+}
+
+/// Test handler that counts hook invocations via static state.
+struct TestZendExtHandler;
+
+impl ZendExtensionHandler for TestZendExtHandler {
+    fn activate(&self) {
+        get_or_init_zend_ext_state()
+            .activate_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn op_array_handler(&self, _op_array: &mut ffi::zend_op_array) {
+        get_or_init_zend_ext_state()
+            .op_array_handler_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn statement_handler(&self, _execute_data: &ExecuteData) {
+        get_or_init_zend_ext_state()
+            .statement_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn fcall_begin_handler(&self, _execute_data: &ExecuteData) {
+        get_or_init_zend_ext_state()
+            .fcall_begin_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn fcall_end_handler(&self, _execute_data: &ExecuteData) {
+        get_or_init_zend_ext_state()
+            .fcall_end_count
+            .fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+#[php_function]
+pub fn zend_ext_test_get_activate_count() -> u64 {
+    get_or_init_zend_ext_state()
+        .activate_count
+        .load(Ordering::Relaxed)
+}
+
+#[php_function]
+pub fn zend_ext_test_get_op_array_handler_count() -> u64 {
+    get_or_init_zend_ext_state()
+        .op_array_handler_count
+        .load(Ordering::Relaxed)
+}
+
+#[php_function]
+pub fn zend_ext_test_get_statement_count() -> u64 {
+    get_or_init_zend_ext_state()
+        .statement_count
+        .load(Ordering::Relaxed)
+}
+
+#[php_function]
+pub fn zend_ext_test_get_fcall_begin_count() -> u64 {
+    get_or_init_zend_ext_state()
+        .fcall_begin_count
+        .load(Ordering::Relaxed)
+}
+
+#[php_function]
+pub fn zend_ext_test_get_fcall_end_count() -> u64 {
+    get_or_init_zend_ext_state()
+        .fcall_end_count
+        .load(Ordering::Relaxed)
+}
+
+#[php_function]
+pub fn zend_ext_test_reset_statement_count() {
+    get_or_init_zend_ext_state()
+        .statement_count
+        .store(0, Ordering::Relaxed);
+}
+
+#[php_function]
+pub fn zend_ext_test_reset_fcall_counts() {
+    let state = get_or_init_zend_ext_state();
+    state.fcall_begin_count.store(0, Ordering::Relaxed);
+    state.fcall_end_count.store(0, Ordering::Relaxed);
+}
+
+// ============================================================================
 // Module Builder
 // ============================================================================
 
@@ -409,6 +526,9 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
 
     // Register the exception observer factory
     let builder = builder.exception_observer(|| TestExceptionObserverWrapper);
+
+    // Register the zend extension handler factory
+    let builder = builder.zend_extension_handler(|| TestZendExtHandler);
 
     builder
         // Fcall observer functions
@@ -434,6 +554,14 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(
             exception_observer_test_get_backtrace_functions
         ))
+        // Zend extension handler functions
+        .function(wrap_function!(zend_ext_test_get_activate_count))
+        .function(wrap_function!(zend_ext_test_get_op_array_handler_count))
+        .function(wrap_function!(zend_ext_test_get_statement_count))
+        .function(wrap_function!(zend_ext_test_get_fcall_begin_count))
+        .function(wrap_function!(zend_ext_test_get_fcall_end_count))
+        .function(wrap_function!(zend_ext_test_reset_statement_count))
+        .function(wrap_function!(zend_ext_test_reset_fcall_counts))
 }
 
 #[cfg(test)]
@@ -454,6 +582,13 @@ mod tests {
     fn exception_observer_works() {
         assert!(crate::integration::test::run_php(
             "observer/exception_observer.php"
+        ));
+    }
+
+    #[test]
+    fn zend_extension_handler_works() {
+        assert!(crate::integration::test::run_php(
+            "observer/zend_extension.php"
         ));
     }
 }

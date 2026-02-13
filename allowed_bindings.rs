@@ -378,5 +378,11 @@ bind! {
     zend_execute,
     zend_get_executed_scope,
     zend_destroy_static_vars,
-    destroy_op_array
+    destroy_op_array,
+    zend_extension,
+    zend_extension_version_info,
+    zend_register_extension,
+    zend_get_resource_handle,
+    zend_get_op_array_extension_handle,
+    zend_get_op_array_extension_handles
 }

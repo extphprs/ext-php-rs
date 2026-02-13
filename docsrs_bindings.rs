@@ -3853,3 +3853,94 @@ pub type zend_observer_error_cb = ::std::option::Option<
 unsafe extern "C" {
     pub fn zend_observer_error_register(callback: zend_observer_error_cb);
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_extension_version_info {
+    pub zend_extension_api_no: ::std::os::raw::c_int,
+    pub build_id: *const ::std::os::raw::c_char,
+}
+pub type zend_extension_version_info = _zend_extension_version_info;
+pub type zend_extension = _zend_extension;
+pub type startup_func_t = ::std::option::Option<
+    unsafe extern "C" fn(extension: *mut zend_extension) -> ::std::os::raw::c_int,
+>;
+pub type shutdown_func_t =
+    ::std::option::Option<unsafe extern "C" fn(extension: *mut zend_extension)>;
+pub type activate_func_t = ::std::option::Option<unsafe extern "C" fn()>;
+pub type deactivate_func_t = ::std::option::Option<unsafe extern "C" fn()>;
+pub type message_handler_func_t = ::std::option::Option<
+    unsafe extern "C" fn(message: ::std::os::raw::c_int, arg: *mut ::std::os::raw::c_void),
+>;
+pub type op_array_handler_func_t =
+    ::std::option::Option<unsafe extern "C" fn(op_array: *mut zend_op_array)>;
+pub type statement_handler_func_t =
+    ::std::option::Option<unsafe extern "C" fn(frame: *mut zend_execute_data)>;
+pub type fcall_begin_handler_func_t =
+    ::std::option::Option<unsafe extern "C" fn(frame: *mut zend_execute_data)>;
+pub type fcall_end_handler_func_t =
+    ::std::option::Option<unsafe extern "C" fn(frame: *mut zend_execute_data)>;
+pub type op_array_ctor_func_t =
+    ::std::option::Option<unsafe extern "C" fn(op_array: *mut zend_op_array)>;
+pub type op_array_dtor_func_t =
+    ::std::option::Option<unsafe extern "C" fn(op_array: *mut zend_op_array)>;
+pub type op_array_persist_calc_func_t =
+    ::std::option::Option<unsafe extern "C" fn(op_array: *mut zend_op_array) -> usize>;
+pub type op_array_persist_func_t = ::std::option::Option<
+    unsafe extern "C" fn(op_array: *mut zend_op_array, mem: *mut ::std::os::raw::c_void) -> usize,
+>;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_extension {
+    pub name: *const ::std::os::raw::c_char,
+    pub version: *const ::std::os::raw::c_char,
+    pub author: *const ::std::os::raw::c_char,
+    pub URL: *const ::std::os::raw::c_char,
+    pub copyright: *const ::std::os::raw::c_char,
+    pub startup: startup_func_t,
+    pub shutdown: shutdown_func_t,
+    pub activate: activate_func_t,
+    pub deactivate: deactivate_func_t,
+    pub message_handler: message_handler_func_t,
+    pub op_array_handler: op_array_handler_func_t,
+    pub statement_handler: statement_handler_func_t,
+    pub fcall_begin_handler: fcall_begin_handler_func_t,
+    pub fcall_end_handler: fcall_end_handler_func_t,
+    pub op_array_ctor: op_array_ctor_func_t,
+    pub op_array_dtor: op_array_dtor_func_t,
+    pub api_no_check: ::std::option::Option<
+        unsafe extern "C" fn(api_no: ::std::os::raw::c_int) -> ::std::os::raw::c_int,
+    >,
+    pub build_id_check: ::std::option::Option<
+        unsafe extern "C" fn(build_id: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int,
+    >,
+    pub op_array_persist_calc: op_array_persist_calc_func_t,
+    pub op_array_persist: op_array_persist_func_t,
+    pub reserved5: *mut ::std::os::raw::c_void,
+    pub reserved6: *mut ::std::os::raw::c_void,
+    pub reserved7: *mut ::std::os::raw::c_void,
+    pub reserved8: *mut ::std::os::raw::c_void,
+    pub handle: *mut ::std::os::raw::c_void,
+    pub resource_number: ::std::os::raw::c_int,
+}
+unsafe extern "C" {
+    pub fn zend_get_resource_handle(
+        module_name: *const ::std::os::raw::c_char,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zend_get_op_array_extension_handle(
+        module_name: *const ::std::os::raw::c_char,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zend_get_op_array_extension_handles(
+        module_name: *const ::std::os::raw::c_char,
+        handles: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zend_register_extension(
+        new_extension: *mut zend_extension,
+        handle: *mut ::std::os::raw::c_void,
+    );
+}

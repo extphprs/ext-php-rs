@@ -78,6 +78,11 @@ name = "observer"
 crate-type = ["cdylib"]
 required-features = ["observer"]
 
+[[example]]
+name = "zend_extension"
+crate-type = ["cdylib"]
+required-features = ["observer"]
+
 [[test]]
 name = "guide_tests"
 path = "tests/guide.rs"

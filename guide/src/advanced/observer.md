@@ -279,6 +279,84 @@ The backtrace is lazy - only captured when called, so there's zero cost if unuse
 | `file` | `Option<String>` | Source file |
 | `line` | `u32` | Line number |
 
+## Zend Extension Handler
+
+For low-level engine hooks beyond the Observer API (e.g., per-statement profiling,
+bytecode instrumentation, or `op_array` lifecycle tracking), you can register a
+`ZendExtensionHandler`. This registers your extension as a `zend_extension` alongside
+the regular PHP extension — the same mechanism used by OPcache, Xdebug, and
+dd-trace-php.
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::ffi::zend_op_array;
+use ext_php_rs::zend::ExecuteData;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+struct StatementProfiler {
+    statement_count: AtomicU64,
+}
+
+impl StatementProfiler {
+    fn new() -> Self {
+        Self {
+            statement_count: AtomicU64::new(0),
+        }
+    }
+}
+
+impl ZendExtensionHandler for StatementProfiler {
+    fn op_array_handler(&self, _op_array: &mut zend_op_array) {
+        // Called after each function/method is compiled.
+        // Use to instrument bytecode or attach per-function metadata.
+    }
+
+    fn statement_handler(&self, _execute_data: &ExecuteData) {
+        // Called for each executed statement.
+        self.statement_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn activate(&self) {
+        // Per-request activation, distinct from RINIT.
+        self.statement_count.store(0, Ordering::Relaxed);
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.zend_extension_handler(StatementProfiler::new)
+}
+```
+
+### The `ZendExtensionHandler` Trait
+
+All methods have default no-op implementations. Override only what you need.
+
+| Method | Description |
+|--------|-------------|
+| `op_array_handler(&self, op_array: &mut zend_op_array)` | Called after compilation of each function/method. Use to instrument bytecode. |
+| `statement_handler(&self, execute_data: &ExecuteData)` | Called for each executed statement. Use for line-level profiling or code coverage. |
+| `fcall_begin_handler(&self, execute_data: &ExecuteData)` | Called at the beginning of each function call (legacy hook). |
+| `fcall_end_handler(&self, execute_data: &ExecuteData)` | Called at the end of each function call (legacy hook). |
+| `op_array_ctor(&self, op_array: &mut zend_op_array)` | Called when a new `op_array` is constructed. Use to attach per-function data. |
+| `op_array_dtor(&self, op_array: &mut zend_op_array)` | Called when an `op_array` is destroyed. Use to clean up per-function data. |
+| `message_handler(&self, message: i32, arg: *mut c_void)` | Called when another `zend_extension` sends a message. |
+| `activate(&self)` | Per-request activation (distinct from RINIT). |
+| `deactivate(&self)` | Per-request deactivation (distinct from RSHUTDOWN). |
+
+### Zend Extension vs Observer API
+
+| Feature | Observer API (`FcallObserver`) | Zend Extension (`ZendExtensionHandler`) |
+|---------|------|------|
+| Function call hooks | `begin` / `end` with return value | `fcall_begin_handler` / `fcall_end_handler` (legacy) |
+| Filtering | `should_observe` (cached per function) | No built-in filtering |
+| Statement-level hooks | Not available | `statement_handler` |
+| Bytecode access | Not available | `op_array_handler`, `op_array_ctor`, `op_array_dtor` |
+| Request lifecycle | Not available | `activate` / `deactivate` |
+| Best for | Function-level profiling, tracing | Statement-level profiling, code coverage, bytecode instrumentation |
+
+Both can be registered on the same module simultaneously.
+
 ## Using All Observers
 
 You can register all observers on the same module:
@@ -290,6 +368,7 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
         .fcall_observer(MyProfiler::new)
         .error_observer(MyErrorTracker::new)
         .exception_observer(MyExceptionTracker::new)
+        .zend_extension_handler(MyStatementProfiler::new)
 }
 ```
 
@@ -324,4 +403,5 @@ Use thread-safe primitives like `AtomicU64`, `Mutex`, or `RwLock` for mutable st
 - Only one fcall observer can be registered per extension
 - Only one error observer can be registered per extension
 - Only one exception observer can be registered per extension
-- Observers are registered globally for the entire PHP process
+- Only one zend extension handler can be registered per extension
+- Observers and handlers are registered globally for the entire PHP process

@@ -318,6 +318,55 @@ impl ModuleBuilder<'_> {
         self
     }
 
+    /// Registers a zend extension handler for low-level engine hooks.
+    ///
+    /// Enables dual registration as both a regular PHP extension and a
+    /// `zend_extension`, giving access to hooks like `op_array_handler`
+    /// and `statement_handler` for building profilers and APMs.
+    ///
+    /// The factory function is called once during MINIT to create
+    /// a singleton handler instance. The handler must be `Send + Sync`
+    /// for ZTS builds.
+    ///
+    /// # Arguments
+    ///
+    /// * `factory` - A function that creates a handler instance
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use ext_php_rs::prelude::*;
+    /// use ext_php_rs::ffi::zend_op_array;
+    ///
+    /// struct MyProfiler;
+    ///
+    /// impl ZendExtensionHandler for MyProfiler {
+    ///     fn op_array_handler(&self, _op_array: &mut zend_op_array) {}
+    ///     fn statement_handler(&self, _execute_data: &ExecuteData) {}
+    /// }
+    ///
+    /// #[php_module]
+    /// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    ///     module.zend_extension_handler(|| MyProfiler)
+    /// }
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if called more than once on the same module.
+    #[cfg(feature = "observer")]
+    pub fn zend_extension_handler<F, H>(self, factory: F) -> Self
+    where
+        F: Fn() -> H + Send + Sync + 'static,
+        H: crate::zend::ZendExtensionHandler,
+    {
+        let boxed_factory: Box<
+            dyn Fn() -> Box<dyn crate::zend::ZendExtensionHandler> + Send + Sync,
+        > = Box::new(move || Box::new(factory()));
+        crate::zend::zend_extension::register_zend_extension_factory(boxed_factory);
+        self
+    }
+
     /// Adds a function to the extension.
     ///
     /// # Arguments
@@ -471,6 +520,10 @@ impl ModuleBuilder<'_> {
 /// Artifacts from the [`ModuleBuilder`] that should be revisited inside the
 /// extension startup function.
 pub struct ModuleStartup {
+    #[cfg(feature = "observer")]
+    name: String,
+    #[cfg(feature = "observer")]
+    version: String,
     constants: Vec<(String, Box<dyn IntoConst + Send>)>,
     classes: Vec<fn() -> ClassBuilder>,
     interfaces: Vec<fn() -> ClassBuilder>,
@@ -518,6 +571,7 @@ impl ModuleStartup {
             crate::zend::observer::observer_startup();
             crate::zend::error_observer::error_observer_startup();
             crate::zend::exception_observer::exception_observer_startup();
+            crate::zend::zend_extension::zend_extension_startup(&self.name, &self.version);
         }
 
         Ok(())
@@ -544,10 +598,19 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
         functions.push(FunctionEntry::end());
         let functions = Box::into_raw(functions.into_boxed_slice()) as *const FunctionEntry;
 
+        #[cfg(feature = "observer")]
+        let ext_name = builder.name.clone();
+        #[cfg(feature = "observer")]
+        let ext_version = builder.version.clone();
+
         let name = CString::new(builder.name)?.into_raw();
         let version = CString::new(builder.version)?.into_raw();
 
         let startup = ModuleStartup {
+            #[cfg(feature = "observer")]
+            name: ext_name,
+            #[cfg(feature = "observer")]
+            version: ext_version,
             constants: builder
                 .constants
                 .into_iter()
