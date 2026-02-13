@@ -385,17 +385,37 @@ pub struct Property {
     pub default: Option<RString>,
 }
 
-impl<D> From<(String, PropertyFlags, D, DocComments)> for Property {
-    fn from(value: (String, PropertyFlags, D, DocComments)) -> Self {
-        let (name, flags, _default, docs) = value;
+impl<D>
+    From<(
+        String,
+        PropertyFlags,
+        D,
+        DocComments,
+        std::option::Option<DataType>,
+        bool,
+        std::option::Option<&'static str>,
+    )> for Property
+{
+    fn from(
+        value: (
+            String,
+            PropertyFlags,
+            D,
+            DocComments,
+            std::option::Option<DataType>,
+            bool,
+            std::option::Option<&'static str>,
+        ),
+    ) -> Self {
+        let (name, flags, _default, docs, prop_type, prop_nullable, prop_default_str) = value;
         let static_ = flags.contains(PropertyFlags::Static);
         let vis = Visibility::from(flags);
-        // TODO: Implement ty #376
-        let ty = Option::None;
-        // TODO: Implement default #376
-        let default = Option::<RString>::None;
-        // TODO: Implement nullable #376
-        let nullable = false;
+        // Use the type from macro if provided (#184)
+        let ty: Option<DataType> = prop_type.into();
+        // Use default string from macro if provided (#376)
+        let default: Option<RString> = prop_default_str.map(Into::into).into();
+        // Use nullable from macro (#376)
+        let nullable = prop_nullable;
         let docs = docs.into();
 
         Self {
@@ -662,7 +682,15 @@ mod tests {
             .extends((|| todo!(), "BaseClass"))
             .implements((|| todo!(), "Interface1"))
             .implements((|| todo!(), "Interface2"))
-            .property("prop1", PropertyFlags::Public, None, &["doc1"])
+            .property(
+                "prop1",
+                PropertyFlags::Public,
+                None,
+                &["doc1"],
+                Some(DataType::String),
+                false,
+                None,
+            )
             .method(
                 FunctionBuilder::new("test_function", test_function),
                 MethodFlags::Protected,
@@ -682,7 +710,7 @@ mod tests {
             Property {
                 name: "prop1".into(),
                 docs: DocBlock(vec!["doc1".into()].into()),
-                ty: Option::None,
+                ty: Option::Some(DataType::String),
                 vis: Visibility::Public,
                 static_: false,
                 nullable: false,
@@ -713,6 +741,9 @@ mod tests {
             PropertyFlags::Protected,
             (),
             docs,
+            Some(DataType::Long),
+            false,             // nullable
+            Some("'default'"), // default_str
         )
             .into();
         assert_eq!(property.name, "test_property".into());
@@ -720,6 +751,25 @@ mod tests {
         assert_eq!(property.vis, Visibility::Protected);
         assert!(!property.static_);
         assert!(!property.nullable);
+        assert_eq!(property.ty, Option::Some(DataType::Long));
+        assert_eq!(property.default, Option::Some("'default'".into()));
+    }
+
+    #[test]
+    fn test_property_nullable() {
+        let docs: &'static [&'static str] = &[];
+        let property: Property = (
+            "nullable_prop".to_string(),
+            PropertyFlags::Public,
+            (),
+            docs,
+            Some(DataType::String),
+            true,         // nullable
+            Some("null"), // default_str
+        )
+            .into();
+        assert!(property.nullable);
+        assert_eq!(property.default, Option::Some("null".into()));
     }
 
     #[test]

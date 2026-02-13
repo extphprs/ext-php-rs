@@ -37,11 +37,15 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         props
     }
     #[must_use]
+    #[allow(clippy::type_complexity)]
     fn static_properties() -> &'static [(
         &'static str,
         ::ext_php_rs::flags::PropertyFlags,
         ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>,
         &'static [&'static str],
+        ::std::option::Option<::ext_php_rs::flags::DataType>,
+        bool,
+        ::std::option::Option<&'static str>,
     )] {
         static STATIC_PROPS: &[(
             &str,
@@ -50,6 +54,9 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
                 &'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync),
             >,
             &[&str],
+            ::std::option::Option<::ext_php_rs::flags::DataType>,
+            bool,
+            ::std::option::Option<&'static str>,
         )] = &[];
         STATIC_PROPS
     }

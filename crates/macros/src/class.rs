@@ -2,9 +2,63 @@ use darling::util::Flag;
 use darling::{FromAttributes, FromMeta, ToTokens};
 use proc_macro2::TokenStream;
 use quote::{TokenStreamExt, quote};
-use syn::{Attribute, Expr, Fields, ItemStruct};
+use syn::{Attribute, Expr, Fields, GenericArgument, ItemStruct, PathArguments, Type};
 
 use crate::helpers::get_docs;
+
+/// Check if a type is `Option<T>` and return the inner type if so.
+fn is_option_type(ty: &Type) -> Option<&Type> {
+    let Type::Path(type_path) = ty else {
+        return None;
+    };
+    if type_path.qself.is_some() {
+        return None;
+    }
+    let segments = &type_path.path.segments;
+    if segments.len() != 1 {
+        return None;
+    }
+    let segment = &segments[0];
+    if segment.ident != "Option" {
+        return None;
+    }
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    if args.args.len() != 1 {
+        return None;
+    }
+    if let GenericArgument::Type(inner) = &args.args[0] {
+        return Some(inner);
+    }
+    None
+}
+
+/// Convert an expression to a PHP-compatible default string for stub generation.
+fn expr_to_php_default_string(expr: &Expr) -> String {
+    // For simple literals, we can convert them directly
+    // For complex expressions, we use a string representation
+    match expr {
+        Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Str(s) => format!("'{}'", s.value().replace('\'', "\\'")),
+            syn::Lit::Int(i) => i.to_string(),
+            syn::Lit::Float(f) => f.to_string(),
+            syn::Lit::Bool(b) => if b.value { "true" } else { "false" }.to_string(),
+            _ => expr.to_token_stream().to_string(),
+        },
+        Expr::Array(_) => "[]".to_string(),
+        Expr::Path(path) => {
+            // Handle constants like `None`, `true`, `false`
+            let path_str = path.to_token_stream().to_string();
+            if path_str == "None" {
+                "null".to_string()
+            } else {
+                path_str
+            }
+        }
+        _ => expr.to_token_stream().to_string(),
+    }
+}
 use crate::parsing::{PhpNameContext, PhpRename, RenameRule, ident_to_php_name, validate_php_name};
 use crate::prelude::*;
 
@@ -192,6 +246,7 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
 
             result.push(Property {
                 ident,
+                ty: &field.ty,
                 name,
                 attr,
                 docs,
@@ -205,6 +260,7 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
 #[derive(Debug)]
 struct Property<'a> {
     pub ident: &'a syn::Ident,
+    pub ty: &'a syn::Type,
     pub name: String,
     pub attr: PropAttributes,
     pub docs: Vec<String>,
@@ -240,6 +296,7 @@ fn generate_registered_class_impl(
     let instance_fields = instance_props.iter().map(|prop| {
         let name = &prop.name;
         let field_ident = prop.ident;
+        let field_ty = prop.ty;
         let flags = prop
             .attr
             .flags
@@ -248,11 +305,25 @@ fn generate_registered_class_impl(
             .unwrap_or(quote! { ::ext_php_rs::flags::PropertyFlags::Public });
         let docs = &prop.docs;
 
+        // Determine if the property is nullable (type is Option<T>)
+        let nullable = is_option_type(field_ty).is_some();
+
+        // Get the default value as a PHP-compatible string for stub generation
+        let default_str = if let Some(default_expr) = &prop.attr.default {
+            let s = expr_to_php_default_string(default_expr);
+            quote! { ::std::option::Option::Some(#s) }
+        } else {
+            quote! { ::std::option::Option::None }
+        };
+
         quote! {
             (#name, ::ext_php_rs::internal::property::PropertyInfo {
                 prop: ::ext_php_rs::props::Property::field(|this: &mut Self| &mut this.#field_ident),
                 flags: #flags,
-                docs: &[#(#docs,)*]
+                docs: &[#(#docs,)*],
+                ty: ::std::option::Option::Some(<#field_ty as ::ext_php_rs::convert::IntoZval>::TYPE),
+                nullable: #nullable,
+                default: #default_str,
             })
         }
     });
@@ -262,6 +333,7 @@ fn generate_registered_class_impl(
     // const
     let static_fields = static_props.iter().map(|prop| {
         let name = &prop.name;
+        let field_ty = prop.ty;
         let base_flags = prop
             .attr
             .flags
@@ -277,11 +349,23 @@ fn generate_registered_class_impl(
             quote! { ::std::option::Option::None }
         };
 
+        // Determine if the property is nullable (type is Option<T>)
+        let nullable = is_option_type(field_ty).is_some();
+
+        // Get the default value as a PHP-compatible string for stub generation
+        let default_str = if let Some(default_expr) = &prop.attr.default {
+            let s = expr_to_php_default_string(default_expr);
+            quote! { ::std::option::Option::Some(#s) }
+        } else {
+            quote! { ::std::option::Option::None }
+        };
+
         // Use from_bits_retain to combine flags in a const context
+        // Tuple: (name, flags, default_value, docs, type, nullable, default_str)
         quote! {
             (#name, ::ext_php_rs::flags::PropertyFlags::from_bits_retain(
                 (#base_flags).bits() | ::ext_php_rs::flags::PropertyFlags::Static.bits()
-            ), #default_value, &[#(#docs,)*] as &[&str])
+            ), #default_value, &[#(#docs,)*] as &[&str], ::std::option::Option::Some(<#field_ty as ::ext_php_rs::convert::IntoZval>::TYPE), #nullable, #default_str)
         }
     });
 
@@ -391,8 +475,9 @@ fn generate_registered_class_impl(
             }
 
             #[must_use]
-            fn static_properties() -> &'static [(&'static str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &'static [&'static str])] {
-                static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &[&str])] = &[#(#static_fields,)*];
+            #[allow(clippy::type_complexity)]
+            fn static_properties() -> &'static [(&'static str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &'static [&'static str], ::std::option::Option<::ext_php_rs::flags::DataType>, bool, ::std::option::Option<&'static str>)] {
+                static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &[&str], ::std::option::Option<::ext_php_rs::flags::DataType>, bool, ::std::option::Option<&'static str>)] = &[#(#static_fields,)*];
                 STATIC_PROPS
             }
 

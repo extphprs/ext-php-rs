@@ -479,6 +479,11 @@ impl<'a> ParsedImpl<'a> {
                             prop: #prop_expr,
                             flags: #flags,
                             docs: &[#(#docs),*],
+                            // Type info not available for getter/setter-based properties
+                            ty: ::std::option::Option::None,
+                            // Nullable and default not available for getter/setter-based properties
+                            nullable: false,
+                            default: ::std::option::Option::None,
                         }
                     );
                 }
