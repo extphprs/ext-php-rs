@@ -5,6 +5,7 @@
 
 pub mod array;
 mod callable;
+pub mod callable_channel;
 mod class_object;
 mod iterable;
 mod iterator;
@@ -15,6 +16,10 @@ mod zval;
 
 pub use array::{ArrayKey, Entry, OccupiedEntry, VacantEntry, ZendEmptyArray, ZendHashTable};
 pub use callable::ZendCallable;
+pub use callable_channel::{
+    CallableChannel, CallableHandle, CallableRequest, CallableResponse, CallableTarget, ClosureId,
+    ClosureRegistry, SerializedValue,
+};
 pub use class_object::ZendClassObject;
 pub use iterable::Iterable;
 pub use iterator::ZendIterator;
