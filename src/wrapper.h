@@ -38,7 +38,10 @@
 #include "zend_interfaces.h"
 #include "php_variables.h"
 #include "zend_ini.h"
+#ifdef EXT_PHP_RS_OBSERVER
 #include "zend_observer.h"
+#include "zend_extensions.h"
+#endif
 #include "main/SAPI.h"
 
 zend_string *ext_php_rs_zend_string_init(const char *str, size_t len, bool persistent);
@@ -50,6 +53,7 @@ const char *ext_php_rs_php_build_id();
 void *ext_php_rs_zend_object_alloc(size_t obj_size, zend_class_entry *ce);
 void ext_php_rs_zend_object_release(zend_object *obj);
 zend_executor_globals *ext_php_rs_executor_globals();
+zend_compiler_globals *ext_php_rs_compiler_globals();
 php_core_globals *ext_php_rs_process_globals();
 sapi_globals_struct *ext_php_rs_sapi_globals();
 php_file_globals *ext_php_rs_file_globals();
