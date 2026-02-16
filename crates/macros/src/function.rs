@@ -64,11 +64,21 @@ struct PhpFunctionAttribute {
     optional: Option<Ident>,
     vis: Option<Visibility>,
     attrs: Vec<syn::Attribute>,
+    /// When true, generates a raw handler that directly receives `ExecuteData`
+    /// and `Zval` without any argument parsing or type conversion. This
+    /// provides zero-overhead function calls at the cost of manual argument
+    /// handling.
+    raw: bool,
 }
 
 pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     let php_attr = PhpFunctionAttribute::from_attributes(&input.attrs)?;
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
+
+    // Handle raw functions - zero overhead, direct access to ExecuteData and Zval
+    if php_attr.raw {
+        return parser_raw(&input, &php_attr);
+    }
 
     let args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;
     if let Some(ReceiverArg { span, .. }) = args.receiver {
@@ -87,6 +97,66 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     Ok(quote! {
         #input
         #function_impl
+    })
+}
+
+/// Parser for raw PHP functions that bypass argument parsing and type
+/// conversion.
+///
+/// Raw functions must have the signature:
+/// ```ignore
+/// fn(ex: &mut ExecuteData, retval: &mut Zval)
+/// ```
+///
+/// This provides zero-overhead function calls for performance-critical code.
+fn parser_raw(input: &ItemFn, php_attr: &PhpFunctionAttribute) -> Result<TokenStream> {
+    let ident = &input.sig.ident;
+    let name = php_attr.rename.rename(ident.to_string(), RenameRule::Snake);
+    let docs = get_docs(&php_attr.attrs)?;
+    let internal_ident = format_ident!("_internal_{}", ident);
+
+    // Validate function signature - should take (ex: &mut ExecuteData, retval: &mut
+    // Zval)
+    let args: Vec<_> = input.sig.inputs.iter().collect();
+    if args.len() != 2 {
+        bail!(input.sig => "Raw PHP functions must take exactly two arguments: (ex: &mut ExecuteData, retval: &mut Zval)");
+    }
+
+    let docs_tokens = if docs.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            .docs(&[#(#docs),*])
+        }
+    };
+
+    Ok(quote! {
+        #input
+
+        #[doc(hidden)]
+        #[allow(non_camel_case_types)]
+        struct #internal_ident;
+
+        impl ::ext_php_rs::internal::function::PhpFunction for #internal_ident {
+            const FUNCTION_ENTRY: fn() -> ::ext_php_rs::builders::FunctionBuilder<'static> = {
+                fn entry() -> ::ext_php_rs::builders::FunctionBuilder<'static>
+                {
+                    ::ext_php_rs::builders::FunctionBuilder::new(#name, {
+                        ::ext_php_rs::zend_fastcall! {
+                            extern fn handler(
+                                ex: &mut ::ext_php_rs::zend::ExecuteData,
+                                retval: &mut ::ext_php_rs::types::Zval,
+                            ) {
+                                #ident(ex, retval)
+                            }
+                        }
+                        handler
+                    })
+                    #docs_tokens
+                }
+                entry
+            };
+        }
     })
 }
 
