@@ -72,6 +72,70 @@ macro_rules! call_user_func {
     };
 }
 
+/// Attempts to call a given PHP callable with named arguments.
+///
+/// This macro supports PHP 8.0+ named arguments, allowing you to pass
+/// arguments by name rather than position.
+///
+/// # Syntax
+///
+/// ```ignore
+/// // Named arguments only
+/// call_user_func_named!(callable, name1: value1, name2: value2)
+///
+/// // Positional arguments followed by named arguments
+/// call_user_func_named!(callable, [pos1, pos2], name1: value1, name2: value2)
+/// ```
+///
+/// # Parameters
+///
+/// * `$fn` - The 'function' to call. Can be an [`Arg`] or a [`Zval`].
+/// * `$name: $value` - Named parameters as `name: value` pairs.
+/// * `[$($pos),*]` - Optional positional parameters in square brackets.
+///
+/// # Examples
+///
+/// ```ignore
+/// use ext_php_rs::{call_user_func_named, types::ZendCallable};
+///
+/// let str_replace = ZendCallable::try_from_name("str_replace").unwrap();
+///
+/// // Using named arguments only
+/// let result = call_user_func_named!(str_replace,
+///     search: "world",
+///     replace: "PHP",
+///     subject: "Hello world"
+/// ).unwrap();
+///
+/// // Mixing positional and named arguments
+/// let result = call_user_func_named!(str_replace, ["world", "PHP"],
+///     subject: "Hello world"
+/// ).unwrap();
+/// ```
+///
+/// [`Arg`]: crate::args::Arg
+/// [`Zval`]: crate::types::Zval
+#[macro_export]
+macro_rules! call_user_func_named {
+    // Named arguments only
+    ($fn: expr, $($name: ident : $value: expr),+ $(,)?) => {
+        $fn.try_call_named(&[$((stringify!($name), &$value as &dyn $crate::convert::IntoZvalDyn)),+])
+    };
+
+    // Positional arguments followed by named arguments
+    ($fn: expr, [$($pos: expr),* $(,)?], $($name: ident : $value: expr),+ $(,)?) => {
+        $fn.try_call_with_named(
+            &[$(&$pos as &dyn $crate::convert::IntoZvalDyn),*],
+            &[$((stringify!($name), &$value as &dyn $crate::convert::IntoZvalDyn)),+]
+        )
+    };
+
+    // Only positional arguments (fallback to regular call)
+    ($fn: expr, [$($pos: expr),* $(,)?] $(,)?) => {
+        $fn.try_call(vec![$(&$pos as &dyn $crate::convert::IntoZvalDyn),*])
+    };
+}
+
 /// Parses a given list of arguments using the [`ArgParser`] class.
 ///
 /// # Examples
