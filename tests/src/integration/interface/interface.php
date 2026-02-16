@@ -166,3 +166,62 @@ function greetWithInterface(ExtPhpRs\Interface\ParentInterface $obj): string {
 
 $result = greetWithInterface($greeter);
 assert($result === 'Hello from World!', 'parentMethod should work via interface type hint');
+
+// ============================================================================
+// Test Feature 5: Short form implements syntax
+// Using #[php(implements("\\InterfaceName"))] instead of verbose form
+// ============================================================================
+
+// Test ArrayAccess implementation using short form
+assert(class_exists('ExtPhpRs\Interface\ShortFormArrayAccess'), 'ShortFormArrayAccess should exist');
+
+$arr = new ExtPhpRs\Interface\ShortFormArrayAccess();
+assert($arr instanceof ArrayAccess, 'ShortFormArrayAccess should implement ArrayAccess');
+
+// Test ArrayAccess methods
+assert(isset($arr[0]), 'offset 0 should exist');
+assert(isset($arr[4]), 'offset 4 should exist');
+assert(!isset($arr[5]), 'offset 5 should not exist');
+assert($arr[0] === 10, 'offset 0 should be 10');
+assert($arr[2] === 30, 'offset 2 should be 30');
+
+$arr[1] = 99;
+assert($arr[1] === 99, 'offset 1 should be 99 after set');
+
+// Test Countable implementation using short form
+assert(class_exists('ExtPhpRs\Interface\CountableTest'), 'CountableTest should exist');
+
+$countable = new ExtPhpRs\Interface\CountableTest();
+assert($countable instanceof Countable, 'CountableTest should implement Countable');
+
+// Test count() function works
+assert(count($countable) === 0, 'Empty CountableTest should have count 0');
+
+$countable->add('one');
+$countable->add('two');
+$countable->add('three');
+assert(count($countable) === 3, 'CountableTest with 3 items should have count 3');
+
+// Test mixed implements syntax (explicit form + short form)
+assert(class_exists('ExtPhpRs\Interface\MixedImplementsTest'), 'MixedImplementsTest should exist');
+
+$mixed = new ExtPhpRs\Interface\MixedImplementsTest();
+assert($mixed instanceof Iterator, 'MixedImplementsTest should implement Iterator (explicit form)');
+assert($mixed instanceof Countable, 'MixedImplementsTest should implement Countable (short form)');
+assert($mixed instanceof Traversable, 'MixedImplementsTest should implement Traversable');
+
+// Test count() works
+assert(count($mixed) === 3, 'MixedImplementsTest should have count 3');
+
+// Test iteration works
+$collected = [];
+foreach ($mixed as $key => $value) {
+    $collected[$key] = $value;
+}
+assert($collected === [0 => 10, 1 => 20, 2 => 30], 'MixedImplementsTest should iterate correctly');
+
+// Test reflection shows both interfaces
+$mixedReflection = new ReflectionClass(ExtPhpRs\Interface\MixedImplementsTest::class);
+$interfaces = $mixedReflection->getInterfaceNames();
+assert(in_array('Iterator', $interfaces), 'Reflection should show Iterator interface');
+assert(in_array('Countable', $interfaces), 'Reflection should show Countable interface');
