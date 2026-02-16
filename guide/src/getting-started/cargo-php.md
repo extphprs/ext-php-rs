@@ -6,6 +6,7 @@ the manifest directory of an extension, it allows you to do the following:
 - Generate IDE stub files
 - Install the extension
 - Remove the extension
+- Watch for changes and hot reload (development mode)
 
 ## System Requirements
 
@@ -231,6 +232,120 @@ OPTIONS:
         --yes
             Bypasses the confirmation prompt
 ```
+
+## Watch Mode (Hot Reload)
+
+The `watch` command provides a development workflow that automatically rebuilds
+and reinstalls your extension whenever source files change. This eliminates the
+need to manually run `cargo php install` after every code change.
+
+Optionally, it can also manage PHP's built-in development server, restarting it
+after each successful rebuild to pick up the new extension.
+
+### Usage
+
+```text
+$ cargo php watch --help
+cargo-php-watch
+
+Watches for changes and automatically rebuilds and installs the extension.
+
+This command watches Rust source files and Cargo.toml for changes, automatically
+rebuilding and reinstalling the extension when changes are detected. Optionally,
+it can also manage the PHP built-in development server, restarting it after each
+successful rebuild.
+
+USAGE:
+    cargo-php watch [OPTIONS]
+
+OPTIONS:
+        --serve
+            Start PHP built-in server and restart it on changes
+
+        --host <HOST>
+            Host and port for PHP server (e.g., localhost:8000)
+            [default: localhost:8000]
+
+        --docroot <DOCROOT>
+            Document root for PHP server. Defaults to current directory
+
+        --release
+            Whether to build the release version of the extension
+
+        --manifest <MANIFEST>
+            Path to the Cargo manifest of the extension. Defaults to the manifest
+            in the directory the command is called
+
+    -F, --features <FEATURES>...
+            Features to enable during build
+
+        --all-features
+            Enable all features
+
+        --no-default-features
+            Disable default features
+
+        --install-dir <INSTALL_DIR>
+            Changes the path that the extension is copied to
+
+    -h, --help
+            Print help information
+```
+
+### Examples
+
+Watch for changes and rebuild (manage PHP server separately):
+
+```text
+$ cargo php watch
+[cargo-php] Initial build...
+[cargo-php] Build successful, extension installed.
+[cargo-php] Watching for changes... Press Ctrl+C to stop.
+```
+
+Watch with PHP development server:
+
+```text
+$ cargo php watch --serve
+[cargo-php] Initial build...
+[cargo-php] Build successful, extension installed.
+[cargo-php] PHP server started on http://localhost:8000
+[cargo-php] Watching for changes... Press Ctrl+C to stop.
+```
+
+Custom server settings:
+
+```text
+$ cargo php watch --serve --host 0.0.0.0:3000 --docroot ./public
+```
+
+Release mode with specific features:
+
+```text
+$ cargo php watch --release --features "feature1,feature2"
+```
+
+### What Gets Watched
+
+The watch command monitors the following for changes:
+
+- All `.rs` files in the `src/` directory (recursively)
+- `Cargo.toml` (dependency and configuration changes)
+- `build.rs` (if present)
+
+Changes to other files (PHP scripts, configuration, etc.) are ignored and won't
+trigger a rebuild.
+
+### Error Handling
+
+If a build fails due to compilation errors, the watch command will:
+
+1. Display the error message
+2. Continue watching for changes
+3. Attempt to rebuild when you fix the error
+
+This allows you to keep the watch process running while you fix compilation
+issues.
 
 [`cargo-php`]: https://crates.io/crates/cargo-php
 [phpstorm-stubs]: https://github.com/JetBrains/phpstorm-stubs#readme
