@@ -163,7 +163,8 @@ impl Embed {
             )
         };
 
-        // Prevent the closure from being dropped here since it was consumed in panic_wrapper
+        // Prevent the closure from being dropped here since it was consumed in
+        // panic_wrapper
         std::mem::forget(func);
 
         // This can happen if there is a bailout

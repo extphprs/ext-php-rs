@@ -225,7 +225,8 @@ impl Install {
         }
 
         // Use atomic copy: copy to temp file in same directory, then rename.
-        // This prevents race conditions where a partially-written extension could be loaded.
+        // This prevents race conditions where a partially-written extension could be
+        // loaded.
         let temp_ext_path = ext_dir.with_extension(format!(
             "{}.tmp.{}",
             ext_dir
@@ -239,15 +240,17 @@ impl Install {
             || "Failed to copy extension from target directory to extension directory",
         )?;
 
-        // Rename is atomic on POSIX when source and destination are on the same filesystem
+        // Rename is atomic on POSIX when source and destination are on the same
+        // filesystem
         if let Err(e) = std::fs::rename(&temp_ext_path, &ext_dir) {
             // Clean up temp file on failure
             let _ = std::fs::remove_file(&temp_ext_path);
             return Err(e).with_context(|| "Failed to rename extension to final destination");
         }
 
-        // Smoke test: verify the extension loads correctly before enabling it in php.ini.
-        // This prevents broken extensions from crashing PHP on startup.
+        // Smoke test: verify the extension loads correctly before enabling it in
+        // php.ini. This prevents broken extensions from crashing PHP on
+        // startup.
         if !self.no_smoke_test {
             let smoke_test = Command::new("php")
                 .arg("-d")

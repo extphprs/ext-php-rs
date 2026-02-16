@@ -86,7 +86,8 @@ pub fn test_empty_vec() -> Vec<i32> {
     Vec::new()
 }
 
-/// Test that returning an empty `HashMap` still works (should allocate a new array)
+/// Test that returning an empty `HashMap` still works (should allocate a new
+/// array)
 #[php_function]
 pub fn test_empty_hashmap() -> HashMap<String, String> {
     HashMap::new()

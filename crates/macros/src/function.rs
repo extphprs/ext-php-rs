@@ -84,6 +84,14 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     let func = Function::new(&input.sig, func_name, args, php_attr.optional, docs);
     let function_impl = func.php_function_impl();
 
+    // Strip #[php(...)] attributes from function parameters before emitting output
+    // (must be done after function_impl is generated since func borrows from input)
+    for arg in &mut input.sig.inputs {
+        if let FnArg::Typed(pat_type) = arg {
+            pat_type.attrs.retain(|attr| !attr.path().is_ident("php"));
+        }
+    }
+
     Ok(quote! {
         #input
         #function_impl
@@ -615,6 +623,34 @@ pub struct ReceiverArg {
     pub span: Span,
 }
 
+/// Represents a single element in a DNF type - either a simple class or an
+/// intersection group.
+#[derive(Debug, Clone)]
+pub enum TypeGroup {
+    /// A single class/interface type: `ArrayAccess`
+    Single(String),
+    /// An intersection of class/interface types: `Countable&Traversable`
+    Intersection(Vec<String>),
+}
+
+/// Represents a complex PHP type declaration parsed from `#[php(type =
+/// "...")]`.
+#[derive(Debug, Clone)]
+pub enum PhpTypeDecl {
+    /// Union of primitive types: int|string|null
+    PrimitiveUnion(Vec<TokenStream>),
+    /// Intersection of class/interface types: Countable&Traversable
+    Intersection(Vec<String>),
+    /// Union of class types: Foo|Bar
+    ClassUnion(Vec<String>),
+    /// DNF (Disjunctive Normal Form) type: `(A&B)|C|D` or `(A&B)|(C&D)`
+    /// e.g., `(A&B)|C` becomes `vec![Intersection(["A", "B"]), Single("C")]`
+    Dnf(Vec<TypeGroup>),
+    /// A Rust enum type that implements `PhpUnion` trait.
+    /// The union types are determined at runtime via `PhpUnion::union_types()`.
+    UnionEnum,
+}
+
 #[derive(Debug)]
 pub struct TypedArg<'a> {
     pub name: &'a Ident,
@@ -623,6 +659,9 @@ pub struct TypedArg<'a> {
     pub default: Option<Expr>,
     pub as_ref: bool,
     pub variadic: bool,
+    /// PHP type declaration from `#[php(type = "...")]` or `#[php(union =
+    /// "...")]`
+    pub php_type: Option<PhpTypeDecl>,
 }
 
 #[derive(Debug)]
@@ -653,10 +692,13 @@ impl<'a> Args<'a> {
                         span: receiver.span(),
                     });
                 }
-                FnArg::Typed(PatType { pat, ty, .. }) => {
+                FnArg::Typed(PatType { pat, ty, attrs, .. }) => {
                     let syn::Pat::Ident(syn::PatIdent { ident, .. }) = &**pat else {
                         bail!(pat => "Unsupported argument.");
                     };
+
+                    // Parse #[php(type = "...")] or #[php(union = "...")] attribute if present
+                    let php_type = Self::parse_type_attr(attrs)?;
 
                     // If the variable is `&[&Zval]` treat it as the variadic argument.
                     let default = defaults.remove(ident);
@@ -669,6 +711,7 @@ impl<'a> Args<'a> {
                         default,
                         as_ref,
                         variadic,
+                        php_type,
                     });
                 }
             }
@@ -759,6 +802,346 @@ impl<'a> Args<'a> {
             None => (&self.typed[..], &self.typed[0..0]),
         }
     }
+
+    /// Parses `#[php(types = "...")]`, `#[php(union = "...")]`, or
+    /// `#[php(union_enum)]` attribute from parameter attributes.
+    /// Returns the parsed PHP type declaration if found.
+    ///
+    /// Supports:
+    /// - `#[php(types = "int|string")]` - union of primitives
+    /// - `#[php(types = "Countable&Traversable")]` - intersection of classes
+    /// - `#[php(types = "Foo|Bar")]` - union of classes
+    /// - `#[php(union = "int|string")]` - backwards compatible union syntax
+    /// - `#[php(union_enum)]` - use `PhpUnion::union_types()` for Rust enum
+    ///   types
+    fn parse_type_attr(attrs: &[syn::Attribute]) -> Result<Option<PhpTypeDecl>> {
+        for attr in attrs {
+            if !attr.path().is_ident("php") {
+                continue;
+            }
+
+            // Parse #[php(types = "...")], #[php(union = "...")], or #[php(union_enum)]
+            let nested = attr.parse_args_with(
+                syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+            )?;
+
+            for meta in nested {
+                // Check for #[php(union_enum)] - a path without value
+                if let syn::Meta::Path(path) = &meta
+                    && path.is_ident("union_enum")
+                {
+                    return Ok(Some(PhpTypeDecl::UnionEnum));
+                }
+
+                // Check for #[php(types = "...")] or #[php(union = "...")]
+                if let syn::Meta::NameValue(nv) = meta
+                    && (nv.path.is_ident("types") || nv.path.is_ident("union"))
+                    && let syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit_str),
+                        ..
+                    }) = &nv.value
+                {
+                    let type_str = lit_str.value();
+                    return Ok(Some(parse_php_type_string(&type_str)?));
+                }
+            }
+        }
+        Ok(None)
+    }
+}
+
+/// Converts a PHP type name string to a `DataType` token stream.
+/// Returns `None` if the type name is not recognized.
+fn php_type_name_to_data_type(type_name: &str) -> Option<TokenStream> {
+    let trimmed = type_name.trim();
+
+    // Emit deprecation warnings for aliases deprecated in PHP 8.5
+    // See: https://php.watch/versions/8.5/boolean-double-integer-binary-casts-deprecated
+    let deprecated_warning = match trimmed {
+        "boolean" => Some(("boolean", "bool")),
+        "integer" => Some(("integer", "int")),
+        "double" => Some(("double", "float")),
+        "binary" => Some(("binary", "string")),
+        _ => None,
+    };
+
+    if let Some((old, new)) = deprecated_warning {
+        // Emit a compile-time warning for deprecated type aliases.
+        // This generates a #[deprecated] item that triggers a warning.
+        let warning_fn = syn::Ident::new(
+            &format!("__ext_php_rs_deprecated_{old}"),
+            proc_macro2::Span::call_site(),
+        );
+        let msg = format!("The type alias '{old}' is deprecated in PHP 8.5+. Use '{new}' instead.");
+        // We return the tokens that include a deprecated function call to trigger
+        // warning
+        let data_type = match trimmed {
+            "boolean" => quote! { ::ext_php_rs::flags::DataType::Bool },
+            "integer" => quote! { ::ext_php_rs::flags::DataType::Long },
+            "double" => quote! { ::ext_php_rs::flags::DataType::Double },
+            "binary" => quote! { ::ext_php_rs::flags::DataType::String },
+            _ => unreachable!(),
+        };
+        return Some(quote! {{
+            #[deprecated(note = #msg)]
+            #[allow(non_snake_case)]
+            const fn #warning_fn() {}
+            #[cfg(php85)]
+            { let _ = #warning_fn(); }
+            #data_type
+        }});
+    }
+
+    let tokens = match trimmed {
+        "int" | "long" => quote! { ::ext_php_rs::flags::DataType::Long },
+        "string" => quote! { ::ext_php_rs::flags::DataType::String },
+        "bool" => quote! { ::ext_php_rs::flags::DataType::Bool },
+        "float" => quote! { ::ext_php_rs::flags::DataType::Double },
+        "array" => quote! { ::ext_php_rs::flags::DataType::Array },
+        "null" => quote! { ::ext_php_rs::flags::DataType::Null },
+        "object" => quote! { ::ext_php_rs::flags::DataType::Object(None) },
+        "resource" => quote! { ::ext_php_rs::flags::DataType::Resource },
+        "callable" => quote! { ::ext_php_rs::flags::DataType::Callable },
+        "iterable" => quote! { ::ext_php_rs::flags::DataType::Iterable },
+        "mixed" => quote! { ::ext_php_rs::flags::DataType::Mixed },
+        "void" => quote! { ::ext_php_rs::flags::DataType::Void },
+        "false" => quote! { ::ext_php_rs::flags::DataType::False },
+        "true" => quote! { ::ext_php_rs::flags::DataType::True },
+        "never" => quote! { ::ext_php_rs::flags::DataType::Never },
+        _ => return None,
+    };
+    Some(tokens)
+}
+
+/// Parses a PHP type string and determines if it's a union, intersection, DNF,
+/// or class union.
+///
+/// Supports:
+/// - `"int|string"` - union of primitives
+/// - `"Countable&Traversable"` - intersection of classes/interfaces
+/// - `"Foo|Bar"` - union of classes (when types start with uppercase)
+/// - `"(A&B)|C"` - DNF (Disjunctive Normal Form) type (PHP 8.2+)
+fn parse_php_type_string(type_str: &str) -> Result<PhpTypeDecl> {
+    let type_str = type_str.trim();
+
+    // Check if it's a DNF type (contains parentheses with intersection)
+    if type_str.contains('(') && type_str.contains('&') {
+        return parse_dnf_type(type_str);
+    }
+
+    // Check if it's an intersection type (contains & but no |)
+    if type_str.contains('&') {
+        if type_str.contains('|') {
+            // Has both & and | but no parentheses - invalid syntax
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "DNF types require parentheses around intersection groups. Use '(A&B)|C' instead of 'A&B|C'.",
+            ));
+        }
+
+        let class_names: Vec<String> = type_str.split('&').map(|s| s.trim().to_string()).collect();
+
+        if class_names.len() < 2 {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "Intersection type must contain at least 2 types",
+            ));
+        }
+
+        // Validate that all intersection members look like class names (start with
+        // uppercase)
+        for name in &class_names {
+            if name.is_empty() {
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    "Empty type name in intersection",
+                ));
+            }
+            if !name.chars().next().unwrap().is_uppercase() && name != "self" {
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    format!(
+                        "Intersection types can only contain class/interface names. '{name}' looks like a primitive type.",
+                    ),
+                ));
+            }
+        }
+
+        return Ok(PhpTypeDecl::Intersection(class_names));
+    }
+
+    // It's a union type (contains |)
+    let parts: Vec<&str> = type_str.split('|').map(str::trim).collect();
+
+    if parts.len() < 2 {
+        return Err(syn::Error::new(
+            Span::call_site(),
+            "Type declaration must contain at least 2 types (e.g., 'int|string' or 'Foo&Bar')",
+        ));
+    }
+
+    // Check if all parts are primitive types
+    let primitive_types: Vec<Option<TokenStream>> = parts
+        .iter()
+        .map(|p| php_type_name_to_data_type(p))
+        .collect();
+
+    if primitive_types.iter().all(Option::is_some) {
+        // All are primitives - it's a primitive union
+        let tokens: Vec<TokenStream> = primitive_types.into_iter().map(Option::unwrap).collect();
+        return Ok(PhpTypeDecl::PrimitiveUnion(tokens));
+    }
+
+    // Check if all parts look like class names (start with uppercase or are 'null')
+    let all_classes = parts.iter().all(|p| {
+        let p = p.trim();
+        p == "null" || p.chars().next().is_some_and(char::is_uppercase) || p == "self"
+    });
+
+    if all_classes {
+        // Filter out 'null' from class names - it's handled via allow_null
+        let class_names: Vec<String> = parts
+            .iter()
+            .filter(|&&p| p != "null")
+            .map(|&p| p.to_string())
+            .collect();
+
+        if class_names.is_empty() {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "Class union must contain at least one class name",
+            ));
+        }
+
+        return Ok(PhpTypeDecl::ClassUnion(class_names));
+    }
+
+    // Mixed primitives and classes in union - treat unknown ones as class names
+    // Actually, for simplicity, if we have a mix, report an error
+    Err(syn::Error::new(
+        Span::call_site(),
+        format!(
+            "Cannot mix primitive types and class names in a union. \
+             For primitive unions use: 'int|string|null'. \
+             For class unions use: 'Foo|Bar'. Got: '{type_str}'",
+        ),
+    ))
+}
+
+/// Parses a DNF (Disjunctive Normal Form) type string like "(A&B)|C" or
+/// "(A&B)|(C&D)".
+///
+/// Returns a `PhpTypeDecl::Dnf` with explicit `TypeGroup` variants:
+/// - `TypeGroup::Single` for simple class names
+/// - `TypeGroup::Intersection` for intersection groups
+fn parse_dnf_type(type_str: &str) -> Result<PhpTypeDecl> {
+    let mut groups: Vec<TypeGroup> = Vec::new();
+    let mut current_pos = 0;
+    let chars: Vec<char> = type_str.chars().collect();
+
+    while current_pos < chars.len() {
+        // Skip whitespace
+        while current_pos < chars.len() && chars[current_pos].is_whitespace() {
+            current_pos += 1;
+        }
+
+        if current_pos >= chars.len() {
+            break;
+        }
+
+        // Skip | separator
+        if chars[current_pos] == '|' {
+            current_pos += 1;
+            continue;
+        }
+
+        if chars[current_pos] == '(' {
+            // Parse intersection group: (A&B&C)
+            current_pos += 1; // Skip '('
+            let start = current_pos;
+
+            // Find closing parenthesis
+            while current_pos < chars.len() && chars[current_pos] != ')' {
+                current_pos += 1;
+            }
+
+            if current_pos >= chars.len() {
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    "Unclosed parenthesis in DNF type",
+                ));
+            }
+
+            let group_str: String = chars[start..current_pos].iter().collect();
+            current_pos += 1; // Skip ')'
+
+            // Parse the intersection group
+            let class_names: Vec<String> = group_str
+                .split('&')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            if class_names.len() < 2 {
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    "Intersection group in DNF type must contain at least 2 types",
+                ));
+            }
+
+            // Validate class names
+            for name in &class_names {
+                if !name.chars().next().unwrap().is_uppercase() && name != "self" {
+                    return Err(syn::Error::new(
+                        Span::call_site(),
+                        format!(
+                            "Intersection types can only contain class/interface names. '{name}' looks like a primitive type.",
+                        ),
+                    ));
+                }
+            }
+
+            groups.push(TypeGroup::Intersection(class_names));
+        } else {
+            // Parse simple type name (until | or end)
+            let start = current_pos;
+            while current_pos < chars.len()
+                && chars[current_pos] != '|'
+                && !chars[current_pos].is_whitespace()
+            {
+                current_pos += 1;
+            }
+
+            let type_name: String = chars[start..current_pos].iter().collect();
+            let type_name = type_name.trim();
+
+            if !type_name.is_empty() {
+                // Validate it's a class name
+                if !type_name.chars().next().unwrap().is_uppercase()
+                    && type_name != "self"
+                    && type_name != "null"
+                {
+                    return Err(syn::Error::new(
+                        Span::call_site(),
+                        format!(
+                            "DNF types can only contain class/interface names. '{type_name}' looks like a primitive type.",
+                        ),
+                    ));
+                }
+
+                groups.push(TypeGroup::Single(type_name.to_string()));
+            }
+        }
+    }
+
+    if groups.len() < 2 {
+        return Err(syn::Error::new(
+            Span::call_site(),
+            "DNF type must contain at least 2 type groups",
+        ));
+    }
+
+    Ok(PhpTypeDecl::Dnf(groups))
 }
 
 impl TypedArg<'_> {
@@ -795,6 +1178,7 @@ impl TypedArg<'_> {
 
     /// Returns a token stream containing the `Arg` definition to be passed to
     /// `ext-php-rs`.
+    #[allow(clippy::too_many_lines)]
     fn arg_builder(&self) -> TokenStream {
         let name = ident_to_php_name(self.name);
         let ty = self.clean_ty();
@@ -815,6 +1199,99 @@ impl TypedArg<'_> {
             None
         };
         let variadic = self.variadic.then(|| quote! { .is_variadic() });
+
+        // Check if we have a PHP type declaration override
+        if let Some(php_type) = &self.php_type {
+            return match php_type {
+                PhpTypeDecl::PrimitiveUnion(data_types) => {
+                    let data_types = data_types.clone();
+                    quote! {
+                        ::ext_php_rs::args::Arg::new_union(#name, vec![#(#data_types),*])
+                            #default
+                            #as_ref
+                            #variadic
+                    }
+                }
+                PhpTypeDecl::Intersection(class_names) => {
+                    quote! {
+                        ::ext_php_rs::args::Arg::new_intersection(
+                            #name,
+                            vec![#(#class_names.to_string()),*]
+                        )
+                            #default
+                            #as_ref
+                            #variadic
+                    }
+                }
+                PhpTypeDecl::ClassUnion(class_names) => {
+                    // Check if original type string included null for allow_null
+                    quote! {
+                        ::ext_php_rs::args::Arg::new_union_classes(
+                            #name,
+                            vec![#(#class_names.to_string()),*]
+                        )
+                            #null
+                            #default
+                            #as_ref
+                            #variadic
+                    }
+                }
+                PhpTypeDecl::Dnf(groups) => {
+                    // Generate TypeGroup variants for DNF type
+                    let group_tokens: Vec<_> = groups
+                        .iter()
+                        .map(|group| match group {
+                            TypeGroup::Single(name) => {
+                                quote! {
+                                    ::ext_php_rs::args::TypeGroup::Single(#name.to_string())
+                                }
+                            }
+                            TypeGroup::Intersection(names) => {
+                                quote! {
+                                    ::ext_php_rs::args::TypeGroup::Intersection(vec![#(#names.to_string()),*])
+                                }
+                            }
+                        })
+                        .collect();
+                    quote! {
+                        ::ext_php_rs::args::Arg::new_dnf(
+                            #name,
+                            vec![#(#group_tokens),*]
+                        )
+                            #null
+                            #default
+                            #as_ref
+                            #variadic
+                    }
+                }
+                PhpTypeDecl::UnionEnum => {
+                    // Use PhpUnion::union_types() to get union types from the Rust enum.
+                    // The result can be either Simple (Vec<DataType>) or Dnf (Vec<TypeGroup>).
+                    quote! {
+                        {
+                            let union_types = <#ty as ::ext_php_rs::convert::PhpUnion>::union_types();
+                            match union_types {
+                                ::ext_php_rs::convert::PhpUnionTypes::Simple(types) => {
+                                    ::ext_php_rs::args::Arg::new_union(#name, types)
+                                        #null
+                                        #default
+                                        #as_ref
+                                        #variadic
+                                }
+                                ::ext_php_rs::convert::PhpUnionTypes::Dnf(groups) => {
+                                    ::ext_php_rs::args::Arg::new_dnf(#name, groups)
+                                        #null
+                                        #default
+                                        #as_ref
+                                        #variadic
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
         quote! {
             ::ext_php_rs::args::Arg::new(#name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE)
                 #null
