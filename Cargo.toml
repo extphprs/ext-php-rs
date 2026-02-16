@@ -46,7 +46,7 @@ ureq = { version = "3.0", features = [
     "gzip",
 ], default-features = false }
 native-tls = "0.2"
-zip = "7.0"
+zip = "8.0"
 
 [features]
 default = ["enum", "runtime"]
