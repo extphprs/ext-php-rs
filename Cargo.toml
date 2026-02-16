@@ -5,7 +5,7 @@ repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
 keywords = ["php", "ffi", "zend"]
-version = "0.15.6"
+version = "0.15.7"
 authors = [
     "Pierre Tondereau <pierre.tondereau@protonmail.com>",
     "Xenira <xenira@php.rs>",
