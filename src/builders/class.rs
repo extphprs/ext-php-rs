@@ -17,6 +17,8 @@ use crate::{
     zend_fastcall,
 };
 
+use crate::flags::DataType;
+
 /// A constant entry: (name, `value_closure`, docs, `stub_value`)
 type ConstantEntry = (
     String,
@@ -25,6 +27,16 @@ type ConstantEntry = (
     String,
 );
 type PropertyDefault = Option<Box<dyn FnOnce() -> Result<Zval>>>;
+/// A property entry: (name, flags, default, docs, type, nullable, `default_str`).
+type PropertyEntry = (
+    String,
+    PropertyFlags,
+    PropertyDefault,
+    DocComments,
+    Option<DataType>,
+    bool,
+    Option<&'static str>,
+);
 
 /// Builder for registering a class in PHP.
 #[must_use]
@@ -35,7 +47,7 @@ pub struct ClassBuilder {
     pub(crate) interfaces: Vec<ClassEntryInfo>,
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
-    pub(crate) properties: Vec<(String, PropertyFlags, PropertyDefault, DocComments)>,
+    pub(crate) properties: Vec<PropertyEntry>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry)>,
     pub(crate) docs: DocComments,
@@ -114,14 +126,22 @@ impl ClassBuilder {
     /// * `flags` - Flags relating to the property. See [`PropertyFlags`].
     /// * `default` - Optional default value for the property.
     /// * `docs` - Documentation comments for the property.
+    /// * `ty` - Optional type for stub generation.
+    /// * `nullable` - Whether the property is nullable.
+    /// * `default_str` - Default value as PHP string for stub generation.
+    #[allow(clippy::too_many_arguments)]
     pub fn property<T: Into<String>>(
         mut self,
         name: T,
         flags: PropertyFlags,
         default: PropertyDefault,
         docs: DocComments,
+        ty: Option<DataType>,
+        nullable: bool,
+        default_str: Option<&'static str>,
     ) -> Self {
-        self.properties.push((name.into(), flags, default, docs));
+        self.properties
+            .push((name.into(), flags, default, docs, ty, nullable, default_str));
         self
     }
 
@@ -396,7 +416,7 @@ impl ClassBuilder {
             unsafe { zend_do_implement_interface(class, ptr::from_ref(interface).cast_mut()) };
         }
 
-        for (name, flags, default, _) in self.properties {
+        for (name, flags, default, _, _ty, _nullable, _default_str) in self.properties {
             let mut default_zval = match default {
                 Some(f) => f()?,
                 None => Zval::new(),
@@ -482,13 +502,23 @@ mod tests {
 
     #[test]
     fn test_property() {
-        let class =
-            ClassBuilder::new("Foo").property("bar", PropertyFlags::Public, None, &["Doc 1"]);
+        let class = ClassBuilder::new("Foo").property(
+            "bar",
+            PropertyFlags::Public,
+            None,
+            &["Doc 1"],
+            None,
+            false,
+            None,
+        );
         assert_eq!(class.properties.len(), 1);
         assert_eq!(class.properties[0].0, "bar");
         assert_eq!(class.properties[0].1, PropertyFlags::Public);
         assert!(class.properties[0].2.is_none());
         assert_eq!(class.properties[0].3, &["Doc 1"] as DocComments);
+        assert!(class.properties[0].4.is_none());
+        assert!(!class.properties[0].5); // nullable
+        assert!(class.properties[0].6.is_none()); // default_str
     }
 
     #[test]
