@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.18](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.17...cargo-php-v0.1.18) - 2026-02-16
+
+### Added
+- *(stubs)* Proper phpdoc-style comments in stubs #369 ([#676](https://github.com/extphprs/ext-php-rs/pull/676)) (by @kakserpom) [[#369](https://github.com/extphprs/ext-php-rs/issues/369)] [[#676](https://github.com/extphprs/ext-php-rs/issues/676)] 
+- Eval PHP code from files ([#671](https://github.com/extphprs/ext-php-rs/pull/671)) (by @ptondereau) [[#671](https://github.com/extphprs/ext-php-rs/issues/671)] 
+
+### Other
+- *(cargo-php)* Add tests and generate deterministic output ([#677](https://github.com/extphprs/ext-php-rs/pull/677)) (by @ptondereau) [[#677](https://github.com/extphprs/ext-php-rs/issues/677)] 
 ## [0.1.17](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.16...cargo-php-v0.1.17) - 2026-02-05
 
 ### Fixed
