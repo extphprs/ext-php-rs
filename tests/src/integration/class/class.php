@@ -234,6 +234,8 @@ assert($abstractReflection->getMethod('abstractMethod')->isAbstract(), 'abstract
 assert(!$abstractReflection->getMethod('concreteMethod')->isAbstract(), 'concreteMethod should NOT be marked as abstract');
 
 // Test extending the abstract class in PHP
+// Note: PHP subclasses of Rust classes don't have Rust backing, so inherited Rust
+// methods cannot be called. The subclass must override any methods it wants to use.
 class ConcreteTestClass extends TestAbstractClass {
     public function __construct() {
         parent::__construct();
@@ -242,11 +244,16 @@ class ConcreteTestClass extends TestAbstractClass {
     public function abstractMethod(): string {
         return 'implemented abstract method';
     }
+
+    // Must override concreteMethod since we can't call the inherited Rust method
+    public function concreteMethod(): string {
+        return 'concrete method from PHP subclass';
+    }
 }
 
 $concreteObj = new ConcreteTestClass();
 assert($concreteObj->abstractMethod() === 'implemented abstract method', 'Implemented abstract method should work');
-assert($concreteObj->concreteMethod() === 'concrete method in abstract class', 'Concrete method from abstract class should work');
+assert($concreteObj->concreteMethod() === 'concrete method from PHP subclass', 'Concrete method from PHP subclass should work');
 
 // Test lazy objects (PHP 8.4+)
 if (PHP_VERSION_ID >= 80400) {
@@ -329,3 +336,71 @@ assert($childObj->getBaseInfo() === 'I am the base class', 'Child should have ba
 $childReflection = new ReflectionClass(TestChildClass::class);
 assert($childReflection->getParentClass()->getName() === TestBaseClass::class, 'TestChildClass should extend TestBaseClass');
 assert($childObj instanceof TestBaseClass, 'TestChildClass instance should be instanceof TestBaseClass');
+
+// Test issue #138 - PHP subclass of Rust class extending a non-abstract class
+class PhpSubclassOfArrayAccess extends TestClassArrayAccess {
+    public function __construct() {
+        // Call parent constructor
+        parent::__construct();
+    }
+
+    public function customMethod(): string {
+        return 'custom method result';
+    }
+
+    // Must override inherited methods since PHP subclass doesn't have Rust backing
+    public function offsetExists($offset): bool {
+        // Reimplement the logic instead of calling parent
+        return is_int($offset);
+    }
+}
+
+$phpSubclass = new PhpSubclassOfArrayAccess();
+assert($phpSubclass instanceof TestClassArrayAccess, 'PHP subclass should be instanceof parent class');
+assert($phpSubclass instanceof TestClassArrayAccess, 'PHP subclass should work with parent class methods');
+// Test overridden method
+assert($phpSubclass->offsetExists(1) === true, 'Overridden method should work');
+// Test custom method
+assert($phpSubclass->customMethod() === 'custom method result', 'Custom method should work');
+
+// Test issue #138 - Greeter example from the issue
+// Test regular Rust class works
+$greeter = new TestGreeter('world');
+assert($greeter->greet() === 'Hello, world!', 'Regular Rust class should work');
+
+// Test PHP subclass can override methods
+$greeterSubclass = new class extends TestGreeter {
+    public function __construct() {
+        parent::__construct('php');
+    }
+    
+    // Must override to use it
+    public function greet(): string {
+        return 'Hello from PHP!';
+    }
+};
+assert($greeterSubclass->greet() === 'Hello from PHP!', 'PHP subclass method override should work');
+// The overridden method is called, not the parent's
+
+// Test calling inherited Rust methods on PHP subclass (issue #138)
+class PhpSubclassGreeter extends TestGreeter {
+    public function __construct() {
+        parent::__construct('inherited');
+    }
+    // NOT overriding greet - should call parent's Rust method
+}
+$inheritedGreeter = new PhpSubclassGreeter();
+assert($inheritedGreeter->greet() === 'Hello, inherited!', 'Inherited Rust method should work on PHP subclass');
+assert(get_class($inheritedGreeter) === 'PhpSubclassGreeter', 'get_class should return subclass name');
+assert($inheritedGreeter instanceof TestGreeter, 'instanceof should work for parent class');
+assert($inheritedGreeter instanceof PhpSubclassGreeter, 'instanceof should work for subclass');
+
+// Test anonymous class with inherited method
+$anonInherited = new class extends TestGreeter {
+    public function __construct() {
+        parent::__construct('anon');
+    }
+    // NOT overriding greet
+};
+assert($anonInherited->greet() === 'Hello, anon!', 'Anonymous class should inherit Rust method');
+

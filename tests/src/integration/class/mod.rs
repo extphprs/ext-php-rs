@@ -568,9 +568,28 @@ impl TestChildClass {
     }
 }
 
+/// Test class for issue #138 - Greeter example from the issue
+#[php_class]
+#[derive(Default)]
+pub struct TestGreeter {
+    name: String,
+}
+
+#[php_impl]
+impl TestGreeter {
+    pub fn __construct(name: String) -> Self {
+        Self { name }
+    }
+
+    pub fn greet(&self) -> String {
+        format!("Hello, {}!", self.name)
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
+        .class::<TestGreeter>()
         .class::<TestClassArrayAccess>()
         .class::<TestClassExtends>()
         .class::<TestClassExtendsImpl>()
