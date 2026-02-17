@@ -211,6 +211,38 @@ impl ClassBuilder {
     /// class name specified when creating the builder.
     pub fn object_override<T: RegisteredClass>(mut self) -> Self {
         extern "C" fn create_object<T: RegisteredClass>(ce: *mut ClassEntry) -> *mut ZendObject {
+            let meta = T::get_metadata();
+            let ce_ref = unsafe { ce.as_ref() };
+
+            // Check if this is our exact class or a PHP subclass.
+            let is_our_class = ce_ref.is_some_and(|ce| ptr::eq(ce, meta.ce()));
+
+            if !is_our_class {
+                // For PHP subclasses: create a ZendClassObject with a default/empty Rust backing.
+                // This allows:
+                // 1. Inherited Rust methods to work (they have an object to operate on)
+                // 2. Method overriding to work (PHP's standard method resolution handles this)
+                //
+                // Note: We still use the subclass's ce so that:
+                // - get_class() returns the subclass name
+                // - instanceof works correctly
+                // - PHP's method resolution finds overridden methods first
+                if let Some(instance) = T::default_init() {
+                    let obj = ZendClassObject::<T>::new(instance);
+                    let zend_obj = obj.into_raw().get_mut_zend_obj();
+                    // Override the ce with the subclass's ce so that:
+                    // - get_class() returns the subclass name
+                    // - instanceof works correctly
+                    zend_obj.ce = ce;
+                    return zend_obj;
+                }
+
+                // If no default_init, fall back to creating an uninitialized object
+                // The constructor will initialize it
+                let obj = unsafe { ZendClassObject::<T>::new_uninit(ce.as_ref()) };
+                return obj.into_raw().get_mut_zend_obj();
+            }
+
             // Try to initialize with a default instance if available.
             // This is critical for exception classes that extend \Exception, because
             // PHP's zend_throw_exception_ex creates objects via create_object without
@@ -255,10 +287,10 @@ impl ClassBuilder {
 
                     // Use get_object_uninit because the Rust backing is not yet initialized.
                     // We need access to the ZendClassObject to call initialize() on it.
+                    // For PHP subclasses (which don't have our custom handlers), this returns None.
+                    // In that case, we skip Rust initialization - the PHP subclass will work as
+                    // a regular PHP object without Rust backing (issue #138).
                     let Some(this_obj) = ex.get_object_uninit::<T>() else {
-                        PhpException::default("Failed to retrieve reference to `this` object.".into())
-                            .throw()
-                            .expect("Failed to throw exception while constructing class");
                         return;
                     };
 
