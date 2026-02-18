@@ -27,6 +27,7 @@ impl ClassEntry {
     ///
     /// Returns a reference to the class if found, or [`None`] if the class
     /// could not be found or the class table has not been initialized.
+    #[inline]
     #[must_use]
     pub fn try_find(name: &str) -> Option<&'static Self> {
         ExecutorGlobals::get().class_table()?;
@@ -143,6 +144,7 @@ impl ClassEntry {
     }
 
     /// Gets the name of the class.
+    #[inline]
     #[must_use]
     pub fn name(&self) -> Option<&str> {
         unsafe { self.name.as_ref().and_then(|s| s.as_str().ok()) }
