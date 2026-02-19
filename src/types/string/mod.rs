@@ -302,6 +302,7 @@ impl ZendStr {
     /// let s = ZendStr::new("hello, world!", false);
     /// assert!(s.as_str().is_ok());
     /// ```
+    #[inline]
     pub fn as_str(&self) -> Result<&str> {
         if unsafe { ext_php_rs_is_known_valid_utf8(self.as_ptr()) } {
             let str = unsafe { std::str::from_utf8_unchecked(self.as_bytes()) };

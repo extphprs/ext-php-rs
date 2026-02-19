@@ -65,6 +65,7 @@ impl Function {
     }
 
     /// Attempts to fetch a [`Function`] from the function name.
+    #[inline]
     #[must_use]
     pub fn try_from_function(name: &str) -> Option<Self> {
         unsafe {
