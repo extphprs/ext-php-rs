@@ -562,6 +562,48 @@ The `ext-php-rs-build` crate provides several useful utilities:
 This is **optional** - if your extension only targets PHP 8.2+, you can use
 `#[php(readonly)]` directly without any build script setup.
 
+## Cloning
+
+PHP's native `clone` operator is supported for `#[php_class]` structs that
+derive `Clone`. Add `#[derive(Clone)]` to your struct and the cloned PHP object
+will contain a proper copy of the Rust data:
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+
+#[php_class]
+#[derive(Clone)]
+pub struct Style {
+    #[php(prop)]
+    pub font_size: f64,
+    #[php(prop)]
+    pub color: String,
+}
+
+#[php_impl]
+impl Style {
+    pub fn __construct(font_size: f64, color: String) -> Self {
+        Self { font_size, color }
+    }
+}
+```
+
+```php
+$style = new Style(12.0, 'red');
+$copy = clone $style;
+
+$copy->fontSize = 16.0;
+echo $style->fontSize;  // 12.0 — original is unchanged
+```
+
+Structs that do **not** derive `Clone` will throw an error when cloned:
+
+```php
+// If MyClass doesn't #[derive(Clone)]:
+$obj = new MyClass();
+$copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
+```
+
 ## Implementing Iterator
 
 To make a Rust class usable with PHP's `foreach` loop, implement the

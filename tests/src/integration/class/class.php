@@ -329,3 +329,22 @@ assert($childObj->getBaseInfo() === 'I am the base class', 'Child should have ba
 $childReflection = new ReflectionClass(TestChildClass::class);
 assert($childReflection->getParentClass()->getName() === TestBaseClass::class, 'TestChildClass should extend TestBaseClass');
 assert($childObj instanceof TestBaseClass, 'TestChildClass instance should be instanceof TestBaseClass');
+
+$original = new TestCloneableClass(42, 'original');
+$cloned = clone $original;
+
+assert($cloned !== $original, 'Cloned object should be a different instance');
+assert($cloned instanceof TestCloneableClass, 'Cloned object should be instance of TestCloneableClass');
+assert($cloned->value === 42, 'Cloned value should match original');
+assert($cloned->name === 'original', 'Cloned name should match original');
+
+$cloned->value = 100;
+$cloned->name = 'modified';
+assert($original->value === 42, 'Original value should be unchanged after modifying clone');
+assert($original->name === 'original', 'Original name should be unchanged after modifying clone');
+
+$result = TestCloneableClass::acceptCloneable($cloned);
+assert($result === 'accepted: 100 modified', 'Cloned object should be accepted as typed parameter');
+
+$uncloneable = new TestUncloneableClass('test');
+assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');

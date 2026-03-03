@@ -132,6 +132,17 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         false
     });
 
+    let has_derive_clone = input.attrs.iter().any(|attr| {
+        if attr.path().is_ident("derive")
+            && let Ok(nested) = attr.parse_args_with(
+                syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
+            )
+        {
+            return nested.iter().any(|path| path.is_ident("Clone"));
+        }
+        false
+    });
+
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let fields = match &mut input.fields {
@@ -150,6 +161,7 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         attr.readonly.is_present(),
         &docs,
         has_derive_default,
+        has_derive_clone,
     );
 
     Ok(quote! {
@@ -229,6 +241,7 @@ fn generate_registered_class_impl(
     readonly: bool,
     docs: &[String],
     has_derive_default: bool,
+    has_derive_clone: bool,
 ) -> TokenStream {
     let modifier = modifier.option_tokens();
 
@@ -344,6 +357,7 @@ fn generate_registered_class_impl(
     });
 
     let default_init_impl = generate_default_init_impl(ident, has_derive_default);
+    let clone_obj_impl = generate_clone_obj_impl(ident, has_derive_clone);
 
     quote! {
         impl ::ext_php_rs::class::RegisteredClass for #ident {
@@ -435,7 +449,24 @@ fn generate_registered_class_impl(
             }
 
             #default_init_impl
+
+            #clone_obj_impl
         }
+    }
+}
+
+/// Generates the `clone_obj` method implementation for the trait.
+fn generate_clone_obj_impl(_ident: &syn::Ident, has_derive_clone: bool) -> TokenStream {
+    if has_derive_clone {
+        quote! {
+            #[inline]
+            #[must_use]
+            fn clone_obj(&self) -> ::std::option::Option<Self> {
+                ::std::option::Option::Some(::std::clone::Clone::clone(self))
+            }
+        }
+    } else {
+        quote! {}
     }
 }
 

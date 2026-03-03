@@ -568,6 +568,39 @@ impl TestChildClass {
     }
 }
 
+#[php_class]
+#[derive(Clone)]
+pub struct TestCloneableClass {
+    #[php(prop)]
+    pub value: i32,
+    #[php(prop)]
+    pub name: String,
+}
+
+#[php_impl]
+impl TestCloneableClass {
+    pub fn __construct(value: i32, name: String) -> Self {
+        Self { value, name }
+    }
+
+    pub fn accept_cloneable(obj: &TestCloneableClass) -> String {
+        format!("accepted: {} {}", obj.value, obj.name)
+    }
+}
+
+#[php_class]
+pub struct TestUncloneableClass {
+    #[php(prop)]
+    pub data: String,
+}
+
+#[php_impl]
+impl TestUncloneableClass {
+    pub fn __construct(data: String) -> Self {
+        Self { data }
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -586,6 +619,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassStaticStrGetter>()
         .class::<TestBaseClass>()
         .class::<TestChildClass>()
+        .class::<TestCloneableClass>()
+        .class::<TestUncloneableClass>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception));
 
