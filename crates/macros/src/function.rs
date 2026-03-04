@@ -971,8 +971,9 @@ fn expr_to_php_stub(expr: &Expr) -> String {
                 "\"{}\"",
                 s.value().replace('\\', "\\\\").replace('"', "\\\"")
             ),
-            syn::Lit::Int(i) => i.to_string(),
-            syn::Lit::Float(f) => f.to_string(),
+            // Use base10_digits() to strip Rust type suffixes like _usize, _i32, etc.
+            syn::Lit::Int(i) => i.base10_digits().to_string(),
+            syn::Lit::Float(f) => f.base10_digits().to_string(),
             syn::Lit::Bool(b) => if b.value { "true" } else { "false" }.to_string(),
             syn::Lit::Char(c) => format!("\"{}\"", c.value()),
             _ => expr.to_token_stream().to_string(),
@@ -1032,4 +1033,54 @@ pub fn type_is_nullable(ty: &Type) -> Result<bool> {
         // wrapped in `Option` (in that case it'd be a Path).
         _ => bail!(ty => "Unsupported argument type."),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expr_to_php_stub_strips_numeric_suffixes() {
+        // Test integer suffixes are stripped (issue #492)
+        let expr: Expr = syn::parse_quote!(42_usize);
+        assert_eq!(expr_to_php_stub(&expr), "42");
+
+        let expr: Expr = syn::parse_quote!(42_i32);
+        assert_eq!(expr_to_php_stub(&expr), "42");
+
+        let expr: Expr = syn::parse_quote!(42_u64);
+        assert_eq!(expr_to_php_stub(&expr), "42");
+
+        // Test float suffixes are stripped
+        let expr: Expr = syn::parse_quote!(3.14_f64);
+        assert_eq!(expr_to_php_stub(&expr), "3.14");
+
+        let expr: Expr = syn::parse_quote!(3.14_f32);
+        assert_eq!(expr_to_php_stub(&expr), "3.14");
+
+        // Test literals without suffixes still work
+        let expr: Expr = syn::parse_quote!(42);
+        assert_eq!(expr_to_php_stub(&expr), "42");
+
+        let expr: Expr = syn::parse_quote!(3.14);
+        assert_eq!(expr_to_php_stub(&expr), "3.14");
+    }
+
+    #[test]
+    fn test_expr_to_php_stub_negative_numbers() {
+        let expr: Expr = syn::parse_quote!(-42_i32);
+        assert_eq!(expr_to_php_stub(&expr), "-42");
+
+        let expr: Expr = syn::parse_quote!(-3.14_f64);
+        assert_eq!(expr_to_php_stub(&expr), "-3.14");
+    }
+
+    #[test]
+    fn test_expr_to_php_stub_none_and_some() {
+        let expr: Expr = syn::parse_quote!(None);
+        assert_eq!(expr_to_php_stub(&expr), "null");
+
+        let expr: Expr = syn::parse_quote!(Some(42_usize));
+        assert_eq!(expr_to_php_stub(&expr), "42");
+    }
 }
