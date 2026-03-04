@@ -6,8 +6,8 @@ use crate::{
     ffi::{
         ext_php_rs_executor_globals, instanceof_function_slow, std_object_handlers,
         zend_class_entry, zend_is_true, zend_object_handlers, zend_object_std_dtor,
-        zend_std_get_properties, zend_std_has_property, zend_std_read_property,
-        zend_std_write_property, zend_throw_error,
+        zend_objects_clone_members, zend_std_get_properties, zend_std_has_property,
+        zend_std_read_property, zend_std_write_property, zend_throw_error,
     },
     flags::{PropertyFlags, ZvalTypeFlags},
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
@@ -51,6 +51,7 @@ impl ZendObjectHandlers {
         let offset = ZendClassObject::<T>::std_offset();
         unsafe { (*ptr).offset = offset.try_into().expect("Invalid offset") };
         unsafe { (*ptr).free_obj = Some(Self::free_obj::<T>) };
+        unsafe { (*ptr).clone_obj = Some(Self::clone_obj::<T>) };
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
@@ -72,6 +73,38 @@ impl ZendObjectHandlers {
 
         // Always call the standard destructor to clean up the PHP object
         unsafe { zend_object_std_dtor(object) };
+    }
+
+    unsafe extern "C" fn clone_obj<T: RegisteredClass>(object: *mut ZendObject) -> *mut ZendObject {
+        // PHP will call OBJ_RELEASE on the returned pointer if an exception
+        // is thrown, so we must NEVER return the original object. Always
+        // allocate a new (possibly uninitialized) object for error paths.
+        let cloned_val = unsafe {
+            object
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
+                .and_then(|old| old.obj.as_ref())
+                .and_then(RegisteredClass::clone_obj)
+        };
+
+        if let Some(val) = cloned_val {
+            let mut new = ZendClassObject::<T>::new(val);
+            unsafe { zend_objects_clone_members(&raw mut new.std, object) };
+            let raw = new.into_raw();
+            &raw mut raw.std
+        } else {
+            let msg = CString::new(format!(
+                "Trying to clone an uncloneable object of class {}",
+                T::CLASS_NAME
+            ))
+            .expect("Failed to create error message");
+            unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
+            // Return a new uninitialized object that PHP can safely release.
+            // free_obj handles uninitialized (None) objects gracefully.
+            let empty = unsafe { ZendClassObject::<T>::new_uninit(None) };
+            let raw = empty.into_raw();
+            &raw mut raw.std
+        }
     }
 
     #[allow(clippy::items_after_statements)]
