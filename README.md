@@ -198,6 +198,7 @@ Check out one of the example projects:
   scrypt password hashing algorithm.
 - [fluent-php](https://github.com/Ennexa/fluent-php) - PHP wrapper for Mozilla's Project Fluent i18n library.
 - [php-rocksdb-rc](https://github.com/s00d/php-rocksdb-rc) - PHP wrapper for rocksdb library.
+- [grpc-php-rs](https://github.com/BSN4/grpc-php-rs) - Rust-based gRPC extension for PHP, drop-in replacement for ext-grpc.
 
 ## Contributions
 
