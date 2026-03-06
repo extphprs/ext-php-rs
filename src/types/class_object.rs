@@ -242,7 +242,7 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     pub(crate) fn std_offset() -> usize {
         unsafe {
             let null = NonNull::<Self>::dangling();
-            let base = null.as_ref() as *const Self;
+            let base = ptr::from_ref::<Self>(null.as_ref());
             let std = &raw const null.as_ref().std;
 
             (std as usize) - (base as usize)
