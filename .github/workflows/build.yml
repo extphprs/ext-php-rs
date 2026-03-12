@@ -169,8 +169,15 @@ jobs:
         if: "!(contains(matrix.os, 'macos') && matrix.rust == 'nightly')"
         run: cargo test --release --workspace --features closure,anyhow,runtime,observer --no-fail-fast
   test-embed:
-    name: Test with embed (NTS)
+    name: Test with embed (${{ matrix.label }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - phpts: nts
+            label: NTS
+          - phpts: ts
+            label: TS
     env:
       clang: "17"
       php_version: "8.5"
@@ -179,11 +186,30 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup PHP
+        if: matrix.phpts == 'nts'
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.php_version }}
         env:
           debug: true
+
+      - name: Setup PHP ZTS repository
+        if: matrix.phpts == 'ts'
+        # setup-php does not provide a ZTS embed package on Ubuntu.
+        run: |
+          PHP_VERSION="${{ env.php_version }}"
+          PHP_VERSION="${PHP_VERSION//./}"
+          KEY_FILE="/etc/apt/keyrings/henderkes${PHP_VERSION}.asc"
+          REPO_LINE="deb [signed-by=${KEY_FILE}] https://pkg.henderkes.com/api/packages/${PHP_VERSION}/debian php-zts main"
+
+          sudo mkdir -p /etc/apt/keyrings
+          sudo curl -fsSL "https://pkg.henderkes.com/api/packages/${PHP_VERSION}/debian/repository.key" -o "${KEY_FILE}"
+          echo "${REPO_LINE}" | sudo tee "/etc/apt/sources.list.d/static-php${PHP_VERSION}.list" > /dev/null
+          sudo apt update -y
+
+      - name: Install PHP ZTS packages
+        if: matrix.phpts == 'ts'
+        run: sudo apt install -y php-zts-cli php-zts-devel php-zts-embed
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
@@ -192,6 +218,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install libphp-embed
+        if: matrix.phpts == 'nts'
         run: sudo apt update -y && sudo apt install -y libphp${{ env.php_version }}-embed-dbgsym
 
       - name: Install cargo-expand
@@ -222,6 +249,22 @@ jobs:
           echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
           echo "LLVM_VERSION=${{ steps.clang.outputs.version }}" >> $GITHUB_ENV
           echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-config" >> $GITHUB_ENV
+
+      - name: Configure PHP ZTS environment
+        if: matrix.phpts == 'ts'
+        # ext-php-rs links embed builds with `-lphp`, so provide a generic soname.
+        run: |
+          PHP_VERSION="${{ env.php_version }}"
+          PHP_VERSION="${PHP_VERSION//./}"
+          PHP_ZTS_LIB_DIR="${RUNNER_TEMP}/php-zts-lib"
+
+          mkdir -p "${PHP_ZTS_LIB_DIR}"
+          ln -sf "/usr/lib/libphp-zts-${PHP_VERSION}.so" "${PHP_ZTS_LIB_DIR}/libphp.so"
+          {
+            echo "PHP=/usr/bin/php-zts"
+            echo "PHP_CONFIG=/usr/bin/php-config-zts"
+            echo "RUSTFLAGS=${RUSTFLAGS:+${RUSTFLAGS} }-L native=${PHP_ZTS_LIB_DIR}"
+          } >> "${GITHUB_ENV}"
 
       - name: Test with embed feature
         run: cargo test --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap --no-fail-fast

@@ -4,9 +4,9 @@
 observer_test_reset();
 
 // Define a user function to observe
-function my_test_function(): string
+function my_test_function(string $suffix = ""): string
 {
-    return "hello";
+    return "hello{$suffix}";
 }
 
 // Define another user function
@@ -22,10 +22,22 @@ $initial_end_count = observer_test_get_end_count();
 // Note: The observer functions themselves are internal (Rust) functions,
 // so they should NOT be counted by our observer which filters to user functions only.
 
-// Call user functions
-my_test_function();
-another_function(5);
-my_test_function();
+// Resolve callables at runtime so opcache cannot fold these calls away.
+$user_calls = [
+    [getenv('EXT_PHP_RS_OBSERVER_FN1') ?: 'my_test_function', ['']],
+    [getenv('EXT_PHP_RS_OBSERVER_FN2') ?: 'another_function', [5]],
+    [getenv('EXT_PHP_RS_OBSERVER_FN3') ?: 'my_test_function', [' again']],
+];
+
+$results = [];
+foreach ($user_calls as [$function, $args]) {
+    $results[] = $function(...$args);
+}
+
+assert(
+    $results === ['hello', 10, 'hello again'],
+    'Unexpected results from observed user function calls',
+);
 
 // Get counts after calling user functions
 $call_count = observer_test_get_call_count();
@@ -39,9 +51,9 @@ assert($end_count >= 3, "Expected at least 3 ends, got: " . $end_count);
 assert($call_count === $end_count, "Call count and end count should match");
 
 // Test nested function calls
-function outer(): int
+function outer(callable $callback): int
 {
-    return inner();
+    return $callback();
 }
 
 function inner(): int
@@ -50,7 +62,9 @@ function inner(): int
 }
 
 observer_test_reset();
-$result = outer();
+$outer = getenv('EXT_PHP_RS_OUTER_FN') ?: 'outer';
+$inner = getenv('EXT_PHP_RS_INNER_FN') ?: 'inner';
+$result = $outer($inner);
 assert($result === 42, "Nested call should return 42");
 
 $nested_call_count = observer_test_get_call_count();
