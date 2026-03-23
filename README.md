@@ -187,18 +187,7 @@ All features are disabled by default.
 
 ## Usage
 
-Check out one of the example projects:
-
-- [anonaddy-sequoia](https://gitlab.com/willbrowning/anonaddy-sequoia) - Sequoia
-  encryption PHP extension.
-- [opus-php](https://github.com/davidcole1340/opus-php) - Audio encoder for the
-  Opus codec in PHP.
-- [tomlrs-php](https://github.com/jphenow/tomlrs-php) - TOML data format parser.
-- [php-scrypt](https://github.com/appwrite/php-scrypt) - PHP wrapper for the
-  scrypt password hashing algorithm.
-- [fluent-php](https://github.com/Ennexa/fluent-php) - PHP wrapper for Mozilla's Project Fluent i18n library.
-- [php-rocksdb-rc](https://github.com/s00d/php-rocksdb-rc) - PHP wrapper for rocksdb library.
-- [grpc-php-rs](https://github.com/BSN4/grpc-php-rs) - Rust-based gRPC extension for PHP, drop-in replacement for ext-grpc.
+Check out the [awesome-ext-php-rs](https://github.com/extphprs/awesome-ext-php-rs) list for projects built with ext-php-rs.
 
 ## Contributions
 
