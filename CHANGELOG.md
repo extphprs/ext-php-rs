@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## [0.15.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.6...ext-php-rs-v0.15.7) - 2026-03-24
+
+### Added
+- *(callable)* Named arguments ([#635](https://github.com/extphprs/ext-php-rs/pull/635)) (by @kakserpom) [[#635](https://github.com/extphprs/ext-php-rs/issues/635)] 
+- *(stubs)* Proper phpdoc-style comments in stubs #369 ([#676](https://github.com/extphprs/ext-php-rs/pull/676)) (by @kakserpom) [[#369](https://github.com/extphprs/ext-php-rs/issues/369)] [[#676](https://github.com/extphprs/ext-php-rs/issues/676)] 
+- Eval PHP code from files ([#671](https://github.com/extphprs/ext-php-rs/pull/671)) (by @ptondereau) [[#671](https://github.com/extphprs/ext-php-rs/issues/671)] 
+
+### Fixed
+- *(class)* Implement clone behavior ([#685](https://github.com/extphprs/ext-php-rs/pull/685)) (by @ptondereau) [[#685](https://github.com/extphprs/ext-php-rs/issues/685)] 
+- *(embed)* Restore ZTS embed tests ([#689](https://github.com/extphprs/ext-php-rs/pull/689)) (by @ptondereau) [[#689](https://github.com/extphprs/ext-php-rs/issues/689)] 
+- *(stubs)* Syntax error on numeric literal suffixes in defaults #492 ([#679](https://github.com/extphprs/ext-php-rs/pull/679)) (by @kakserpom) [[#492](https://github.com/extphprs/ext-php-rs/issues/492)] [[#679](https://github.com/extphprs/ext-php-rs/issues/679)] 
+- *(zval)* Handle immutable empty array in array_mut to prevent segf ([#693](https://github.com/extphprs/ext-php-rs/pull/693)) (by @ptondereau) [[#693](https://github.com/extphprs/ext-php-rs/issues/693)] 
+
+### Other
+- *(cargo-php)* Add tests and generate deterministic output ([#677](https://github.com/extphprs/ext-php-rs/pull/677)) (by @ptondereau) [[#677](https://github.com/extphprs/ext-php-rs/issues/677)] 
+- *(deps)* Update zip requirement from 7.0 to 8.0 ([#680](https://github.com/extphprs/ext-php-rs/pull/680)) (by @dependabot[bot]) [[#680](https://github.com/extphprs/ext-php-rs/issues/680)] 
+- *(showcase)* Add grpc-php-rs to usage examples ([#686](https://github.com/extphprs/ext-php-rs/pull/686)) (by @BSN4) [[#686](https://github.com/extphprs/ext-php-rs/issues/686)] 
+- *(tests)* Test to close #176 ([#675](https://github.com/extphprs/ext-php-rs/pull/675)) (by @kakserpom) [[#176](https://github.com/extphprs/ext-php-rs/issues/176)] [[#675](https://github.com/extphprs/ext-php-rs/issues/675)] 
+- Replace inline project list with awesome-ext-php-rs link ([#691](https://github.com/extphprs/ext-php-rs/pull/691)) (by @ptondereau) [[#691](https://github.com/extphprs/ext-php-rs/issues/691)] 
 ## [0.15.6](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.5...ext-php-rs-v0.15.6) - 2026-02-05
 
 ### Added
