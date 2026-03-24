@@ -238,15 +238,12 @@ impl Zval {
         if self.is_array() {
             unsafe {
                 let arr = self.value.arr;
-                // Check if the array is shared (refcount > 1)
-                // If so, we need to separate it (copy-on-write)
-                if (*arr).gc.refcount > 1 {
-                    // Decrement the refcount of the original array
+                let ht = &*arr;
+                if ht.is_immutable() {
+                    self.value.arr = zend_array_dup(arr);
+                } else if (*arr).gc.refcount > 1 {
                     (*arr).gc.refcount -= 1;
-                    // Duplicate the array to get our own private copy
-                    let new_arr = zend_array_dup(arr);
-                    // Update the zval to point to the new array
-                    self.value.arr = new_arr;
+                    self.value.arr = zend_array_dup(arr);
                 }
                 self.value.arr.as_mut()
             }
