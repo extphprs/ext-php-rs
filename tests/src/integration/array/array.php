@@ -124,3 +124,8 @@ assert(is_array($empty_hashmap), 'Empty HashMap should return an array');
 assert(count($empty_hashmap) === 0, 'Empty HashMap should return an empty array');
 $empty_hashmap['key'] = 'value';
 assert(count($empty_hashmap) === 1, 'Should be able to add elements to empty HashMap result');
+
+$empty_for_mut = [];
+assert(test_array_mut_empty($empty_for_mut) === 1, '&mut ZendHashTable should work on empty array without segfault');
+assert(array_key_exists('added', $empty_for_mut), 'Rust should have added a key to the empty array');
+assert($empty_for_mut['added'] === 'value', 'Added value should be correct');

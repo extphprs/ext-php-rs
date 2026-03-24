@@ -92,6 +92,12 @@ pub fn test_empty_hashmap() -> HashMap<String, String> {
     HashMap::new()
 }
 
+#[php_function]
+pub fn test_array_mut_empty(arr: &mut ZendHashTable) -> i64 {
+    arr.insert("added", "value").ok();
+    i64::try_from(arr.len()).unwrap_or(i64::MAX)
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_array))
@@ -106,6 +112,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(test_empty_array_is_immutable))
         .function(wrap_function!(test_empty_vec))
         .function(wrap_function!(test_empty_hashmap))
+        .function(wrap_function!(test_array_mut_empty))
 }
 
 #[cfg(test)]
