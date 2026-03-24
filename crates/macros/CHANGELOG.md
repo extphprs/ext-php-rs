@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.9](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.8...ext-php-rs-derive-v0.11.9) - 2026-03-24
+
+### Fixed
+- *(class)* Implement clone behavior ([#685](https://github.com/extphprs/ext-php-rs/pull/685)) (by @ptondereau) [[#685](https://github.com/extphprs/ext-php-rs/issues/685)] 
+- *(stubs)* Syntax error on numeric literal suffixes in defaults #492 ([#679](https://github.com/extphprs/ext-php-rs/pull/679)) (by @kakserpom) [[#492](https://github.com/extphprs/ext-php-rs/issues/492)] [[#679](https://github.com/extphprs/ext-php-rs/issues/679)] 
+
+### Other
+- *(showcase)* Add grpc-php-rs to usage examples ([#686](https://github.com/extphprs/ext-php-rs/pull/686)) (by @BSN4) [[#686](https://github.com/extphprs/ext-php-rs/issues/686)] 
+- Replace inline project list with awesome-ext-php-rs link ([#691](https://github.com/extphprs/ext-php-rs/pull/691)) (by @ptondereau) [[#691](https://github.com/extphprs/ext-php-rs/issues/691)] 
 ## [0.11.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.7...ext-php-rs-derive-v0.11.8) - 2026-02-05
 
 ### Added
