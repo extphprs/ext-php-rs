@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4ecb5763.js";
+            window.path_to_searchindex_js = "searchindex-625ae72e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-89b70999.js"></script>
+        <script src="toc-4cb40497.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1891,6 +1891,48 @@ pub fn callable_parameter(call: ZendCallable) {
     dbg!(val);
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h3 id="named-arguments-php-80"><a class="header" href="#named-arguments-php-80">Named Arguments (PHP 8.0+)</a></h3>
+<p>You can call PHP functions with named arguments using <code>try_call_named</code> or
+<code>try_call_with_named</code>. Named arguments allow you to pass parameters by name
+rather than position, which is especially useful when dealing with functions
+that have many optional parameters.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+use ext_php_rs::call_user_func_named;
+
+#[php_function]
+pub fn call_with_named_args() -&gt; String {
+    // Get str_replace function
+    let str_replace = ZendCallable::try_from_name("str_replace")
+        .expect("str_replace not found");
+
+    // Call with named arguments in any order
+    let result = str_replace.try_call_named(&amp;[
+        ("subject", &amp;"Hello world"),
+        ("search", &amp;"world"),
+        ("replace", &amp;"PHP"),
+    ]).expect("Failed to call str_replace");
+
+    result.string().unwrap_or_default()
+}
+
+#[php_function]
+pub fn call_with_mixed_args(callback: ZendCallable) {
+    // Mix positional and named arguments
+    let result = callback.try_call_with_named(
+        &amp;[&amp;"positional_arg"],  // positional args first
+        &amp;[("named", &amp;"named_value")],  // then named args
+    ).expect("Failed to call function");
+    dbg!(result);
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>There’s also a convenient <code>call_user_func_named!</code> macro:</p>
+<pre><code class="language-rust ignore">// Named arguments only
+call_user_func_named!(callable, arg1: value1, arg2: value2)?;
+
+// Positional arguments followed by named arguments
+call_user_func_named!(callable, [pos1, pos2], named1: val1, named2: val2)?;</code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="functions--methods"><a class="header" href="#functions--methods">Functions &amp; methods</a></h1>
 <p>PHP functions and methods are represented by the <code>Function</code> struct.</p>
@@ -2940,6 +2982,38 @@ pub struct MaybeReadonlyClass {
 </ul>
 <p>This is <strong>optional</strong> - if your extension only targets PHP 8.2+, you can use
 <code>#[php(readonly)]</code> directly without any build script setup.</p>
+<h2 id="cloning"><a class="header" href="#cloning">Cloning</a></h2>
+<p>PHP’s native <code>clone</code> operator is supported for <code>#[php_class]</code> structs that
+derive <code>Clone</code>. Add <code>#[derive(Clone)]</code> to your struct and the cloned PHP object
+will contain a proper copy of the Rust data:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_class]
+#[derive(Clone)]
+pub struct Style {
+    #[php(prop)]
+    pub font_size: f64,
+    #[php(prop)]
+    pub color: String,
+}
+
+#[php_impl]
+impl Style {
+    pub fn __construct(font_size: f64, color: String) -&gt; Self {
+        Self { font_size, color }
+    }
+}</code></pre>
+<pre><code class="language-php">$style = new Style(12.0, 'red');
+$copy = clone $style;
+
+$copy-&gt;fontSize = 16.0;
+echo $style-&gt;fontSize;  // 12.0 — original is unchanged
+</code></pre>
+<p>Structs that do <strong>not</strong> derive <code>Clone</code> will throw an error when cloned:</p>
+<pre><code class="language-php">// If MyClass doesn't #[derive(Clone)]:
+$obj = new MyClass();
+$copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
+</code></pre>
 <h2 id="implementing-iterator"><a class="header" href="#implementing-iterator">Implementing Iterator</a></h2>
 <p>To make a Rust class usable with PHP’s <code>foreach</code> loop, implement the
 <a href="https://www.php.net/manual/en/class.iterator.php"><code>Iterator</code></a> interface.
@@ -4729,6 +4803,163 @@ and <code>ExceptionInfo</code> support lazy backtrace capture.</p>
 <li>Only one exception observer can be registered per extension</li>
 <li>Observers are registered globally for the entire PHP process</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="embedded-php-execution"><a class="header" href="#embedded-php-execution">Embedded PHP Execution</a></h1>
+<p>Extensions sometimes need to execute PHP code at runtime for setup tasks
+like registering autoloaders, defining helper classes, or configuring error
+handlers. The <code>php_eval</code> module lets you embed <code>.php</code> files into your
+extension binary at compile time and execute them from Rust.</p>
+<h2 id="why-not-eval"><a class="header" href="#why-not-eval">Why Not <code>eval</code>?</a></h2>
+<p>This module uses <code>zend_compile_string</code> + <code>zend_execute</code> instead of
+<code>zend_eval_string</code> because:</p>
+<ul>
+<li><code>zend_eval_string</code> triggers security scanner false positives (eval-like
+semantics)</li>
+<li>Some hardened PHP builds disable eval-like functionality</li>
+<li>The embedded code is static bytes in the binary – there is no injection risk</li>
+</ul>
+<h2 id="basic-usage-1"><a class="header" href="#basic-usage-1">Basic Usage</a></h2>
+<h3 id="1-write-your-php-file"><a class="header" href="#1-write-your-php-file">1. Write your PHP file</a></h3>
+<p>Create a normal <code>.php</code> file with full IDE support (syntax highlighting,
+linting, static analysis):</p>
+<pre><code class="language-php">&lt;?php
+// php/setup.php
+
+spl_autoload_register(function (string $class): void {
+    $prefix = 'Acme\\Encryption\\';
+    if (str_starts_with($class, $prefix)) {
+        $relative = substr($class, strlen($prefix));
+        $file = __DIR__ . '/src/' . str_replace('\\', '/', $relative) . '.php';
+        if (file_exists($file)) {
+            require $file;
+        }
+    }
+});
+
+function acme_encrypt_version(): string {
+    return '1.0.0';
+}
+</code></pre>
+<h3 id="2-embed-and-execute-from-rust"><a class="header" href="#2-embed-and-execute-from-rust">2. Embed and execute from Rust</a></h3>
+<p>Use <code>include_bytes!</code> or <code>include_str!</code> to embed the file at compile time,
+then call <code>php_eval::execute()</code> from whatever lifecycle hook fits your target
+SAPI. The function accepts any type that implements <code>AsRef&lt;[u8]&gt;</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::php_eval;
+
+// Both forms work:
+const SETUP: &amp;[u8] = include_bytes!("../php/setup.php");
+// const SETUP: &amp;str = include_str!("../php/setup.php");
+
+unsafe extern "C" fn on_request_start(
+    _type: i32,
+    _module_number: i32,
+) -&gt; i32 {
+    if let Err(e) = php_eval::execute(SETUP) {
+        eprintln!("Failed to run embedded PHP setup: {:?}", e);
+    }
+    0
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.request_startup_function(on_request_start)
+}</code></pre>
+<h2 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h2>
+<h3 id="php_evalexecutecode-impl-asrefu8---result-phpevalerror"><a class="header" href="#php_evalexecutecode-impl-asrefu8---result-phpevalerror"><code>php_eval::execute(code: impl AsRef&lt;[u8]&gt;) -&gt; Result&lt;(), PhpEvalError&gt;</code></a></h3>
+<p>Compiles and executes the given PHP source within the running PHP engine.</p>
+<p><strong>Arguments:</strong></p>
+<ul>
+<li><code>code</code> – Raw PHP source, typically from <code>include_bytes!</code> or <code>include_str!</code>.
+Any type implementing <code>AsRef&lt;[u8]&gt;</code> is accepted (<code>&amp;[u8]</code>, <code>&amp;str</code>,
+<code>String</code>, <code>Vec&lt;u8&gt;</code>, etc.).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<ul>
+<li><code>Ok(())</code> on success.</li>
+<li><code>Err(PhpEvalError::MissingOpenTag)</code> if the code does not start with
+<code>&lt;?php</code> (case-insensitive).</li>
+<li><code>Err(PhpEvalError::CompilationFailed)</code> if PHP cannot compile the code
+(syntax error).</li>
+<li><code>Err(PhpEvalError::ExecutionFailed)</code> if the code throws an unhandled
+exception.</li>
+<li><code>Err(PhpEvalError::Bailout)</code> if a PHP fatal error occurs.</li>
+</ul>
+<h3 id="input-handling"><a class="header" href="#input-handling">Input handling</a></h3>
+<p>The code <strong>must</strong> start with a <code>&lt;?php</code> opening tag (case-insensitive).
+The tag is stripped before compilation.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Input</th><th>Handling</th></tr>
+</thead>
+<tbody>
+<tr><td><code>&lt;?php</code> opening tag</td><td><strong>Required</strong> (case-insensitive), stripped before compilation</td></tr>
+<tr><td>UTF-8 BOM (<code>0xEF 0xBB 0xBF</code>)</td><td>Stripped before compilation</td></tr>
+<tr><td>Empty after tag (e.g. <code>&lt;?php</code>)</td><td>Returns <code>Ok(())</code> immediately</td></tr>
+<tr><td>No <code>&lt;?php</code> tag (including empty input)</td><td>Returns <code>Err(MissingOpenTag)</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="lifecycle-hooks"><a class="header" href="#lifecycle-hooks">Lifecycle Hooks</a></h2>
+<p>The module does not prescribe <em>when</em> to run embedded PHP. The SAPI landscape
+is fragmented – FrankenPHP in worker mode does not trigger RINIT per request,
+for example. Choose the hook that fits your target:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Hook</th><th>Use case</th></tr>
+</thead>
+<tbody>
+<tr><td>RINIT (<code>request_startup_function</code>)</td><td>Per-request setup (classic php-fpm / mod_php)</td></tr>
+<tr><td>MINIT (<code>startup_function</code>)</td><td>One-time global setup</td></tr>
+<tr><td>Custom SAPI callback</td><td>Worker-mode runtimes (FrankenPHP, RoadRunner)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
+<p>Errors during embedded PHP execution should not crash the host process.
+The recommended pattern is to log and continue:</p>
+<pre><code class="language-rust ignore">if let Err(e) = php_eval::execute(SETUP_CODE) {
+    match e {
+        PhpEvalError::MissingOpenTag =&gt; {
+            eprintln!("embedded PHP missing &lt;?php open tag");
+        }
+        PhpEvalError::CompilationFailed =&gt; {
+            eprintln!("embedded PHP syntax error");
+        }
+        PhpEvalError::ExecutionFailed =&gt; {
+            eprintln!("embedded PHP threw an exception");
+        }
+        PhpEvalError::Bailout =&gt; {
+            eprintln!("embedded PHP fatal error");
+        }
+    }
+}</code></pre>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<ol>
+<li>
+<p><strong>Build time</strong>: <code>include_bytes!</code> embeds the <code>.php</code> file contents into the
+extension binary as a <code>&amp;[u8]</code> constant.</p>
+</li>
+<li>
+<p><strong>Runtime</strong>: <code>php_eval::execute()</code> strips the <code>&lt;?php</code> tag and BOM, then
+calls two C wrapper functions in <code>wrapper.c</code>:</p>
+<ul>
+<li><code>ext_php_rs_zend_compile_string</code> – compiles the source into an op_array.
+On PHP 8.2+ it passes <code>ZEND_COMPILE_POSITION_AFTER_OPEN_TAG</code> so the
+scanner starts directly in PHP mode. On PHP 8.1 the two-argument form
+is used.</li>
+<li><code>ext_php_rs_zend_execute</code> – executes the op_array, sets the execution
+scope, then cleans up static vars and frees the op_array.</li>
+</ul>
+</li>
+<li>
+<p><strong>Safety</strong>: The entire execution is wrapped in <code>try_catch</code> to catch PHP
+bailouts (longjmp) without unwinding the Rust stack. Error reporting is
+suppressed during execution and restored afterward.</p>
+</li>
+</ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="allowed-bindings"><a class="header" href="#allowed-bindings">Allowed Bindings</a></h1>
 <p>The extension limits the bindings that are generated by <code>bindgen</code> to a subset of the original bindings.

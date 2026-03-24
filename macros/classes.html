@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4ecb5763.js";
+            window.path_to_searchindex_js = "../searchindex-625ae72e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-89b70999.js"></script>
+        <script src="../toc-4cb40497.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -658,6 +658,38 @@ pub struct MaybeReadonlyClass {
 </ul>
 <p>This is <strong>optional</strong> - if your extension only targets PHP 8.2+, you can use
 <code>#[php(readonly)]</code> directly without any build script setup.</p>
+<h2 id="cloning"><a class="header" href="#cloning">Cloning</a></h2>
+<p>PHP’s native <code>clone</code> operator is supported for <code>#[php_class]</code> structs that
+derive <code>Clone</code>. Add <code>#[derive(Clone)]</code> to your struct and the cloned PHP object
+will contain a proper copy of the Rust data:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+#[php_class]
+#[derive(Clone)]
+pub struct Style {
+    #[php(prop)]
+    pub font_size: f64,
+    #[php(prop)]
+    pub color: String,
+}
+
+#[php_impl]
+impl Style {
+    pub fn __construct(font_size: f64, color: String) -&gt; Self {
+        Self { font_size, color }
+    }
+}</code></pre>
+<pre><code class="language-php">$style = new Style(12.0, 'red');
+$copy = clone $style;
+
+$copy-&gt;fontSize = 16.0;
+echo $style-&gt;fontSize;  // 12.0 — original is unchanged
+</code></pre>
+<p>Structs that do <strong>not</strong> derive <code>Clone</code> will throw an error when cloned:</p>
+<pre><code class="language-php">// If MyClass doesn't #[derive(Clone)]:
+$obj = new MyClass();
+$copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
+</code></pre>
 <h2 id="implementing-iterator"><a class="header" href="#implementing-iterator">Implementing Iterator</a></h2>
 <p>To make a Rust class usable with PHP’s <code>foreach</code> loop, implement the
 <a href="https://www.php.net/manual/en/class.iterator.php"><code>Iterator</code></a> interface.

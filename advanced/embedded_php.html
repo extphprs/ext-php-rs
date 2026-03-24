@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Binary - ext-php-rs</title>
+        <title>Embedded PHP - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -173,60 +173,172 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="binary"><a class="header" href="#binary"><code>Binary</code></a></h1>
-<p>Binary data is represented as a string in PHP. The most common source of this
-data is from the <a href="https://www.php.net/manual/en/function.pack.php"><code>pack</code></a> and <a href="https://www.php.net/manual/en/function.unpack.php"><code>unpack</code></a> functions. It allows you to transfer
-arbitrary binary data between Rust and PHP.</p>
+                        <h1 id="embedded-php-execution"><a class="header" href="#embedded-php-execution">Embedded PHP Execution</a></h1>
+<p>Extensions sometimes need to execute PHP code at runtime for setup tasks
+like registering autoloaders, defining helper classes, or configuring error
+handlers. The <code>php_eval</code> module lets you embed <code>.php</code> files into your
+extension binary at compile time and execute them from Rust.</p>
+<h2 id="why-not-eval"><a class="header" href="#why-not-eval">Why Not <code>eval</code>?</a></h2>
+<p>This module uses <code>zend_compile_string</code> + <code>zend_execute</code> instead of
+<code>zend_eval_string</code> because:</p>
+<ul>
+<li><code>zend_eval_string</code> triggers security scanner false positives (eval-like
+semantics)</li>
+<li>Some hardened PHP builds disable eval-like functionality</li>
+<li>The embedded code is static bytes in the binary – there is no injection risk</li>
+</ul>
+<h2 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h2>
+<h3 id="1-write-your-php-file"><a class="header" href="#1-write-your-php-file">1. Write your PHP file</a></h3>
+<p>Create a normal <code>.php</code> file with full IDE support (syntax highlighting,
+linting, static analysis):</p>
+<pre><code class="language-php">&lt;?php
+// php/setup.php
+
+spl_autoload_register(function (string $class): void {
+    $prefix = 'Acme\\Encryption\\';
+    if (str_starts_with($class, $prefix)) {
+        $relative = substr($class, strlen($prefix));
+        $file = __DIR__ . '/src/' . str_replace('\\', '/', $relative) . '.php';
+        if (file_exists($file)) {
+            require $file;
+        }
+    }
+});
+
+function acme_encrypt_version(): string {
+    return '1.0.0';
+}
+</code></pre>
+<h3 id="2-embed-and-execute-from-rust"><a class="header" href="#2-embed-and-execute-from-rust">2. Embed and execute from Rust</a></h3>
+<p>Use <code>include_bytes!</code> or <code>include_str!</code> to embed the file at compile time,
+then call <code>php_eval::execute()</code> from whatever lifecycle hook fits your target
+SAPI. The function accepts any type that implements <code>AsRef&lt;[u8]&gt;</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::php_eval;
+
+// Both forms work:
+const SETUP: &amp;[u8] = include_bytes!("../php/setup.php");
+// const SETUP: &amp;str = include_str!("../php/setup.php");
+
+unsafe extern "C" fn on_request_start(
+    _type: i32,
+    _module_number: i32,
+) -&gt; i32 {
+    if let Err(e) = php_eval::execute(SETUP) {
+        eprintln!("Failed to run embedded PHP setup: {:?}", e);
+    }
+    0
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.request_startup_function(on_request_start)
+}</code></pre>
+<h2 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h2>
+<h3 id="php_evalexecutecode-impl-asrefu8---result-phpevalerror"><a class="header" href="#php_evalexecutecode-impl-asrefu8---result-phpevalerror"><code>php_eval::execute(code: impl AsRef&lt;[u8]&gt;) -&gt; Result&lt;(), PhpEvalError&gt;</code></a></h3>
+<p>Compiles and executes the given PHP source within the running PHP engine.</p>
+<p><strong>Arguments:</strong></p>
+<ul>
+<li><code>code</code> – Raw PHP source, typically from <code>include_bytes!</code> or <code>include_str!</code>.
+Any type implementing <code>AsRef&lt;[u8]&gt;</code> is accepted (<code>&amp;[u8]</code>, <code>&amp;str</code>,
+<code>String</code>, <code>Vec&lt;u8&gt;</code>, etc.).</li>
+</ul>
+<p><strong>Returns:</strong></p>
+<ul>
+<li><code>Ok(())</code> on success.</li>
+<li><code>Err(PhpEvalError::MissingOpenTag)</code> if the code does not start with
+<code>&lt;?php</code> (case-insensitive).</li>
+<li><code>Err(PhpEvalError::CompilationFailed)</code> if PHP cannot compile the code
+(syntax error).</li>
+<li><code>Err(PhpEvalError::ExecutionFailed)</code> if the code throws an unhandled
+exception.</li>
+<li><code>Err(PhpEvalError::Bailout)</code> if a PHP fatal error occurs.</li>
+</ul>
+<h3 id="input-handling"><a class="header" href="#input-handling">Input handling</a></h3>
+<p>The code <strong>must</strong> start with a <code>&lt;?php</code> opening tag (case-insensitive).
+The tag is stripped before compilation.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th><code>T</code> parameter</th><th><code>&amp;T</code> parameter</th><th><code>T</code> Return type</th><th><code>&amp;T</code> Return type</th><th>PHP representation</th></tr>
+<tr><th>Input</th><th>Handling</th></tr>
 </thead>
 <tbody>
-<tr><td>Yes</td><td>No</td><td>Yes</td><td>No</td><td><code>zend_string</code></td></tr>
+<tr><td><code>&lt;?php</code> opening tag</td><td><strong>Required</strong> (case-insensitive), stripped before compilation</td></tr>
+<tr><td>UTF-8 BOM (<code>0xEF 0xBB 0xBF</code>)</td><td>Stripped before compilation</td></tr>
+<tr><td>Empty after tag (e.g. <code>&lt;?php</code>)</td><td>Returns <code>Ok(())</code> immediately</td></tr>
+<tr><td>No <code>&lt;?php</code> tag (including empty input)</td><td>Returns <code>Err(MissingOpenTag)</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>The binary type is represented as a string in PHP. Although not encoded, the
-data is converted into an array and then the pointer to the data is set as the
-string pointer, with the length of the array being the length of the string.</p>
-<p><code>Binary&lt;T&gt;</code> is valid when <code>T</code> implements <code>Pack</code>. This is currently implemented
-on most primitive numbers (i8, i16, i32, i64, u8, u16, u32, u64, isize, usize,
-f32, f64).</p>
-<h2 id="rust-usage"><a class="header" href="#rust-usage">Rust Usage</a></h2>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
-</span><span class="boring">extern crate ext_php_rs;
-</span>use ext_php_rs::prelude::*;
-use ext_php_rs::binary::Binary;
-
-#[php_function]
-pub fn test_binary(input: Binary&lt;u32&gt;) -&gt; Binary&lt;u32&gt; {
-    for i in input.iter() {
-        println!("{}", i);
+<h2 id="lifecycle-hooks"><a class="header" href="#lifecycle-hooks">Lifecycle Hooks</a></h2>
+<p>The module does not prescribe <em>when</em> to run embedded PHP. The SAPI landscape
+is fragmented – FrankenPHP in worker mode does not trigger RINIT per request,
+for example. Choose the hook that fits your target:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Hook</th><th>Use case</th></tr>
+</thead>
+<tbody>
+<tr><td>RINIT (<code>request_startup_function</code>)</td><td>Per-request setup (classic php-fpm / mod_php)</td></tr>
+<tr><td>MINIT (<code>startup_function</code>)</td><td>One-time global setup</td></tr>
+<tr><td>Custom SAPI callback</td><td>Worker-mode runtimes (FrankenPHP, RoadRunner)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
+<p>Errors during embedded PHP execution should not crash the host process.
+The recommended pattern is to log and continue:</p>
+<pre><code class="language-rust ignore">if let Err(e) = php_eval::execute(SETUP_CODE) {
+    match e {
+        PhpEvalError::MissingOpenTag =&gt; {
+            eprintln!("embedded PHP missing &lt;?php open tag");
+        }
+        PhpEvalError::CompilationFailed =&gt; {
+            eprintln!("embedded PHP syntax error");
+        }
+        PhpEvalError::ExecutionFailed =&gt; {
+            eprintln!("embedded PHP threw an exception");
+        }
+        PhpEvalError::Bailout =&gt; {
+            eprintln!("embedded PHP fatal error");
+        }
     }
-
-    vec![5, 4, 3, 2, 1]
-        .into_iter()
-        .collect::&lt;Binary&lt;_&gt;&gt;()
-}
-<span class="boring">fn main() {}</span></code></pre>
-<h2 id="php-usage"><a class="header" href="#php-usage">PHP Usage</a></h2>
-<pre><code class="language-php">&lt;?php
-
-$data = pack('L*', 1, 2, 3, 4, 5);
-$output = unpack('L*', test_binary($data));
-var_dump($output); // array(5) { [0] =&gt; 5, [1] =&gt; 4, [2] =&gt; 3, [3] =&gt; 2, [4] =&gt; 1 }
-</code></pre>
+}</code></pre>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<ol>
+<li>
+<p><strong>Build time</strong>: <code>include_bytes!</code> embeds the <code>.php</code> file contents into the
+extension binary as a <code>&amp;[u8]</code> constant.</p>
+</li>
+<li>
+<p><strong>Runtime</strong>: <code>php_eval::execute()</code> strips the <code>&lt;?php</code> tag and BOM, then
+calls two C wrapper functions in <code>wrapper.c</code>:</p>
+<ul>
+<li><code>ext_php_rs_zend_compile_string</code> – compiles the source into an op_array.
+On PHP 8.2+ it passes <code>ZEND_COMPILE_POSITION_AFTER_OPEN_TAG</code> so the
+scanner starts directly in PHP mode. On PHP 8.1 the two-argument form
+is used.</li>
+<li><code>ext_php_rs_zend_execute</code> – executes the op_array, sets the execution
+scope, then cleans up static vars and frees the op_array.</li>
+</ul>
+</li>
+<li>
+<p><strong>Safety</strong>: The entire execution is wrapped in <code>try_catch</code> to catch PHP
+bailouts (longjmp) without unwinding the Rust stack. Error reporting is
+suppressed during execution and restored afterward.</p>
+</li>
+</ol>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../types/zend_hashtable.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/observer.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../types/binary_slice.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/allowed_bindings.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -236,11 +348,11 @@ var_dump($output); // array(5) { [0] =&gt; 5, [1] =&gt; 4, [2] =&gt; 3, [3] =&gt
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../types/zend_hashtable.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/observer.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../types/binary_slice.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/allowed_bindings.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
