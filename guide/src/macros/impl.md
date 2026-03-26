@@ -29,6 +29,10 @@ Methods basically follow the same rules as functions, so read about the
 [`php_function`] macro first. The primary difference between functions and
 methods is they are bounded by their class object.
 
+Both instance and static methods benefit from the same zero-allocation fast
+path as standalone functions. See the [Performance](./function.md#performance)
+section for details.
+
 Class methods can take a `&self` or `&mut self` parameter. They cannot take a
 consuming `self` parameter. Static methods can omit this `self` parameter.
 

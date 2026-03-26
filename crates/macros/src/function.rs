@@ -255,7 +255,9 @@ impl<'a> Function<'a> {
                 }
             );
 
-        let handler_body = if returns_this {
+        let handler_body = if self.is_fast_path_eligible(call_type) {
+            self.build_fast_handler_body(call_type)
+        } else if returns_this {
             quote! {
                 use ::ext_php_rs::convert::IntoZval;
 
@@ -287,6 +289,7 @@ impl<'a> Function<'a> {
         quote! {
             ::ext_php_rs::builders::FunctionBuilder::new(#name, {
                 ::ext_php_rs::zend_fastcall! {
+                    #[allow(clippy::used_underscore_binding)]
                     extern fn handler(
                         ex: &mut ::ext_php_rs::zend::ExecuteData,
                         retval: &mut ::ext_php_rs::types::Zval,
@@ -479,6 +482,271 @@ impl<'a> Function<'a> {
                     #(#variadic_bindings)*
 
                     #call
+                }
+            }
+        }
+    }
+
+    /// Whether this function is eligible for the zero-alloc fast path.
+    /// Requires: no variadic parameters.
+    fn is_fast_path_eligible(&self, call_type: &CallType) -> bool {
+        let no_variadic = !self.args.typed.iter().any(|arg| arg.variadic);
+        let supported_call_type = matches!(
+            call_type,
+            CallType::Function
+                | CallType::Method {
+                    receiver: MethodReceiver::Static
+                        | MethodReceiver::Class
+                        | MethodReceiver::ZendClassObject,
+                    ..
+                }
+        );
+        no_variadic && supported_call_type
+    }
+
+    /// Generates a zero-alloc fast path handler body.
+    ///
+    /// Instead of building `ArgParser` with `Vec`/`String` heap allocations,
+    /// reads zvals directly from the call frame via pointer arithmetic
+    /// and converts with `FromZvalMut` inline. Matches the pattern used by
+    /// PHP's `ZEND_PARSE_PARAMETERS_START`/`END` C macros.
+    fn restore_mutability(ty: &Type) -> Type {
+        if let Type::Reference(r) = ty {
+            let mut mref = r.clone();
+            mref.mutability = Some(syn::token::Mut::default());
+            Type::Reference(mref)
+        } else {
+            ty.clone()
+        }
+    }
+
+    fn build_fast_arg_binding(i: usize, arg: &TypedArg<'_>, min_num_args: usize) -> TokenStream {
+        let name = arg.name;
+        let ty = arg.clean_ty();
+        let zval_ident = format_ident!("__zval_{}", i);
+
+        // parse_typed unwraps Option<T> → T and strips &mut → &.
+        // Restore mutability for as_ref args so FromZvalMut resolves correctly.
+        let convert_ty = if arg.as_ref {
+            Self::restore_mutability(&ty)
+        } else {
+            ty.clone()
+        };
+
+        let binding_ty: Type = if !arg.nullable {
+            ty.clone()
+        } else if arg.as_ref {
+            let mty = Self::restore_mutability(&ty);
+            syn::parse_quote! { Option<#mty> }
+        } else {
+            syn::parse_quote! { Option<#ty> }
+        };
+
+        let read_zval = quote! {
+            let #zval_ident = unsafe { ex.zend_call_arg(#i) };
+            let Some(#zval_ident) = #zval_ident else { return; };
+        };
+
+        let from_zval = quote! {
+            <#convert_ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
+                #zval_ident.dereference_mut()
+            )
+        };
+
+        let convert = if arg.nullable {
+            from_zval.clone()
+        } else {
+            quote! {
+                match #from_zval {
+                    Some(val) => val,
+                    None => {
+                        ::ext_php_rs::exception::PhpException::default(
+                            concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
+                        ).throw().expect("Failed to throw PHP exception.");
+                        return;
+                    }
+                }
+            }
+        };
+
+        let throw_invalid = quote! {
+            ::ext_php_rs::exception::PhpException::default(
+                concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
+            ).throw().expect("Failed to throw PHP exception.");
+            return;
+        };
+
+        let throw_null = quote! {
+            ::ext_php_rs::exception::PhpException::new(
+                concat!("Argument `$", stringify!(#name), "` must not be null").into(),
+                0,
+                ::ext_php_rs::zend::ce::type_error(),
+            ).throw().expect("Failed to throw PHP exception.");
+            return;
+        };
+
+        // Required arg — always present
+        if i < min_num_args {
+            return quote! {
+                #read_zval
+                let #name: #binding_ty = #convert;
+            };
+        }
+
+        // Optional arg — may be omitted
+        let fallback = match (&arg.default, arg.nullable) {
+            (Some(expr), _) => quote! { #expr },
+            (None, true) => quote! { None },
+            (None, false) => throw_invalid.clone(),
+        };
+
+        // Non-nullable with default: explicit null must throw TypeError
+        if !arg.nullable && arg.default.is_some() {
+            return quote! {
+                let #name: #binding_ty = if __num_args > #i {
+                    #read_zval
+                    if #zval_ident.is_null() { #throw_null }
+                    #convert
+                } else {
+                    #fallback
+                };
+            };
+        }
+
+        quote! {
+            let #name: #binding_ty = if __num_args > #i {
+                #read_zval
+                #convert
+            } else {
+                #fallback
+            };
+        }
+    }
+
+    fn build_fast_count_check(min_num_args: usize, max_num_args: usize) -> TokenStream {
+        let min_u32 = u32::try_from(min_num_args).expect("too many args");
+        let max_u32 = u32::try_from(max_num_args).expect("too many args");
+
+        if min_num_args == max_num_args {
+            quote! {
+                let __num_args = unsafe { ex.This.u2.num_args } as usize;
+                if __num_args != #min_num_args {
+                    unsafe {
+                        ::ext_php_rs::ffi::zend_wrong_parameters_count_error(#min_u32, #max_u32);
+                    };
+                    return;
+                }
+            }
+        } else {
+            quote! {
+                let __num_args = unsafe { ex.This.u2.num_args } as usize;
+                if !(#min_num_args..=#max_num_args).contains(&__num_args) {
+                    unsafe {
+                        ::ext_php_rs::ffi::zend_wrong_parameters_count_error(#min_u32, #max_u32);
+                    };
+                    return;
+                }
+            }
+        }
+    }
+
+    fn build_fast_handler_body(&self, call_type: &CallType) -> TokenStream {
+        let ident = self.ident;
+        let (required, _not_required) = self.args.split_args(self.optional.as_ref());
+        let min_num_args = required.len();
+        let max_num_args = self.args.typed.len();
+
+        // Arg count validation (matches zend_wrong_parameters_count_error)
+        let count_check = Self::build_fast_count_check(min_num_args, max_num_args);
+
+        let arg_bindings: Vec<TokenStream> = self
+            .args
+            .typed
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| Self::build_fast_arg_binding(i, arg, min_num_args))
+            .collect();
+
+        let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
+
+        let this_error = quote! {
+            ::ext_php_rs::exception::PhpException::default(
+                "Failed to retrieve reference to `$this`".into()
+            ).throw().unwrap();
+            return;
+        };
+
+        let returns_this = returns_self_ref(self.output);
+
+        let (this_binding, call) = match call_type {
+            CallType::Function => (quote! {}, quote! { #ident(#(#arg_names),*) }),
+            CallType::Method {
+                class,
+                receiver: MethodReceiver::Static,
+                ..
+            } => (quote! {}, quote! { #class::#ident(#(#arg_names),*) }),
+            CallType::Method {
+                class,
+                receiver: MethodReceiver::Class,
+                ..
+            } => (
+                quote! {
+                    let __this = match ex.get_object::<#class>() {
+                        Some(v) => v,
+                        None => { #this_error }
+                    };
+                },
+                if returns_this {
+                    quote! { let _ = __this.#ident(#(#arg_names),*); }
+                } else {
+                    quote! { __this.#ident(#(#arg_names),*) }
+                },
+            ),
+            CallType::Method {
+                class,
+                receiver: MethodReceiver::ZendClassObject,
+                ..
+            } => (
+                quote! {
+                    let __this = match ex.get_object::<#class>() {
+                        Some(v) => v,
+                        None => { #this_error }
+                    };
+                },
+                if returns_this {
+                    quote! { { let _ = #class::#ident(__this, #(#arg_names),*); } }
+                } else {
+                    quote! { #class::#ident(__this, #(#arg_names),*) }
+                },
+            ),
+        };
+
+        if returns_this {
+            quote! {
+                use ::ext_php_rs::convert::{FromZvalMut, IntoZval};
+
+                #count_check
+                #(#arg_bindings)*
+                #this_binding
+                #call
+
+                if let Err(e) = __this.set_zval(retval, false) {
+                    let e: ::ext_php_rs::exception::PhpException = e.into();
+                    e.throw().expect("Failed to throw PHP exception.");
+                }
+            }
+        } else {
+            quote! {
+                use ::ext_php_rs::convert::{FromZvalMut, IntoZval};
+
+                #count_check
+                #(#arg_bindings)*
+                #this_binding
+                let __result = { #call };
+
+                if let Err(e) = __result.set_zval(retval, false) {
+                    let e: ::ext_php_rs::exception::PhpException = e.into();
+                    e.throw().expect("Failed to throw PHP exception.");
                 }
             }
         }

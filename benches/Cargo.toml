@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-gungraun = "0.17.0"
+gungraun = "0.17.2"
 
 [features]
 default = ["enum", "runtime", "closure"]

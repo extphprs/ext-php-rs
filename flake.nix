@@ -35,6 +35,7 @@
 
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+            export BINDGEN_EXTRA_CLANG_ARGS="-resource-dir ${pkgs.libclang.lib}/lib/clang/${pkgs.lib.versions.major (pkgs.lib.getVersion pkgs.clang)} -isystem ${pkgs.glibc.dev}/include"
           '';
         };
       };
