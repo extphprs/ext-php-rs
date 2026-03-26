@@ -1,3 +1,5 @@
+name: Archive PR Benchmark Branch
+
 on:
   pull_request_target:
     types: [closed]

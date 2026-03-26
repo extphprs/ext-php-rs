@@ -35,7 +35,6 @@
 
           shellHook = ''
             export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
-            export GUNGRAUN_VALGRIND_INCLUDE="${pkgs.valgrind.dev}/include"
           '';
         };
       };

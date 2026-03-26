@@ -1,0 +1,22 @@
+[package]
+name = "bench-ext"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+ext-php-rs = { path = "../../" }
+
+[features]
+default = ["enum", "runtime", "closure"]
+enum = ["ext-php-rs/enum"]
+anyhow = ["ext-php-rs/anyhow"]
+runtime = ["ext-php-rs/runtime"]
+closure = ["ext-php-rs/closure"]
+static = ["ext-php-rs/static"]
+
+[lib]
+name = "benches"
+crate-type = ["cdylib"]
+
+[workspace]

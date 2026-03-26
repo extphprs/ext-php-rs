@@ -1,25 +1,65 @@
+name: Master Benchmarks
+
 on:
   push:
-    branches: main
+    branches: master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  clang: "17"
+  php_version: "8.4"
 
 jobs:
   run_benchmarks:
-    name: Run PR Benchmarks
+    name: Run Master Benchmarks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php_version }}
+        env:
+          debug: true
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/llvm-${{ env.clang }}
+          key: ubuntu-latest-llvm-${{ env.clang }}
+      - name: Setup LLVM & Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ env.clang }}
+          directory: ${{ runner.temp }}/llvm-${{ env.clang }}
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      - name: Configure Clang
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
       - name: Install Valgrind
-        run: sudo apt update && sudo apt install -y valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
       - uses: taiki-e/install-action@cargo-binstall
       - name: Install gungraun-runner
         run: |
-          version=$(cargo metadata --format-version=1 |\
+          version=$(cargo metadata --manifest-path ./benches/Cargo.toml --format-version=1 |\
             jq '.packages[] | select(.name == "gungraun").version' |\
             tr -d '"'
           )
-          cargo binstall --no-confirm gungraun-runner --version $version
+          cargo binstall --no-confirm --force gungraun-runner --version $version
+          echo "GUNGRAUN_RUNNER=$(which gungraun-runner)" >> $GITHUB_ENV
       - name: Run Benchmarks
         run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
+      - uses: bencherdev/bencher@main
       - name: Track Benchmarks with Bencher
         run: |
           bencher run \

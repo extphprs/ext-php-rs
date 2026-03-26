@@ -2,7 +2,15 @@ name: Run Benchmarks
 
 on:
   pull_request:
-    types: [opened, reopened, edited, synchronize]
+    types: [opened, reopened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  clang: "17"
+  php_version: "8.4"
 
 jobs:
   run_benchmarks:
@@ -10,8 +18,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php_version }}
+        env:
+          debug: true
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/llvm-${{ env.clang }}
+          key: ubuntu-latest-llvm-${{ env.clang }}
+      - name: Setup LLVM & Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ env.clang }}
+          directory: ${{ runner.temp }}/llvm-${{ env.clang }}
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      - name: Configure Clang
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
       - name: Install Valgrind
-        run: sudo apt update && sudo apt install -y valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
       - uses: taiki-e/install-action@cargo-binstall
       - name: Install gungraun-runner
         run: |
@@ -19,14 +54,30 @@ jobs:
             jq '.packages[] | select(.name == "gungraun").version' |\
             tr -d '"'
           )
-          cargo binstall --no-confirm gungraun-runner --version $version
+          cargo binstall --no-confirm --force gungraun-runner --version $version
+          echo "GUNGRAUN_RUNNER=$(which gungraun-runner)" >> $GITHUB_ENV
       - name: Run Benchmarks
         run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
+        env:
+          NO_COLOR: "1"
+      - name: Benchmark Summary
+        run: |
+          echo '## Benchmark Results' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          sed 's/\x1b\[[0-9;]*m//g' benchmark_results.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload Benchmark Results
         uses: actions/upload-artifact@v6
         with:
           name: benchmark_results.txt
           path: ./benchmark_results.txt
+      - name: Save testbed name
+        run: php --version | head -n 1 > testbed.txt
+      - name: Upload Testbed
+        uses: actions/upload-artifact@v6
+        with:
+          name: testbed.txt
+          path: ./testbed.txt
       - name: Upload Pull Request Event
         uses: actions/upload-artifact@v6
         with:

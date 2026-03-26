@@ -5,21 +5,18 @@ edition = "2024"
 publish = false
 
 [dependencies]
-ext-php-rs = { path = "../" }
-gungraun = { version = "0.17.0", features = ["client_requests"] }
+gungraun = "0.17.0"
 
 [features]
 default = ["enum", "runtime", "closure"]
-enum = ["ext-php-rs/enum"]
-anyhow = ["ext-php-rs/anyhow"]
-runtime = ["ext-php-rs/runtime"]
-closure = ["ext-php-rs/closure"]
-static = ["ext-php-rs/static"]
-
-[lib]
-crate-type = ["cdylib"]
-bench = false
+enum = []
+anyhow = []
+runtime = []
+closure = []
+static = []
 
 [[bench]]
 name = "binary_bench"
 harness = false
+
+[workspace]
