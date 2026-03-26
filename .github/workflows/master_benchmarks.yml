@@ -59,11 +59,12 @@ jobs:
           echo "GUNGRAUN_RUNNER=$(which gungraun-runner)" >> $GITHUB_ENV
       - name: Run Benchmarks
         run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
+        env:
+          NO_COLOR: "1"
       - uses: bencherdev/bencher@main
       - name: Track Benchmarks with Bencher
         run: |
           bencher run \
-          --host 'https://bencher.php.rs/api' \
           --project ext-php-rs \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch master \
