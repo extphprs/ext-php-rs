@@ -1,0 +1,22 @@
+[package]
+name = "benches"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+gungraun = "0.17.0"
+
+[features]
+default = ["enum", "runtime", "closure"]
+enum = []
+anyhow = []
+runtime = []
+closure = []
+static = []
+
+[[bench]]
+name = "binary_bench"
+harness = false
+
+[workspace]

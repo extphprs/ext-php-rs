@@ -28,6 +28,7 @@
             php-dev
             libclang.lib
             clang
+            valgrind
           ];
 
           nativeBuildInputs = [ pkgs.rust-bin.stable.latest.default ];

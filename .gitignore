@@ -5,3 +5,4 @@ Cargo.lock
 /tmp
 /.direnv
 expand.rs
+callgrind.out.*

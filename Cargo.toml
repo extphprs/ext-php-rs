@@ -13,7 +13,7 @@ authors = [
 ]
 edition = "2024"
 categories = ["api-bindings"]
-exclude = ["/.github", "/.crates"]
+exclude = ["/.github", "/.crates", "/benches"]
 autotests = false
 
 [dependencies]
