@@ -71,5 +71,4 @@ jobs:
           --testbed "$(php --version | head -n 1)" \
           --err \
           --adapter rust_gungraun \
-          --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           --file "./benchmark_results.txt"
