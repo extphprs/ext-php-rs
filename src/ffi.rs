@@ -49,6 +49,8 @@ unsafe extern "C" {
         filename: *const c_char,
     ) -> *mut zend_op_array;
     pub fn ext_php_rs_zend_execute(op_array: *mut zend_op_array);
+
+    pub fn ext_php_rs_pemalloc(size: usize) -> *mut c_void;
 }
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
