@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.10](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.9...ext-php-rs-derive-v0.11.10) - 2026-03-27
+
+### Other
+- *(macros)* Zero-alloc fast path for #[php_function] codegen ([#699](https://github.com/extphprs/ext-php-rs/pull/699)) (by @ptondereau) [[#699](https://github.com/extphprs/ext-php-rs/issues/699)] 
 ## [0.11.9](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.8...ext-php-rs-derive-v0.11.9) - 2026-03-24
 
 ### Fixed
