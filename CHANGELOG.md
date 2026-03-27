@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [0.15.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.7...ext-php-rs-v0.15.8) - 2026-03-27
+
+### Fixed
+- *(benches)* Remove --github-actions from master benchmark workflow ([#697](https://github.com/extphprs/ext-php-rs/pull/697)) (by @ptondereau) [[#697](https://github.com/extphprs/ext-php-rs/issues/697)] 
+- *(benches)* Use bencher.dev default host, add NO_COLOR ([#696](https://github.com/extphprs/ext-php-rs/pull/696)) (by @ptondereau) [[#696](https://github.com/extphprs/ext-php-rs/issues/696)] 
+
+### Other
+- *(benches)* Add basic benchmark infrastructure ([#602](https://github.com/extphprs/ext-php-rs/pull/602)) (by @Xenira) [[#602](https://github.com/extphprs/ext-php-rs/issues/602)] [[#599](https://github.com/extphprs/ext-php-rs/issues/599)] 
+- *(macros)* Zero-alloc fast path for #[php_function] codegen ([#699](https://github.com/extphprs/ext-php-rs/pull/699)) (by @ptondereau) [[#699](https://github.com/extphprs/ext-php-rs/issues/699)] 
 ## [0.15.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.6...ext-php-rs-v0.15.7) - 2026-03-24
 
 ### Added
