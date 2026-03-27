@@ -76,14 +76,22 @@ pub trait RegisteredClass: Sized + 'static {
     /// Returns the static properties provided by the class.
     ///
     /// Static properties are declared at the class level and managed by PHP,
-    /// not by Rust handlers. Each tuple contains (name, flags, default, docs).
-    /// The default value is optional - `None` means null default.
+    /// not by Rust handlers. Each tuple contains:
+    /// (name, flags, `default_value`, docs, type, nullable, `default_str`).
+    /// - `default_value` is the actual PHP default value (None means null)
+    /// - `type` is for stub generation
+    /// - `nullable` indicates if the property accepts null
+    /// - `default_str` is the PHP-compatible default string for stubs
     #[must_use]
+    #[allow(clippy::type_complexity)]
     fn static_properties() -> &'static [(
         &'static str,
         PropertyFlags,
         Option<&'static (dyn IntoZvalDyn + Sync)>,
         DocComments,
+        Option<crate::flags::DataType>,
+        bool,
+        Option<&'static str>,
     )] {
         &[]
     }

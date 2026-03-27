@@ -2,6 +2,10 @@
 #![cfg_attr(windows, feature(abi_vectorcall))]
 use ext_php_rs::{constant::IntoConst, prelude::*, types::ZendClassObject};
 
+/// A simple test class demonstrating ext-php-rs features.
+///
+/// This class showcases property definitions, constants, and various
+/// method types including constructors and static methods.
 #[derive(Debug)]
 #[php_class]
 pub struct TestClass {
@@ -17,6 +21,14 @@ impl TestClass {
     pub const SOME_CONSTANT: i32 = 5;
     pub const SOME_OTHER_STR: &'static str = "Hello, world!";
 
+    /// Creates a new `TestClass` instance.
+    ///
+    /// Both values are incremented by 10 before being stored.
+    ///
+    /// # Arguments
+    ///
+    /// * `a` - First value to store
+    /// * `b` - Second value to store
     pub fn __construct(a: i32, b: i32) -> Self {
         Self {
             a: a + 10,
@@ -24,15 +36,31 @@ impl TestClass {
         }
     }
 
+    /// Tests camelCase conversion and default parameter values.
+    ///
+    /// # Arguments
+    ///
+    /// * `a` - First parameter with default value 5
+    /// * `test` - Second parameter with default value 100
     #[php(defaults(a = 5, test = 100))]
     pub fn test_camel_case(&self, a: i32, test: i32) {
         println!("a: {a} test: {test}");
     }
 
+    /// Returns a static value.
+    ///
+    /// # Returns
+    ///
+    /// Always returns 5.
     fn x() -> i32 {
         5
     }
 
+    /// Demonstrates the builder pattern by returning self.
+    ///
+    /// # Returns
+    ///
+    /// Returns the same instance for method chaining.
     pub fn builder_pattern(
         self_: &mut ZendClassObject<TestClass>,
     ) -> &mut ZendClassObject<TestClass> {
@@ -40,11 +68,21 @@ impl TestClass {
     }
 }
 
+/// Creates a new `TestClass` instance with default values.
+///
+/// # Returns
+///
+/// A `TestClass` with a=1 and b=2.
 #[php_function]
 pub fn new_class() -> TestClass {
     TestClass { a: 1, b: 2 }
 }
 
+/// Returns a friendly greeting.
+///
+/// # Returns
+///
+/// The string "Hello, world!".
 #[php_function]
 pub fn hello_world() -> &'static str {
     "Hello, world!"
@@ -65,6 +103,15 @@ pub struct TestZvalConvert<'a> {
     c: &'a str,
 }
 
+/// Demonstrates `ZvalConvert` derive macro usage.
+///
+/// # Arguments
+///
+/// * `z` - An object that will be converted from a PHP value
+///
+/// # Returns
+///
+/// Always returns 5.
 #[php_function]
 pub fn get_zval_convert(z: TestZvalConvert) -> i32 {
     dbg!(z);
