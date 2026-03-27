@@ -147,6 +147,54 @@ impl From<Error> for PhpException {
     }
 }
 
+/// Error type for [`CachedCallable`](crate::types::CachedCallable) operations.
+#[derive(Debug)]
+pub enum CachedCallableError {
+    /// The callable could not be resolved at cache time.
+    ResolutionFailed,
+    /// The call mechanism itself failed (`zend_call_function` returned < 0).
+    /// The `CachedCallable` is now poisoned and cannot be reused.
+    CallFailed,
+    /// A PHP exception was thrown during execution.
+    /// The `CachedCallable` remains valid for subsequent calls.
+    PhpException(ZBox<ZendObject>),
+    /// The `CachedCallable` was poisoned by a prior engine failure.
+    Poisoned,
+    /// Integer overflow when converting parameter count.
+    IntegerOverflow,
+    /// A parameter could not be converted to a Zval.
+    ParamConversion,
+}
+
+impl Display for CachedCallableError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ResolutionFailed => write!(f, "Could not resolve callable for caching."),
+            Self::CallFailed => {
+                write!(f, "Cached callable call failed; callable is now poisoned.")
+            }
+            Self::PhpException(e) => write!(f, "PHP exception thrown during cached call: {e:?}"),
+            Self::Poisoned => write!(f, "Cached callable is poisoned by a prior engine failure."),
+            Self::IntegerOverflow => {
+                write!(f, "Converting integer arguments resulted in an overflow.")
+            }
+            Self::ParamConversion => write!(f, "A parameter could not be converted to a Zval."),
+        }
+    }
+}
+
+impl ErrorTrait for CachedCallableError {}
+
+impl From<CachedCallableError> for Error {
+    fn from(e: CachedCallableError) -> Self {
+        match e {
+            CachedCallableError::PhpException(e) => Error::Exception(e),
+            CachedCallableError::IntegerOverflow => Error::IntegerOverflow,
+            _ => Error::Callable,
+        }
+    }
+}
+
 /// Trigger an error that is reported in PHP the same way `trigger_error()` is.
 ///
 /// See specific error type descriptions at <https://www.php.net/manual/en/errorfunc.constants.php>.

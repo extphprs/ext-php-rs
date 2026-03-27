@@ -22,6 +22,16 @@ pub fn bench_callback_function(callback: ZendCallable, n: usize) {
     }
 }
 
+#[php_function]
+pub fn bench_cached_callback_function(callback: ZendCallable, n: usize) {
+    let cached = callback.cache().expect("Failed to cache callback");
+    for i in 0..n {
+        cached
+            .try_call(vec![&i])
+            .expect("Failed to call cached callback");
+    }
+}
+
 #[php_class]
 pub struct BenchClass;
 
@@ -45,5 +55,6 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module
         .function(wrap_function!(bench_function))
         .function(wrap_function!(bench_callback_function))
+        .function(wrap_function!(bench_cached_callback_function))
         .class::<BenchClass>()
 }

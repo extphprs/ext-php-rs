@@ -127,6 +127,31 @@ binary_benchmark_group!(
 );
 
 #[binary_benchmark]
+#[bench::single_cached_callback_call(args = ("cached_callback_call.php", 1))]
+#[bench::multiple_cached_callback_calls(args = ("cached_callback_call.php", 10))]
+#[bench::lots_of_cached_callback_calls(args = ("cached_callback_call.php", 100_000))]
+fn cached_callback_calls(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+binary_benchmark_group!(
+    name = cached_callback;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*_internal_bench_cached_callback_function*handler*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = cached_callback_calls
+);
+
+#[binary_benchmark]
 #[bench::single_method_call(args = ("method_call.php", 1))]
 #[bench::multiple_method_calls(args = ("method_call.php", 10))]
 #[bench::lots_of_method_calls(args = ("method_call.php", 100_000))]
@@ -177,5 +202,5 @@ binary_benchmark_group!(
 );
 
 main!(
-    binary_benchmark_groups = function, callback, method, static_method
+    binary_benchmark_groups = function, callback, cached_callback, method, static_method
 );

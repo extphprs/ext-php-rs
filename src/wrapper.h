@@ -59,3 +59,7 @@ bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void 
 void ext_php_rs_zend_bailout();
 zend_op_array *ext_php_rs_zend_compile_string(zend_string *source, const char *filename);
 void ext_php_rs_zend_execute(zend_op_array *op_array);
+
+void _ext_php_rs_zend_fcc_addref(zend_fcall_info_cache *fcc);
+void _ext_php_rs_zend_fcc_dtor(zend_fcall_info_cache *fcc);
+int _ext_php_rs_cached_call_function(zend_fcall_info_cache *fcc, zval *retval, uint32_t param_count, zval *params, HashTable *named_params);

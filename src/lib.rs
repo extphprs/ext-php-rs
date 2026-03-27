@@ -68,6 +68,7 @@ pub mod prelude {
     pub use crate::php_print;
     pub use crate::php_println;
     pub use crate::php_write;
+    pub use crate::types::CachedCallable;
     pub use crate::types::ZendCallable;
     pub use crate::zend::BailoutGuard;
     #[cfg(feature = "observer")]

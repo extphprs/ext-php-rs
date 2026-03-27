@@ -30,3 +30,33 @@ assert($builtinResult === 'Hello PHP', "Builtin named args failed: expected 'Hel
 // Duplicate named params - last value wins
 $dupResult = test_callable_duplicate_named(fn (string $a) => "val:$a");
 assert($dupResult === 'val:overwritten', "Duplicate named args failed: expected 'val:overwritten', got '$dupResult'");
+
+// === CachedCallable tests ===
+
+// Basic cached callable
+assert(test_cached_callable_basic(fn (string $a) => $a, 'cached') === 'cached');
+
+// Repeated calls (sum of fn(i) => i*2 for i in 0..10 = 2*(0+1+...+9) = 90)
+$repeatedResult = test_cached_callable_repeated(fn (int $i) => $i * 2);
+assert($repeatedResult === 90, "Repeated cached calls failed: expected 90, got '$repeatedResult'");
+
+// Cached callable with named arguments
+$cachedNamedResult = test_cached_callable_named(fn (string $a, string $b) => "$a-$b");
+assert($cachedNamedResult === 'first-second', "Cached named args failed: expected 'first-second', got '$cachedNamedResult'");
+
+// Cached callable with mixed arguments
+$cachedMixedResult = test_cached_callable_mixed(fn (string $pos, string $named) => "$pos|$named");
+assert($cachedMixedResult === 'positional|named_value', "Cached mixed args failed: expected 'positional|named_value', got '$cachedMixedResult'");
+
+// Exception recovery - cached callable stays valid after PHP exception
+$exceptionResult = test_cached_callable_exception_recovery(function (bool $shouldThrow) {
+    if ($shouldThrow) {
+        throw new \RuntimeException('Test exception');
+    }
+    return 'recovered';
+});
+assert($exceptionResult === 'recovered', "Exception recovery failed: expected 'recovered', got '$exceptionResult'");
+
+// Built-in function caching
+$builtinResult = test_cached_callable_builtin();
+assert($builtinResult === 5, "Cached builtin failed: expected 5, got '$builtinResult'");
