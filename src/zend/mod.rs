@@ -38,6 +38,7 @@ pub use ex::ExecuteData;
 pub use exception_observer::{ExceptionInfo, ExceptionObserver};
 pub use function::Function;
 pub use function::FunctionEntry;
+pub(crate) use globals::CompilerGlobals;
 pub use globals::ExecutorGlobals;
 pub use globals::FileGlobals;
 pub use globals::ProcessGlobals;
