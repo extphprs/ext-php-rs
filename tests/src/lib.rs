@@ -35,6 +35,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         module = integration::observer::build_module(module);
     }
     module = integration::persistent_string::build_module(module);
+    module = integration::reference::build_module(module);
     module = integration::string::build_module(module);
     module = integration::variadic_args::build_module(module);
     module = integration::interface::build_module(module);

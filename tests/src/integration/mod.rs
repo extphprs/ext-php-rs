@@ -19,6 +19,7 @@ pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
 pub mod persistent_string;
+pub mod reference;
 pub mod string;
 pub mod types;
 pub mod variadic_args;
