@@ -139,3 +139,49 @@ void ext_php_rs_zend_execute(zend_op_array *op_array) {
   destroy_op_array(op_array);
   efree(op_array);
 }
+
+#if PHP_VERSION_ID >= 80300
+void _ext_php_rs_zend_fcc_addref(zend_fcall_info_cache *fcc) {
+  zend_fcc_addref(fcc);
+}
+
+void _ext_php_rs_zend_fcc_dtor(zend_fcall_info_cache *fcc) {
+  zend_fcc_dtor(fcc);
+}
+#else
+void _ext_php_rs_zend_fcc_addref(zend_fcall_info_cache *fcc) {
+  if (fcc->function_handler &&
+      (fcc->function_handler->common.fn_flags & ZEND_ACC_CALL_VIA_TRAMPOLINE) &&
+      fcc->function_handler == &EG(trampoline)) {
+    zend_function *copy = emalloc(sizeof(zend_function));
+    memcpy(copy, fcc->function_handler, sizeof(zend_function));
+    fcc->function_handler->common.function_name = NULL;
+    fcc->function_handler = copy;
+  }
+  if (fcc->object) {
+    GC_ADDREF(fcc->object);
+  }
+}
+
+void _ext_php_rs_zend_fcc_dtor(zend_fcall_info_cache *fcc) {
+  if (fcc->object) {
+    OBJ_RELEASE(fcc->object);
+  }
+  zend_release_fcall_info_cache(fcc);
+  memset(fcc, 0, sizeof(*fcc));
+}
+#endif
+
+int _ext_php_rs_cached_call_function(zend_fcall_info_cache *fcc, zval *retval, uint32_t param_count, zval *params, HashTable *named_params) {
+  zend_fcall_info fci;
+
+  ZVAL_UNDEF(&fci.function_name);
+  fci.size = sizeof(fci);
+  fci.object = fcc->object;
+  fci.retval = retval;
+  fci.param_count = param_count;
+  fci.params = params;
+  fci.named_params = named_params;
+
+  return zend_call_function(&fci, fcc);
+}
