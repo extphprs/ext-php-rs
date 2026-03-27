@@ -1502,6 +1502,54 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 /// # fn main() {}
 /// ```
 ///
+/// ## Performance
+///
+/// The `#[php_function]` macro generates a zero-allocation fast path that reads
+/// arguments directly from the PHP call frame, matching how native C extensions
+/// parse parameters. This applies automatically — no configuration needed.
+///
+/// The same fast path is used for class methods defined with `#[php_impl]`,
+/// including instance methods (`&self`, `&mut self`) and static methods.
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// # use ext_php_rs::prelude::*;
+/// // Fast path: standalone functions
+/// #[php_function]
+/// pub fn fast(name: String, age: Option<i32>) -> String { name }
+///
+/// // Fast path: parameters with defaults
+/// #[php_function]
+/// #[php(defaults(offset = 0))]
+/// pub fn also_fast(haystack: &str, offset: i64) -> i64 { offset }
+/// # fn main() {}
+/// ```
+///
+/// ```rust,ignore
+/// #[php_impl]
+/// impl MyClass {
+///     // Fast path: static methods
+///     pub fn create(n: i32) -> Self { /* ... */ }
+///
+///     // Fast path: instance methods
+///     pub fn get_value(&self, offset: i32) -> i32 { /* ... */ }
+/// }
+/// ```
+///
+/// The only case that falls back to the runtime argument parser is when using
+/// variadic arguments (`&[&Zval]`, the Rust equivalent of PHP's `...$args`):
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// # use ext_php_rs::{prelude::*, types::Zval};
+/// // Slower path: variadic arguments require runtime parsing
+/// #[php_function]
+/// pub fn add(first: u32, rest: &[&Zval]) -> u32 { first }
+/// # fn main() {}
+/// ```
+///
 /// ## Returning `Result<T, E>`
 ///
 /// You can also return a `Result` from the function. The error variant will be
@@ -1709,6 +1757,10 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// Methods basically follow the same rules as functions, so read about the
 /// [`php_function`] macro first. The primary difference between functions and
 /// methods is they are bounded by their class object.
+///
+/// Both instance and static methods benefit from the same zero-allocation fast
+/// path as standalone functions. See the
+/// [Performance](./function.md#performance) section for details.
 ///
 /// Class methods can take a `&self` or `&mut self` parameter. They cannot take
 /// a consuming `self` parameter. Static methods can omit this `self` parameter.

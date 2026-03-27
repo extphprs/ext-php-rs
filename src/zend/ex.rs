@@ -232,7 +232,8 @@ impl ExecuteData {
     /// Since this is a private method it's up to the caller to ensure the
     /// lifetime isn't exceeded.
     #[doc(hidden)]
-    unsafe fn zend_call_arg<'a>(&self, n: usize) -> Option<&'a mut Zval> {
+    #[must_use]
+    pub unsafe fn zend_call_arg<'a>(&self, n: usize) -> Option<&'a mut Zval> {
         let n = isize::try_from(n).expect("n is too large");
         let ptr = unsafe { self.zend_call_var_num(n) };
         unsafe { ptr.as_mut() }

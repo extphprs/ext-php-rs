@@ -126,6 +126,56 @@ binary_benchmark_group!(
     benchmarks = callback_calls
 );
 
+#[binary_benchmark]
+#[bench::single_method_call(args = ("method_call.php", 1))]
+#[bench::multiple_method_calls(args = ("method_call.php", 10))]
+#[bench::lots_of_method_calls(args = ("method_call.php", 100_000))]
+fn method_calls(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+#[binary_benchmark]
+#[bench::single_static_call(args = ("static_method_call.php", 1))]
+#[bench::multiple_static_calls(args = ("static_method_call.php", 10))]
+#[bench::lots_of_static_calls(args = ("static_method_call.php", 100_000))]
+fn static_method_calls(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+binary_benchmark_group!(
+    name = method;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*PhpClassImplCollector*BenchClass*handler*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = method_calls
+);
+
+binary_benchmark_group!(
+    name = static_method;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*PhpClassImplCollector*BenchClass*handler*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = static_method_calls
+);
+
 main!(
-    binary_benchmark_groups = function, callback
+    binary_benchmark_groups = function, callback, method, static_method
 );

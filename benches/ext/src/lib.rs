@@ -22,9 +22,28 @@ pub fn bench_callback_function(callback: ZendCallable, n: usize) {
     }
 }
 
+#[php_class]
+pub struct BenchClass;
+
+#[php_impl]
+impl BenchClass {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    pub fn method(&self, n: u64) -> u64 {
+        n
+    }
+
+    pub fn static_method(n: u64) -> u64 {
+        n
+    }
+}
+
 #[php_module]
 pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module
         .function(wrap_function!(bench_function))
         .function(wrap_function!(bench_callback_function))
+        .class::<BenchClass>()
 }
