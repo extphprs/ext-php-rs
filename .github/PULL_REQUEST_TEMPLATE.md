@@ -13,11 +13,13 @@ If you are unsure about something, please ask in the issue or PR. We are always 
 
 ## Checklist
 
-_Check the boxes that apply (put an `x` in the brackets, like `[x]`). You can also check boxes after the PR is created._
+<!--
+Check the boxes that apply (put an `x` in the brackets, like `[x]`). You can also check boxes after the PR is created.
+-->
 
-- [ ] I have read the [contribution guidelines](../CONTRIBUTING.md).
+- [ ] I have read the [contribution guidelines](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
 - [ ] I have added tests that prove my code works as expected.
 - [ ] I have added documentation if applicable.
-- [ ] I have added a [migration guide](../CONTRIBUTING.md#breaking-changes) if applicable.
+- [ ] I have added a [migration guide](CONTRIBUTING.md#breaking-changes) if applicable.
 
-:heart: Thank you for your contribution!
+<!-- :heart: Thank you for your contribution! -->
