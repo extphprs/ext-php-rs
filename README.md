@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/ext-php-rs)](https://lib.rs/ext-php-rs)
 [![docs.rs](https://img.shields.io/docsrs/ext-php-rs/latest)](https://docs.rs/ext-php-rs)
 [![Guide Workflow Status](https://img.shields.io/github/actions/workflow/status/extphprs/ext-php-rs/docs.yml?branch=master&label=guide)](https://ext-php.rs)
-![CI Workflow Status](https://img.shields.io/github/actions/workflow/status/extphprs/ext-php-rs/build.yml?branch=master)
+![CI Workflow Status](https://img.shields.io/github/actions/workflow/status/extphprs/ext-php-rs/master.yml?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/extphprs/ext-php-rs/badge.svg)](https://coveralls.io/github/extphprs/ext-php-rs)
 [![Discord](https://img.shields.io/discord/115233111977099271)](https://discord.gg/dphp)
 
