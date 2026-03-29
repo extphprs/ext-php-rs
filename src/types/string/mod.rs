@@ -80,8 +80,6 @@ impl ZendStr {
     /// ```
     pub fn new(str: impl AsRef<[u8]>, persistent: bool) -> ZBox<Self> {
         let s = str.as_ref();
-        // TODO: we should handle the special cases when length is either 0 or 1
-        // see `zend_string_init_fast()` in `zend_string.h`
         unsafe {
             let ptr = ext_php_rs_zend_string_init(s.as_ptr().cast(), s.len(), persistent)
                 .as_mut()
@@ -482,6 +480,46 @@ mod tests {
 
             assert!(zval.is_string());
             assert_eq!(zval.string(), Some("foo".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_zend_string_init_fast() {
+        Embed::run(|| {
+            let cases: &[(&[u8], usize, bool)] = &[
+                // (input, expected_len, should_be_interned)
+                (b"", 0, true),
+                (b"a", 1, true),
+                (b"x", 1, true),
+                (b"\0", 1, true),
+                (b"\xff", 1, true),
+                (b"hello", 5, false),
+                (b"ab", 2, false),
+            ];
+
+            for &(input, expected_len, interned) in cases {
+                let s = crate::types::ZendStr::new(input, false);
+                assert_eq!(s.len(), expected_len, "len mismatch for {input:?}");
+                assert_eq!(s.as_bytes(), input, "content mismatch for {input:?}");
+
+                if interned {
+                    let s2 = crate::types::ZendStr::new(input, false);
+                    assert!(
+                        std::ptr::eq(s.as_ptr(), s2.as_ptr()),
+                        "expected interned pointer for {input:?}"
+                    );
+                }
+            }
+
+            // All printable ASCII single-chars return interned pointers
+            for c in b' '..=b'~' {
+                let s1 = crate::types::ZendStr::new(&[c][..], false);
+                let s2 = crate::types::ZendStr::new(&[c][..], false);
+                assert!(
+                    std::ptr::eq(s1.as_ptr(), s2.as_ptr()),
+                    "expected interned pointer for single char {c:#x}"
+                );
+            }
         });
     }
 }
