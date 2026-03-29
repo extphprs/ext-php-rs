@@ -15,9 +15,9 @@ use crate::{
     convert::{FromZval, FromZvalMut, IntoZval, IntoZvalDyn},
     error::{Error, Result},
     ffi::{
-        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, ext_php_rs_zend_string_release,
-        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_is_true,
-        zend_resource, zend_value, zval, zval_ptr_dtor,
+        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, GC_IMMUTABLE,
+        ext_php_rs_zend_string_release, zend_array_dup, zend_is_callable, zend_is_identical,
+        zend_is_iterable, zend_is_true, zend_resource, zend_value, zval, zval_ptr_dtor,
     },
     flags::DataType,
     flags::ZvalTypeFlags,
@@ -812,7 +812,13 @@ impl Zval {
     ///
     /// * `val` - String content.
     pub fn set_zend_string(&mut self, val: ZBox<ZendStr>) {
-        self.change_type(ZvalTypeFlags::StringEx);
+        let is_interned = unsafe { val.gc.u.type_info } & GC_IMMUTABLE != 0;
+        let flags = if is_interned {
+            ZvalTypeFlags::InternedStringEx
+        } else {
+            ZvalTypeFlags::StringEx
+        };
+        self.change_type(flags);
         self.value.str_ = val.into_raw();
     }
 
