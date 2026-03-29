@@ -121,4 +121,10 @@ mod tests {
     fn array_works() {
         assert!(crate::integration::test::run_php("array/array.php"));
     }
+
+    #[test]
+    #[cfg(feature = "embed")]
+    fn array_works_embed() {
+        crate::integration::test::run_php_embed("array/array.php");
+    }
 }
