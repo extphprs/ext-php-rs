@@ -15,4 +15,10 @@ mod tests {
     fn bool_works() {
         assert!(crate::integration::test::run_php("bool/bool.php"));
     }
+
+    #[test]
+    #[cfg(feature = "embed")]
+    fn bool_works_embed() {
+        crate::integration::test::run_php_embed("bool/bool.php");
+    }
 }

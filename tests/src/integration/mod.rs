@@ -147,6 +147,40 @@ mod test {
         path.to_str().unwrap().to_string()
     }
 
+    #[cfg(feature = "embed")]
+    pub fn run_php_embed(file: &str) {
+        use ext_php_rs::embed::Embed;
+        use ext_php_rs::ffi::zend_register_module_ex;
+        use std::sync::OnceLock;
+
+        // get_module() can only be called once because observer registration
+        // uses OnceLock internally. Cache the pointer for reuse across tests.
+        struct ModulePtr(*mut ext_php_rs::ffi::zend_module_entry);
+        unsafe impl Send for ModulePtr {}
+        unsafe impl Sync for ModulePtr {}
+        static MODULE: OnceLock<ModulePtr> = OnceLock::new();
+
+        let module = MODULE.get_or_init(|| ModulePtr(crate::get_module())).0;
+
+        Embed::run(|| {
+            #[cfg(php84)]
+            {
+                unsafe { zend_register_module_ex(module, 2) };
+                ext_php_rs::zend::ExecutorGlobals::get_mut().full_tables_cleanup = true;
+            }
+            #[cfg(not(php84))]
+            unsafe {
+                zend_register_module_ex(module)
+            };
+
+            Embed::eval("ini_set('assert.exception', '1');")
+                .expect("Failed to set assert.exception");
+
+            let result = Embed::run_script(format!("src/integration/{file}"));
+            assert!(result.is_ok(), "PHP script {file} failed: {result:?}");
+        });
+    }
+
     pub fn run_php(file: &str) -> bool {
         setup();
         let path = get_extension_path();

@@ -56,12 +56,17 @@ jobs:
           echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-config" >> $GITHUB_ENV
       - name: Install Cargo expand
         uses: dtolnay/install@cargo-expand
-      - name: Install tarpaulin
-        run: |
-          cargo install cargo-tarpaulin --locked
-          cargo tarpaulin --version
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - name: Run tests
         run: |
-          cargo tarpaulin --engine llvm --workspace --features closure,embed,anyhow,observer --tests --exclude tests --exclude-files docsrs_bindings.rs --exclude-files "crates/macros/tests/expand/*.expanded.rs" --timeout 120 --out Xml
+          cargo llvm-cov --workspace \
+            --features closure,embed,anyhow,observer,smartstring,indexmap \
+            --tests \
+            --exclude-from-report tests \
+            --ignore-filename-regex 'docsrs_bindings\.rs|\.expanded\.rs' \
+            --lcov --output-path lcov.info
       - name: Upload coverage
         uses: coverallsapp/github-action@v2
+        with:
+          file: lcov.info
