@@ -6,19 +6,25 @@ body:
     attributes:
       value: |
         Thanks for taking the time to suggest a feature! Please fill out the following sections to help us understand your request.
+  - type: checkboxes
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: "I have read and agree to the [code of conduct](https://github.com/extphprs/ext-php-rs/blob/master/CODE_OF_CONDUCT.md)"
+          required: true
   - type: textarea
     attributes:
       label: Description
       description: "Please provide a clear and concise description of the feature you would like to see."
-      value: |
+      placeholder: |
         ## Description
-        <!-- Please provide a clear and concise description of the feature. -->
+        A clear and concise description of the feature.
 
         ## Use Case
-        <!-- Describe how this feature would be used and why it is needed. -->
+        Describe how this feature would be used and why it is needed.
 
         ## Example
-        <!-- If applicable, provide an example of how this feature could be implemented or used. -->
+        If applicable, provide an example of how this feature could be implemented or used.
     validations:
       required: true
   - type: checkboxes

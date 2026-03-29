@@ -6,18 +6,24 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug! Please fill out the following sections to help us understand the issue.
+  - type: checkboxes
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: "I have read and agree to the [code of conduct](https://github.com/extphprs/ext-php-rs/blob/master/CODE_OF_CONDUCT.md)"
+          required: true
   - type: textarea
     attributes:
       label: Description
       description: "Please provide a minimal way to reproduce the problem and describe what the expected vs actual behavior is."
-      value: |
+      placeholder: |
         ## Description
-        <!-- Please provide a clear and concise description of the bug. -->
+        A clear and concise description of the bug.
 
         ## Steps to Reproduce
-        1. <!-- Step 1 -->
-        2. <!-- Step 2 -->
-        3. <!-- Step 3 -->
+        1. Step 1
+        2. Step 2
+        3. Step 3
 
         ## Example
 

@@ -6,13 +6,19 @@ body:
     attributes:
       value: |
         Thanks for reaching out for help! Please fill out the following sections to help us understand your issue.
+  - type: checkboxes
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: "I have read and agree to the [code of conduct](https://github.com/extphprs/ext-php-rs/blob/master/CODE_OF_CONDUCT.md)"
+          required: true
   - type: textarea
     attributes:
       label: Description
       description: "Please provide a clear and concise description of the problem you are facing."
-      value: |
+      placeholder: |
         ## Description
-        <!-- Please provide a clear and concise description of the issue. -->
+        A clear and concise description of the issue.
 
         ## Example
 
@@ -26,6 +32,21 @@ body:
         ```
     validations:
       required: true
+  - type: textarea
+    attributes:
+      label: PHP Version
+      description: |
+        Please run `php -v` and provide the full output of that command.
+      placeholder: |
+        PHP 8.4.8 (cli) (built: Jun  3 2025 16:29:26) (NTS)
+        Copyright (c) The PHP Group
+        Zend Engine v4.4.8, Copyright (c) Zend Technologies
+      render: plain
+  - type: input
+    attributes:
+      label: "`ext-php-rs` Version"
+      description: "Please provide the exact version of the extension you are using."
+      placeholder: "0.1.2 or git commit hash"
   - type: input
     attributes:
       label: Repository
