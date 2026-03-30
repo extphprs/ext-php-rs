@@ -31,6 +31,7 @@ pub type StreamOpener = unsafe extern "C" fn(
 
 impl StreamWrapper {
     /// Get wrapped stream by name
+    #[inline]
     #[must_use]
     pub fn get(name: &str) -> Option<&Self> {
         unsafe {
@@ -40,6 +41,7 @@ impl StreamWrapper {
     }
 
     /// Get mutable wrapped stream by name
+    #[inline]
     #[must_use]
     #[allow(clippy::mut_from_ref)]
     pub fn get_mut(name: &str) -> Option<&mut Self> {

@@ -73,57 +73,82 @@ impl Zval {
         zval
     }
 
-    /// Dereference the zval, if it is a reference.
+    /// Dereference the zval, if it is a reference or indirect.
     #[must_use]
+    #[inline]
     pub fn dereference(&self) -> &Self {
-        self.reference().or_else(|| self.indirect()).unwrap_or(self)
+        if self.is_reference() {
+            // SAFETY: `is_reference()` guarantees `value.ref_` is valid.
+            unsafe { &(*self.value.ref_).val }
+        } else if self.is_indirect() {
+            // SAFETY: `is_indirect()` guarantees `value.zv` is a valid Zval pointer.
+            unsafe { &*(self.value.zv.cast::<Zval>()) }
+        } else {
+            self
+        }
     }
 
     /// Dereference the zval mutable, if it is a reference.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a mutable reference to the zval is not possible.
+    #[must_use]
+    #[inline]
     pub fn dereference_mut(&mut self) -> &mut Self {
-        // TODO: probably more ZTS work is needed here
         if self.is_reference() {
-            #[allow(clippy::unwrap_used)]
-            return self.reference_mut().unwrap();
+            // SAFETY: `is_reference()` guarantees `value.ref_` is valid.
+            let reference = unsafe { self.value.ref_.as_mut().unwrap_unchecked() };
+            return &mut reference.val;
         }
         if self.is_indirect() {
-            #[allow(clippy::unwrap_used)]
-            return self.indirect_mut().unwrap();
+            // SAFETY: `is_indirect()` guarantees `value.zv` is a valid Zval pointer.
+            return unsafe { &mut *self.value.zv.cast::<Zval>() };
         }
         self
     }
 
     /// Returns the value of the zval if it is a long.
+    ///
+    /// References are dereferenced transparently.
     #[must_use]
     pub fn long(&self) -> Option<ZendLong> {
-        if self.is_long() {
-            Some(unsafe { self.value.lval })
+        if self.get_type() == DataType::Long {
+            return Some(unsafe { self.value.lval });
+        }
+        let zval = self.dereference();
+        if zval.get_type() == DataType::Long {
+            Some(unsafe { zval.value.lval })
         } else {
             None
         }
     }
 
     /// Returns the value of the zval if it is a bool.
+    ///
+    /// References are dereferenced transparently.
     #[must_use]
     pub fn bool(&self) -> Option<bool> {
-        if self.is_true() {
-            Some(true)
-        } else if self.is_false() {
-            Some(false)
-        } else {
-            None
+        match self.get_type() {
+            DataType::True => return Some(true),
+            DataType::False => return Some(false),
+            _ => {}
+        }
+        let zval = self.dereference();
+        match zval.get_type() {
+            DataType::True => Some(true),
+            DataType::False => Some(false),
+            _ => None,
         }
     }
 
     /// Returns the value of the zval if it is a double.
+    ///
+    /// References are dereferenced transparently.
     #[must_use]
     pub fn double(&self) -> Option<f64> {
-        if self.is_double() {
-            Some(unsafe { self.value.dval })
+        if self.get_type() == DataType::Double {
+            return Some(unsafe { self.value.dval });
+        }
+        let zval = self.dereference();
+        if zval.get_type() == DataType::Double {
+            Some(unsafe { zval.value.dval })
         } else {
             None
         }
@@ -131,13 +156,19 @@ impl Zval {
 
     /// Returns the value of the zval as a zend string, if it is a string.
     ///
+    /// References are dereferenced transparently.
+    ///
     /// Note that this functions output will not be the same as
     /// [`string()`](#method.string), as this function does not attempt to
     /// convert other types into a [`String`].
     #[must_use]
     pub fn zend_str(&self) -> Option<&ZendStr> {
-        if self.is_string() {
-            unsafe { self.value.str_.as_ref() }
+        if self.get_type() == DataType::String {
+            return unsafe { self.value.str_.as_ref() };
+        }
+        let zval = self.dereference();
+        if zval.get_type() == DataType::String {
+            unsafe { zval.value.str_.as_ref() }
         } else {
             None
         }
@@ -156,6 +187,7 @@ impl Zval {
     /// [`string()`](#method.string), as this function does not attempt to
     /// convert other types into a [`String`], as it could not pass back a
     /// [`&str`] in those cases.
+    #[inline]
     #[must_use]
     pub fn str(&self) -> Option<&str> {
         self.zend_str().and_then(|zs| zs.as_str().ok())
@@ -202,12 +234,16 @@ impl Zval {
     }
 
     /// Returns the value of the zval if it is a resource.
+    ///
+    /// References are dereferenced transparently.
     #[must_use]
     pub fn resource(&self) -> Option<*mut zend_resource> {
-        // TODO: Can we improve this function? I haven't done much research into
-        // resources so I don't know if this is the optimal way to return this.
-        if self.is_resource() {
-            Some(unsafe { self.value.res })
+        if self.get_type() == DataType::Resource {
+            return Some(unsafe { self.value.res });
+        }
+        let zval = self.dereference();
+        if zval.get_type() == DataType::Resource {
+            Some(unsafe { zval.value.res })
         } else {
             None
         }
@@ -215,10 +251,16 @@ impl Zval {
 
     /// Returns an immutable reference to the underlying zval hashtable if the
     /// zval contains an array.
+    ///
+    /// References are dereferenced transparently.
     #[must_use]
     pub fn array(&self) -> Option<&ZendHashTable> {
-        if self.is_array() {
-            unsafe { self.value.arr.as_ref() }
+        if self.get_type() == DataType::Array {
+            return unsafe { self.value.arr.as_ref() };
+        }
+        let zval = self.dereference();
+        if zval.get_type() == DataType::Array {
+            unsafe { zval.value.arr.as_ref() }
         } else {
             None
         }
@@ -235,17 +277,22 @@ impl Zval {
     /// `SEPARATE_ARRAY()` macro and prevents the "Assertion failed:
     /// `zend_gc_refcount` == 1" error that occurs when modifying shared arrays.
     pub fn array_mut(&mut self) -> Option<&mut ZendHashTable> {
-        if self.is_array() {
+        let zval = if self.get_type() == DataType::Array {
+            self
+        } else {
+            self.dereference_mut()
+        };
+        if zval.get_type() == DataType::Array {
             unsafe {
-                let arr = self.value.arr;
+                let arr = zval.value.arr;
                 let ht = &*arr;
                 if ht.is_immutable() {
-                    self.value.arr = zend_array_dup(arr);
+                    zval.value.arr = zend_array_dup(arr);
                 } else if (*arr).gc.refcount > 1 {
                     (*arr).gc.refcount -= 1;
-                    self.value.arr = zend_array_dup(arr);
+                    zval.value.arr = zend_array_dup(arr);
                 }
-                self.value.arr.as_mut()
+                zval.value.arr.as_mut()
             }
         } else {
             None
@@ -253,10 +300,16 @@ impl Zval {
     }
 
     /// Returns the value of the zval if it is an object.
+    ///
+    /// References are dereferenced transparently.
     #[must_use]
     pub fn object(&self) -> Option<&ZendObject> {
-        if self.is_object() {
-            unsafe { self.value.obj.as_ref() }
+        if matches!(self.get_type(), DataType::Object(_)) {
+            return unsafe { self.value.obj.as_ref() };
+        }
+        let zval = self.dereference();
+        if matches!(zval.get_type(), DataType::Object(_)) {
+            unsafe { zval.value.obj.as_ref() }
         } else {
             None
         }
@@ -264,9 +317,15 @@ impl Zval {
 
     /// Returns a mutable reference to the object contained in the [`Zval`], if
     /// any.
+    ///
+    /// References are dereferenced transparently.
     pub fn object_mut(&mut self) -> Option<&mut ZendObject> {
-        if self.is_object() {
-            unsafe { self.value.obj.as_mut() }
+        if matches!(self.get_type(), DataType::Object(_)) {
+            return unsafe { self.value.obj.as_mut() };
+        }
+        let zval = self.dereference_mut();
+        if matches!(zval.get_type(), DataType::Object(_)) {
+            unsafe { zval.value.obj.as_mut() }
         } else {
             None
         }
@@ -311,6 +370,7 @@ impl Zval {
     }
 
     /// Returns the value of the zval if it is a reference.
+    #[inline]
     #[must_use]
     pub fn reference(&self) -> Option<&Zval> {
         if self.is_reference() {
@@ -463,6 +523,7 @@ impl Zval {
     }
 
     /// Returns true if the zval is a reference, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_reference(&self) -> bool {
         self.get_type() == DataType::Reference
