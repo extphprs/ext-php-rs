@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## [0.15.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.7...ext-php-rs-v0.15.8) - 2026-03-30
+
+### Added
+- *(types)* Add Separated and PhpRef wrappers for zval ownership ([#706](https://github.com/extphprs/ext-php-rs/pull/706)) (by @ptondereau) [[#706](https://github.com/extphprs/ext-php-rs/issues/706)] 
+
+### Fixed
+- *(benches)* Remove --github-actions from master benchmark workflow ([#697](https://github.com/extphprs/ext-php-rs/pull/697)) (by @ptondereau) [[#697](https://github.com/extphprs/ext-php-rs/issues/697)] 
+- *(benches)* Use bencher.dev default host, add NO_COLOR ([#696](https://github.com/extphprs/ext-php-rs/pull/696)) (by @ptondereau) [[#696](https://github.com/extphprs/ext-php-rs/issues/696)] 
+- *(github)* Improve issue and PR templates ([#704](https://github.com/extphprs/ext-php-rs/pull/704)) (by @ptondereau) [[#704](https://github.com/extphprs/ext-php-rs/issues/704)] 
+- *(memory)* Eliminate module definition memory leak ([#707](https://github.com/extphprs/ext-php-rs/pull/707)) (by @ptondereau) [[#707](https://github.com/extphprs/ext-php-rs/issues/707)] 
+- *(readme)* Point CI badge to master.yml workflow ([#703](https://github.com/extphprs/ext-php-rs/pull/703)) (by @ptondereau) [[#703](https://github.com/extphprs/ext-php-rs/issues/703)] 
+- *(stubs)* Add type declarations for properties ([#705](https://github.com/extphprs/ext-php-rs/pull/705)) (by @ptondereau) [[#705](https://github.com/extphprs/ext-php-rs/issues/705)] 
+- *(zval)* Auto-dereference references in accessors and inline hot paths ([#708](https://github.com/extphprs/ext-php-rs/pull/708)) (by @ptondereau) [[#708](https://github.com/extphprs/ext-php-rs/issues/708)] 
+
+### Other
+- *(benches)* Add basic benchmark infrastructure ([#602](https://github.com/extphprs/ext-php-rs/pull/602)) (by @Xenira) [[#602](https://github.com/extphprs/ext-php-rs/issues/602)] [[#599](https://github.com/extphprs/ext-php-rs/issues/599)] 
+- *(coverage)* Switch from tarpaulin to cargo-llvm-cov ([#702](https://github.com/extphprs/ext-php-rs/pull/702)) (by @ptondereau) [[#702](https://github.com/extphprs/ext-php-rs/issues/702)] 
+- *(macros)* Zero-alloc fast path for #[php_function] codegen ([#699](https://github.com/extphprs/ext-php-rs/pull/699)) (by @ptondereau) [[#699](https://github.com/extphprs/ext-php-rs/issues/699)] 
+- Use zend_string_init_fast() for non-persistent strings ([#701](https://github.com/extphprs/ext-php-rs/pull/701)) (by @ptondereau) [[#701](https://github.com/extphprs/ext-php-rs/issues/701)] 
 ## [0.15.7](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.6...ext-php-rs-v0.15.7) - 2026-03-24
 
 ### Added

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.19](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.18...cargo-php-v0.1.19) - 2026-03-30
+
+### Fixed
+- *(stubs)* Add type declarations for properties ([#705](https://github.com/extphprs/ext-php-rs/pull/705)) (by @ptondereau) [[#705](https://github.com/extphprs/ext-php-rs/issues/705)] 
 ## [0.1.18](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.17...cargo-php-v0.1.18) - 2026-03-24
 
 ### Added
