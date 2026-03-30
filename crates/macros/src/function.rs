@@ -961,6 +961,16 @@ impl<'a> Args<'a> {
             Type::Path(TypePath { path, .. }) => {
                 let mut as_ref = false;
 
+                // PhpRef<'a> explicitly requires PHP pass-by-reference.
+                // Separated<'a> is handled by default (as_ref stays false).
+                if path
+                    .segments
+                    .last()
+                    .is_some_and(|seg| seg.ident == "PhpRef")
+                {
+                    as_ref = true;
+                }
+
                 // For for types that are `Option<&mut T>` to turn them into
                 // `Option<&T>`, marking the Arg as as "passed by reference".
                 let ty = path
