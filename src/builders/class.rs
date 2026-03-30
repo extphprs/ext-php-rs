@@ -11,7 +11,7 @@ use crate::{
         zend_declare_class_constant, zend_declare_property, zend_do_implement_interface,
         zend_register_internal_class_ex, zend_register_internal_interface,
     },
-    flags::{ClassFlags, MethodFlags, PropertyFlags},
+    flags::{ClassFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
     zend::{ClassEntry, ExecuteData, FunctionEntry},
     zend_fastcall,
@@ -26,6 +26,26 @@ type ConstantEntry = (
 );
 type PropertyDefault = Option<Box<dyn FnOnce() -> Result<Zval>>>;
 
+/// Metadata for a class property to be registered with PHP.
+pub struct ClassProperty {
+    /// Name of the property.
+    pub name: String,
+    /// Visibility and modifier flags.
+    pub flags: PropertyFlags,
+    /// Optional default value closure.
+    pub default: PropertyDefault,
+    /// Documentation comments.
+    pub docs: DocComments,
+    /// PHP type for stub generation.
+    pub ty: Option<DataType>,
+    /// Whether the property accepts null.
+    pub nullable: bool,
+    /// Whether the property is read-only (getter without setter).
+    pub readonly: bool,
+    /// PHP stub representation of the default value (e.g. `"null"`, `"42"`).
+    pub default_stub: Option<String>,
+}
+
 /// Builder for registering a class in PHP.
 #[must_use]
 pub struct ClassBuilder {
@@ -35,7 +55,7 @@ pub struct ClassBuilder {
     pub(crate) interfaces: Vec<ClassEntryInfo>,
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
-    pub(crate) properties: Vec<(String, PropertyFlags, PropertyDefault, DocComments)>,
+    pub(crate) properties: Vec<ClassProperty>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry)>,
     pub(crate) docs: DocComments,
@@ -110,18 +130,9 @@ impl ClassBuilder {
     ///
     /// # Parameters
     ///
-    /// * `name` - The name of the property to add to the class.
-    /// * `flags` - Flags relating to the property. See [`PropertyFlags`].
-    /// * `default` - Optional default value for the property.
-    /// * `docs` - Documentation comments for the property.
-    pub fn property<T: Into<String>>(
-        mut self,
-        name: T,
-        flags: PropertyFlags,
-        default: PropertyDefault,
-        docs: DocComments,
-    ) -> Self {
-        self.properties.push((name.into(), flags, default, docs));
+    /// * `prop` - The property metadata to add to the class.
+    pub fn property(mut self, prop: ClassProperty) -> Self {
+        self.properties.push(prop);
         self
     }
 
@@ -396,18 +407,18 @@ impl ClassBuilder {
             unsafe { zend_do_implement_interface(class, ptr::from_ref(interface).cast_mut()) };
         }
 
-        for (name, flags, default, _) in self.properties {
-            let mut default_zval = match default {
+        for prop in self.properties {
+            let mut default_zval = match prop.default {
                 Some(f) => f()?,
                 None => Zval::new(),
             };
             unsafe {
                 zend_declare_property(
                     class,
-                    CString::new(name.as_str())?.as_ptr(),
-                    name.len() as _,
+                    CString::new(prop.name.as_str())?.as_ptr(),
+                    prop.name.len() as _,
                     &raw mut default_zval,
-                    flags.bits().try_into()?,
+                    prop.flags.bits().try_into()?,
                 );
             }
         }
@@ -482,13 +493,22 @@ mod tests {
 
     #[test]
     fn test_property() {
-        let class =
-            ClassBuilder::new("Foo").property("bar", PropertyFlags::Public, None, &["Doc 1"]);
+        let class = ClassBuilder::new("Foo").property(ClassProperty {
+            name: "bar".into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &["Doc 1"],
+            ty: Some(DataType::String),
+            nullable: false,
+            readonly: false,
+            default_stub: None,
+        });
         assert_eq!(class.properties.len(), 1);
-        assert_eq!(class.properties[0].0, "bar");
-        assert_eq!(class.properties[0].1, PropertyFlags::Public);
-        assert!(class.properties[0].2.is_none());
-        assert_eq!(class.properties[0].3, &["Doc 1"] as DocComments);
+        assert_eq!(class.properties[0].name, "bar");
+        assert_eq!(class.properties[0].flags, PropertyFlags::Public);
+        assert!(class.properties[0].default.is_none());
+        assert_eq!(class.properties[0].docs, &["Doc 1"] as DocComments);
+        assert_eq!(class.properties[0].ty, Some(DataType::String));
     }
 
     #[test]

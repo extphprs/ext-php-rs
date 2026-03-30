@@ -373,39 +373,35 @@ pub struct Property {
     pub name: RString,
     /// Documentation comments for the property.
     pub docs: DocBlock,
-    /// Type of the property (Not implemented #376)
+    /// Type of the property.
     pub ty: Option<DataType>,
     /// Visibility of the property.
     pub vis: Visibility,
     /// Whether the property is static.
     pub static_: bool,
-    /// Whether the property is nullable. (Not implemented #376)
+    /// Whether the property is nullable.
     pub nullable: bool,
-    /// Default value of the property. (Not implemented #376)
+    /// Whether the property is readonly.
+    pub readonly: bool,
+    /// Default value of the property as a PHP stub string.
     pub default: Option<RString>,
 }
 
-impl<D> From<(String, PropertyFlags, D, DocComments)> for Property {
-    fn from(value: (String, PropertyFlags, D, DocComments)) -> Self {
-        let (name, flags, _default, docs) = value;
-        let static_ = flags.contains(PropertyFlags::Static);
-        let vis = Visibility::from(flags);
-        // TODO: Implement ty #376
-        let ty = Option::None;
-        // TODO: Implement default #376
-        let default = Option::<RString>::None;
-        // TODO: Implement nullable #376
-        let nullable = false;
-        let docs = docs.into();
+impl From<crate::builders::ClassProperty> for Property {
+    fn from(val: crate::builders::ClassProperty) -> Self {
+        let static_ = val.flags.contains(PropertyFlags::Static);
+        let vis = Visibility::from(val.flags);
+        let docs = val.docs.into();
 
         Self {
-            name: name.into(),
+            name: val.name.into(),
             docs,
-            ty,
+            ty: val.ty.into(),
             vis,
             static_,
-            nullable,
-            default,
+            nullable: val.nullable,
+            readonly: val.readonly,
+            default: val.default_stub.map(RString::from).into(),
         }
     }
 }
@@ -662,7 +658,16 @@ mod tests {
             .extends((|| todo!(), "BaseClass"))
             .implements((|| todo!(), "Interface1"))
             .implements((|| todo!(), "Interface2"))
-            .property("prop1", PropertyFlags::Public, None, &["doc1"])
+            .property(crate::builders::ClassProperty {
+                name: "prop1".into(),
+                flags: PropertyFlags::Public,
+                default: None,
+                docs: &["doc1"],
+                ty: None,
+                nullable: false,
+                readonly: false,
+                default_stub: None,
+            })
             .method(
                 FunctionBuilder::new("test_function", test_function),
                 MethodFlags::Protected,
@@ -686,6 +691,7 @@ mod tests {
                 vis: Visibility::Public,
                 static_: false,
                 nullable: false,
+                readonly: false,
                 default: Option::None,
             }
         );
@@ -707,19 +713,24 @@ mod tests {
 
     #[test]
     fn test_property_from() {
-        let docs: &'static [&'static str] = &["doc1", "doc2"];
-        let property: Property = (
-            "test_property".to_string(),
-            PropertyFlags::Protected,
-            (),
-            docs,
-        )
-            .into();
+        let property: Property = crate::builders::ClassProperty {
+            name: "test_property".into(),
+            flags: PropertyFlags::Protected,
+            default: None,
+            docs: &["doc1", "doc2"],
+            ty: Some(DataType::String),
+            nullable: true,
+            readonly: false,
+            default_stub: Some("null".into()),
+        }
+        .into();
         assert_eq!(property.name, "test_property".into());
         assert_eq!(property.docs.0.len(), 2);
         assert_eq!(property.vis, Visibility::Protected);
         assert!(!property.static_);
-        assert!(!property.nullable);
+        assert!(property.nullable);
+        assert_eq!(property.default, Option::Some("null".into()));
+        assert_eq!(property.ty, Option::Some(DataType::String));
     }
 
     #[test]

@@ -9,6 +9,14 @@ pub struct TestClass {
     a: i32,
     #[php(prop)]
     b: i32,
+    #[php(prop)]
+    name: String,
+    /// An optional nickname.
+    #[php(prop)]
+    optional: Option<String>,
+    #[php(prop, static, default = 100)]
+    #[allow(dead_code)]
+    max_limit: i32,
 }
 
 #[php_impl]
@@ -17,11 +25,19 @@ impl TestClass {
     pub const SOME_CONSTANT: i32 = 5;
     pub const SOME_OTHER_STR: &'static str = "Hello, world!";
 
-    pub fn __construct(a: i32, b: i32) -> Self {
+    pub fn __construct(a: i32, b: i32, name: String) -> Self {
         Self {
             a: a + 10,
             b: b + 10,
+            name,
+            optional: None,
+            max_limit: 100,
         }
+    }
+
+    #[php(getter)]
+    pub fn get_tags(&self) -> Vec<bool> {
+        vec![true, false]
     }
 
     #[php(defaults(a = 5, test = 100))]
@@ -42,7 +58,13 @@ impl TestClass {
 
 #[php_function]
 pub fn new_class() -> TestClass {
-    TestClass { a: 1, b: 2 }
+    TestClass {
+        a: 1,
+        b: 2,
+        name: "default".into(),
+        optional: None,
+        max_limit: 100,
+    }
 }
 
 #[php_function]
