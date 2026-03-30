@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.10](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.9...ext-php-rs-derive-v0.11.10) - 2026-03-30
+
+### Added
+- *(types)* Add Separated and PhpRef wrappers for zval ownership ([#706](https://github.com/extphprs/ext-php-rs/pull/706)) (by @ptondereau) [[#706](https://github.com/extphprs/ext-php-rs/issues/706)] 
+
+### Fixed
+- *(memory)* Eliminate module definition memory leak ([#707](https://github.com/extphprs/ext-php-rs/pull/707)) (by @ptondereau) [[#707](https://github.com/extphprs/ext-php-rs/issues/707)] 
+- *(readme)* Point CI badge to master.yml workflow ([#703](https://github.com/extphprs/ext-php-rs/pull/703)) (by @ptondereau) [[#703](https://github.com/extphprs/ext-php-rs/issues/703)] 
+- *(stubs)* Add type declarations for properties ([#705](https://github.com/extphprs/ext-php-rs/pull/705)) (by @ptondereau) [[#705](https://github.com/extphprs/ext-php-rs/issues/705)] 
+
+### Other
+- *(macros)* Zero-alloc fast path for #[php_function] codegen ([#699](https://github.com/extphprs/ext-php-rs/pull/699)) (by @ptondereau) [[#699](https://github.com/extphprs/ext-php-rs/issues/699)] 
 ## [0.11.9](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.8...ext-php-rs-derive-v0.11.9) - 2026-03-24
 
 ### Fixed
