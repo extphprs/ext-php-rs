@@ -25,6 +25,7 @@
   - [Class Object](./types/class_object.md)
   - [Closure](./types/closure.md)
   - [Functions & methods](./types/functions.md)
+  - [Zval Ownership](./types/zval_ownership.md)
 - [Macros](./macros/index.md)
   - [Module](./macros/module.md)
   - [Function](./macros/function.md)

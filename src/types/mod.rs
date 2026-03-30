@@ -10,6 +10,8 @@ mod iterable;
 mod iterator;
 mod long;
 mod object;
+mod php_ref;
+mod separated;
 mod string;
 mod zval;
 
@@ -20,6 +22,8 @@ pub use iterable::Iterable;
 pub use iterator::ZendIterator;
 pub use long::ZendLong;
 pub use object::{PropertyQuery, ZendObject};
+pub use php_ref::PhpRef;
+pub use separated::Separated;
 pub use string::ZendStr;
 pub use zval::Zval;
 
