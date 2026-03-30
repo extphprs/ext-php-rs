@@ -418,14 +418,38 @@ impl ModuleBuilder<'_> {
                     .expect("Failed to register constant");
             }
             for (name, prop_info) in T::get_properties() {
-                builder = builder.property(name, prop_info.flags, None, prop_info.docs);
+                let default_stub = if prop_info.nullable {
+                    Some("null".into())
+                } else {
+                    None
+                };
+                builder = builder.property(crate::builders::ClassProperty {
+                    name: name.into(),
+                    flags: prop_info.flags,
+                    default: None,
+                    docs: prop_info.docs,
+                    ty: Some(prop_info.ty),
+                    nullable: prop_info.nullable,
+                    readonly: prop_info.readonly,
+                    default_stub,
+                });
             }
             for (name, flags, default, docs) in T::static_properties() {
+                let default_stub = default.map(crate::convert::IntoZvalDyn::stub_value);
                 let default_fn = default.map(|v| {
                     Box::new(move || v.as_zval(true))
                         as Box<dyn FnOnce() -> crate::error::Result<crate::types::Zval>>
                 });
-                builder = builder.property(*name, *flags, default_fn, docs);
+                builder = builder.property(crate::builders::ClassProperty {
+                    name: (*name).into(),
+                    flags: *flags,
+                    default: default_fn,
+                    docs,
+                    ty: None,
+                    nullable: false,
+                    readonly: false,
+                    default_stub,
+                });
             }
             if let Some(modifier) = T::BUILDER_MODIFIER {
                 builder = modifier(builder);

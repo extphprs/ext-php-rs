@@ -204,6 +204,7 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
 
             result.push(Property {
                 ident,
+                ty: &field.ty,
                 name,
                 attr,
                 docs,
@@ -217,6 +218,7 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
 #[derive(Debug)]
 struct Property<'a> {
     pub ident: &'a syn::Ident,
+    pub ty: &'a syn::Type,
     pub name: String,
     pub attr: PropAttributes,
     pub docs: Vec<String>,
@@ -253,6 +255,7 @@ fn generate_registered_class_impl(
     let instance_fields = instance_props.iter().map(|prop| {
         let name = &prop.name;
         let field_ident = prop.ident;
+        let field_ty = prop.ty;
         let flags = prop
             .attr
             .flags
@@ -265,7 +268,10 @@ fn generate_registered_class_impl(
             (#name, ::ext_php_rs::internal::property::PropertyInfo {
                 prop: ::ext_php_rs::props::Property::field(|this: &mut Self| &mut this.#field_ident),
                 flags: #flags,
-                docs: &[#(#docs,)*]
+                docs: &[#(#docs,)*],
+                ty: <#field_ty as ::ext_php_rs::convert::IntoZval>::TYPE,
+                nullable: <#field_ty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                readonly: false,
             })
         }
     });

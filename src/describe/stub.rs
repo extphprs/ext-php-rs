@@ -726,16 +726,33 @@ impl ToStub for EnumCase {
 
 impl ToStub for Property {
     fn fmt_stub(&self, buf: &mut String) -> FmtResult {
-        self.docs.fmt_stub(buf)?;
+        if !self.docs.0.is_empty() {
+            writeln!(buf, "/**")?;
+            for comment in self.docs.0.iter() {
+                writeln!(buf, " *{comment}")?;
+            }
+            if let Option::Some(ty) = &self.ty {
+                writeln!(buf, " *")?;
+                writeln!(buf, " * @var {}", datatype_to_phpdoc(ty, self.nullable))?;
+            }
+            writeln!(buf, " */")?;
+        }
+
         self.vis.fmt_stub(buf)?;
-
         write!(buf, " ")?;
-
         if self.static_ {
             write!(buf, "static ")?;
         }
+        if self.readonly {
+            write!(buf, "readonly ")?;
+        }
         if let Option::Some(ty) = &self.ty {
+            let nullable = self.nullable && !matches!(ty, DataType::Mixed | DataType::Null);
+            if nullable {
+                write!(buf, "?")?;
+            }
             ty.fmt_stub(buf)?;
+            write!(buf, " ")?;
         }
         write!(buf, "${}", self.name)?;
         if let Option::Some(default) = &self.default {
@@ -928,6 +945,252 @@ mod test {
         assert_eq!(DataType::Indirect.to_stub().unwrap(), "mixed");
         assert_eq!(DataType::ConstantExpression.to_stub().unwrap(), "mixed");
         assert_eq!(DataType::Reference.to_stub().unwrap(), "reference");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_typed_no_docs() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "foo".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::String),
+            vis: Visibility::Public,
+            static_: false,
+            nullable: false,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        // No docs → no docblock at all (type declaration is sufficient in PHP 8.0+)
+        assert!(!stub.contains("@var"), "no @var without docs: {stub}");
+        assert_eq!(stub, "public string $foo;\n");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_nullable_with_default() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "bar".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::String),
+            vis: Visibility::Public,
+            static_: false,
+            nullable: true,
+            readonly: false,
+            default: Option::Some("null".into()),
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(
+            stub.contains("public ?string $bar = null;"),
+            "missing nullable default: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_static_with_default() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "limit".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::Long),
+            vis: Visibility::Public,
+            static_: true,
+            nullable: false,
+            readonly: false,
+            default: Option::Some("100".into()),
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(
+            stub.contains("public static int $limit = 100;"),
+            "missing static default: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_static_string_default() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "label".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::String),
+            vis: Visibility::Public,
+            static_: true,
+            nullable: false,
+            readonly: false,
+            default: Option::Some("'hello'".into()),
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(
+            stub.contains("public static string $label = 'hello';"),
+            "missing static string default: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_with_docs_includes_var() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "bar".into(),
+            docs: super::DocBlock(vec![" The user name.".into()].into()),
+            ty: Option::Some(DataType::String),
+            vis: Visibility::Public,
+            static_: false,
+            nullable: true,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(stub.contains("The user name."), "missing doc: {stub}");
+        assert!(
+            stub.contains("@var string|null"),
+            "missing @var with nullable in docblock: {stub}"
+        );
+        assert!(
+            stub.contains("public ?string $bar;"),
+            "missing decl: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_with_docs_no_type() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "x".into(),
+            docs: super::DocBlock(vec![" Some value.".into()].into()),
+            ty: Option::None,
+            vis: Visibility::Public,
+            static_: false,
+            nullable: false,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(stub.contains("Some value."), "missing doc: {stub}");
+        assert!(!stub.contains("@var"), "no @var without type: {stub}");
+        assert!(stub.contains("public $x;"), "missing decl: {stub}");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_readonly() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "baz".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::Array),
+            vis: Visibility::Public,
+            static_: false,
+            nullable: false,
+            readonly: true,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        assert_eq!(stub, "public readonly array $baz;\n");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_untyped_no_docblock() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "x".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::None,
+            vis: Visibility::Public,
+            static_: false,
+            nullable: false,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(
+            !stub.contains("/**"),
+            "no docblock without docs or type: {stub}"
+        );
+        assert_eq!(stub, "public $x;\n");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_static_typed() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "count".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::Long),
+            vis: Visibility::Protected,
+            static_: true,
+            nullable: false,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(
+            stub.contains("protected static int $count;"),
+            "missing decl: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_nullable_mixed_stays_mixed() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "val".into(),
+            docs: super::DocBlock(vec![].into()),
+            ty: Option::Some(DataType::Mixed),
+            vis: Visibility::Public,
+            static_: false,
+            nullable: true,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        // mixed already includes null, no ? prefix
+        assert!(stub.contains("public mixed $val;"), "missing decl: {stub}");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn test_property_stub_nullable_object_with_docs() {
+        use crate::describe::{Property, Visibility, abi::Option};
+
+        let prop = Property {
+            name: "ref_".into(),
+            docs: super::DocBlock(vec![" The related entity.".into()].into()),
+            ty: Option::Some(DataType::Object(Some("App\\Entity"))),
+            vis: Visibility::Private,
+            static_: false,
+            nullable: true,
+            readonly: false,
+            default: Option::None,
+        };
+        let stub = prop.to_stub().unwrap();
+        assert!(stub.contains("The related entity."), "missing doc: {stub}");
+        assert!(
+            stub.contains("@var \\App\\Entity|null"),
+            "missing @var with FQCN: {stub}"
+        );
+        assert!(
+            stub.contains("private ?\\App\\Entity $ref_;"),
+            "missing decl: {stub}"
+        );
     }
 
     #[test]

@@ -176,6 +176,7 @@ struct PropertyMethod<'a> {
     vis: Visibility,
     /// Documentation comments for the property.
     docs: Vec<String>,
+    value_ty: Option<&'a syn::Type>,
 }
 
 #[derive(Debug)]
@@ -250,6 +251,39 @@ impl<'a> ParsedImpl<'a> {
         }
     }
 
+    fn parse_property_method(
+        &mut self,
+        method: &'a syn::ImplItemFn,
+        opts: &MethodArgs,
+        docs: Vec<String>,
+    ) {
+        let is_getter = matches!(opts.ty, MethodTy::Getter);
+        let method_name = method.sig.ident.to_string();
+        let prefix = if is_getter { "get_" } else { "set_" };
+        let prop_name = method_name
+            .strip_prefix(prefix)
+            .unwrap_or(&method_name)
+            .to_string();
+
+        let value_ty = match (is_getter, &method.sig.output) {
+            (true, syn::ReturnType::Type(_, ty)) => Some(ty.as_ref()),
+            (false, _) => method.sig.inputs.iter().nth(1).and_then(|arg| match arg {
+                syn::FnArg::Typed(pat) => Some(pat.ty.as_ref()),
+                syn::FnArg::Receiver(_) => None,
+            }),
+            _ => None,
+        };
+
+        self.properties.push(PropertyMethod {
+            prop_name,
+            method_ident: &method.sig.ident,
+            is_getter,
+            vis: opts.vis,
+            docs,
+            value_ty,
+        });
+    }
+
     /// Parses an impl block from `items`, populating `self`.
     fn parse(&mut self, items: impl Iterator<Item = &'a mut syn::ImplItem>) -> Result<()> {
         for items in items {
@@ -283,30 +317,7 @@ impl<'a> ParsedImpl<'a> {
 
                     // Handle getter/setter methods
                     if matches!(opts.ty, MethodTy::Getter | MethodTy::Setter) {
-                        let is_getter = matches!(opts.ty, MethodTy::Getter);
-                        // Extract property name from the Rust method name by stripping
-                        // get_/set_ prefix. We use the Rust name (not the PHP-renamed name)
-                        // to preserve the expected property naming convention.
-                        let method_name = method.sig.ident.to_string();
-                        let prop_name = if is_getter {
-                            method_name
-                                .strip_prefix("get_")
-                                .unwrap_or(&method_name)
-                                .to_string()
-                        } else {
-                            method_name
-                                .strip_prefix("set_")
-                                .unwrap_or(&method_name)
-                                .to_string()
-                        };
-
-                        self.properties.push(PropertyMethod {
-                            prop_name,
-                            method_ident: &method.sig.ident,
-                            is_getter,
-                            vis: opts.vis,
-                            docs,
-                        });
+                        self.parse_property_method(method, &opts, docs);
                         continue;
                     }
 
@@ -405,13 +416,13 @@ impl<'a> ParsedImpl<'a> {
         };
 
         // Group properties by name to combine getters and setters
-        // Store: (getter_ident, setter_ident, visibility, docs)
         #[allow(clippy::items_after_statements)]
         struct PropGroup<'a> {
             getter: Option<&'a syn::Ident>,
             setter: Option<&'a syn::Ident>,
             vis: Visibility,
             docs: Vec<String>,
+            value_ty: Option<&'a syn::Type>,
         }
         let mut prop_groups: HashMap<&str, PropGroup> = HashMap::new();
         for prop in &self.properties {
@@ -422,11 +433,18 @@ impl<'a> ParsedImpl<'a> {
                     setter: None,
                     vis: prop.vis,
                     docs: prop.docs.clone(),
+                    value_ty: prop.value_ty,
                 });
             if prop.is_getter {
                 entry.getter = Some(prop.method_ident);
+                if entry.value_ty.is_none() {
+                    entry.value_ty = prop.value_ty;
+                }
             } else {
                 entry.setter = Some(prop.method_ident);
+                if entry.value_ty.is_none() {
+                    entry.value_ty = prop.value_ty;
+                }
             }
             // Use the most permissive visibility and combine docs
             if prop.vis == Visibility::Public {
@@ -472,6 +490,17 @@ impl<'a> ParsedImpl<'a> {
                         return quote! {};
                     }
                 };
+                let readonly = group.getter.is_some() && group.setter.is_none();
+                let type_tokens = group.value_ty.map_or_else(
+                    || quote! {
+                        ty: ::ext_php_rs::flags::DataType::Mixed,
+                        nullable: false,
+                    },
+                    |vty| quote! {
+                        ty: <#vty as ::ext_php_rs::convert::IntoZval>::TYPE,
+                        nullable: <#vty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    },
+                );
                 quote! {
                     props.insert(
                         #prop_name,
@@ -479,6 +508,8 @@ impl<'a> ParsedImpl<'a> {
                             prop: #prop_expr,
                             flags: #flags,
                             docs: &[#(#docs),*],
+                            #type_tokens
+                            readonly: #readonly,
                         }
                     );
                 }

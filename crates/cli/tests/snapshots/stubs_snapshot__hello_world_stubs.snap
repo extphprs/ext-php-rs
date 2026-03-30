@@ -17,15 +17,29 @@ namespace {
 
         const SOME_OTHER_STR = 'Hello, world!';
 
-        public $a;
+        public int $a;
 
-        public $b;
+        public int $b;
+
+        public static $maxLimit = 100;
+
+        public string $name;
+
+        /**
+         * An optional nickname.
+         *
+         * @var string|null
+         */
+        public ?string $optional = null;
+
+        public readonly array $tags;
 
         /**
          * @param int $a
          * @param int $b
+         * @param string $name
          */
-        public function __construct(int $a, int $b) {}
+        public function __construct(int $a, int $b, string $name) {}
 
         /**
          * @return \TestClass

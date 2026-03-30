@@ -11,7 +11,7 @@ mod module;
 #[cfg(feature = "embed")]
 mod sapi;
 
-pub use class::ClassBuilder;
+pub use class::{ClassBuilder, ClassProperty};
 #[cfg(feature = "enum")]
 pub use enum_builder::EnumBuilder;
 pub use function::FunctionBuilder;
