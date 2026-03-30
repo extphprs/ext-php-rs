@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-625ae72e.js";
+            window.path_to_searchindex_js = "../searchindex-5d8a3b18.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4cb40497.js"></script>
+        <script src="../toc-546d01eb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -296,6 +296,41 @@ pub fn add(number: u32, numbers:&amp;[&amp;Zval]) -&gt; u32 {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(add))
 }
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="performance"><a class="header" href="#performance">Performance</a></h2>
+<p>The <code>#[php_function]</code> macro generates a zero-allocation fast path that reads
+arguments directly from the PHP call frame, matching how native C extensions
+parse parameters. This applies automatically — no configuration needed.</p>
+<p>The same fast path is used for class methods defined with <code>#[php_impl]</code>,
+including instance methods (<code>&amp;self</code>, <code>&amp;mut self</code>) and static methods.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>// Fast path: standalone functions
+#[php_function]
+pub fn fast(name: String, age: Option&lt;i32&gt;) -&gt; String { name }
+
+// Fast path: parameters with defaults
+#[php_function]
+#[php(defaults(offset = 0))]
+pub fn also_fast(haystack: &amp;str, offset: i64) -&gt; i64 { offset }
+<span class="boring">fn main() {}</span></code></pre>
+<pre><code class="language-rust ignore">#[php_impl]
+impl MyClass {
+    // Fast path: static methods
+    pub fn create(n: i32) -&gt; Self { /* ... */ }
+
+    // Fast path: instance methods
+    pub fn get_value(&amp;self, offset: i32) -&gt; i32 { /* ... */ }
+}</code></pre>
+<p>The only case that falls back to the runtime argument parser is when using
+variadic arguments (<code>&amp;[&amp;Zval]</code>, the Rust equivalent of PHP’s <code>...$args</code>):</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::{prelude::*, types::Zval};
+</span>// Slower path: variadic arguments require runtime parsing
+#[php_function]
+pub fn add(first: u32, rest: &amp;[&amp;Zval]) -&gt; u32 { first }
 <span class="boring">fn main() {}</span></code></pre>
 <h2 id="returning-resultt-e"><a class="header" href="#returning-resultt-e">Returning <code>Result&lt;T, E&gt;</code></a></h2>
 <p>You can also return a <code>Result</code> from the function. The error variant will be

@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-625ae72e.js";
+            window.path_to_searchindex_js = "../searchindex-5d8a3b18.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4cb40497.js"></script>
+        <script src="../toc-546d01eb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -196,6 +196,9 @@ available cases.</p>
 <p>Methods basically follow the same rules as functions, so read about the
 [<code>php_function</code>] macro first. The primary difference between functions and
 methods is they are bounded by their class object.</p>
+<p>Both instance and static methods benefit from the same zero-allocation fast
+path as standalone functions. See the <a href="./function.html#performance">Performance</a>
+section for details.</p>
 <p>Class methods can take a <code>&amp;self</code> or <code>&amp;mut self</code> parameter. They cannot take a
 consuming <code>self</code> parameter. Static methods can omit this <code>self</code> parameter.</p>
 <p>To access the underlying Zend object, you can take a reference to a

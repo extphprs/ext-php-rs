@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-625ae72e.js";
+            window.path_to_searchindex_js = "searchindex-5d8a3b18.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-4cb40497.js"></script>
+        <script src="toc-546d01eb.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1958,6 +1958,81 @@ pub fn test_method() -&gt; () {
 
 <span class="boring">fn main() {}</span></code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="zval-ownership-separated--phpref"><a class="header" href="#zval-ownership-separated--phpref">Zval Ownership: <code>Separated</code> &amp; <code>PhpRef</code></a></h1>
+<p>In PHP, there is a distinction between passing a value normally (<code>$x</code>) and
+passing it by reference (<code>&amp;$x</code>). In ext-php-rs, using <code>&amp;mut Zval</code> in a function
+signature sets PHP’s <code>ZEND_SEND_BY_REF</code> flag, which forces callers to pass by
+reference — meaning literals like <code>foo([1, 2, 3])</code> are rejected at runtime.</p>
+<p><code>Separated</code> and <code>PhpRef</code> fix this by decoupling Rust mutability from PHP’s
+pass-by-reference semantics.</p>
+<h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to use which</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>PHP syntax</th><th>Modifies caller?</th><th>Use case</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Separated</code></td><td><code>foo($x)</code> or <code>foo([1,2])</code></td><td>No</td><td>Mutate a local copy (COW)</td></tr>
+<tr><td><code>PhpRef</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Modify the caller’s variable</td></tr>
+<tr><td><code>&amp;Zval</code></td><td><code>foo($x)</code></td><td>No</td><td>Read-only access</td></tr>
+<tr><td><code>&amp;mut Zval</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Legacy — prefer <code>PhpRef</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="separated--local-mutation-without-pass-by-reference"><a class="header" href="#separated--local-mutation-without-pass-by-reference"><code>Separated</code> — local mutation without pass-by-reference</a></h2>
+<p><code>Separated</code> wraps <code>&amp;mut Zval</code> but does <strong>not</strong> set <code>ZEND_SEND_BY_REF</code>. PHP
+callers can pass any value, including literals. Call <code>.array_mut()</code> to trigger
+Copy-on-Write separation before mutating arrays.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::types::Separated;
+
+#[php_function]
+pub fn process_array(mut data: Separated) -&gt; bool {
+    let Some(ht) = data.array_mut() else {
+        return false;
+    };
+    ht.push("appended").is_ok()
+}</code></pre>
+<pre><code class="language-php">// Both work — no &amp; required:
+process_array([1, 2, 3]);
+
+$arr = [1, 2, 3];
+process_array($arr);
+// $arr is unchanged — COW separation protects it
+</code></pre>
+<p>Since <code>Separated</code> implements <code>Deref&lt;Target = Zval&gt;</code>, all read methods
+(<code>long()</code>, <code>str()</code>, <code>array()</code>, <code>object()</code>, etc.) are available directly.</p>
+<h2 id="phpref--modify-the-callers-variable"><a class="header" href="#phpref--modify-the-callers-variable"><code>PhpRef</code> — modify the caller’s variable</a></h2>
+<p><code>PhpRef</code> is the explicit opt-in for PHP pass-by-reference. It sets
+<code>ZEND_SEND_BY_REF</code>, so the caller <strong>must</strong> pass a variable (not a literal).
+Mutations affect the original variable.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::types::PhpRef;
+
+#[php_function]
+pub fn increment(mut val: PhpRef) {
+    if let Some(n) = val.long() {
+        val.set_long(n + 1);
+    }
+}</code></pre>
+<pre><code class="language-php">$x = 5;
+increment($x);
+// $x is now 6
+
+// increment(42); // Error: cannot pass by reference
+</code></pre>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+<p>Both types are <code>#[repr(transparent)]</code> newtypes over <code>&amp;mut Zval</code> with zero
+runtime overhead. The difference is purely in the proc macro:</p>
+<ul>
+<li><code>Separated</code> → macro emits <code>Arg::new(...)</code> (no pass-by-ref flag)</li>
+<li><code>PhpRef</code> → macro emits <code>Arg::new(...).as_ref()</code> (sets pass-by-ref flag)</li>
+</ul>
+<p>The <code>Zval::array_mut()</code> method already implements PHP’s <code>SEPARATE_ARRAY()</code>
+semantics — it duplicates the underlying hashtable when the refcount is greater
+than 1. This is what makes <code>Separated</code> safe: the caller’s original value is
+never modified.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="macros"><a class="header" href="#macros">Macros</a></h1>
 <p><code>ext-php-rs</code> comes with a set of macros that are used to annotate types which
 are to be exported to PHP. This allows you to write Rust-like APIs that can be
@@ -2168,6 +2243,41 @@ pub fn add(number: u32, numbers:&amp;[&amp;Zval]) -&gt; u32 {
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(add))
 }
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="performance"><a class="header" href="#performance">Performance</a></h2>
+<p>The <code>#[php_function]</code> macro generates a zero-allocation fast path that reads
+arguments directly from the PHP call frame, matching how native C extensions
+parse parameters. This applies automatically — no configuration needed.</p>
+<p>The same fast path is used for class methods defined with <code>#[php_impl]</code>,
+including instance methods (<code>&amp;self</code>, <code>&amp;mut self</code>) and static methods.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>// Fast path: standalone functions
+#[php_function]
+pub fn fast(name: String, age: Option&lt;i32&gt;) -&gt; String { name }
+
+// Fast path: parameters with defaults
+#[php_function]
+#[php(defaults(offset = 0))]
+pub fn also_fast(haystack: &amp;str, offset: i64) -&gt; i64 { offset }
+<span class="boring">fn main() {}</span></code></pre>
+<pre><code class="language-rust ignore">#[php_impl]
+impl MyClass {
+    // Fast path: static methods
+    pub fn create(n: i32) -&gt; Self { /* ... */ }
+
+    // Fast path: instance methods
+    pub fn get_value(&amp;self, offset: i32) -&gt; i32 { /* ... */ }
+}</code></pre>
+<p>The only case that falls back to the runtime argument parser is when using
+variadic arguments (<code>&amp;[&amp;Zval]</code>, the Rust equivalent of PHP’s <code>...$args</code>):</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::{prelude::*, types::Zval};
+</span>// Slower path: variadic arguments require runtime parsing
+#[php_function]
+pub fn add(first: u32, rest: &amp;[&amp;Zval]) -&gt; u32 { first }
 <span class="boring">fn main() {}</span></code></pre>
 <h2 id="returning-resultt-e"><a class="header" href="#returning-resultt-e">Returning <code>Result&lt;T, E&gt;</code></a></h2>
 <p>You can also return a <code>Result</code> from the function. The error variant will be
@@ -3185,6 +3295,9 @@ available cases.</p>
 <p>Methods basically follow the same rules as functions, so read about the
 [<code>php_function</code>] macro first. The primary difference between functions and
 methods is they are bounded by their class object.</p>
+<p>Both instance and static methods benefit from the same zero-allocation fast
+path as standalone functions. See the <a href="#performance">Performance</a>
+section for details.</p>
 <p>Class methods can take a <code>&amp;self</code> or <code>&amp;mut self</code> parameter. They cannot take a
 consuming <code>self</code> parameter. Static methods can omit this <code>self</code> parameter.</p>
 <p>To access the underlying Zend object, you can take a reference to a
@@ -4936,7 +5049,7 @@ The recommended pattern is to log and continue:</p>
         }
     }
 }</code></pre>
-<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<h2 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h2>
 <ol>
 <li>
 <p><strong>Build time</strong>: <code>include_bytes!</code> embeds the <code>.php</code> file contents into the
