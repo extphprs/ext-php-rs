@@ -116,6 +116,7 @@ impl RString {
     /// # Panics
     ///
     /// * If the string is not valid UTF-8
+    #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {
         std::str::from_utf8(&self.inner).expect("RString value is not valid UTF-8")
