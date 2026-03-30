@@ -21,7 +21,7 @@ use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
 /// ```rust,no_run
 /// use ext_php_rs::{
 ///     builders::ModuleBuilder,
-///     zend::ModuleEntry,
+///     zend::{ModuleEntry, StaticModuleEntry},
 ///     info_table_start, info_table_end, info_table_row
 /// };
 ///
@@ -34,11 +34,14 @@ use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
 ///
 /// #[unsafe(no_mangle)]
 /// pub extern "C" fn get_module() -> *mut ModuleEntry {
-///     let (entry, _) = ModuleBuilder::new("ext-name", "ext-version")
-///         .info_function(php_module_info)
-///         .try_into()
-///         .unwrap();
-///     entry.into_raw()
+///     static MODULE: StaticModuleEntry = StaticModuleEntry::new();
+///     MODULE.get_or_init(|| {
+///         let (entry, _) = ModuleBuilder::new("ext-name", "ext-version")
+///             .info_function(php_module_info)
+///             .try_into()
+///             .unwrap();
+///         entry
+///     })
 /// }
 /// ```
 #[must_use]
@@ -272,7 +275,8 @@ impl ModuleBuilder<'_> {
     /// a singleton observer instance shared across all requests.
     /// The observer must be `Send + Sync` for ZTS builds.
     ///
-    /// The observer is called at throw time, before any catch blocks are evaluated.
+    /// The observer is called at throw time, before any catch blocks are
+    /// evaluated.
     ///
     /// # Arguments
     ///
@@ -374,7 +378,8 @@ impl ModuleBuilder<'_> {
             }
 
             builder = builder.flags(ClassFlags::Interface);
-            // Note: interfaces should NOT have object_override because they cannot be instantiated
+            // Note: interfaces should NOT have object_override because they cannot be
+            // instantiated
             builder
                 .registration(|ce| {
                     T::get_metadata().set_ce(ce);
