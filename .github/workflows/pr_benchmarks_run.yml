@@ -67,19 +67,19 @@ jobs:
           sed 's/\x1b\[[0-9;]*m//g' benchmark_results.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark_results.txt
           path: ./benchmark_results.txt
       - name: Save testbed name
         run: php --version | head -n 1 > testbed.txt
       - name: Upload Testbed
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: testbed.txt
           path: ./testbed.txt
       - name: Upload Pull Request Event
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: event.json
           path: ${{ github.event_path }}
