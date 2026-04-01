@@ -10,8 +10,8 @@ extern crate ext_php_rs;
 
 use ext_php_rs::builders::SapiBuilder;
 use ext_php_rs::embed::{
-    Embed, RequestInfo, Sapi, SendHeadersResult, ServerContext, ServerVarRegistrar,
-    ext_php_rs_sapi_shutdown, ext_php_rs_sapi_startup, worker_request_shutdown,
+    Embed, RequestInfo, Sapi, SapiHeader, SapiHeaders, SendHeadersResult, ServerContext,
+    ServerVarRegistrar, ext_php_rs_sapi_shutdown, ext_php_rs_sapi_startup, worker_request_shutdown,
     worker_request_startup, worker_reset_superglobals,
 };
 use ext_php_rs::ffi::{
@@ -233,6 +233,8 @@ extern "C" fn register_vars(vars: *mut ext_php_rs::types::Zval) {
 
 struct TestContext {
     output: Vec<u8>,
+    headers: Vec<(String, String)>,
+    response_code: i32,
     finished: bool,
 }
 
@@ -241,6 +243,8 @@ impl TestContext {
     fn new() -> Self {
         Self {
             output: Vec::new(),
+            headers: Vec::new(),
+            response_code: 0,
             finished: false,
         }
     }
@@ -295,14 +299,16 @@ impl Sapi for TestSapi {
         eprintln!("[test-sapi] {msg}");
     }
 
-    fn send_headers(
-        _ctx: &mut TestContext,
-        _headers: *mut sapi_headers_struct,
-    ) -> SendHeadersResult {
-        SendHeadersResult::SentSuccessfully
+    fn send_headers(ctx: &mut TestContext, headers: &SapiHeaders) -> SendHeadersResult {
+        ctx.response_code = headers.http_response_code();
+        SendHeadersResult::DoSend
     }
 
-    fn send_header(_ctx: &mut TestContext, _header: *mut sapi_header_struct) {}
+    fn send_header(ctx: &mut TestContext, header: &SapiHeader) {
+        if let Some((name, value)) = header.as_name_value() {
+            ctx.headers.push((name.to_string(), value.to_string()));
+        }
+    }
 
     fn register_server_variables(_ctx: &mut TestContext, registrar: &mut ServerVarRegistrar) {
         registrar.register("SERVER_SOFTWARE", "test-sapi/1.0");
@@ -564,6 +570,143 @@ fn test_full_sapi_worker_flow() {
     });
 
     handle.join().expect("Thread panicked");
+
+    unsafe {
+        php_module_shutdown();
+    }
+    unsafe {
+        sapi_shutdown();
+    }
+    unsafe {
+        ext_php_rs_sapi_shutdown();
+    }
+}
+
+#[test]
+fn test_sapi_header_valid() {
+    let header_bytes = b"Content-Type: text/html";
+    let mut raw = sapi_header_struct {
+        header: header_bytes.as_ptr() as *mut c_char,
+        header_len: header_bytes.len(),
+    };
+    let wrapper = SapiHeader::from_raw(&raw mut raw);
+
+    assert_eq!(wrapper.as_str(), Some("Content-Type: text/html"));
+    assert_eq!(wrapper.as_name_value(), Some(("Content-Type", "text/html")));
+    assert_eq!(wrapper.len(), 23);
+    assert!(!wrapper.is_empty());
+}
+
+#[test]
+fn test_sapi_header_null_pointer() {
+    let mut raw = sapi_header_struct {
+        header: std::ptr::null_mut(),
+        header_len: 0,
+    };
+    let wrapper = SapiHeader::from_raw(&raw mut raw);
+
+    assert_eq!(wrapper.as_str(), None);
+    assert_eq!(wrapper.as_name_value(), None);
+    assert!(wrapper.is_empty());
+}
+
+#[test]
+fn test_sapi_header_no_colon() {
+    let header_bytes = b"InvalidHeader";
+    let mut raw = sapi_header_struct {
+        header: header_bytes.as_ptr() as *mut c_char,
+        header_len: header_bytes.len(),
+    };
+    let wrapper = SapiHeader::from_raw(&raw mut raw);
+
+    assert_eq!(wrapper.as_str(), Some("InvalidHeader"));
+    assert_eq!(wrapper.as_name_value(), None);
+}
+
+#[test]
+fn test_sapi_header_debug_format() {
+    let header_bytes = b"X-Custom: value";
+    let mut raw = sapi_header_struct {
+        header: header_bytes.as_ptr() as *mut c_char,
+        header_len: header_bytes.len(),
+    };
+    let wrapper = SapiHeader::from_raw(&raw mut raw);
+    let debug = format!("{wrapper:?}");
+    assert!(debug.contains("X-Custom: value"));
+}
+
+#[test]
+fn test_sapi_headers_response_code() {
+    let mut raw: sapi_headers_struct = unsafe { std::mem::zeroed() };
+    raw.http_response_code = 404;
+    let wrapper = SapiHeaders::from_raw(&raw mut raw);
+
+    assert_eq!(wrapper.http_response_code(), 404);
+}
+
+#[test]
+fn test_sapi_headers_debug_format() {
+    let mut raw: sapi_headers_struct = unsafe { std::mem::zeroed() };
+    raw.http_response_code = 200;
+    let wrapper = SapiHeaders::from_raw(&raw mut raw);
+    let debug = format!("{wrapper:?}");
+    assert!(debug.contains("200"));
+}
+
+#[test]
+#[cfg(php_zts)]
+fn test_sapi_trait_captures_headers() {
+    let _guard = SAPI_TEST_MUTEX.lock().unwrap();
+
+    let sapi = TestSapi::build_module().unwrap().into_raw();
+    let module = get_module();
+
+    unsafe {
+        ext_php_rs_sapi_startup();
+    }
+    unsafe {
+        sapi_startup(sapi);
+    }
+    unsafe {
+        php_module_startup(sapi, module);
+    }
+
+    let handle = thread::spawn(move || {
+        let _thread_guard = PhpThreadGuard::new();
+
+        let mut ctx = TestContext::new();
+        let ctx_ptr: *mut c_void = (&raw mut ctx).cast::<c_void>();
+
+        unsafe {
+            let globals = &mut *ext_php_rs::ffi::ext_php_rs_sapi_globals();
+            globals.server_context = ctx_ptr;
+        }
+
+        let result = unsafe { php_request_startup() };
+        assert_eq!(result, ZEND_RESULT_CODE_SUCCESS);
+
+        let _ = try_catch_first(|| Embed::eval("header('X-Test: ferron'); echo 'x';"));
+
+        unsafe {
+            php_request_shutdown(std::ptr::null_mut());
+        }
+
+        let captured_headers = ctx.headers.clone();
+
+        unsafe {
+            let globals = &mut *ext_php_rs::ffi::ext_php_rs_sapi_globals();
+            globals.server_context = std::ptr::null_mut();
+        }
+
+        captured_headers
+    });
+
+    let headers = handle.join().expect("Thread panicked");
+
+    assert!(
+        headers.iter().any(|(n, v)| n == "X-Test" && v == "ferron"),
+        "Expected X-Test: ferron header, got: {headers:?}"
+    );
 
     unsafe {
         php_module_shutdown();
