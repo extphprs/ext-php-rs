@@ -2294,6 +2294,9 @@ unsafe extern "C" {
     pub fn zend_destroy_static_vars(op_array: *mut zend_op_array);
 }
 unsafe extern "C" {
+    pub fn zend_activate_auto_globals();
+}
+unsafe extern "C" {
     pub fn zend_is_auto_global(name: *mut zend_string) -> bool;
 }
 pub type zend_module_entry = _zend_module_entry;
@@ -2618,7 +2621,16 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn php_output_activate() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn php_output_deactivate();
+}
+unsafe extern "C" {
     pub fn php_output_write(str_: *const ::std::os::raw::c_char, len: usize) -> usize;
+}
+unsafe extern "C" {
+    pub fn php_output_end_all();
 }
 pub type php_stream = _php_stream;
 pub type php_stream_wrapper = _php_stream_wrapper;
@@ -3637,6 +3649,15 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn sapi_shutdown();
 }
+unsafe extern "C" {
+    pub fn sapi_activate();
+}
+unsafe extern "C" {
+    pub fn sapi_deactivate_module();
+}
+unsafe extern "C" {
+    pub fn sapi_deactivate_destroy();
+}
 pub const sapi_header_op_enum_SAPI_HEADER_REPLACE: sapi_header_op_enum = 0;
 pub const sapi_header_op_enum_SAPI_HEADER_ADD: sapi_header_op_enum = 1;
 pub const sapi_header_op_enum_SAPI_HEADER_DELETE: sapi_header_op_enum = 2;
@@ -3775,6 +3796,21 @@ unsafe extern "C" {
         val_len: usize,
         new_val_len: *mut usize,
     ) -> ::std::os::raw::c_uint;
+}
+unsafe extern "C" {
+    pub fn php_register_variable(
+        var: *const ::std::os::raw::c_char,
+        val: *const ::std::os::raw::c_char,
+        track_vars_array: *mut zval,
+    );
+}
+unsafe extern "C" {
+    pub fn php_register_variable_safe(
+        var: *const ::std::os::raw::c_char,
+        val: *const ::std::os::raw::c_char,
+        val_len: usize,
+        track_vars_array: *mut zval,
+    );
 }
 pub const zend_fiber_status_ZEND_FIBER_STATUS_INIT: zend_fiber_status = 0;
 pub const zend_fiber_status_ZEND_FIBER_STATUS_RUNNING: zend_fiber_status = 1;

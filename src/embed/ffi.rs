@@ -28,6 +28,10 @@ unsafe extern "C" {
         ...
     );
 
+    pub fn ext_php_rs_worker_request_shutdown();
+    pub fn ext_php_rs_worker_request_startup() -> c_int;
+    pub fn ext_php_rs_worker_reset_superglobals();
+
     #[cfg(php82)]
     pub fn ext_php_rs_php_ini_builder_deinit(builder: *mut php_ini_builder);
 }
