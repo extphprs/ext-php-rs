@@ -12,3 +12,7 @@ void ext_php_rs_sapi_per_thread_init();
 void ext_php_rs_sapi_per_thread_shutdown();
 
 void ext_php_rs_php_error(int type, const char *format, ...);
+
+void ext_php_rs_worker_request_shutdown(void);
+int ext_php_rs_worker_request_startup(void);
+void ext_php_rs_worker_reset_superglobals(void);

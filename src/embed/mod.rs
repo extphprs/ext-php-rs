@@ -5,8 +5,13 @@
 //! version You should only use this crate for test purpose, it's not production
 //! ready
 
+mod context;
 mod ffi;
 mod sapi;
+mod sapi_trait;
+mod server_vars;
+mod thread;
+mod worker;
 
 use crate::boxed::ZBox;
 use crate::ffi::{
@@ -21,8 +26,15 @@ use std::panic::{AssertUnwindSafe, UnwindSafe, resume_unwind};
 use std::path::Path;
 use std::ptr::null_mut;
 
+pub use context::{RequestInfo, ServerContext};
 pub use ffi::*;
 pub use sapi::SapiModule;
+pub use sapi_trait::{Sapi, SendHeadersResult};
+pub use server_vars::ServerVarRegistrar;
+pub use thread::PhpThreadGuard;
+pub use worker::{
+    WorkerError, worker_request_shutdown, worker_request_startup, worker_reset_superglobals,
+};
 
 /// The embed module provides a way to run php code from rust
 pub struct Embed;
