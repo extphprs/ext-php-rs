@@ -7,6 +7,109 @@ use crate::ffi::{ext_php_rs_sapi_globals, sapi_header_struct, sapi_headers_struc
 use crate::types::Zval;
 use std::ffi::{c_char, c_int, c_void};
 
+/// Safe wrapper around `sapi_headers_struct` providing access to the HTTP
+/// response code set by PHP.
+///
+/// This type is only valid for the duration of the [`Sapi::send_headers`]
+/// callback. Do not store it.
+pub struct SapiHeaders {
+    raw: *mut sapi_headers_struct,
+}
+
+impl std::fmt::Debug for SapiHeaders {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SapiHeaders")
+            .field("http_response_code", &self.http_response_code())
+            .finish()
+    }
+}
+
+impl SapiHeaders {
+    /// Creates a `SapiHeaders` from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a valid, non-null pointer to a `sapi_headers_struct`
+    /// that remains valid for the lifetime of the returned `SapiHeaders`.
+    #[must_use]
+    pub fn from_raw(raw: *mut sapi_headers_struct) -> Self {
+        Self { raw }
+    }
+
+    /// Returns the HTTP response code set by PHP (e.g. 200, 404, 500).
+    #[must_use]
+    pub fn http_response_code(&self) -> i32 {
+        unsafe { (*self.raw).http_response_code }
+    }
+}
+
+/// Safe wrapper around `sapi_header_struct` providing access to a single
+/// HTTP response header sent by PHP.
+///
+/// This type is only valid for the duration of the [`Sapi::send_header`]
+/// callback. Do not store it.
+pub struct SapiHeader {
+    raw: *mut sapi_header_struct,
+}
+
+impl std::fmt::Debug for SapiHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SapiHeader")
+            .field("header", &self.as_str())
+            .finish()
+    }
+}
+
+impl SapiHeader {
+    /// Creates a `SapiHeader` from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a valid, non-null pointer to a `sapi_header_struct`
+    /// that remains valid for the lifetime of the returned `SapiHeader`.
+    #[must_use]
+    pub fn from_raw(raw: *mut sapi_header_struct) -> Self {
+        Self { raw }
+    }
+
+    /// Returns the raw header string (e.g. `"Content-Type: text/html"`).
+    ///
+    /// Returns `None` if the header data is not valid UTF-8.
+    #[must_use]
+    pub fn as_str(&self) -> Option<&str> {
+        let raw = unsafe { &*self.raw };
+        if raw.header.is_null() || raw.header_len == 0 {
+            return None;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(raw.header.cast::<u8>(), raw.header_len) };
+        std::str::from_utf8(bytes).ok()
+    }
+
+    /// Returns the header parsed as a `(name, value)` pair, splitting on the
+    /// first `:`.
+    ///
+    /// Both name and value are trimmed of whitespace. Returns `None` if the
+    /// header is not valid UTF-8 or does not contain `:`.
+    #[must_use]
+    pub fn as_name_value(&self) -> Option<(&str, &str)> {
+        let s = self.as_str()?;
+        let (name, value) = s.split_once(':')?;
+        Some((name.trim(), value.trim()))
+    }
+
+    /// Returns the length of the header string in bytes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        unsafe { (*self.raw).header_len }
+    }
+
+    /// Returns `true` if the header is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// Result type for the `send_headers` SAPI callback.
 #[non_exhaustive]
 pub enum SendHeadersResult {
@@ -77,15 +180,12 @@ pub trait Sapi: Send + Sync + 'static {
     fn flush(_ctx: &mut Self::Context) {}
 
     /// Send all response headers at once.
-    fn send_headers(
-        _ctx: &mut Self::Context,
-        _headers: *mut sapi_headers_struct,
-    ) -> SendHeadersResult {
+    fn send_headers(_ctx: &mut Self::Context, _headers: &SapiHeaders) -> SendHeadersResult {
         SendHeadersResult::DoSend
     }
 
     /// Send a single response header.
-    fn send_header(_ctx: &mut Self::Context, _header: *mut sapi_header_struct) {}
+    fn send_header(_ctx: &mut Self::Context, _header: &SapiHeader) {}
 
     /// Read POST body chunk. Delegates to `ServerContext::read_post` by default.
     fn read_post(ctx: &mut Self::Context, buf: &mut [u8]) -> usize {
@@ -133,6 +233,9 @@ fn get_server_context<S: Sapi>() -> Option<&'static mut S::Context> {
 }
 
 extern "C" fn trampoline_ub_write<S: Sapi>(str: *const c_char, str_length: usize) -> usize {
+    if str.is_null() || str_length == 0 {
+        return 0;
+    }
     let Some(ctx) = get_server_context::<S>() else {
         return 0;
     };
@@ -141,6 +244,9 @@ extern "C" fn trampoline_ub_write<S: Sapi>(str: *const c_char, str_length: usize
 }
 
 extern "C" fn trampoline_log_message<S: Sapi>(message: *const c_char, syslog_type: c_int) {
+    if message.is_null() {
+        return;
+    }
     let msg = unsafe { std::ffi::CStr::from_ptr(message) };
     let msg_str = msg.to_string_lossy();
     S::log_message(&msg_str, syslog_type);
@@ -154,22 +260,33 @@ extern "C" fn trampoline_flush<S: Sapi>(server_context: *mut c_void) {
 }
 
 extern "C" fn trampoline_send_headers<S: Sapi>(sapi_headers: *mut sapi_headers_struct) -> c_int {
+    if sapi_headers.is_null() {
+        return SendHeadersResult::Failed.into_c_int();
+    }
     let Some(ctx) = get_server_context::<S>() else {
         return SendHeadersResult::Failed.into_c_int();
     };
-    S::send_headers(ctx, sapi_headers).into_c_int()
+    let headers = SapiHeaders::from_raw(sapi_headers);
+    S::send_headers(ctx, &headers).into_c_int()
 }
 
 extern "C" fn trampoline_send_header<S: Sapi>(
     header: *mut sapi_header_struct,
     _server_context: *mut c_void,
 ) {
+    if header.is_null() {
+        return;
+    }
     if let Some(ctx) = get_server_context::<S>() {
-        S::send_header(ctx, header);
+        let header = SapiHeader::from_raw(header);
+        S::send_header(ctx, &header);
     }
 }
 
 extern "C" fn trampoline_read_post<S: Sapi>(buffer: *mut c_char, length: usize) -> usize {
+    if buffer.is_null() || length == 0 {
+        return 0;
+    }
     let Some(ctx) = get_server_context::<S>() else {
         return 0;
     };
@@ -191,6 +308,9 @@ extern "C" fn trampoline_read_cookies<S: Sapi>() -> *mut c_char {
 }
 
 extern "C" fn trampoline_register_server_variables<S: Sapi>(vars: *mut Zval) {
+    if vars.is_null() {
+        return;
+    }
     let Some(ctx) = get_server_context::<S>() else {
         return;
     };
