@@ -19,25 +19,29 @@
       pkgs = import nixpkgs { inherit system overlays; };
       php = pkgs.php.buildEnv { embedSupport = true; };
       php-dev = php.unwrapped.dev;
+      php-zts = (pkgs.php.override { ztsSupport = true; }).buildEnv { embedSupport = true; };
+      php-zts-dev = php-zts.unwrapped.dev;
+      mkShellFor = phpPkg: phpDevPkg: pkgs.mkShell {
+        buildInputs = with pkgs; [
+          phpPkg
+          phpDevPkg
+          libclang.lib
+          clang
+          valgrind
+        ];
+
+        nativeBuildInputs = [ pkgs.rust-bin.stable.latest.default ];
+
+        shellHook = ''
+          export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+          export BINDGEN_EXTRA_CLANG_ARGS="-resource-dir ${pkgs.libclang.lib}/lib/clang/${pkgs.lib.versions.major (pkgs.lib.getVersion pkgs.clang)} -isystem ${pkgs.glibc.dev}/include"
+        '';
+      };
     in
     {
       devShells.${system} = {
-        default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            php
-            php-dev
-            libclang.lib
-            clang
-            valgrind
-          ];
-
-          nativeBuildInputs = [ pkgs.rust-bin.stable.latest.default ];
-
-          shellHook = ''
-            export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
-            export BINDGEN_EXTRA_CLANG_ARGS="-resource-dir ${pkgs.libclang.lib}/lib/clang/${pkgs.lib.versions.major (pkgs.lib.getVersion pkgs.clang)} -isystem ${pkgs.glibc.dev}/include"
-          '';
-        };
+        default = mkShellFor php php-dev;
+        zts = mkShellFor php-zts php-zts-dev;
       };
     };
 }

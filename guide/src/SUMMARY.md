@@ -47,6 +47,8 @@
 - [Bailout Guard](./advanced/bailout_guard.md)
 - [Observer API](./advanced/observer.md)
 - [Embedded PHP](./advanced/embedded_php.md)
+- [Custom SAPI](./advanced/custom_sapi.md)
+- [Worker Mode](./advanced/worker_mode.md)
 - [Allowed Bindings](./advanced/allowed_bindings.md)
 
 # Migration Guides

@@ -85,6 +85,7 @@ fn build_embed(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<()> {
     }
     build
         .file("src/embed/embed.c")
+        .file("src/embed/worker.c")
         .includes(includes)
         .try_compile("embed")
         .context("Failed to compile ext-php-rs C embed interface")?;
@@ -216,6 +217,7 @@ fn main() -> Result<()> {
         manifest.join("src").join("wrapper.c"),
         manifest.join("src").join("embed").join("embed.h"),
         manifest.join("src").join("embed").join("embed.c"),
+        manifest.join("src").join("embed").join("worker.c"),
         manifest.join("allowed_bindings.rs"),
         manifest.join("windows_build.rs"),
         manifest.join("unix_build.rs"),
