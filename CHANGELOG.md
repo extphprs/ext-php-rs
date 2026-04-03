@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.15.9](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.8...ext-php-rs-v0.15.9) - 2026-04-03
+
+### Added
+- *(embed)* Add Sapi trait, PhpThreadGuard and worker-mode lifecycle ([#712](https://github.com/extphprs/ext-php-rs/pull/712)) (by @ptondereau) [[#712](https://github.com/extphprs/ext-php-rs/issues/712)] 
+- *(zend)* Add ModuleGlobals for per-extension global state ([#715](https://github.com/extphprs/ext-php-rs/pull/715)) (by @ptondereau) [[#715](https://github.com/extphprs/ext-php-rs/issues/715)] 
+
+### Fixed
+- *(embed)* Add null pointer guards to SAPI trampolines ([#714](https://github.com/extphprs/ext-php-rs/pull/714)) (by @ptondereau) [[#714](https://github.com/extphprs/ext-php-rs/issues/714)] 
 ## [0.15.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.7...ext-php-rs-v0.15.8) - 2026-03-30
 
 ### Added
