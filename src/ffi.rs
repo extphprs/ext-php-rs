@@ -49,6 +49,16 @@ unsafe extern "C" {
         filename: *const c_char,
     ) -> *mut zend_op_array;
     pub fn ext_php_rs_zend_execute(op_array: *mut zend_op_array);
+
+    pub fn _ext_php_rs_zend_fcc_addref(fcc: *mut _zend_fcall_info_cache);
+    pub fn _ext_php_rs_zend_fcc_dtor(fcc: *mut _zend_fcall_info_cache);
+    pub fn _ext_php_rs_cached_call_function(
+        fcc: *mut _zend_fcall_info_cache,
+        retval: *mut zval,
+        param_count: u32,
+        params: *mut zval,
+        named_params: *mut HashTable,
+    ) -> ::std::os::raw::c_int;
 }
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));

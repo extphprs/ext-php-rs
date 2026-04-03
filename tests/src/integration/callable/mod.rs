@@ -1,4 +1,4 @@
-use ext_php_rs::{call_user_func_named, prelude::*, types::Zval};
+use ext_php_rs::{call_user_func_named, error::CachedCallableError, prelude::*, types::Zval};
 
 #[php_function]
 pub fn test_callable(call: ZendCallable, a: String) -> Zval {
@@ -61,6 +61,70 @@ pub fn test_callable_duplicate_named(call: ZendCallable) -> Zval {
         .expect("Failed to call function with duplicate named args")
 }
 
+#[php_function]
+pub fn test_cached_callable_basic(call: ZendCallable, a: String) -> Zval {
+    let cached = call.cache().expect("Failed to cache callable");
+    cached
+        .try_call(vec![&a])
+        .expect("Failed to call cached callable")
+}
+
+#[php_function]
+pub fn test_cached_callable_repeated(call: ZendCallable) -> Zval {
+    let cached = call.cache().expect("Failed to cache callable");
+    let mut sum = 0i64;
+    for i in 0..10i64 {
+        let result = cached
+            .try_call(vec![&i])
+            .expect("Failed to call cached callable");
+        sum += result.long().unwrap_or(0);
+    }
+    let mut ret = Zval::new();
+    ret.set_long(sum);
+    ret
+}
+
+#[php_function]
+pub fn test_cached_callable_named(call: ZendCallable) -> Zval {
+    let cached = call.cache().expect("Failed to cache callable");
+    cached
+        .try_call_named(&[("b", &"second"), ("a", &"first")])
+        .expect("Failed to call cached callable with named args")
+}
+
+#[php_function]
+pub fn test_cached_callable_mixed(call: ZendCallable) -> Zval {
+    let cached = call.cache().expect("Failed to cache callable");
+    cached
+        .try_call_with_named(&[&"positional"], &[("named", &"named_value")])
+        .expect("Failed to call cached callable with mixed args")
+}
+
+#[php_function]
+pub fn test_cached_callable_exception_recovery(call: ZendCallable) -> Zval {
+    let cached = call.cache().expect("Failed to cache callable");
+
+    let first = cached.try_call(vec![&true]);
+    assert!(first.is_err(), "First call should have thrown");
+    assert!(
+        matches!(first, Err(CachedCallableError::PhpException(_))),
+        "Should be a PhpException"
+    );
+
+    cached
+        .try_call(vec![&false])
+        .expect("Cached callable should recover after exception")
+}
+
+#[php_function]
+pub fn test_cached_callable_builtin() -> Zval {
+    let strlen = ZendCallable::try_from_name("strlen").expect("Failed to get strlen");
+    let cached = strlen.cache().expect("Failed to cache strlen");
+    cached
+        .try_call(vec![&"hello"])
+        .expect("Failed to call cached strlen")
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_callable))
@@ -71,6 +135,12 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(test_callable_empty_named))
         .function(wrap_function!(test_callable_builtin_named))
         .function(wrap_function!(test_callable_duplicate_named))
+        .function(wrap_function!(test_cached_callable_basic))
+        .function(wrap_function!(test_cached_callable_repeated))
+        .function(wrap_function!(test_cached_callable_named))
+        .function(wrap_function!(test_cached_callable_mixed))
+        .function(wrap_function!(test_cached_callable_exception_recovery))
+        .function(wrap_function!(test_cached_callable_builtin))
 }
 
 #[cfg(test)]
