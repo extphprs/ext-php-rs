@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     ffi::{ZEND_MODULE_API_NO, ext_php_rs_php_build_id},
     flags::ClassFlags,
-    zend::{FunctionEntry, ModuleEntry},
+    zend::{FunctionEntry, ModuleEntry, ModuleGlobal, ModuleGlobals},
 };
 #[cfg(feature = "enum")]
 use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
@@ -45,7 +45,7 @@ use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
 /// }
 /// ```
 #[must_use]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ModuleBuilder<'a> {
     pub(crate) name: String,
     pub(crate) version: String,
@@ -61,6 +61,41 @@ pub struct ModuleBuilder<'a> {
     request_shutdown_func: Option<StartupShutdownFunc>,
     post_deactivate_func: Option<unsafe extern "C" fn() -> i32>,
     info_func: Option<InfoFunc>,
+    globals_size: usize,
+    #[cfg(php_zts)]
+    globals_id_ptr: *mut i32,
+    #[cfg(not(php_zts))]
+    globals_ptr: *mut std::ffi::c_void,
+    globals_ctor: Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
+    globals_dtor: Option<unsafe extern "C" fn(*mut std::ffi::c_void)>,
+}
+
+impl Default for ModuleBuilder<'_> {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            version: String::new(),
+            functions: vec![],
+            constants: vec![],
+            classes: vec![],
+            interfaces: vec![],
+            #[cfg(feature = "enum")]
+            enums: vec![],
+            startup_func: None,
+            shutdown_func: None,
+            request_startup_func: None,
+            request_shutdown_func: None,
+            post_deactivate_func: None,
+            info_func: None,
+            globals_size: 0,
+            #[cfg(php_zts)]
+            globals_id_ptr: ptr::null_mut(),
+            #[cfg(not(php_zts))]
+            globals_ptr: ptr::null_mut(),
+            globals_ctor: None,
+            globals_dtor: None,
+        }
+    }
 }
 
 impl ModuleBuilder<'_> {
@@ -74,9 +109,6 @@ impl ModuleBuilder<'_> {
         Self {
             name: name.into(),
             version: version.into(),
-            functions: vec![],
-            constants: vec![],
-            classes: vec![],
             ..Default::default()
         }
     }
@@ -163,6 +195,52 @@ impl ModuleBuilder<'_> {
     ///   the extension.
     pub fn info_function(mut self, func: InfoFunc) -> Self {
         self.info_func = Some(func);
+        self
+    }
+
+    /// Registers a module globals struct with this extension.
+    ///
+    /// PHP will allocate per-thread storage (ZTS) or use the static's inline
+    /// storage (non-ZTS), calling GINIT/GSHUTDOWN callbacks automatically.
+    ///
+    /// Only one globals struct per module is supported (PHP limitation).
+    /// Calling this a second time will overwrite the previous registration.
+    ///
+    /// # Arguments
+    ///
+    /// * `handle` - A static [`ModuleGlobals`] that will hold the globals.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use ext_php_rs::prelude::*;
+    /// use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+    ///
+    /// #[derive(Default)]
+    /// struct MyGlobals { counter: i64 }
+    /// impl ModuleGlobal for MyGlobals {}
+    ///
+    /// static MY_GLOBALS: ModuleGlobals<MyGlobals> = ModuleGlobals::new();
+    ///
+    /// #[php_module]
+    /// pub fn module(module: ModuleBuilder) -> ModuleBuilder {
+    ///     module.globals(&MY_GLOBALS)
+    /// }
+    /// ```
+    pub fn globals<T: ModuleGlobal>(mut self, handle: &'static ModuleGlobals<T>) -> Self {
+        use crate::zend::module_globals::{ginit_callback, gshutdown_callback};
+
+        self.globals_size = std::mem::size_of::<T>();
+        #[cfg(php_zts)]
+        {
+            self.globals_id_ptr = handle.id_ptr();
+        }
+        #[cfg(not(php_zts))]
+        {
+            self.globals_ptr = handle.data_ptr();
+        }
+        self.globals_ctor = Some(ginit_callback::<T>);
+        self.globals_dtor = Some(gshutdown_callback::<T>);
         self
     }
 
@@ -604,10 +682,10 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
             request_shutdown_func: builder.request_shutdown_func,
             info_func: builder.info_func,
             version,
-            globals_size: 0,
-            globals_ptr: ptr::null_mut(),
-            globals_ctor: None,
-            globals_dtor: None,
+            globals_size: builder.globals_size,
+            globals_ptr: builder.globals_ptr,
+            globals_ctor: builder.globals_ctor,
+            globals_dtor: builder.globals_dtor,
             post_deactivate_func: builder.post_deactivate_func,
             module_started: 0,
             type_: 0,
@@ -632,10 +710,10 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
             request_shutdown_func: builder.request_shutdown_func,
             info_func: builder.info_func,
             version,
-            globals_size: 0,
-            globals_id_ptr: ptr::null_mut(),
-            globals_ctor: None,
-            globals_dtor: None,
+            globals_size: builder.globals_size,
+            globals_id_ptr: builder.globals_id_ptr,
+            globals_ctor: builder.globals_ctor,
+            globals_dtor: builder.globals_dtor,
             post_deactivate_func: builder.post_deactivate_func,
             module_started: 0,
             type_: 0,

@@ -15,6 +15,7 @@ mod handlers;
 mod ini_entry_def;
 mod linked_list;
 mod module;
+pub(crate) mod module_globals;
 #[cfg(feature = "observer")]
 pub(crate) mod observer;
 mod streams;
@@ -49,6 +50,7 @@ pub use handlers::ZendObjectHandlers;
 pub use ini_entry_def::IniEntryDef;
 pub use linked_list::ZendLinkedList;
 pub use module::{ModuleEntry, StaticModuleEntry, cleanup_module_allocations};
+pub use module_globals::{ModuleGlobal, ModuleGlobals};
 #[cfg(feature = "observer")]
 pub use observer::{FcallInfo, FcallObserver};
 pub use streams::*;
