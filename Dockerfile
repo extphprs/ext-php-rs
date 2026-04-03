@@ -35,7 +35,7 @@ RUN rustup component add rustfmt
 RUN --mount=type=bind,target=/src,rw <<EOF
 set -e
 cargo clean
-cargo build
+cargo build --features observer
 cp target/debug/build/ext-php-rs-*/out/bindings.rs /docsrs_bindings.rs
 rustfmt /docsrs_bindings.rs
 EOF

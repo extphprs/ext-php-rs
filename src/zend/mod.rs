@@ -20,6 +20,8 @@ pub(crate) mod module_globals;
 pub(crate) mod observer;
 mod streams;
 mod try_catch;
+#[cfg(feature = "observer")]
+pub(crate) mod zend_extension;
 
 use crate::{
     error::Result,
@@ -57,6 +59,8 @@ pub use streams::*;
 #[cfg(feature = "embed")]
 pub(crate) use try_catch::panic_wrapper;
 pub use try_catch::{CatchError, bailout, try_catch, try_catch_first};
+#[cfg(feature = "observer")]
+pub use zend_extension::ZendExtensionHandler;
 
 // Used as the format string for `php_printf`.
 const FORMAT_STR: &[u8] = b"%s\0";
