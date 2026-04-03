@@ -69,12 +69,12 @@ pub mod prelude {
     pub use crate::php_println;
     pub use crate::php_write;
     pub use crate::types::ZendCallable;
-    pub use crate::zend::BailoutGuard;
     #[cfg(feature = "observer")]
     pub use crate::zend::{
         BacktraceFrame, ErrorInfo, ErrorObserver, ErrorType, ExceptionInfo, ExceptionObserver,
         FcallInfo, FcallObserver,
     };
+    pub use crate::zend::{BailoutGuard, ModuleGlobal, ModuleGlobals};
     pub use crate::{
         ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_impl_interface,
         php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
