@@ -13,6 +13,7 @@ pub mod globals;
 pub mod interface;
 pub mod iterator;
 pub mod magic_method;
+pub mod module_globals;
 pub mod nullable;
 pub mod number;
 pub mod object;

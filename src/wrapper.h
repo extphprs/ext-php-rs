@@ -53,6 +53,9 @@ zend_executor_globals *ext_php_rs_executor_globals();
 php_core_globals *ext_php_rs_process_globals();
 sapi_globals_struct *ext_php_rs_sapi_globals();
 php_file_globals *ext_php_rs_file_globals();
+#ifdef ZTS
+void *ext_php_rs_tsrmg_bulk(int id);
+#endif
 sapi_module_struct *ext_php_rs_sapi_module();
 bool ext_php_rs_zend_try_catch(void* (*callback)(void *), void *ctx, void **result);
 bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void **result);

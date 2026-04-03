@@ -91,6 +91,12 @@ php_file_globals *ext_php_rs_file_globals() {
 #endif
 }
 
+#ifdef ZTS
+void *ext_php_rs_tsrmg_bulk(int id) {
+  return TSRMG_BULK(id, void *);
+}
+#endif
+
 sapi_module_struct *ext_php_rs_sapi_module() {
   return &sapi_module;
 }
