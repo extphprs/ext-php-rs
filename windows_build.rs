@@ -65,22 +65,28 @@ impl<'a> PHPProvider<'a> for Provider<'a> {
     }
 
     fn write_bindings(&self, bindings: String, writer: &mut impl Write) -> Result<()> {
-        // For some reason some symbols don't link without a `#[link(name = "php8")]`
-        // attribute on each extern block. Bindgen doesn't give us the option to add
-        // this so we need to add it manually.
+        // Symbols don't link without a `#[link(name = "php8")]` attribute on
+        // each extern block. Bindgen doesn't give us the option to add this so
+        // we need to add it manually.
         //
-        // Note: bindgen 0.72+ generates `unsafe extern` blocks when using nightly Rust,
-        // so we need to handle both `extern` and `unsafe extern` variants.
+        // We use substring matching rather than exact line comparison because
+        // bindgen's output format varies depending on whether rustfmt is
+        // available. When rustfmt is missing, bindgen emits minimally-formatted
+        // output where extern blocks may not appear on their own line.
         let php_lib_name = self.get_php_lib_name()?;
+        let link_attr = format!("#[link(name = \"{php_lib_name}\")]");
+        let extern_patterns = [
+            "extern \"C\" {",
+            "extern \"fastcall\" {",
+            "unsafe extern \"C\" {",
+            "unsafe extern \"fastcall\" {",
+        ];
         for line in bindings.lines() {
-            match line {
-                "extern \"C\" {"
-                | "extern \"fastcall\" {"
-                | "unsafe extern \"C\" {"
-                | "unsafe extern \"fastcall\" {" => {
-                    writeln!(writer, "#[link(name = \"{}\")]", php_lib_name)?;
+            for pattern in &extern_patterns {
+                if line.contains(pattern) {
+                    writeln!(writer, "{link_attr}")?;
+                    break;
                 }
-                _ => {}
             }
             writeln!(writer, "{}", line)?;
         }
