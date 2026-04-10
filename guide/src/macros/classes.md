@@ -360,6 +360,97 @@ echo Counter::$count; // 2
 echo Counter::getCount(); // 2
 ```
 
+## Using Classes as Properties
+
+By default, `#[php_class]` types cannot be used directly as properties of other
+`#[php_class]` types because they don't implement `FromZval`. To enable this,
+use the `class_derives_clone!` macro on any class that needs to be used as a
+property.
+
+The class must implement `Clone`, and calling `class_derives_clone!` will
+implement `FromZval` and `FromZendObject` for the type, allowing PHP objects
+to be cloned into Rust values.
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::class_derives_clone;
+
+// Inner class that will be used as a property
+#[php_class]
+#[derive(Clone)]
+pub struct Address {
+    #[php(prop)]
+    pub street: String,
+    #[php(prop)]
+    pub city: String,
+}
+
+// Enable this class to be used as a property
+class_derives_clone!(Address);
+
+#[php_impl]
+impl Address {
+    pub fn __construct(street: String, city: String) -> Self {
+        Self { street, city }
+    }
+}
+
+// Outer class containing the inner class as a property
+#[php_class]
+pub struct Person {
+    #[php(prop)]
+    pub name: String,
+    #[php(prop)]
+    pub address: Address,  // Works because we called class_derives_clone!
+}
+
+#[php_impl]
+impl Person {
+    pub fn __construct(name: String, address: Address) -> Self {
+        Self { name, address }
+    }
+
+    pub fn get_city(&self) -> String {
+        self.address.city.clone()
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module
+        .class::<Address>()
+        .class::<Person>()
+}
+```
+
+From PHP:
+
+```php
+<?php
+
+$address = new Address("123 Main St", "Springfield");
+$person = new Person("John Doe", $address);
+
+echo $person->name;           // "John Doe"
+echo $person->address->city;  // "Springfield"
+echo $person->getCity();      // "Springfield"
+
+// You can also set the nested property
+$newAddress = new Address("456 Oak Ave", "Shelbyville");
+$person->address = $newAddress;
+echo $person->address->city;  // "Shelbyville"
+```
+
+**Important notes:**
+
+- The inner class must implement `Clone`
+- Call `class_derives_clone!` after the `#[php_class]` definition
+- When accessed from PHP, the property returns a clone of the Rust value
+- Modifications to the returned object don't affect the original unless reassigned
+
+See [GitHub issue #182](https://github.com/extphprs/ext-php-rs/issues/182)
+for more context.
+
 ## Abstract Classes
 
 Abstract classes cannot be instantiated directly and may contain abstract methods
