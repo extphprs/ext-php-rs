@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [0.15.9](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.8...ext-php-rs-v0.15.9) - 2026-04-13
+
+### Added
+- *(embed)* Add Sapi trait, PhpThreadGuard and worker-mode lifecycle ([#712](https://github.com/extphprs/ext-php-rs/pull/712)) (by @ptondereau) [[#712](https://github.com/extphprs/ext-php-rs/issues/712)] 
+- *(zend)* Add ModuleGlobals for per-extension global state ([#715](https://github.com/extphprs/ext-php-rs/pull/715)) (by @ptondereau) [[#715](https://github.com/extphprs/ext-php-rs/issues/715)] 
+
+### Fixed
+- *(embed)* Add null pointer guards to SAPI trampolines ([#714](https://github.com/extphprs/ext-php-rs/pull/714)) (by @ptondereau) [[#714](https://github.com/extphprs/ext-php-rs/issues/714)] 
+- Windows builds ([#717](https://github.com/extphprs/ext-php-rs/pull/717)) (by @tob-scott-a) [[#717](https://github.com/extphprs/ext-php-rs/issues/717)] 
+
+### Other
+- *(deps)* Bump actions/github-script from 8 to 9 ([#719](https://github.com/extphprs/ext-php-rs/pull/719)) (by @dependabot[bot]) [[#719](https://github.com/extphprs/ext-php-rs/issues/719)] 
+- *(deps)* Bump dawidd6/action-download-artifact from 19 to 20 ([#716](https://github.com/extphprs/ext-php-rs/pull/716)) (by @dependabot[bot]) [[#716](https://github.com/extphprs/ext-php-rs/issues/716)] 
 ## [0.15.8](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.7...ext-php-rs-v0.15.8) - 2026-03-30
 
 ### Added
