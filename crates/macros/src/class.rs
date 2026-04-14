@@ -296,9 +296,22 @@ fn generate_registered_class_impl(
                 }
             };
 
+            // Determine visibility from the token stream. The flags expression
+            // always comes from #[php(prop, flags = PropertyFlags::...)] so
+            // substring matching on the stringified tokens is reliable here.
+            let flags_str = flags.to_string();
+            let mangled_name = if flags_str.contains("Private") {
+                format!("\0{class_name}\0{name}")
+            } else if flags_str.contains("Protected") {
+                format!("\0*\0{name}")
+            } else {
+                name.clone()
+            };
+
             let descriptor = quote! {
                 ::ext_php_rs::internal::property::PropertyDescriptor {
                     name: #name,
+                    mangled_name: #mangled_name,
                     get: ::std::option::Option::Some(#getter_name),
                     set: ::std::option::Option::Some(#setter_name),
                     flags: #flags,

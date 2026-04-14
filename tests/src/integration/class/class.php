@@ -172,13 +172,15 @@ assert_exception_thrown(fn() => $visibilityObj->privateStr = 'test', 'Writing pr
 assert_exception_thrown(fn() => $visibilityObj->protectedStr, 'Reading protected property should throw');
 assert_exception_thrown(fn() => $visibilityObj->protectedStr = 'test', 'Writing protected property should throw');
 
-// Test var_dump shows mangled names for private/protected properties
-ob_start();
-var_dump($visibilityObj);
-$output = ob_get_clean();
-assert(strpos($output, 'publicNum') !== false, 'var_dump should show public property');
-// Private properties should show as ClassName::propertyName in var_dump
-// Protected properties should show with * prefix
+// Test var_dump shows correct mangled names for private/protected properties.
+// PHP convention: private => "\0ClassName\0prop", protected => "\0*\0prop".
+// Casting to array exposes these mangled keys directly.
+$arr = (array) $visibilityObj;
+assert(array_key_exists('publicNum', $arr), 'Public property should appear unmangled');
+assert(array_key_exists("\0TestPropertyVisibility\0privateStr", $arr),
+    'Private property should appear with \0ClassName\0prop mangling');
+assert(array_key_exists("\0*\0protectedStr", $arr),
+    'Protected property should appear with \0*\0prop mangling');
 
 // Test reserved keyword method names
 $keywordObj = new TestReservedKeywordMethods();

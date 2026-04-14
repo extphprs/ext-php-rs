@@ -226,6 +226,31 @@ binary_benchmark_group!(
     benchmarks = property_writes
 );
 
+#[binary_benchmark]
+#[bench::single_property_dump(args = ("property_dump.php", 1))]
+#[bench::multiple_property_dumps(args = ("property_dump.php", 10))]
+#[bench::lots_of_property_dumps(args = ("property_dump.php", 100_000))]
+fn property_dumps(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+binary_benchmark_group!(
+    name = property_dump;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*get_properties*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = property_dumps
+);
+
 main!(
-    binary_benchmark_groups = function, callback, method, static_method, property_read, property_write
+    binary_benchmark_groups = function, callback, method, static_method, property_read, property_write, property_dump
 );
