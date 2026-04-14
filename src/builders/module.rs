@@ -500,20 +500,20 @@ impl ModuleBuilder<'_> {
                     .dyn_constant(*name, *value, docs)
                     .expect("Failed to register constant");
             }
-            for (name, prop_info) in T::get_properties() {
-                let default_stub = if prop_info.nullable {
+            for desc in T::get_metadata().all_properties() {
+                let default_stub = if desc.nullable {
                     Some("null".into())
                 } else {
                     None
                 };
                 builder = builder.property(crate::builders::ClassProperty {
-                    name: name.into(),
-                    flags: prop_info.flags,
+                    name: desc.name.into(),
+                    flags: desc.flags,
                     default: None,
-                    docs: prop_info.docs,
-                    ty: Some(prop_info.ty),
-                    nullable: prop_info.nullable,
-                    readonly: prop_info.readonly,
+                    docs: desc.docs,
+                    ty: Some(desc.ty),
+                    nullable: desc.nullable,
+                    readonly: desc.readonly,
                     default_stub,
                 });
             }

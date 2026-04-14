@@ -1,7 +1,6 @@
 //! Types and traits used for registering classes with PHP.
 
 use std::{
-    collections::HashMap,
     marker::PhantomData,
     sync::atomic::{AtomicPtr, Ordering},
 };
@@ -14,7 +13,7 @@ use crate::{
     describe::DocComments,
     exception::PhpException,
     flags::{ClassFlags, MethodFlags, PropertyFlags},
-    internal::property::PropertyInfo,
+    internal::property::PropertyDescriptor,
     zend::{ClassEntry, ExecuteData, ZendObjectHandlers},
 };
 
@@ -44,8 +43,8 @@ pub trait RegisteredClass: Sized + 'static {
     /// Doc comments for the class.
     const DOC_COMMENTS: DocComments = &[];
 
-    /// Returns a reference to the class metadata, which stores the class entry
-    /// and handlers.
+    /// Returns a reference to the class metadata, which stores the class entry,
+    /// handlers, and property descriptors.
     ///
     /// This must be statically allocated, and is usually done through the
     /// [`macro@php_class`] macro.
@@ -53,16 +52,12 @@ pub trait RegisteredClass: Sized + 'static {
     /// [`macro@php_class`]: crate::php_class
     fn get_metadata() -> &'static ClassMetadata<Self>;
 
-    /// Returns a hash table containing the properties of the class.
-    ///
-    /// The key should be the name of the property and the value should be a
-    /// reference to the property with reference to `self`. The value is a
-    /// [`PropertyInfo`].
-    ///
-    /// Instead of using this method directly, you should access the properties
-    /// through the [`ClassMetadata::get_properties`] function, which builds the
-    /// hashmap one and stores it in memory.
-    fn get_properties<'a>() -> HashMap<&'static str, PropertyInfo<'a, Self>>;
+    /// Returns method properties (from `#[php(getter)]`/`#[php(setter)]`).
+    /// Resolved via autoref specialization in the macro-generated code.
+    #[must_use]
+    fn method_properties() -> &'static [PropertyDescriptor<Self>] {
+        &[]
+    }
 
     /// Returns the method builders required to build the class.
     fn method_builders() -> Vec<(FunctionBuilder<'static>, MethodFlags)>;
@@ -120,10 +115,6 @@ pub trait RegisteredClass: Sized + 'static {
     /// such as when throwing exceptions via `zend_throw_exception_ex`. For types
     /// that derive `Default`, this will return `Some(Self::default())`, allowing
     /// the object to be properly initialized even without a constructor call.
-    ///
-    /// # Returns
-    ///
-    /// `Some(Self)` if the type can be default-initialized, `None` otherwise.
     #[must_use]
     fn default_init() -> Option<Self> {
         None
@@ -136,10 +127,6 @@ pub trait RegisteredClass: Sized + 'static {
     /// generates an implementation returning `Some(self.clone())`. Types that
     /// don't implement `Clone` use the default (returns `None`), which causes
     /// PHP to throw an error when attempting to clone.
-    ///
-    /// # Returns
-    ///
-    /// `Some(Self)` if the object can be cloned, `None` otherwise.
     #[must_use]
     fn clone_obj(&self) -> Option<Self> {
         None
@@ -186,11 +173,12 @@ impl<T> From<T> for ConstructorResult<T> {
     }
 }
 
-/// Stores the class entry and handlers for a Rust type which has been exported
-/// to PHP. Usually allocated statically.
-pub struct ClassMetadata<T> {
+/// Stores the class entry, handlers, and property descriptors for a Rust type
+/// which has been exported to PHP. Usually allocated statically.
+pub struct ClassMetadata<T: 'static> {
     handlers: OnceCell<ZendObjectHandlers>,
-    properties: OnceCell<HashMap<&'static str, PropertyInfo<'static, T>>>,
+    field_properties: &'static [PropertyDescriptor<T>],
+    method_properties: OnceCell<&'static [PropertyDescriptor<T>]>,
     ce: AtomicPtr<ClassEntry>,
 
     // `AtomicPtr` is used here because it is `Send + Sync`.
@@ -199,22 +187,23 @@ pub struct ClassMetadata<T> {
     phantom: PhantomData<AtomicPtr<T>>,
 }
 
-impl<T> ClassMetadata<T> {
-    /// Creates a new class metadata instance.
+impl<T: 'static> ClassMetadata<T> {
+    /// Creates a new class metadata instance with the given field properties.
     #[must_use]
-    pub const fn new() -> Self {
+    pub const fn new(field_properties: &'static [PropertyDescriptor<T>]) -> Self {
         Self {
             handlers: OnceCell::new(),
-            properties: OnceCell::new(),
+            field_properties,
+            method_properties: OnceCell::new(),
             ce: AtomicPtr::new(std::ptr::null_mut()),
             phantom: PhantomData,
         }
     }
 }
 
-impl<T> Default for ClassMetadata<T> {
+impl<T: 'static> Default for ClassMetadata<T> {
     fn default() -> Self {
-        Self::new()
+        Self::new(&[])
     }
 }
 
@@ -236,18 +225,14 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     ///
     /// Panics if there is no class entry stored inside the class metadata.
     pub fn ce(&self) -> &'static ClassEntry {
-        // SAFETY: There are only two values that can be stored in the atomic ptr: null
-        // or a static reference to a class entry. On the latter case,
+        // SAFETY: There are only two values that can be stored in the atomic
+        // ptr: null or a static reference to a class entry. On the null case,
         // `as_ref()` will return `None` and the function will panic.
         unsafe { self.ce.load(Ordering::SeqCst).as_ref() }
             .expect("Attempted to retrieve class entry before it has been stored.")
     }
 
     /// Stores a reference to a class entry inside the class metadata.
-    ///
-    /// # Parameters
-    ///
-    /// * `ce` - The class entry to store.
     ///
     /// # Panics
     ///
@@ -264,13 +249,39 @@ impl<T: RegisteredClass> ClassMetadata<T> {
             .expect("Class entry has already been set");
     }
 
-    /// Retrieves a reference to the hashmap storing the classes property
-    /// accessors.
+    /// Finds a property descriptor by name.
     ///
-    /// # Returns
-    ///
-    /// Immutable reference to the properties hashmap.
-    pub fn get_properties(&self) -> &HashMap<&'static str, PropertyInfo<'static, T>> {
-        self.properties.get_or_init(T::get_properties)
+    /// Checks field properties first, then method properties. Linear scan is
+    /// used since typical PHP classes have few properties and cache locality
+    /// beats hashing at small N.
+    #[must_use]
+    #[inline]
+    pub fn find_property(&self, name: &str) -> Option<&PropertyDescriptor<T>> {
+        self.field_properties
+            .iter()
+            .find(|p| p.name == name)
+            .or_else(|| self.method_properties().iter().find(|p| p.name == name))
+    }
+
+    /// Returns the field properties (from `#[php(prop)]` struct fields).
+    #[must_use]
+    #[inline]
+    pub fn field_properties(&self) -> &'static [PropertyDescriptor<T>] {
+        self.field_properties
+    }
+
+    /// Returns the method properties (from `#[php(getter)]`/`#[php(setter)]`).
+    /// Lazily initialized on first access from `RegisteredClass::method_properties()`.
+    #[must_use]
+    #[inline]
+    pub fn method_properties(&self) -> &'static [PropertyDescriptor<T>] {
+        self.method_properties.get_or_init(T::method_properties)
+    }
+
+    /// Iterates over all properties (field + method).
+    pub fn all_properties(&self) -> impl Iterator<Item = &PropertyDescriptor<T>> {
+        self.field_properties
+            .iter()
+            .chain(self.method_properties().iter())
     }
 }

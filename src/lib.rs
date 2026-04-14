@@ -46,7 +46,6 @@ pub mod internal;
 // Re-export inventory for use by macros
 #[doc(hidden)]
 pub use inventory;
-pub mod props;
 pub mod rc;
 #[cfg(test)]
 pub mod test;
