@@ -179,6 +179,7 @@ pub struct ClassMetadata<T: 'static> {
     handlers: OnceCell<ZendObjectHandlers>,
     field_properties: &'static [PropertyDescriptor<T>],
     method_properties: OnceCell<&'static [PropertyDescriptor<T>]>,
+    method_mangled_names: OnceCell<Box<[Box<str>]>>,
     ce: AtomicPtr<ClassEntry>,
 
     // `AtomicPtr` is used here because it is `Send + Sync`.
@@ -195,6 +196,7 @@ impl<T: 'static> ClassMetadata<T> {
             handlers: OnceCell::new(),
             field_properties,
             method_properties: OnceCell::new(),
+            method_mangled_names: OnceCell::new(),
             ce: AtomicPtr::new(std::ptr::null_mut()),
             phantom: PhantomData,
         }
@@ -283,5 +285,29 @@ impl<T: RegisteredClass> ClassMetadata<T> {
         self.field_properties
             .iter()
             .chain(self.method_properties().iter())
+    }
+
+    /// Returns pre-computed PHP-convention mangled names for method properties.
+    ///
+    /// Lazily initialized on first access. One allocation per class for the
+    /// entire process lifetime. Field properties already carry compile-time
+    /// mangled names in their [`PropertyDescriptor::mangled_name`] field.
+    #[must_use]
+    #[inline]
+    pub fn method_mangled_names(&self) -> &[Box<str>] {
+        self.method_mangled_names.get_or_init(|| {
+            self.method_properties()
+                .iter()
+                .map(|desc| {
+                    if desc.flags.contains(PropertyFlags::Private) {
+                        format!("\0{}\0{}", T::CLASS_NAME, desc.name).into_boxed_str()
+                    } else if desc.flags.contains(PropertyFlags::Protected) {
+                        format!("\0*\0{}", desc.name).into_boxed_str()
+                    } else {
+                        desc.name.into()
+                    }
+                })
+                .collect()
+        })
     }
 }

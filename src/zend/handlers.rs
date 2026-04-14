@@ -280,27 +280,27 @@ impl ZendObjectHandlers {
             props: &mut ZendHashTable,
         ) -> PhpResult {
             let self_ = &*obj;
+            let metadata = T::get_metadata();
+            let method_mangled = metadata.method_mangled_names();
 
-            for desc in T::get_metadata().all_properties() {
-                let name = desc.name;
+            for desc in metadata.field_properties() {
                 let Some(getter) = desc.get else { continue };
                 let mut zv = Zval::new();
                 if getter(self_, &mut zv).is_err() {
                     continue;
                 }
+                props.insert(desc.mangled_name, zv).map_err(|e| {
+                    format!("Failed to insert value into properties hashtable: {e:?}")
+                })?;
+            }
 
-                // Mangle property name according to visibility for debug output
-                // PHP convention: private = "\0ClassName\0propName", protected =
-                // "\0*\0propName"
-                let mangled_name = if desc.flags.contains(PropertyFlags::Private) {
-                    format!("\0{}\0{name}", T::CLASS_NAME)
-                } else if desc.flags.contains(PropertyFlags::Protected) {
-                    format!("\0*\0{name}")
-                } else {
-                    name.to_string()
-                };
-
-                props.insert(mangled_name.as_str(), zv).map_err(|e| {
+            for (i, desc) in metadata.method_properties().iter().enumerate() {
+                let Some(getter) = desc.get else { continue };
+                let mut zv = Zval::new();
+                if getter(self_, &mut zv).is_err() {
+                    continue;
+                }
+                props.insert(&*method_mangled[i], zv).map_err(|e| {
                     format!("Failed to insert value into properties hashtable: {e:?}")
                 })?;
             }
