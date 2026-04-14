@@ -69,27 +69,26 @@ impl<'a> PHPProvider<'a> for Provider<'a> {
         // each extern block. Bindgen doesn't give us the option to add this so
         // we need to add it manually.
         //
-        // We use substring matching rather than exact line comparison because
-        // bindgen's output format varies depending on whether rustfmt is
-        // available. When rustfmt is missing, bindgen emits minimally-formatted
-        // output where extern blocks may not appear on their own line.
+        // We use direct string replacement rather than line-by-line matching.
+        // When rustfmt is missing, bindgen emits the entire file on a single
+        // line, which breaks any line-based approach.
+        //
+        // Because "extern \"C\" {" is a substring of "unsafe extern \"C\" {",
+        // we first mark all `extern` blocks with a placeholder, then move the
+        // marker before any preceding `unsafe` keyword, and finally expand the
+        // markers into the real `#[link]` attribute.
         let php_lib_name = self.get_php_lib_name()?;
         let link_attr = format!("#[link(name = \"{php_lib_name}\")]");
-        let extern_patterns = [
-            "extern \"C\" {",
-            "extern \"fastcall\" {",
-            "unsafe extern \"C\" {",
-            "unsafe extern \"fastcall\" {",
-        ];
-        for line in bindings.lines() {
-            for pattern in &extern_patterns {
-                if line.contains(pattern) {
-                    writeln!(writer, "{link_attr}")?;
-                    break;
-                }
-            }
-            writeln!(writer, "{}", line)?;
+
+        const MARKER: &str = "__EXT_PHP_RS_LINK__";
+
+        let mut result = bindings;
+        for pattern in ["extern \"C\" {", "extern \"fastcall\" {"] {
+            result = result.replace(pattern, &format!("{MARKER} {pattern}"));
         }
+        result = result.replace(&format!("unsafe {MARKER} "), &format!("{MARKER} unsafe "));
+        result = result.replace(&format!("{MARKER} "), &format!("{link_attr}\n"));
+        writer.write_all(result.as_bytes())?;
         Ok(())
     }
 
