@@ -10,6 +10,7 @@ use crate::{
         zend_std_read_property, zend_std_write_property, zend_throw_error,
     },
     flags::{PropertyFlags, ZvalTypeFlags},
+    internal::property::PropertyDescriptor,
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
 };
 
@@ -135,13 +136,8 @@ impl ZendObjectHandlers {
             cache_slot: *mut *mut c_void,
             rv: *mut Zval,
         ) -> PhpResult<*mut Zval> {
-            let prop_name = unsafe {
-                member
-                    .as_ref()
-                    .ok_or("Invalid property name pointer given")?
-            };
             let self_ = &*obj;
-            let prop = T::get_metadata().find_property(prop_name.as_str()?);
+            let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
 
             // retval needs to be treated as initialized, so we set the type to null
             let rv_mut = unsafe { rv.as_mut().ok_or("Invalid return zval given")? };
@@ -149,10 +145,14 @@ impl ZendObjectHandlers {
 
             Ok(match prop {
                 Some(prop_info) => {
-                    // Check visibility before allowing access
                     let object_ce = unsafe { (*object).ce };
                     if !unsafe { check_property_access(prop_info.flags, object_ce) } {
                         let is_private = prop_info.flags.contains(PropertyFlags::Private);
+                        let prop_name = unsafe {
+                            member
+                                .as_ref()
+                                .ok_or("Invalid property name pointer given")?
+                        };
                         unsafe {
                             throw_property_access_error(
                                 T::CLASS_NAME,
@@ -208,21 +208,20 @@ impl ZendObjectHandlers {
             value: *mut Zval,
             cache_slot: *mut *mut c_void,
         ) -> PhpResult<*mut Zval> {
-            let prop_name = unsafe {
-                member
-                    .as_ref()
-                    .ok_or("Invalid property name pointer given")?
-            };
             let self_ = &mut *obj;
-            let prop = T::get_metadata().find_property(prop_name.as_str()?);
+            let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
             let value_mut = unsafe { value.as_mut().ok_or("Invalid return zval given")? };
 
             Ok(match prop {
                 Some(prop_info) => {
-                    // Check visibility before allowing access
                     let object_ce = unsafe { (*object).ce };
                     if !unsafe { check_property_access(prop_info.flags, object_ce) } {
                         let is_private = prop_info.flags.contains(PropertyFlags::Private);
+                        let prop_name = unsafe {
+                            member
+                                .as_ref()
+                                .ok_or("Invalid property name pointer given")?
+                        };
                         unsafe {
                             throw_property_access_error(
                                 T::CLASS_NAME,
@@ -341,12 +340,7 @@ impl ZendObjectHandlers {
             has_set_exists: c_int,
             cache_slot: *mut *mut c_void,
         ) -> PhpResult<c_int> {
-            let prop_name = unsafe {
-                member
-                    .as_ref()
-                    .ok_or("Invalid property name pointer given")?
-            };
-            let prop = T::get_metadata().find_property(prop_name.as_str()?);
+            let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
             let self_ = &*obj;
 
             match has_set_exists {
@@ -409,6 +403,54 @@ impl ZendObjectHandlers {
             }
         }
     }
+}
+
+/// Resolves a property descriptor via `cache_slot` or linear scan fallback.
+///
+/// On cache hit (`cache_slot[1]` matches this class's metadata pointer), returns
+/// the cached `&PropertyDescriptor<T>` directly, skipping string conversion and
+/// `find_property`. On miss, performs the full lookup and populates the cache for
+/// subsequent calls.
+///
+/// # Safety
+///
+/// - `member` must be a valid `ZendStr` pointer.
+/// - `cache_slot` must be null or point to at least 2 writable `*mut c_void` slots
+///   (guaranteed by PHP's opcode compiler for all property access opcodes).
+#[allow(clippy::inline_always)]
+#[inline(always)]
+unsafe fn resolve_property<T: RegisteredClass>(
+    member: *mut ZendStr,
+    cache_slot: *mut *mut c_void,
+) -> PhpResult<Option<&'static PropertyDescriptor<T>>> {
+    let meta = T::get_metadata();
+    let meta_ptr = ptr::from_ref(meta).cast::<c_void>().cast_mut();
+
+    if !cache_slot.is_null() {
+        let guard = unsafe { *cache_slot.add(1) };
+        if guard == meta_ptr {
+            let desc = unsafe { &*(*cache_slot).cast::<PropertyDescriptor<T>>() };
+            return Ok(Some(desc));
+        }
+    }
+
+    let prop_name = unsafe {
+        member
+            .as_ref()
+            .ok_or("Invalid property name pointer given")?
+    };
+    let Some(descriptor) = meta.find_property(prop_name.as_str()?) else {
+        return Ok(None);
+    };
+
+    if !cache_slot.is_null() {
+        unsafe {
+            *cache_slot = ptr::from_ref(descriptor).cast::<c_void>().cast_mut();
+            *cache_slot.add(1) = meta_ptr;
+        }
+    }
+
+    Ok(Some(descriptor))
 }
 
 /// Gets the current calling scope from the executor globals.
