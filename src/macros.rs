@@ -389,6 +389,67 @@ macro_rules! class_derives {
     };
 }
 
+/// Derives additional traits for cloneable [`RegisteredClass`] types to enable
+/// using them as properties of other `#[php_class]` structs.
+///
+/// This macro should be called for any `#[php_class]` struct that:
+/// 1. Implements [`Clone`]
+/// 2. Needs to be used as a property in another `#[php_class]` struct
+///
+/// The macro implements [`FromZendObject`] and [`FromZval`] for the owned type,
+/// allowing PHP objects to be cloned into Rust values.
+///
+/// # Example
+///
+/// ```ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::class_derives_clone;
+///
+/// #[php_class]
+/// #[derive(Clone)]
+/// struct Bar {
+///     #[php(prop)]
+///     value: String,
+/// }
+///
+/// class_derives_clone!(Bar);
+///
+/// #[php_class]
+/// struct Foo {
+///     #[php(prop)]
+///     bar: Bar, // Now works because Bar implements FromZval
+/// }
+/// ```
+///
+/// See: <https://github.com/extphprs/ext-php-rs/issues/182>
+///
+/// [`RegisteredClass`]: crate::class::RegisteredClass
+/// [`FromZendObject`]: crate::convert::FromZendObject
+/// [`FromZval`]: crate::convert::FromZval
+#[macro_export]
+macro_rules! class_derives_clone {
+    ($type: ty) => {
+        impl $crate::convert::FromZendObject<'_> for $type {
+            fn from_zend_object(obj: &$crate::types::ZendObject) -> $crate::error::Result<Self> {
+                let class_obj = $crate::types::ZendClassObject::<$type>::from_zend_obj(obj)
+                    .ok_or($crate::error::Error::InvalidScope)?;
+                Ok((**class_obj).clone())
+            }
+        }
+
+        impl $crate::convert::FromZval<'_> for $type {
+            const TYPE: $crate::flags::DataType = $crate::flags::DataType::Object(Some(
+                <$type as $crate::class::RegisteredClass>::CLASS_NAME,
+            ));
+
+            fn from_zval(zval: &$crate::types::Zval) -> ::std::option::Option<Self> {
+                let obj = zval.object()?;
+                <Self as $crate::convert::FromZendObject>::from_zend_object(obj).ok()
+            }
+        }
+    };
+}
+
 /// Derives `From<T> for Zval` and `IntoZval` for a given type.
 macro_rules! into_zval {
     ($type: ty, $fn: ident, $dt: ident) => {

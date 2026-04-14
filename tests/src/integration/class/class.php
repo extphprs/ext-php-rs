@@ -350,3 +350,28 @@ assert($result === 'accepted: 100 modified', 'Cloned object should be accepted a
 
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
+
+// Test issue #182 - class structs containing class struct properties
+$inner = new InnerClass('hello world');
+assert($inner->getValue() === 'hello world', 'InnerClass getValue should work');
+assert($inner->value === 'hello world', 'InnerClass property should be accessible');
+
+$outer = new OuterClass($inner);
+assert($outer->getInnerValue() === 'hello world', 'OuterClass should be able to access inner value');
+
+// Test that the inner property is properly accessible
+assert($outer->inner instanceof InnerClass, 'outer->inner should be InnerClass instance');
+assert($outer->inner->value === 'hello world', 'outer->inner->value should be accessible');
+
+// Test setting inner property
+$newInner = new InnerClass('new value');
+$outer->inner = $newInner;
+assert($outer->getInnerValue() === 'new value', 'After setting inner, value should be updated');
+
+// Test clone-on-read behavior
+$outer->inner = new InnerClass('original');
+$a = $outer->inner;
+$b = $outer->inner;
+assert($a !== $b, 'Each read should return a clone');
+$a->value = 'changed';
+assert($outer->inner->value === 'original', 'Original should be unchanged');
