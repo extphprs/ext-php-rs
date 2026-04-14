@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.15.10](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.9...ext-php-rs-v0.15.10) - 2026-04-14
+
+### Added
+- Static property descriptors, zero heap allocation ([#720](https://github.com/extphprs/ext-php-rs/pull/720)) (by @ptondereau) [[#720](https://github.com/extphprs/ext-php-rs/issues/720)] 
+
+### Fixed
+- Inject #[link] attributes correctly when rustfmt is unavailable ([#723](https://github.com/extphprs/ext-php-rs/pull/723)) (by @ptondereau) [[#723](https://github.com/extphprs/ext-php-rs/issues/723)] 
 ## [0.15.9](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.8...ext-php-rs-v0.15.9) - 2026-04-13
 
 ### Added

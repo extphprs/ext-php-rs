@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.20](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.19...cargo-php-v0.1.20) - 2026-04-14
+
+### Added
+- Static property descriptors, zero heap allocation ([#720](https://github.com/extphprs/ext-php-rs/pull/720)) (by @ptondereau) [[#720](https://github.com/extphprs/ext-php-rs/issues/720)] 
 ## [0.1.19](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.18...cargo-php-v0.1.19) - 2026-03-30
 
 ### Fixed

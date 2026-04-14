@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.11](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.10...ext-php-rs-derive-v0.11.11) - 2026-04-14
+
+### Added
+- Static property descriptors, zero heap allocation ([#720](https://github.com/extphprs/ext-php-rs/pull/720)) (by @ptondereau) [[#720](https://github.com/extphprs/ext-php-rs/issues/720)] 
 ## [0.11.10](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.9...ext-php-rs-derive-v0.11.10) - 2026-03-30
 
 ### Added
