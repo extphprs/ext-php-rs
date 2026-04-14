@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5d8a3b18.js";
+            window.path_to_searchindex_js = "searchindex-c38bfa4a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-546d01eb.js"></script>
+        <script src="toc-22bbee95.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -5073,6 +5073,283 @@ bailouts (longjmp) without unwinding the Rust stack. Error reporting is
 suppressed during execution and restored afterward.</p>
 </li>
 </ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="custom-sapi"><a class="header" href="#custom-sapi">Custom SAPI</a></h1>
+<p>ext-php-rs allows you to implement a fully custom SAPI (Server API) in Rust
+using the <code>Sapi</code> trait. This lets you embed the PHP engine inside your own
+server, such as an HTTP framework, a message queue consumer, or any other
+application that needs to drive PHP request processing.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>A SAPI implementation consists of three parts:</p>
+<ol>
+<li><strong><code>ServerContext</code></strong> – per-request state (method, URI, POST body, headers).</li>
+<li><strong><code>Sapi</code></strong> – the SAPI itself: output, logging, header sending.</li>
+<li><strong>Trampolines</strong> – generated automatically by <code>Sapi::build_module()</code>.</li>
+</ol>
+<h2 id="defining-a-servercontext"><a class="header" href="#defining-a-servercontext">Defining a <code>ServerContext</code></a></h2>
+<p>Implement the <code>ServerContext</code> trait for your per-request type:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{ServerContext, RequestInfo};
+
+struct MyContext {
+    method: String,
+    uri: String,
+    body: Vec&lt;u8&gt;,
+    body_offset: usize,
+    finished: bool,
+}
+
+impl ServerContext for MyContext {
+    fn init_request_info(&amp;self, info: &amp;mut RequestInfo) {
+        info.request_method = Some(self.method.clone());
+        info.request_uri = Some(self.uri.clone());
+        info.content_length = self.body.len() as i64;
+    }
+
+    fn read_post(&amp;mut self, buf: &amp;mut [u8]) -&gt; usize {
+        let remaining = &amp;self.body[self.body_offset..];
+        let n = buf.len().min(remaining.len());
+        buf[..n].copy_from_slice(&amp;remaining[..n]);
+        self.body_offset += n;
+        n
+    }
+
+    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; {
+        None
+    }
+
+    fn finish_request(&amp;mut self) -&gt; bool {
+        if self.finished {
+            return false;
+        }
+        self.finished = true;
+        true
+    }
+
+    fn is_request_finished(&amp;self) -&gt; bool {
+        self.finished
+    }
+}</code></pre>
+<h2 id="implementing-the-sapi-trait"><a class="header" href="#implementing-the-sapi-trait">Implementing the <code>Sapi</code> trait</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{Sapi, ServerContext, RequestInfo, ServerVarRegistrar};
+
+<span class="boring">struct MyContext { method: String, uri: String, body: Vec&lt;u8&gt;, body_offset: usize, finished: bool }
+</span><span class="boring">impl ServerContext for MyContext {
+</span><span class="boring">    fn init_request_info(&amp;self, _: &amp;mut RequestInfo) {}
+</span><span class="boring">    fn read_post(&amp;mut self, _: &amp;mut [u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; { None }
+</span><span class="boring">    fn finish_request(&amp;mut self) -&gt; bool { true }
+</span><span class="boring">    fn is_request_finished(&amp;self) -&gt; bool { true }
+</span><span class="boring">}
+</span>struct MySapi;
+
+impl Sapi for MySapi {
+    type Context = MyContext;
+
+    fn name() -&gt; &amp;'static str { "my-sapi" }
+    fn pretty_name() -&gt; &amp;'static str { "My Custom SAPI" }
+
+    fn ub_write(_ctx: &amp;mut MyContext, buf: &amp;[u8]) -&gt; usize {
+        // Forward output to your HTTP response
+        print!("{}", String::from_utf8_lossy(buf));
+        buf.len()
+    }
+
+    fn log_message(msg: &amp;str, _syslog_type: i32) {
+        eprintln!("[php] {msg}");
+    }
+}</code></pre>
+<h2 id="building-and-starting-the-sapi"><a class="header" href="#building-and-starting-the-sapi">Building and starting the SAPI</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::Sapi;
+<span class="boring">struct MySapi;
+</span><span class="boring">impl Sapi for MySapi {
+</span><span class="boring">    type Context = ();
+</span><span class="boring">    fn name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn pretty_name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn ub_write(_ctx: &amp;mut (), _buf: &amp;[u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn log_message(_: &amp;str, _: i32) {}
+</span><span class="boring">}
+</span><span class="boring">impl ext_php_rs::embed::ServerContext for () {
+</span><span class="boring">    fn init_request_info(&amp;self, _: &amp;mut ext_php_rs::embed::RequestInfo) {}
+</span><span class="boring">    fn read_post(&amp;mut self, _: &amp;mut [u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; { None }
+</span><span class="boring">    fn finish_request(&amp;mut self) -&gt; bool { true }
+</span><span class="boring">    fn is_request_finished(&amp;self) -&gt; bool { true }
+</span><span class="boring">}
+</span>
+let module = MySapi::build_module().expect("failed to build SAPI module");</code></pre>
+<p>The returned <code>SapiModule</code> can then be passed to <code>sapi_startup()</code> and
+<code>php_module_startup()</code> just like a manually-built one.</p>
+<h2 id="registering-_server-variables"><a class="header" href="#registering-_server-variables">Registering <code>$_SERVER</code> variables</a></h2>
+<p>Override <code>register_server_variables</code> in the <code>Sapi</code> trait to populate
+<code>$_SERVER</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{Sapi, ServerVarRegistrar};
+
+<span class="boring">struct MySapi;
+</span><span class="boring">struct Ctx;
+</span><span class="boring">impl ext_php_rs::embed::ServerContext for Ctx {
+</span><span class="boring">    fn init_request_info(&amp;self, _: &amp;mut ext_php_rs::embed::RequestInfo) {}
+</span><span class="boring">    fn read_post(&amp;mut self, _: &amp;mut [u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; { None }
+</span><span class="boring">    fn finish_request(&amp;mut self) -&gt; bool { true }
+</span><span class="boring">    fn is_request_finished(&amp;self) -&gt; bool { true }
+</span><span class="boring">}
+</span><span class="boring">impl Sapi for MySapi {
+</span><span class="boring">    type Context = Ctx;
+</span><span class="boring">    fn name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn pretty_name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn ub_write(_: &amp;mut Ctx, b: &amp;[u8]) -&gt; usize { b.len() }
+</span><span class="boring">    fn log_message(_: &amp;str, _: i32) {}
+</span>    fn register_server_variables(
+        _ctx: &amp;mut Ctx,
+        registrar: &amp;mut ServerVarRegistrar,
+    ) {
+        registrar.register("SERVER_SOFTWARE", "my-server/1.0");
+        registrar.register("SERVER_PROTOCOL", "HTTP/1.1");
+    }
+<span class="boring">}</span></code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="module-globals"><a class="header" href="#module-globals">Module Globals</a></h1>
+<p>PHP extensions can declare per-module global state that is automatically managed
+by the engine. In ZTS (thread-safe) builds, PHP’s TSRM allocates a separate copy
+of the globals for each thread. In non-ZTS builds, the globals are a plain
+static variable.</p>
+<p>ext-php-rs exposes this via <code>ModuleGlobals&lt;T&gt;</code> and the <code>ModuleGlobal</code> trait.</p>
+<h2 id="defining-globals"><a class="header" href="#defining-globals">Defining Globals</a></h2>
+<p>Create a struct that implements <code>Default</code> and <code>ModuleGlobal</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+
+#[derive(Default)]
+struct MyGlobals {
+    request_count: i64,
+    max_depth: i32,
+}
+
+impl ModuleGlobal for MyGlobals {
+    fn ginit(&amp;mut self) {
+        self.max_depth = 512;
+    }
+}</code></pre>
+<p><code>Default::default()</code> initializes the struct, then <code>ginit()</code> runs for any
+additional setup. In ZTS mode these callbacks fire once per thread; in non-ZTS
+mode they fire once at module load.</p>
+<p>If you don’t need custom initialization, leave the trait impl empty:</p>
+<pre><code class="language-rust ignore"><span class="boring">use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+</span>#[derive(Default)]
+struct SimpleGlobals {
+    counter: i64,
+}
+
+impl ModuleGlobal for SimpleGlobals {}</code></pre>
+<h2 id="registering-globals"><a class="header" href="#registering-globals">Registering Globals</a></h2>
+<p>Declare a <code>static</code> and pass it to <code>ModuleBuilder::globals()</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+
+<span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { request_count: i64, max_depth: i32 }
+</span><span class="boring">impl ModuleGlobal for MyGlobals {}
+</span><span class="boring">
+</span>static MY_GLOBALS: ModuleGlobals&lt;MyGlobals&gt; = ModuleGlobals::new();
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.globals(&amp;MY_GLOBALS)
+}</code></pre>
+<p>Only one globals struct per module is supported (a PHP limitation).</p>
+<h2 id="accessing-globals"><a class="header" href="#accessing-globals">Accessing Globals</a></h2>
+<p>Use <code>get()</code> for shared access and <code>get_mut()</code> for mutable access:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+
+<span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { request_count: i64, max_depth: i32 }
+</span><span class="boring">impl ModuleGlobal for MyGlobals {}
+</span><span class="boring">static MY_GLOBALS: ModuleGlobals&lt;MyGlobals&gt; = ModuleGlobals::new();
+</span><span class="boring">
+</span>#[php_function]
+pub fn get_request_count() -&gt; i64 {
+    MY_GLOBALS.get().request_count
+}
+
+#[php_function]
+pub fn increment_request_count() {
+    unsafe { MY_GLOBALS.get_mut() }.request_count += 1;
+}</code></pre>
+<p><code>get()</code> is safe because PHP runs one request per thread at a time. <code>get_mut()</code>
+is <code>unsafe</code> because the caller must ensure exclusive access (which is guaranteed
+within a single <code>#[php_function]</code> handler, but not from background Rust threads).</p>
+<h2 id="advanced-raw-pointer-access"><a class="header" href="#advanced-raw-pointer-access">Advanced: Raw Pointer Access</a></h2>
+<p>For power users who need direct pointer access (e.g., passing to C APIs or
+building custom lock-free patterns), <code>as_ptr()</code> returns <code>*mut T</code>:</p>
+<pre><code class="language-rust ignore"><span class="boring">use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+</span><span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { request_count: i64 }
+</span><span class="boring">impl ModuleGlobal for MyGlobals {}
+</span><span class="boring">static MY_GLOBALS: ModuleGlobals&lt;MyGlobals&gt; = ModuleGlobals::new();
+</span>let ptr: *mut MyGlobals = MY_GLOBALS.as_ptr();</code></pre>
+<h2 id="cleanup"><a class="header" href="#cleanup">Cleanup</a></h2>
+<p>Implement <code>gshutdown()</code> if your globals hold external resources:</p>
+<pre><code class="language-rust ignore"><span class="boring">use ext_php_rs::zend::ModuleGlobal;
+</span><span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { handle: Option&lt;u64&gt; }
+</span>impl ModuleGlobal for MyGlobals {
+    fn gshutdown(&amp;mut self) {
+        self.handle.take();
+    }
+}</code></pre>
+<p>The struct is also dropped after <code>gshutdown()</code> returns, so standard <code>Drop</code>
+implementations work as expected.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="worker-mode"><a class="header" href="#worker-mode">Worker Mode</a></h1>
+<p>Worker mode lets you recycle the PHP engine between requests without the
+overhead of a full <code>php_request_shutdown()</code> / <code>php_request_startup()</code> cycle.
+This is useful for long-running servers that serve many requests on the same
+thread.</p>
+<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
+<p>A full PHP request cycle destroys and re-creates the executor state. Worker
+mode instead performs a lightweight shutdown that tears down only the SAPI
+and output layers, then re-activates them for the next request. This keeps
+compiled classes and functions in memory while resetting request-scoped state.</p>
+<h2 id="api-1"><a class="header" href="#api-1">API</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{
+    worker_request_shutdown,
+    worker_request_startup,
+    worker_reset_superglobals,
+};
+
+// After processing a request:
+worker_request_shutdown();
+
+// Before the next request:
+worker_request_startup().expect("startup failed");
+worker_reset_superglobals();</code></pre>
+<h2 id="typical-lifecycle"><a class="header" href="#typical-lifecycle">Typical lifecycle</a></h2>
+<pre><code class="language-text">1. sapi_startup() + php_module_startup()    -- once per process
+2. php_request_startup()                    -- first request
+3. execute PHP script
+4. worker_request_shutdown()                -- lightweight teardown
+5. worker_request_startup()                 -- lightweight re-init
+6. worker_reset_superglobals()              -- refresh $_SERVER etc.
+7. execute PHP script                       -- next request
+   ... repeat 4-7 ...
+8. php_request_shutdown()                   -- final cleanup
+9. php_module_shutdown() + sapi_shutdown()  -- once per process
+</code></pre>
+<h2 id="zts-and-phpthreadguard"><a class="header" href="#zts-and-phpthreadguard">ZTS and <code>PhpThreadGuard</code></a></h2>
+<p>When PHP is compiled with ZTS (Zend Thread Safety), each OS thread needs its
+own thread-local storage. Use <code>PhpThreadGuard</code> to manage this automatically:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::PhpThreadGuard;
+
+std::thread::spawn(|| {
+    let _guard = PhpThreadGuard::new();
+    // This thread can now run PHP requests.
+    // TLS is cleaned up when _guard is dropped.
+});</code></pre>
+<p>The guard must be dropped before <code>php_module_shutdown()</code> is called.</p>
+<h2 id="combining-with-the-sapi-trait"><a class="header" href="#combining-with-the-sapi-trait">Combining with the Sapi trait</a></h2>
+<p>Worker mode pairs naturally with a custom <code>Sapi</code> implementation. Build the
+SAPI module once, start it, then use worker mode to cycle between requests
+without tearing down the full engine.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="allowed-bindings"><a class="header" href="#allowed-bindings">Allowed Bindings</a></h1>
 <p>The extension limits the bindings that are generated by <code>bindgen</code> to a subset of the original bindings.

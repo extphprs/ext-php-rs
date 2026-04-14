@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Zval Ownership - ext-php-rs</title>
+        <title>Module Globals - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -173,90 +173,107 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="zval-ownership-separated--phpref"><a class="header" href="#zval-ownership-separated--phpref">Zval Ownership: <code>Separated</code> &amp; <code>PhpRef</code></a></h1>
-<p>In PHP, there is a distinction between passing a value normally (<code>$x</code>) and
-passing it by reference (<code>&amp;$x</code>). In ext-php-rs, using <code>&amp;mut Zval</code> in a function
-signature sets PHP’s <code>ZEND_SEND_BY_REF</code> flag, which forces callers to pass by
-reference — meaning literals like <code>foo([1, 2, 3])</code> are rejected at runtime.</p>
-<p><code>Separated</code> and <code>PhpRef</code> fix this by decoupling Rust mutability from PHP’s
-pass-by-reference semantics.</p>
-<h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to use which</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Type</th><th>PHP syntax</th><th>Modifies caller?</th><th>Use case</th></tr>
-</thead>
-<tbody>
-<tr><td><code>Separated</code></td><td><code>foo($x)</code> or <code>foo([1,2])</code></td><td>No</td><td>Mutate a local copy (COW)</td></tr>
-<tr><td><code>PhpRef</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Modify the caller’s variable</td></tr>
-<tr><td><code>&amp;Zval</code></td><td><code>foo($x)</code></td><td>No</td><td>Read-only access</td></tr>
-<tr><td><code>&amp;mut Zval</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Legacy — prefer <code>PhpRef</code></td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="separated--local-mutation-without-pass-by-reference"><a class="header" href="#separated--local-mutation-without-pass-by-reference"><code>Separated</code> — local mutation without pass-by-reference</a></h2>
-<p><code>Separated</code> wraps <code>&amp;mut Zval</code> but does <strong>not</strong> set <code>ZEND_SEND_BY_REF</code>. PHP
-callers can pass any value, including literals. Call <code>.array_mut()</code> to trigger
-Copy-on-Write separation before mutating arrays.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::Separated;
+                        <h1 id="module-globals"><a class="header" href="#module-globals">Module Globals</a></h1>
+<p>PHP extensions can declare per-module global state that is automatically managed
+by the engine. In ZTS (thread-safe) builds, PHP’s TSRM allocates a separate copy
+of the globals for each thread. In non-ZTS builds, the globals are a plain
+static variable.</p>
+<p>ext-php-rs exposes this via <code>ModuleGlobals&lt;T&gt;</code> and the <code>ModuleGlobal</code> trait.</p>
+<h2 id="defining-globals"><a class="header" href="#defining-globals">Defining Globals</a></h2>
+<p>Create a struct that implements <code>Default</code> and <code>ModuleGlobal</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
 
-#[php_function]
-pub fn process_array(mut data: Separated) -&gt; bool {
-    let Some(ht) = data.array_mut() else {
-        return false;
-    };
-    ht.push("appended").is_ok()
-}</code></pre>
-<pre><code class="language-php">// Both work — no &amp; required:
-process_array([1, 2, 3]);
+#[derive(Default)]
+struct MyGlobals {
+    request_count: i64,
+    max_depth: i32,
+}
 
-$arr = [1, 2, 3];
-process_array($arr);
-// $arr is unchanged — COW separation protects it
-</code></pre>
-<p>Since <code>Separated</code> implements <code>Deref&lt;Target = Zval&gt;</code>, all read methods
-(<code>long()</code>, <code>str()</code>, <code>array()</code>, <code>object()</code>, etc.) are available directly.</p>
-<h2 id="phpref--modify-the-callers-variable"><a class="header" href="#phpref--modify-the-callers-variable"><code>PhpRef</code> — modify the caller’s variable</a></h2>
-<p><code>PhpRef</code> is the explicit opt-in for PHP pass-by-reference. It sets
-<code>ZEND_SEND_BY_REF</code>, so the caller <strong>must</strong> pass a variable (not a literal).
-Mutations affect the original variable.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::PhpRef;
-
-#[php_function]
-pub fn increment(mut val: PhpRef) {
-    if let Some(n) = val.long() {
-        val.set_long(n + 1);
+impl ModuleGlobal for MyGlobals {
+    fn ginit(&amp;mut self) {
+        self.max_depth = 512;
     }
 }</code></pre>
-<pre><code class="language-php">$x = 5;
-increment($x);
-// $x is now 6
+<p><code>Default::default()</code> initializes the struct, then <code>ginit()</code> runs for any
+additional setup. In ZTS mode these callbacks fire once per thread; in non-ZTS
+mode they fire once at module load.</p>
+<p>If you don’t need custom initialization, leave the trait impl empty:</p>
+<pre><code class="language-rust ignore"><span class="boring">use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+</span>#[derive(Default)]
+struct SimpleGlobals {
+    counter: i64,
+}
 
-// increment(42); // Error: cannot pass by reference
-</code></pre>
-<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
-<p>Both types are <code>#[repr(transparent)]</code> newtypes over <code>&amp;mut Zval</code> with zero
-runtime overhead. The difference is purely in the proc macro:</p>
-<ul>
-<li><code>Separated</code> → macro emits <code>Arg::new(...)</code> (no pass-by-ref flag)</li>
-<li><code>PhpRef</code> → macro emits <code>Arg::new(...).as_ref()</code> (sets pass-by-ref flag)</li>
-</ul>
-<p>The <code>Zval::array_mut()</code> method already implements PHP’s <code>SEPARATE_ARRAY()</code>
-semantics — it duplicates the underlying hashtable when the refcount is greater
-than 1. This is what makes <code>Separated</code> safe: the caller’s original value is
-never modified.</p>
+impl ModuleGlobal for SimpleGlobals {}</code></pre>
+<h2 id="registering-globals"><a class="header" href="#registering-globals">Registering Globals</a></h2>
+<p>Declare a <code>static</code> and pass it to <code>ModuleBuilder::globals()</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+
+<span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { request_count: i64, max_depth: i32 }
+</span><span class="boring">impl ModuleGlobal for MyGlobals {}
+</span><span class="boring">
+</span>static MY_GLOBALS: ModuleGlobals&lt;MyGlobals&gt; = ModuleGlobals::new();
+
+#[php_module]
+pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.globals(&amp;MY_GLOBALS)
+}</code></pre>
+<p>Only one globals struct per module is supported (a PHP limitation).</p>
+<h2 id="accessing-globals"><a class="header" href="#accessing-globals">Accessing Globals</a></h2>
+<p>Use <code>get()</code> for shared access and <code>get_mut()</code> for mutable access:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+
+<span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { request_count: i64, max_depth: i32 }
+</span><span class="boring">impl ModuleGlobal for MyGlobals {}
+</span><span class="boring">static MY_GLOBALS: ModuleGlobals&lt;MyGlobals&gt; = ModuleGlobals::new();
+</span><span class="boring">
+</span>#[php_function]
+pub fn get_request_count() -&gt; i64 {
+    MY_GLOBALS.get().request_count
+}
+
+#[php_function]
+pub fn increment_request_count() {
+    unsafe { MY_GLOBALS.get_mut() }.request_count += 1;
+}</code></pre>
+<p><code>get()</code> is safe because PHP runs one request per thread at a time. <code>get_mut()</code>
+is <code>unsafe</code> because the caller must ensure exclusive access (which is guaranteed
+within a single <code>#[php_function]</code> handler, but not from background Rust threads).</p>
+<h2 id="advanced-raw-pointer-access"><a class="header" href="#advanced-raw-pointer-access">Advanced: Raw Pointer Access</a></h2>
+<p>For power users who need direct pointer access (e.g., passing to C APIs or
+building custom lock-free patterns), <code>as_ptr()</code> returns <code>*mut T</code>:</p>
+<pre><code class="language-rust ignore"><span class="boring">use ext_php_rs::zend::{ModuleGlobal, ModuleGlobals};
+</span><span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { request_count: i64 }
+</span><span class="boring">impl ModuleGlobal for MyGlobals {}
+</span><span class="boring">static MY_GLOBALS: ModuleGlobals&lt;MyGlobals&gt; = ModuleGlobals::new();
+</span>let ptr: *mut MyGlobals = MY_GLOBALS.as_ptr();</code></pre>
+<h2 id="cleanup"><a class="header" href="#cleanup">Cleanup</a></h2>
+<p>Implement <code>gshutdown()</code> if your globals hold external resources:</p>
+<pre><code class="language-rust ignore"><span class="boring">use ext_php_rs::zend::ModuleGlobal;
+</span><span class="boring">#[derive(Default)]
+</span><span class="boring">struct MyGlobals { handle: Option&lt;u64&gt; }
+</span>impl ModuleGlobal for MyGlobals {
+    fn gshutdown(&amp;mut self) {
+        self.handle.take();
+    }
+}</code></pre>
+<p>The struct is also dropped after <code>gshutdown()</code> returns, so standard <code>Drop</code>
+implementations work as expected.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../types/functions.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/custom_sapi.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../macros/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/worker_mode.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -266,11 +283,11 @@ never modified.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../types/functions.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/custom_sapi.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../macros/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/worker_mode.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Zval Ownership - ext-php-rs</title>
+        <title>Custom SAPI - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -173,90 +173,149 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="zval-ownership-separated--phpref"><a class="header" href="#zval-ownership-separated--phpref">Zval Ownership: <code>Separated</code> &amp; <code>PhpRef</code></a></h1>
-<p>In PHP, there is a distinction between passing a value normally (<code>$x</code>) and
-passing it by reference (<code>&amp;$x</code>). In ext-php-rs, using <code>&amp;mut Zval</code> in a function
-signature sets PHP’s <code>ZEND_SEND_BY_REF</code> flag, which forces callers to pass by
-reference — meaning literals like <code>foo([1, 2, 3])</code> are rejected at runtime.</p>
-<p><code>Separated</code> and <code>PhpRef</code> fix this by decoupling Rust mutability from PHP’s
-pass-by-reference semantics.</p>
-<h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to use which</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Type</th><th>PHP syntax</th><th>Modifies caller?</th><th>Use case</th></tr>
-</thead>
-<tbody>
-<tr><td><code>Separated</code></td><td><code>foo($x)</code> or <code>foo([1,2])</code></td><td>No</td><td>Mutate a local copy (COW)</td></tr>
-<tr><td><code>PhpRef</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Modify the caller’s variable</td></tr>
-<tr><td><code>&amp;Zval</code></td><td><code>foo($x)</code></td><td>No</td><td>Read-only access</td></tr>
-<tr><td><code>&amp;mut Zval</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Legacy — prefer <code>PhpRef</code></td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="separated--local-mutation-without-pass-by-reference"><a class="header" href="#separated--local-mutation-without-pass-by-reference"><code>Separated</code> — local mutation without pass-by-reference</a></h2>
-<p><code>Separated</code> wraps <code>&amp;mut Zval</code> but does <strong>not</strong> set <code>ZEND_SEND_BY_REF</code>. PHP
-callers can pass any value, including literals. Call <code>.array_mut()</code> to trigger
-Copy-on-Write separation before mutating arrays.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::Separated;
+                        <h1 id="custom-sapi"><a class="header" href="#custom-sapi">Custom SAPI</a></h1>
+<p>ext-php-rs allows you to implement a fully custom SAPI (Server API) in Rust
+using the <code>Sapi</code> trait. This lets you embed the PHP engine inside your own
+server, such as an HTTP framework, a message queue consumer, or any other
+application that needs to drive PHP request processing.</p>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>A SAPI implementation consists of three parts:</p>
+<ol>
+<li><strong><code>ServerContext</code></strong> – per-request state (method, URI, POST body, headers).</li>
+<li><strong><code>Sapi</code></strong> – the SAPI itself: output, logging, header sending.</li>
+<li><strong>Trampolines</strong> – generated automatically by <code>Sapi::build_module()</code>.</li>
+</ol>
+<h2 id="defining-a-servercontext"><a class="header" href="#defining-a-servercontext">Defining a <code>ServerContext</code></a></h2>
+<p>Implement the <code>ServerContext</code> trait for your per-request type:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{ServerContext, RequestInfo};
 
-#[php_function]
-pub fn process_array(mut data: Separated) -&gt; bool {
-    let Some(ht) = data.array_mut() else {
-        return false;
-    };
-    ht.push("appended").is_ok()
-}</code></pre>
-<pre><code class="language-php">// Both work — no &amp; required:
-process_array([1, 2, 3]);
+struct MyContext {
+    method: String,
+    uri: String,
+    body: Vec&lt;u8&gt;,
+    body_offset: usize,
+    finished: bool,
+}
 
-$arr = [1, 2, 3];
-process_array($arr);
-// $arr is unchanged — COW separation protects it
-</code></pre>
-<p>Since <code>Separated</code> implements <code>Deref&lt;Target = Zval&gt;</code>, all read methods
-(<code>long()</code>, <code>str()</code>, <code>array()</code>, <code>object()</code>, etc.) are available directly.</p>
-<h2 id="phpref--modify-the-callers-variable"><a class="header" href="#phpref--modify-the-callers-variable"><code>PhpRef</code> — modify the caller’s variable</a></h2>
-<p><code>PhpRef</code> is the explicit opt-in for PHP pass-by-reference. It sets
-<code>ZEND_SEND_BY_REF</code>, so the caller <strong>must</strong> pass a variable (not a literal).
-Mutations affect the original variable.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::PhpRef;
+impl ServerContext for MyContext {
+    fn init_request_info(&amp;self, info: &amp;mut RequestInfo) {
+        info.request_method = Some(self.method.clone());
+        info.request_uri = Some(self.uri.clone());
+        info.content_length = self.body.len() as i64;
+    }
 
-#[php_function]
-pub fn increment(mut val: PhpRef) {
-    if let Some(n) = val.long() {
-        val.set_long(n + 1);
+    fn read_post(&amp;mut self, buf: &amp;mut [u8]) -&gt; usize {
+        let remaining = &amp;self.body[self.body_offset..];
+        let n = buf.len().min(remaining.len());
+        buf[..n].copy_from_slice(&amp;remaining[..n]);
+        self.body_offset += n;
+        n
+    }
+
+    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; {
+        None
+    }
+
+    fn finish_request(&amp;mut self) -&gt; bool {
+        if self.finished {
+            return false;
+        }
+        self.finished = true;
+        true
+    }
+
+    fn is_request_finished(&amp;self) -&gt; bool {
+        self.finished
     }
 }</code></pre>
-<pre><code class="language-php">$x = 5;
-increment($x);
-// $x is now 6
+<h2 id="implementing-the-sapi-trait"><a class="header" href="#implementing-the-sapi-trait">Implementing the <code>Sapi</code> trait</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{Sapi, ServerContext, RequestInfo, ServerVarRegistrar};
 
-// increment(42); // Error: cannot pass by reference
-</code></pre>
-<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
-<p>Both types are <code>#[repr(transparent)]</code> newtypes over <code>&amp;mut Zval</code> with zero
-runtime overhead. The difference is purely in the proc macro:</p>
-<ul>
-<li><code>Separated</code> → macro emits <code>Arg::new(...)</code> (no pass-by-ref flag)</li>
-<li><code>PhpRef</code> → macro emits <code>Arg::new(...).as_ref()</code> (sets pass-by-ref flag)</li>
-</ul>
-<p>The <code>Zval::array_mut()</code> method already implements PHP’s <code>SEPARATE_ARRAY()</code>
-semantics — it duplicates the underlying hashtable when the refcount is greater
-than 1. This is what makes <code>Separated</code> safe: the caller’s original value is
-never modified.</p>
+<span class="boring">struct MyContext { method: String, uri: String, body: Vec&lt;u8&gt;, body_offset: usize, finished: bool }
+</span><span class="boring">impl ServerContext for MyContext {
+</span><span class="boring">    fn init_request_info(&amp;self, _: &amp;mut RequestInfo) {}
+</span><span class="boring">    fn read_post(&amp;mut self, _: &amp;mut [u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; { None }
+</span><span class="boring">    fn finish_request(&amp;mut self) -&gt; bool { true }
+</span><span class="boring">    fn is_request_finished(&amp;self) -&gt; bool { true }
+</span><span class="boring">}
+</span>struct MySapi;
+
+impl Sapi for MySapi {
+    type Context = MyContext;
+
+    fn name() -&gt; &amp;'static str { "my-sapi" }
+    fn pretty_name() -&gt; &amp;'static str { "My Custom SAPI" }
+
+    fn ub_write(_ctx: &amp;mut MyContext, buf: &amp;[u8]) -&gt; usize {
+        // Forward output to your HTTP response
+        print!("{}", String::from_utf8_lossy(buf));
+        buf.len()
+    }
+
+    fn log_message(msg: &amp;str, _syslog_type: i32) {
+        eprintln!("[php] {msg}");
+    }
+}</code></pre>
+<h2 id="building-and-starting-the-sapi"><a class="header" href="#building-and-starting-the-sapi">Building and starting the SAPI</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::Sapi;
+<span class="boring">struct MySapi;
+</span><span class="boring">impl Sapi for MySapi {
+</span><span class="boring">    type Context = ();
+</span><span class="boring">    fn name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn pretty_name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn ub_write(_ctx: &amp;mut (), _buf: &amp;[u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn log_message(_: &amp;str, _: i32) {}
+</span><span class="boring">}
+</span><span class="boring">impl ext_php_rs::embed::ServerContext for () {
+</span><span class="boring">    fn init_request_info(&amp;self, _: &amp;mut ext_php_rs::embed::RequestInfo) {}
+</span><span class="boring">    fn read_post(&amp;mut self, _: &amp;mut [u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; { None }
+</span><span class="boring">    fn finish_request(&amp;mut self) -&gt; bool { true }
+</span><span class="boring">    fn is_request_finished(&amp;self) -&gt; bool { true }
+</span><span class="boring">}
+</span>
+let module = MySapi::build_module().expect("failed to build SAPI module");</code></pre>
+<p>The returned <code>SapiModule</code> can then be passed to <code>sapi_startup()</code> and
+<code>php_module_startup()</code> just like a manually-built one.</p>
+<h2 id="registering-_server-variables"><a class="header" href="#registering-_server-variables">Registering <code>$_SERVER</code> variables</a></h2>
+<p>Override <code>register_server_variables</code> in the <code>Sapi</code> trait to populate
+<code>$_SERVER</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{Sapi, ServerVarRegistrar};
+
+<span class="boring">struct MySapi;
+</span><span class="boring">struct Ctx;
+</span><span class="boring">impl ext_php_rs::embed::ServerContext for Ctx {
+</span><span class="boring">    fn init_request_info(&amp;self, _: &amp;mut ext_php_rs::embed::RequestInfo) {}
+</span><span class="boring">    fn read_post(&amp;mut self, _: &amp;mut [u8]) -&gt; usize { 0 }
+</span><span class="boring">    fn read_cookies(&amp;self) -&gt; Option&lt;&amp;str&gt; { None }
+</span><span class="boring">    fn finish_request(&amp;mut self) -&gt; bool { true }
+</span><span class="boring">    fn is_request_finished(&amp;self) -&gt; bool { true }
+</span><span class="boring">}
+</span><span class="boring">impl Sapi for MySapi {
+</span><span class="boring">    type Context = Ctx;
+</span><span class="boring">    fn name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn pretty_name() -&gt; &amp;'static str { "x" }
+</span><span class="boring">    fn ub_write(_: &amp;mut Ctx, b: &amp;[u8]) -&gt; usize { b.len() }
+</span><span class="boring">    fn log_message(_: &amp;str, _: i32) {}
+</span>    fn register_server_variables(
+        _ctx: &amp;mut Ctx,
+        registrar: &amp;mut ServerVarRegistrar,
+    ) {
+        registrar.register("SERVER_SOFTWARE", "my-server/1.0");
+        registrar.register("SERVER_PROTOCOL", "HTTP/1.1");
+    }
+<span class="boring">}</span></code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../types/functions.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/embedded_php.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../macros/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/module_globals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -266,11 +325,11 @@ never modified.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../types/functions.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/embedded_php.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../macros/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/module_globals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

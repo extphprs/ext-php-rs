@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Zval Ownership - ext-php-rs</title>
+        <title>Worker Mode - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -173,90 +173,66 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="zval-ownership-separated--phpref"><a class="header" href="#zval-ownership-separated--phpref">Zval Ownership: <code>Separated</code> &amp; <code>PhpRef</code></a></h1>
-<p>In PHP, there is a distinction between passing a value normally (<code>$x</code>) and
-passing it by reference (<code>&amp;$x</code>). In ext-php-rs, using <code>&amp;mut Zval</code> in a function
-signature sets PHP’s <code>ZEND_SEND_BY_REF</code> flag, which forces callers to pass by
-reference — meaning literals like <code>foo([1, 2, 3])</code> are rejected at runtime.</p>
-<p><code>Separated</code> and <code>PhpRef</code> fix this by decoupling Rust mutability from PHP’s
-pass-by-reference semantics.</p>
-<h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to use which</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Type</th><th>PHP syntax</th><th>Modifies caller?</th><th>Use case</th></tr>
-</thead>
-<tbody>
-<tr><td><code>Separated</code></td><td><code>foo($x)</code> or <code>foo([1,2])</code></td><td>No</td><td>Mutate a local copy (COW)</td></tr>
-<tr><td><code>PhpRef</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Modify the caller’s variable</td></tr>
-<tr><td><code>&amp;Zval</code></td><td><code>foo($x)</code></td><td>No</td><td>Read-only access</td></tr>
-<tr><td><code>&amp;mut Zval</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Legacy — prefer <code>PhpRef</code></td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="separated--local-mutation-without-pass-by-reference"><a class="header" href="#separated--local-mutation-without-pass-by-reference"><code>Separated</code> — local mutation without pass-by-reference</a></h2>
-<p><code>Separated</code> wraps <code>&amp;mut Zval</code> but does <strong>not</strong> set <code>ZEND_SEND_BY_REF</code>. PHP
-callers can pass any value, including literals. Call <code>.array_mut()</code> to trigger
-Copy-on-Write separation before mutating arrays.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::Separated;
-
-#[php_function]
-pub fn process_array(mut data: Separated) -&gt; bool {
-    let Some(ht) = data.array_mut() else {
-        return false;
-    };
-    ht.push("appended").is_ok()
-}</code></pre>
-<pre><code class="language-php">// Both work — no &amp; required:
-process_array([1, 2, 3]);
-
-$arr = [1, 2, 3];
-process_array($arr);
-// $arr is unchanged — COW separation protects it
-</code></pre>
-<p>Since <code>Separated</code> implements <code>Deref&lt;Target = Zval&gt;</code>, all read methods
-(<code>long()</code>, <code>str()</code>, <code>array()</code>, <code>object()</code>, etc.) are available directly.</p>
-<h2 id="phpref--modify-the-callers-variable"><a class="header" href="#phpref--modify-the-callers-variable"><code>PhpRef</code> — modify the caller’s variable</a></h2>
-<p><code>PhpRef</code> is the explicit opt-in for PHP pass-by-reference. It sets
-<code>ZEND_SEND_BY_REF</code>, so the caller <strong>must</strong> pass a variable (not a literal).
-Mutations affect the original variable.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::PhpRef;
-
-#[php_function]
-pub fn increment(mut val: PhpRef) {
-    if let Some(n) = val.long() {
-        val.set_long(n + 1);
-    }
-}</code></pre>
-<pre><code class="language-php">$x = 5;
-increment($x);
-// $x is now 6
-
-// increment(42); // Error: cannot pass by reference
-</code></pre>
+                        <h1 id="worker-mode"><a class="header" href="#worker-mode">Worker Mode</a></h1>
+<p>Worker mode lets you recycle the PHP engine between requests without the
+overhead of a full <code>php_request_shutdown()</code> / <code>php_request_startup()</code> cycle.
+This is useful for long-running servers that serve many requests on the same
+thread.</p>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
-<p>Both types are <code>#[repr(transparent)]</code> newtypes over <code>&amp;mut Zval</code> with zero
-runtime overhead. The difference is purely in the proc macro:</p>
-<ul>
-<li><code>Separated</code> → macro emits <code>Arg::new(...)</code> (no pass-by-ref flag)</li>
-<li><code>PhpRef</code> → macro emits <code>Arg::new(...).as_ref()</code> (sets pass-by-ref flag)</li>
-</ul>
-<p>The <code>Zval::array_mut()</code> method already implements PHP’s <code>SEPARATE_ARRAY()</code>
-semantics — it duplicates the underlying hashtable when the refcount is greater
-than 1. This is what makes <code>Separated</code> safe: the caller’s original value is
-never modified.</p>
+<p>A full PHP request cycle destroys and re-creates the executor state. Worker
+mode instead performs a lightweight shutdown that tears down only the SAPI
+and output layers, then re-activates them for the next request. This keeps
+compiled classes and functions in memory while resetting request-scoped state.</p>
+<h2 id="api"><a class="header" href="#api">API</a></h2>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::{
+    worker_request_shutdown,
+    worker_request_startup,
+    worker_reset_superglobals,
+};
+
+// After processing a request:
+worker_request_shutdown();
+
+// Before the next request:
+worker_request_startup().expect("startup failed");
+worker_reset_superglobals();</code></pre>
+<h2 id="typical-lifecycle"><a class="header" href="#typical-lifecycle">Typical lifecycle</a></h2>
+<pre><code class="language-text">1. sapi_startup() + php_module_startup()    -- once per process
+2. php_request_startup()                    -- first request
+3. execute PHP script
+4. worker_request_shutdown()                -- lightweight teardown
+5. worker_request_startup()                 -- lightweight re-init
+6. worker_reset_superglobals()              -- refresh $_SERVER etc.
+7. execute PHP script                       -- next request
+   ... repeat 4-7 ...
+8. php_request_shutdown()                   -- final cleanup
+9. php_module_shutdown() + sapi_shutdown()  -- once per process
+</code></pre>
+<h2 id="zts-and-phpthreadguard"><a class="header" href="#zts-and-phpthreadguard">ZTS and <code>PhpThreadGuard</code></a></h2>
+<p>When PHP is compiled with ZTS (Zend Thread Safety), each OS thread needs its
+own thread-local storage. Use <code>PhpThreadGuard</code> to manage this automatically:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::embed::PhpThreadGuard;
+
+std::thread::spawn(|| {
+    let _guard = PhpThreadGuard::new();
+    // This thread can now run PHP requests.
+    // TLS is cleaned up when _guard is dropped.
+});</code></pre>
+<p>The guard must be dropped before <code>php_module_shutdown()</code> is called.</p>
+<h2 id="combining-with-the-sapi-trait"><a class="header" href="#combining-with-the-sapi-trait">Combining with the Sapi trait</a></h2>
+<p>Worker mode pairs naturally with a custom <code>Sapi</code> implementation. Build the
+SAPI module once, start it, then use worker mode to cycle between requests
+without tearing down the full engine.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../types/functions.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/module_globals.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../macros/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/allowed_bindings.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -266,11 +242,11 @@ never modified.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../types/functions.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/module_globals.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../macros/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/allowed_bindings.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
