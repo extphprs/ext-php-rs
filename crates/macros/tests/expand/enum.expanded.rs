@@ -24,15 +24,10 @@ impl ::ext_php_rs::class::RegisteredClass for MyEnum {
         " This is a basic enum example.",
     ];
     fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
-        static METADATA: ::ext_php_rs::class::ClassMetadata<MyEnum> = ::ext_php_rs::class::ClassMetadata::new();
+        static METADATA: ::ext_php_rs::class::ClassMetadata<MyEnum> = ::ext_php_rs::class::ClassMetadata::new(
+            &[],
+        );
         &METADATA
-    }
-    #[inline]
-    fn get_properties<'a>() -> ::std::collections::HashMap<
-        &'static str,
-        ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
-    > {
-        ::std::collections::HashMap::new()
     }
     #[inline]
     fn method_builders() -> ::std::vec::Vec<
@@ -111,15 +106,10 @@ impl ::ext_php_rs::class::RegisteredClass for MyEnumWithIntValues {
     const FLAGS: ::ext_php_rs::flags::ClassFlags = ::ext_php_rs::flags::ClassFlags::Enum;
     const DOC_COMMENTS: &'static [&'static str] = &[];
     fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
-        static METADATA: ::ext_php_rs::class::ClassMetadata<MyEnumWithIntValues> = ::ext_php_rs::class::ClassMetadata::new();
+        static METADATA: ::ext_php_rs::class::ClassMetadata<MyEnumWithIntValues> = ::ext_php_rs::class::ClassMetadata::new(
+            &[],
+        );
         &METADATA
-    }
-    #[inline]
-    fn get_properties<'a>() -> ::std::collections::HashMap<
-        &'static str,
-        ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
-    > {
-        ::std::collections::HashMap::new()
     }
     #[inline]
     fn method_builders() -> ::std::vec::Vec<
@@ -209,15 +199,10 @@ impl ::ext_php_rs::class::RegisteredClass for MyEnumWithStringValues {
     const FLAGS: ::ext_php_rs::flags::ClassFlags = ::ext_php_rs::flags::ClassFlags::Enum;
     const DOC_COMMENTS: &'static [&'static str] = &[];
     fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
-        static METADATA: ::ext_php_rs::class::ClassMetadata<MyEnumWithStringValues> = ::ext_php_rs::class::ClassMetadata::new();
+        static METADATA: ::ext_php_rs::class::ClassMetadata<MyEnumWithStringValues> = ::ext_php_rs::class::ClassMetadata::new(
+            &[],
+        );
         &METADATA
-    }
-    #[inline]
-    fn get_properties<'a>() -> ::std::collections::HashMap<
-        &'static str,
-        ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
-    > {
-        ::std::collections::HashMap::new()
     }
     #[inline]
     fn method_builders() -> ::std::vec::Vec<

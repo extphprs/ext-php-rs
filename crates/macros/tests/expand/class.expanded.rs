@@ -17,24 +17,13 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
     ];
     #[inline]
     fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
-        static METADATA: ::ext_php_rs::class::ClassMetadata<MyClass> = ::ext_php_rs::class::ClassMetadata::new();
+        static FIELD_PROPS: [::ext_php_rs::internal::property::PropertyDescriptor<
+            MyClass,
+        >; 0usize] = [];
+        static METADATA: ::ext_php_rs::class::ClassMetadata<MyClass> = ::ext_php_rs::class::ClassMetadata::new(
+            &FIELD_PROPS,
+        );
         &METADATA
-    }
-    fn get_properties<'a>() -> ::std::collections::HashMap<
-        &'static str,
-        ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
-    > {
-        use ::std::iter::FromIterator;
-        use ::ext_php_rs::internal::class::PhpClassImpl;
-        let mut props = ::std::collections::HashMap::from_iter([]);
-        let method_props = ::ext_php_rs::internal::class::PhpClassImplCollector::<
-            Self,
-        >::default()
-            .get_method_props();
-        for (name, prop_info) in method_props {
-            props.insert(name, prop_info);
-        }
-        props
     }
     #[must_use]
     fn static_properties() -> &'static [(
@@ -52,6 +41,14 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
             &[&str],
         )] = &[];
         STATIC_PROPS
+    }
+    #[inline]
+    fn method_properties() -> &'static [::ext_php_rs::internal::property::PropertyDescriptor<
+        Self,
+    >] {
+        use ::ext_php_rs::internal::class::PhpClassImpl;
+        ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+            .get_method_props()
     }
     #[inline]
     fn method_builders() -> ::std::vec::Vec<

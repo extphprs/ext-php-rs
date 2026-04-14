@@ -1,7 +1,5 @@
 //! Types and functions used for exporting Rust closures to PHP.
 
-use std::collections::HashMap;
-
 use crate::{
     args::{Arg, ArgParser},
     builders::{ClassBuilder, FunctionBuilder},
@@ -10,14 +8,13 @@ use crate::{
     describe::DocComments,
     exception::PhpException,
     flags::{DataType, MethodFlags},
-    internal::property::PropertyInfo,
     types::Zval,
     zend::ExecuteData,
     zend_fastcall,
 };
 
 /// Class entry and handlers for Rust closures.
-static CLOSURE_META: ClassMetadata<Closure> = ClassMetadata::new();
+static CLOSURE_META: ClassMetadata<Closure> = ClassMetadata::new(&[]);
 
 /// Wrapper around a Rust closure, which can be exported to PHP.
 ///
@@ -161,10 +158,6 @@ impl RegisteredClass for Closure {
 
     fn get_metadata() -> &'static ClassMetadata<Self> {
         &CLOSURE_META
-    }
-
-    fn get_properties<'a>() -> HashMap<&'static str, PropertyInfo<'a, Self>> {
-        HashMap::new()
     }
 
     fn method_builders() -> Vec<(FunctionBuilder<'static>, MethodFlags)> {

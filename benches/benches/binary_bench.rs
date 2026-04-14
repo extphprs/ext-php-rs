@@ -176,6 +176,56 @@ binary_benchmark_group!(
     benchmarks = static_method_calls
 );
 
+#[binary_benchmark]
+#[bench::single_property_read(args = ("property_read.php", 1))]
+#[bench::multiple_property_reads(args = ("property_read.php", 10))]
+#[bench::lots_of_property_reads(args = ("property_read.php", 100_000))]
+fn property_reads(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+#[binary_benchmark]
+#[bench::single_property_write(args = ("property_write.php", 1))]
+#[bench::multiple_property_writes(args = ("property_write.php", 10))]
+#[bench::lots_of_property_writes(args = ("property_write.php", 100_000))]
+fn property_writes(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+binary_benchmark_group!(
+    name = property_read;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*read_property*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = property_reads
+);
+
+binary_benchmark_group!(
+    name = property_write;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*write_property*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = property_writes
+);
+
 main!(
-    binary_benchmark_groups = function, callback, method, static_method
+    binary_benchmark_groups = function, callback, method, static_method, property_read, property_write
 );

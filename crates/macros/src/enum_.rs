@@ -185,15 +185,8 @@ impl<'a> Enum<'a> {
 
                 fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
                     static METADATA: ::ext_php_rs::class::ClassMetadata<#ident> =
-                        ::ext_php_rs::class::ClassMetadata::new();
+                        ::ext_php_rs::class::ClassMetadata::new(&[]);
                     &METADATA
-                }
-
-                #[inline]
-                fn get_properties<'a>() -> ::std::collections::HashMap<
-                    &'static str, ::ext_php_rs::internal::property::PropertyInfo<'a, Self>
-                > {
-                    ::std::collections::HashMap::new()
                 }
 
                 #[inline]

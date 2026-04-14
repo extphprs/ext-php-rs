@@ -126,7 +126,7 @@ impl ToTokens for InterfaceData<'_> {
 
                 fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
                     static METADATA: ::ext_php_rs::class::ClassMetadata<#interface_name> =
-                    ::ext_php_rs::class::ClassMetadata::new();
+                    ::ext_php_rs::class::ClassMetadata::new(&[]);
 
                     &METADATA
                 }
@@ -150,9 +150,6 @@ impl ToTokens for InterfaceData<'_> {
                     &[#(#constants),*]
                 }
 
-                fn get_properties<'a>() -> ::std::collections::HashMap<&'static str, ::ext_php_rs::internal::property::PropertyInfo<'a, Self>> {
-                    panic!("Not supported for Interface");
-                }
             }
 
             impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a #interface_name {

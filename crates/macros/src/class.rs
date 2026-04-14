@@ -251,30 +251,71 @@ fn generate_registered_class_impl(
     let (instance_props, static_props): (Vec<_>, Vec<_>) =
         fields.iter().partition(|prop| !prop.is_static());
 
-    // Generate instance properties (with Rust handlers)
-    let instance_fields = instance_props.iter().map(|prop| {
-        let name = &prop.name;
-        let field_ident = prop.ident;
-        let field_ty = prop.ty;
-        let flags = prop
-            .attr
-            .flags
-            .as_ref()
-            .map(ToTokens::to_token_stream)
-            .unwrap_or(quote! { ::ext_php_rs::flags::PropertyFlags::Public });
-        let docs = &prop.docs;
+    // Generate instance property descriptors with getter/setter fn pointers.
+    // Each field property gets a pair of static functions and a PropertyDescriptor entry.
+    let field_prop_count = instance_props.len();
+    let field_prop_data: Vec<(TokenStream, TokenStream)> = instance_props
+        .iter()
+        .enumerate()
+        .map(|(i, prop)| {
+            let name = &prop.name;
+            let field_ident = prop.ident;
+            let field_ty = prop.ty;
+            let flags = prop
+                .attr
+                .flags
+                .as_ref()
+                .map(ToTokens::to_token_stream)
+                .unwrap_or(quote! { ::ext_php_rs::flags::PropertyFlags::Public });
+            let docs = &prop.docs;
+            let getter_name = syn::Ident::new(&format!("__prop_get_{i}"), field_ident.span());
+            let setter_name = syn::Ident::new(&format!("__prop_set_{i}"), field_ident.span());
 
-        quote! {
-            (#name, ::ext_php_rs::internal::property::PropertyInfo {
-                prop: ::ext_php_rs::props::Property::field(|this: &mut Self| &mut this.#field_ident),
-                flags: #flags,
-                docs: &[#(#docs,)*],
-                ty: <#field_ty as ::ext_php_rs::convert::IntoZval>::TYPE,
-                nullable: <#field_ty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                readonly: false,
-            })
-        }
-    });
+            let fns = quote! {
+                fn #getter_name(
+                    this: &#ident,
+                    __zv: &mut ::ext_php_rs::types::Zval,
+                ) -> ::ext_php_rs::exception::PhpResult {
+                    use ::ext_php_rs::convert::IntoZval as _;
+                    this.#field_ident.clone().set_zval(__zv, false)
+                        .map_err(|e| format!("Failed to get property value: {e:?}"))?;
+                    Ok(())
+                }
+                fn #setter_name(
+                    this: &mut #ident,
+                    __zv: &::ext_php_rs::types::Zval,
+                ) -> ::ext_php_rs::exception::PhpResult {
+                    use ::ext_php_rs::convert::FromZval as _;
+                    let val = <#field_ty as ::ext_php_rs::convert::FromZval>::from_zval(__zv)
+                        .ok_or_else(|| {
+                            let ty = __zv.get_type();
+                            format!("Failed to set property: could not convert from {ty:?}")
+                        })?;
+                    this.#field_ident = val;
+                    Ok(())
+                }
+            };
+
+            let descriptor = quote! {
+                ::ext_php_rs::internal::property::PropertyDescriptor {
+                    name: #name,
+                    get: ::std::option::Option::Some(#getter_name),
+                    set: ::std::option::Option::Some(#setter_name),
+                    flags: #flags,
+                    docs: &[#(#docs,)*],
+                    ty: <#field_ty as ::ext_php_rs::convert::IntoZval>::TYPE,
+                    nullable: <#field_ty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    readonly: false,
+                }
+            };
+
+            (fns, descriptor)
+        })
+        .collect();
+
+    let field_prop_fns: Vec<&TokenStream> = field_prop_data.iter().map(|(f, _)| f).collect();
+    let field_prop_descriptors: Vec<&TokenStream> =
+        field_prop_data.iter().map(|(_, d)| d).collect();
 
     // Generate static properties (PHP-managed, no Rust handlers)
     // We combine the base flags with Static flag using from_bits_retain which is
@@ -384,36 +425,28 @@ fn generate_registered_class_impl(
 
             #[inline]
             fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
+                #(#field_prop_fns)*
+
+                static FIELD_PROPS: [
+                    ::ext_php_rs::internal::property::PropertyDescriptor<#ident>; #field_prop_count
+                ] = [
+                    #(#field_prop_descriptors,)*
+                ];
                 static METADATA: ::ext_php_rs::class::ClassMetadata<#ident> =
-                    ::ext_php_rs::class::ClassMetadata::new();
+                    ::ext_php_rs::class::ClassMetadata::new(&FIELD_PROPS);
                 &METADATA
-            }
-
-            fn get_properties<'a>() -> ::std::collections::HashMap<
-                &'static str, ::ext_php_rs::internal::property::PropertyInfo<'a, Self>
-            > {
-                use ::std::iter::FromIterator;
-                use ::ext_php_rs::internal::class::PhpClassImpl;
-
-                // Start with field properties (instance fields only, not static)
-                let mut props = ::std::collections::HashMap::from_iter([
-                    #(#instance_fields,)*
-                ]);
-
-                // Add method properties (from #[php(getter)] and #[php(setter)])
-                let method_props = ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
-                    .get_method_props();
-                for (name, prop_info) in method_props {
-                    props.insert(name, prop_info);
-                }
-
-                props
             }
 
             #[must_use]
             fn static_properties() -> &'static [(&'static str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &'static [&'static str])] {
                 static STATIC_PROPS: &[(&str, ::ext_php_rs::flags::PropertyFlags, ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>, &[&str])] = &[#(#static_fields,)*];
                 STATIC_PROPS
+            }
+
+            #[inline]
+            fn method_properties() -> &'static [::ext_php_rs::internal::property::PropertyDescriptor<Self>] {
+                use ::ext_php_rs::internal::class::PhpClassImpl;
+                ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default().get_method_props()
             }
 
             #[inline]
