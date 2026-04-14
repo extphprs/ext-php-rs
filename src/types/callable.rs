@@ -1,11 +1,14 @@
 //! Types related to callables in PHP (anonymous functions, functions, etc).
 
-use std::{convert::TryFrom, ops::Deref, ptr};
+use std::{cell::Cell, convert::TryFrom, marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr};
 
 use crate::{
     convert::{FromZval, IntoZvalDyn},
-    error::{Error, Result},
-    ffi::_call_user_function_impl,
+    error::{CachedCallableError, Error, Result},
+    ffi::{
+        _call_user_function_impl, _ext_php_rs_cached_call_function, _ext_php_rs_zend_fcc_addref,
+        _ext_php_rs_zend_fcc_dtor, zend_fcall_info_cache, zend_is_callable_ex,
+    },
     flags::DataType,
     zend::ExecutorGlobals,
 };
@@ -279,6 +282,50 @@ impl<'a> ZendCallable<'a> {
     pub fn try_call_named(&self, named_params: &[(&str, &dyn IntoZvalDyn)]) -> Result<Zval> {
         self.try_call_with_named(&[], named_params)
     }
+
+    /// Caches the callable resolution for repeated calls.
+    ///
+    /// Resolves the callable once via `zend_is_callable_ex` and stores the
+    /// resulting `zend_fcall_info_cache`. Subsequent calls via the returned
+    /// [`CachedCallable`] skip all function resolution overhead.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CachedCallableError::ResolutionFailed`] if the callable
+    /// cannot be resolved.
+    pub fn cache(&self) -> std::result::Result<CachedCallable<'a>, CachedCallableError> {
+        let callable_copy = self.0.as_ref().shallow_clone();
+        let mut fcc = MaybeUninit::<zend_fcall_info_cache>::zeroed();
+
+        let resolved = unsafe {
+            zend_is_callable_ex(
+                ptr::from_ref(&callable_copy).cast_mut(),
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                fcc.as_mut_ptr(),
+                ptr::null_mut(),
+            )
+        };
+
+        if !resolved {
+            return Err(CachedCallableError::ResolutionFailed);
+        }
+
+        let mut fcc = unsafe { fcc.assume_init() };
+
+        unsafe {
+            #[allow(clippy::used_underscore_items)]
+            _ext_php_rs_zend_fcc_addref(&raw mut fcc);
+        }
+
+        Ok(CachedCallable {
+            callable: callable_copy,
+            fcc,
+            poisoned: Cell::new(false),
+            _lifetime: PhantomData,
+        })
+    }
 }
 
 impl<'a> FromZval<'a> for ZendCallable<'a> {
@@ -319,5 +366,151 @@ impl Deref for OwnedZval<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.as_ref()
+    }
+}
+
+/// A cached callable that resolves the PHP function once and reuses the
+/// resolution on subsequent calls.
+///
+/// Created via [`ZendCallable::cache()`]. Caches the `zend_fcall_info_cache`
+/// which contains the resolved `zend_function*` pointer, avoiding repeated
+/// string lookups and hash table searches on each call.
+///
+/// # Poisoning
+///
+/// If `zend_call_function` returns an engine failure (return code < 0),
+/// the callable is poisoned and subsequent calls return
+/// [`CachedCallableError::Poisoned`]. PHP exceptions do NOT poison the
+/// callable.
+pub struct CachedCallable<'a> {
+    #[allow(dead_code)]
+    callable: Zval,
+    fcc: zend_fcall_info_cache,
+    poisoned: Cell<bool>,
+    _lifetime: PhantomData<&'a ()>,
+}
+
+impl Drop for CachedCallable<'_> {
+    fn drop(&mut self) {
+        if self.fcc.function_handler.is_null() {
+            return;
+        }
+        unsafe {
+            #[allow(clippy::used_underscore_items)]
+            _ext_php_rs_zend_fcc_dtor(&raw mut self.fcc);
+        }
+    }
+}
+
+impl CachedCallable<'_> {
+    /// Calls the cached callable with positional arguments.
+    ///
+    /// Uses the pre-resolved function cache, skipping all function
+    /// name resolution.
+    ///
+    /// # Errors
+    ///
+    /// * [`CachedCallableError::Poisoned`] if a prior engine failure poisoned this callable
+    /// * [`CachedCallableError::CallFailed`] on engine failure (poisons the callable)
+    /// * [`CachedCallableError::PhpException`] on PHP exception (callable stays valid)
+    /// * [`CachedCallableError::ParamConversion`] if a parameter conversion failed
+    /// * [`CachedCallableError::IntegerOverflow`] if too many parameters
+    #[allow(clippy::inline_always, clippy::needless_pass_by_value)]
+    #[inline(always)]
+    pub fn try_call(
+        &self,
+        params: Vec<&dyn IntoZvalDyn>,
+    ) -> std::result::Result<Zval, CachedCallableError> {
+        self.try_call_with_named(params.as_slice(), &[])
+    }
+
+    /// Calls the cached callable with positional and named arguments.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`try_call`](Self::try_call), plus conversion errors for
+    /// named parameter names or values.
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    pub fn try_call_with_named(
+        &self,
+        params: &[&dyn IntoZvalDyn],
+        named_params: &[(&str, &dyn IntoZvalDyn)],
+    ) -> std::result::Result<Zval, CachedCallableError> {
+        if self.poisoned.get() {
+            return Err(CachedCallableError::Poisoned);
+        }
+
+        let mut packed: Vec<Zval> = params
+            .iter()
+            .map(|val| val.as_zval(false))
+            .collect::<Result<_, _>>()
+            .map_err(|_| CachedCallableError::ParamConversion)?;
+
+        let named_ht = if named_params.is_empty() {
+            None
+        } else {
+            let mut ht = ZendHashTable::with_capacity(
+                named_params
+                    .len()
+                    .try_into()
+                    .map_err(|_| CachedCallableError::IntegerOverflow)?,
+            );
+            for &(name, val) in named_params {
+                let zval = val
+                    .as_zval(false)
+                    .map_err(|_| CachedCallableError::ParamConversion)?;
+                ht.insert(name, zval)
+                    .map_err(|_| CachedCallableError::ParamConversion)?;
+            }
+            Some(ht)
+        };
+
+        let named_ptr = named_ht
+            .as_ref()
+            .map_or(ptr::null_mut(), |ht| ptr::from_ref(&**ht).cast_mut());
+
+        let mut retval = Zval::new();
+        let len: u32 = packed
+            .len()
+            .try_into()
+            .map_err(|_| CachedCallableError::IntegerOverflow)?;
+
+        let result = unsafe {
+            #[allow(clippy::used_underscore_items)]
+            _ext_php_rs_cached_call_function(
+                ptr::from_ref(&self.fcc).cast_mut(),
+                &raw mut retval,
+                len,
+                packed.as_mut_ptr(),
+                named_ptr,
+            )
+        };
+
+        if result < 0 {
+            self.poisoned.set(true);
+            return Err(CachedCallableError::CallFailed);
+        }
+
+        if let Some(e) = ExecutorGlobals::take_exception() {
+            return Err(CachedCallableError::PhpException(e));
+        }
+
+        Ok(retval)
+    }
+
+    /// Calls the cached callable with only named arguments.
+    ///
+    /// Convenience method equivalent to `try_call_with_named(&[], named_params)`.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`try_call`](Self::try_call).
+    #[inline]
+    pub fn try_call_named(
+        &self,
+        named_params: &[(&str, &dyn IntoZvalDyn)],
+    ) -> std::result::Result<Zval, CachedCallableError> {
+        self.try_call_with_named(&[], named_params)
     }
 }
