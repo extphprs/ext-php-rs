@@ -65,16 +65,25 @@ impl<'a> PHPProvider<'a> for Provider<'a> {
     }
 
     fn write_bindings(&self, bindings: String, writer: &mut impl Write) -> Result<()> {
-        // Symbols don't link without a `#[link(name = "php8")]` attribute on
-        // each extern block. Bindgen doesn't give us the option to add this so
-        // we need to add it manually.
+        // Symbols don't link without a `#[link]` attribute on each extern
+        // block. Bindgen doesn't give us the option to add this so we need
+        // to add it manually.
         //
-        // We use substring matching rather than exact line comparison because
-        // bindgen's output format varies depending on whether rustfmt is
-        // available. When rustfmt is missing, bindgen emits minimally-formatted
-        // output where extern blocks may not appear on their own line.
+        // We use `kind = "raw-dylib"` so the Rust compiler generates its
+        // own import stubs instead of relying on the pre-built import
+        // library. This ensures that data symbol imports (statics like
+        // `zend_ce_exception`, `std_object_handlers`) get proper
+        // `__imp_`-prefixed dllimport references. With `kind = "dylib"`,
+        // the compiler may emit direct references that neither rust-lld
+        // nor MSVC link.exe can resolve from the import library.
+        //
+        // We use substring matching rather than exact line comparison
+        // because bindgen's output format varies depending on whether
+        // rustfmt is available.
         let php_lib_name = self.get_php_lib_name()?;
-        let link_attr = format!("#[link(name = \"{php_lib_name}\")]");
+        let link_attr = format!(
+            "#[link(name = \"{php_lib_name}\", kind = \"raw-dylib\")]"
+        );
         let extern_patterns = [
             "extern \"C\" {",
             "extern \"fastcall\" {",
