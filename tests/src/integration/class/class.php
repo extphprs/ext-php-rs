@@ -350,3 +350,32 @@ assert($result === 'accepted: 100 modified', 'Cloned object should be accepted a
 
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
+
+// Test cache_slot: repeated property access in a tight loop.
+// After the first access resolves via find_property, subsequent accesses should
+// hit the cache_slot fast path and return the same correct value.
+$cacheObj = test_class('cached', 999);
+for ($i = 0; $i < 1000; $i++) {
+    assert($cacheObj->string === 'cached', "Cached read failed at iteration $i");
+    assert($cacheObj->number === 999, "Cached read (number) failed at iteration $i");
+}
+
+// Test cache_slot: write then read in the same loop iteration.
+// Validates the cache returns the updated descriptor (same descriptor, new value).
+for ($i = 0; $i < 100; $i++) {
+    $cacheObj->number = $i;
+    assert($cacheObj->number === $i, "Write-then-read failed at iteration $i");
+}
+
+// Test cache_slot: isset() followed by read on the same property.
+// Both has_property and read_property share cache_slot for the same member name.
+$issetObj = test_class('isset_test', 42);
+assert(isset($issetObj->string), 'isset should return true for defined property');
+assert($issetObj->string === 'isset_test', 'Read after isset should return correct value');
+
+// Test cache_slot: visibility is still enforced after caching.
+// The cached descriptor must still go through the access check.
+$vis = new TestPropertyVisibility(1, 'secret', 'guarded');
+assert($vis->publicNum === 1, 'Public read should work before cache warms');
+assert($vis->publicNum === 1, 'Public read should work after cache warms');
+assert_exception_thrown(fn() => $vis->privateStr, 'Private access should throw even if cache_slot is warm');
