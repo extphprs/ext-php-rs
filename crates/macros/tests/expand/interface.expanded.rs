@@ -23,7 +23,7 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
         " This is a basic interface example.",
     ];
     fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
-        static METADATA: ::ext_php_rs::class::ClassMetadata<PhpInterfaceMyInterface> = ::ext_php_rs::class::ClassMetadata::new();
+        static METADATA: ::ext_php_rs::class::ClassMetadata<PhpInterfaceMyInterface> = ::ext_php_rs::class::ClassMetadata::new(&[]);
         &METADATA
     }
     fn method_builders() -> Vec<
@@ -72,14 +72,6 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
         ext_php_rs::describe::DocComments,
     )] {
         &[("MY_CONST", &42, &[" Doc comments for MY_CONST."])]
-    }
-    fn get_properties<'a>() -> ::std::collections::HashMap<
-        &'static str,
-        ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
-    > {
-        {
-            ::core::panicking::panic_fmt(format_args!("Not supported for Interface"));
-        };
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface {
@@ -179,7 +171,7 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
     const IMPLEMENTS: &'static [::ext_php_rs::class::ClassEntryInfo] = &[];
     const DOC_COMMENTS: &'static [&'static str] = &[];
     fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
-        static METADATA: ::ext_php_rs::class::ClassMetadata<PhpInterfaceMyInterface2> = ::ext_php_rs::class::ClassMetadata::new();
+        static METADATA: ::ext_php_rs::class::ClassMetadata<PhpInterfaceMyInterface2> = ::ext_php_rs::class::ClassMetadata::new(&[]);
         &METADATA
     }
     fn method_builders() -> Vec<
@@ -237,14 +229,6 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
         ext_php_rs::describe::DocComments,
     )] {
         &[("my_const", &42, &[]), ("AnotherConst", &"Hello", &[])]
-    }
-    fn get_properties<'a>() -> ::std::collections::HashMap<
-        &'static str,
-        ::ext_php_rs::internal::property::PropertyInfo<'a, Self>,
-    > {
-        {
-            ::core::panicking::panic_fmt(format_args!("Not supported for Interface"));
-        };
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface2 {

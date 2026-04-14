@@ -1,6 +1,5 @@
 ---
 source: crates/cli/tests/stubs_snapshot.rs
-assertion_line: 74
 expression: stubs
 ---
 <?php

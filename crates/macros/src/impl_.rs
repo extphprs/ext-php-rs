@@ -455,66 +455,125 @@ impl<'a> ParsedImpl<'a> {
             }
         }
 
-        // Generate property creation code
-        let property_inserts: Vec<TokenStream> = prop_groups
+        // Generate static PropertyDescriptor entries for method properties.
+        // Each getter/setter pair gets wrapper fn pointers and a descriptor.
+        let method_prop_data: Vec<(Vec<TokenStream>, TokenStream)> = prop_groups
             .iter()
-            .map(|(prop_name, group)| {
+            .enumerate()
+            .map(|(i, (prop_name, group))| {
                 let flags = match group.vis {
                     Visibility::Public => quote! { ::ext_php_rs::flags::PropertyFlags::Public },
-                    Visibility::Protected => quote! { ::ext_php_rs::flags::PropertyFlags::Protected },
+                    Visibility::Protected => {
+                        quote! { ::ext_php_rs::flags::PropertyFlags::Protected }
+                    }
                     Visibility::Private => quote! { ::ext_php_rs::flags::PropertyFlags::Private },
                 };
                 let docs = &group.docs;
-                let prop_expr = match (group.getter, group.setter) {
-                    (Some(getter_ident), Some(setter_ident)) => {
-                        // Both getter and setter - use combine
-                        quote! {
-                            ::ext_php_rs::props::Property::method_getter(#path::#getter_ident)
-                                .combine(::ext_php_rs::props::Property::method_setter(#path::#setter_ident))
-                        }
-                    }
-                    (Some(getter_ident), None) => {
-                        // Only getter
-                        quote! {
-                            ::ext_php_rs::props::Property::method_getter(#path::#getter_ident)
-                        }
-                    }
-                    (None, Some(setter_ident)) => {
-                        // Only setter
-                        quote! {
-                            ::ext_php_rs::props::Property::method_setter(#path::#setter_ident)
-                        }
-                    }
-                    (None, None) => {
-                        // Should not happen
-                        return quote! {};
-                    }
-                };
                 let readonly = group.getter.is_some() && group.setter.is_none();
                 let type_tokens = group.value_ty.map_or_else(
-                    || quote! {
-                        ty: ::ext_php_rs::flags::DataType::Mixed,
-                        nullable: false,
+                    || {
+                        quote! {
+                            ty: ::ext_php_rs::flags::DataType::Mixed,
+                            nullable: false,
+                        }
                     },
-                    |vty| quote! {
-                        ty: <#vty as ::ext_php_rs::convert::IntoZval>::TYPE,
-                        nullable: <#vty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    |vty| {
+                        quote! {
+                            ty: <#vty as ::ext_php_rs::convert::IntoZval>::TYPE,
+                            nullable: <#vty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                        }
                     },
                 );
-                quote! {
-                    props.insert(
-                        #prop_name,
-                        ::ext_php_rs::internal::property::PropertyInfo {
-                            prop: #prop_expr,
-                            flags: #flags,
-                            docs: &[#(#docs),*],
-                            #type_tokens
-                            readonly: #readonly,
+
+                let mut fn_defs = Vec::new();
+
+                // Generate getter wrapper
+                let getter_ref = if let Some(getter_ident) = group.getter {
+                    let getter_fn_name =
+                        syn::Ident::new(&format!("__method_get_{i}"), getter_ident.span());
+                    fn_defs.push(quote! {
+                        fn #getter_fn_name(
+                            this: &#path,
+                            __zv: &mut ::ext_php_rs::types::Zval,
+                        ) -> ::ext_php_rs::exception::PhpResult {
+                            use ::ext_php_rs::convert::IntoZval as _;
+                            let value = #path::#getter_ident(this);
+                            value.set_zval(__zv, false)
+                                .map_err(|e| format!("Failed to return property value: {e:?}"))?;
+                            Ok(())
                         }
-                    );
+                    });
+                    quote! { ::std::option::Option::Some(#getter_fn_name) }
+                } else {
+                    quote! { ::std::option::Option::None }
+                };
+
+                // Generate setter wrapper
+                let setter_ref = if let Some(setter_ident) = group.setter {
+                    let setter_fn_name =
+                        syn::Ident::new(&format!("__method_set_{i}"), setter_ident.span());
+                    if let Some(vty) = group.value_ty {
+                        fn_defs.push(quote! {
+                            fn #setter_fn_name(
+                                this: &mut #path,
+                                __zv: &::ext_php_rs::types::Zval,
+                            ) -> ::ext_php_rs::exception::PhpResult {
+                                use ::ext_php_rs::convert::FromZval as _;
+                                let val = <#vty as ::ext_php_rs::convert::FromZval>::from_zval(__zv)
+                                    .ok_or("Unable to convert property value into required type.")?;
+                                #path::#setter_ident(this, val);
+                                Ok(())
+                            }
+                        });
+                    } else {
+                        fn_defs.push(quote! {
+                            fn #setter_fn_name(
+                                this: &mut #path,
+                                __zv: &::ext_php_rs::types::Zval,
+                            ) -> ::ext_php_rs::exception::PhpResult {
+                                use ::ext_php_rs::convert::FromZval as _;
+                                let val = ::ext_php_rs::convert::FromZval::from_zval(__zv)
+                                    .ok_or("Unable to convert property value into required type.")?;
+                                #path::#setter_ident(this, val);
+                                Ok(())
+                            }
+                        });
+                    }
+                    quote! { ::std::option::Option::Some(#setter_fn_name) }
+                } else {
+                    quote! { ::std::option::Option::None }
+                };
+
+                if group.getter.is_none() && group.setter.is_none() {
+                    return (Vec::new(), quote! {});
                 }
+
+                let descriptor = quote! {
+                    ::ext_php_rs::internal::property::PropertyDescriptor {
+                        name: #prop_name,
+                        get: #getter_ref,
+                        set: #setter_ref,
+                        flags: #flags,
+                        docs: &[#(#docs),*],
+                        #type_tokens
+                        readonly: #readonly,
+                    }
+                };
+
+                (fn_defs, descriptor)
             })
             .collect();
+
+        let method_prop_fn_defs: Vec<&TokenStream> = method_prop_data
+            .iter()
+            .flat_map(|(fns, _)| fns.iter())
+            .collect();
+        let method_prop_descriptors: Vec<&TokenStream> = method_prop_data
+            .iter()
+            .filter(|(fns, _)| !fns.is_empty() || !matches!(&fns[..], []))
+            .map(|(_, d)| d)
+            .collect();
+        let method_prop_count = method_prop_descriptors.len();
 
         quote! {
             #abstract_check
@@ -528,10 +587,15 @@ impl<'a> ParsedImpl<'a> {
                     vec![#(#functions),*]
                 }
 
-                fn get_method_props<'a>(self) -> ::std::collections::HashMap<&'static str, ::ext_php_rs::internal::property::PropertyInfo<'a, #path>> {
-                    let mut props = ::std::collections::HashMap::new();
-                    #(#property_inserts)*
-                    props
+                fn get_method_props(self) -> &'static [::ext_php_rs::internal::property::PropertyDescriptor<#path>] {
+                    #(#method_prop_fn_defs)*
+
+                    static METHOD_PROPS: [
+                        ::ext_php_rs::internal::property::PropertyDescriptor<#path>; #method_prop_count
+                    ] = [
+                        #(#method_prop_descriptors,)*
+                    ];
+                    &METHOD_PROPS
                 }
 
                 fn get_constructor(self) -> ::std::option::Option<::ext_php_rs::class::ConstructorMeta<#path>> {

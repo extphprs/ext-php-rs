@@ -140,9 +140,8 @@ impl ZendObjectHandlers {
                     .as_ref()
                     .ok_or("Invalid property name pointer given")?
             };
-            let self_ = &mut *obj;
-            let props = T::get_metadata().get_properties();
-            let prop = props.get(prop_name.as_str()?);
+            let self_ = &*obj;
+            let prop = T::get_metadata().find_property(prop_name.as_str()?);
 
             // retval needs to be treated as initialized, so we set the type to null
             let rv_mut = unsafe { rv.as_mut().ok_or("Invalid return zval given")? };
@@ -163,7 +162,10 @@ impl ZendObjectHandlers {
                         }
                         return Ok(rv);
                     }
-                    prop_info.prop.get(self_, rv_mut)?;
+                    let getter = prop_info
+                        .get
+                        .ok_or("No getter available for this property.")?;
+                    getter(self_, rv_mut)?;
                     rv
                 }
                 None => unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) },
@@ -212,8 +214,7 @@ impl ZendObjectHandlers {
                     .ok_or("Invalid property name pointer given")?
             };
             let self_ = &mut *obj;
-            let props = T::get_metadata().get_properties();
-            let prop = props.get(prop_name.as_str()?);
+            let prop = T::get_metadata().find_property(prop_name.as_str()?);
             let value_mut = unsafe { value.as_mut().ok_or("Invalid return zval given")? };
 
             Ok(match prop {
@@ -231,7 +232,10 @@ impl ZendObjectHandlers {
                         }
                         return Ok(value);
                     }
-                    prop_info.prop.set(self_, value_mut)?;
+                    let setter = prop_info
+                        .set
+                        .ok_or("No setter available for this property.")?;
+                    setter(self_, value_mut)?;
                     value
                 }
                 None => unsafe { zend_std_write_property(object, member, value, cache_slot) },
@@ -275,21 +279,25 @@ impl ZendObjectHandlers {
             obj: &mut ZendClassObject<T>,
             props: &mut ZendHashTable,
         ) -> PhpResult {
-            let self_ = &mut *obj;
-            let struct_props = T::get_metadata().get_properties();
+            let self_ = &*obj;
 
-            for (&name, val) in struct_props {
+            for desc in T::get_metadata().all_properties() {
+                let name = desc.name;
+                let getter = match desc.get {
+                    Some(g) => g,
+                    None => continue,
+                };
                 let mut zv = Zval::new();
-                if val.prop.get(self_, &mut zv).is_err() {
+                if getter(self_, &mut zv).is_err() {
                     continue;
                 }
 
                 // Mangle property name according to visibility for debug output
                 // PHP convention: private = "\0ClassName\0propName", protected =
                 // "\0*\0propName"
-                let mangled_name = if val.flags.contains(PropertyFlags::Private) {
+                let mangled_name = if desc.flags.contains(PropertyFlags::Private) {
                     format!("\0{}\0{name}", T::CLASS_NAME)
-                } else if val.flags.contains(PropertyFlags::Protected) {
+                } else if desc.flags.contains(PropertyFlags::Protected) {
                     format!("\0*\0{name}")
                 } else {
                     name.to_string()
@@ -341,17 +349,17 @@ impl ZendObjectHandlers {
                     .as_ref()
                     .ok_or("Invalid property name pointer given")?
             };
-            let props = T::get_metadata().get_properties();
-            let prop = props.get(prop_name.as_str()?);
-            let self_ = &mut *obj;
+            let prop = T::get_metadata().find_property(prop_name.as_str()?);
+            let self_ = &*obj;
 
             match has_set_exists {
                 //
                 // * 0 (has) whether property exists and is not NULL
                 0 => {
                     if let Some(val) = prop {
+                        let getter = val.get.ok_or("No getter available for this property.")?;
                         let mut zv = Zval::new();
-                        val.prop.get(self_, &mut zv)?;
+                        getter(self_, &mut zv)?;
                         if !zv.is_null() {
                             return Ok(1);
                         }
@@ -361,8 +369,9 @@ impl ZendObjectHandlers {
                 // * 1 (set) whether property exists and is true
                 1 => {
                     if let Some(val) = prop {
+                        let getter = val.get.ok_or("No getter available for this property.")?;
                         let mut zv = Zval::new();
-                        val.prop.get(self_, &mut zv)?;
+                        getter(self_, &mut zv)?;
 
                         cfg_if::cfg_if! {
                             if #[cfg(php84)] {
