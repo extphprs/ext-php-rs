@@ -20,6 +20,8 @@ pub(crate) mod module_globals;
 pub(crate) mod observer;
 mod streams;
 mod try_catch;
+#[cfg(feature = "observer")]
+pub(crate) mod zend_extension;
 
 use crate::{
     error::Result,
@@ -57,6 +59,23 @@ pub use streams::*;
 #[cfg(feature = "embed")]
 pub(crate) use try_catch::panic_wrapper;
 pub use try_catch::{CatchError, bailout, try_catch, try_catch_first};
+#[cfg(feature = "observer")]
+pub use zend_extension::{ZendExtensionBuilder, ZendExtensionHandler};
+
+/// Register a `zend_extension` with the PHP engine.
+///
+/// # Safety
+///
+/// * Must be called during `MINIT`.
+/// * The struct's string fields (`name`, `version`, ...) must point at memory
+///   that lives for the process lifetime. PHP copies the struct into its
+///   internal list but keeps those `*const c_char` pointers.
+#[cfg(feature = "observer")]
+pub(crate) unsafe fn register_extension(ext: *mut crate::ffi::zend_extension) {
+    unsafe {
+        crate::ffi::zend_register_extension(ext, std::ptr::null_mut());
+    }
+}
 
 // Used as the format string for `php_printf`.
 const FORMAT_STR: &[u8] = b"%s\0";
