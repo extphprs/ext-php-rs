@@ -1,8 +1,11 @@
+use std::panic::AssertUnwindSafe;
+
 use criterion::{Criterion, criterion_group, criterion_main};
 use ext_php_rs::embed::Embed;
 use ext_php_rs::types::{ZendHashTable, ZendStr, Zval};
 
 fn bench_eval_simple(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("eval_simple_expression", |b| {
             b.iter(|| {
@@ -14,6 +17,7 @@ fn bench_eval_simple(c: &mut Criterion) {
 }
 
 fn bench_eval_string_concat(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("eval_string_concat", |b| {
             b.iter(|| {
@@ -25,6 +29,7 @@ fn bench_eval_string_concat(c: &mut Criterion) {
 }
 
 fn bench_eval_array_creation(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("eval_array_creation", |b| {
             b.iter(|| {
@@ -36,6 +41,7 @@ fn bench_eval_array_creation(c: &mut Criterion) {
 }
 
 fn bench_hashtable_insert_sequential(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("hashtable_push_100", |b| {
             b.iter(|| {
@@ -49,6 +55,7 @@ fn bench_hashtable_insert_sequential(c: &mut Criterion) {
 }
 
 fn bench_hashtable_insert_string_keys(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         let keys: Vec<String> = (0..100).map(|i| format!("key_{i}")).collect();
 
@@ -64,6 +71,7 @@ fn bench_hashtable_insert_string_keys(c: &mut Criterion) {
 }
 
 fn bench_hashtable_get(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         let mut ht = ZendHashTable::new();
         for i in 0..100 {
@@ -79,6 +87,7 @@ fn bench_hashtable_get(c: &mut Criterion) {
 }
 
 fn bench_hashtable_get_index(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         let mut ht = ZendHashTable::new();
         for i in 0..100 {
@@ -94,6 +103,7 @@ fn bench_hashtable_get_index(c: &mut Criterion) {
 }
 
 fn bench_zend_string_creation(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("zend_string_create_short", |b| {
             b.iter(|| {
@@ -104,6 +114,7 @@ fn bench_zend_string_creation(c: &mut Criterion) {
 }
 
 fn bench_zend_string_creation_long(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         let long_string = "a".repeat(1000);
 
@@ -116,6 +127,7 @@ fn bench_zend_string_creation_long(c: &mut Criterion) {
 }
 
 fn bench_zval_type_conversions(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("zval_set_and_read_long", |b| {
             b.iter(|| {
@@ -128,6 +140,7 @@ fn bench_zval_type_conversions(c: &mut Criterion) {
 }
 
 fn bench_zval_string_roundtrip(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         c.bench_function("zval_string_roundtrip", |b| {
             b.iter(|| {
@@ -140,6 +153,7 @@ fn bench_zval_string_roundtrip(c: &mut Criterion) {
 }
 
 fn bench_hashtable_iteration(c: &mut Criterion) {
+    let c = AssertUnwindSafe(c);
     Embed::run(|| {
         let mut ht = ZendHashTable::new();
         for i in 0..100 {
