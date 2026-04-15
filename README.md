@@ -4,7 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/ext-php-rs/latest)](https://docs.rs/ext-php-rs)
 [![Guide Workflow Status](https://img.shields.io/github/actions/workflow/status/extphprs/ext-php-rs/docs.yml?branch=master&label=guide)](https://ext-php.rs)
 ![CI Workflow Status](https://img.shields.io/github/actions/workflow/status/extphprs/ext-php-rs/master.yml?branch=master)
-[![Coverage Status](https://coveralls.io/repos/github/extphprs/ext-php-rs/badge.svg?branch=master)](https://coveralls.io/github/extphprs/ext-php-rs?branch=master) [![Discord](https://img.shields.io/discord/115233111977099271)](https://discord.gg/dphp)
+[![Coverage Status](https://coveralls.io/repos/github/extphprs/ext-php-rs/badge.svg?branch=master)](https://coveralls.io/github/extphprs/ext-php-rs?branch=master) [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/extphprs/ext-php-rs?utm_source=badge) [![Discord](https://img.shields.io/discord/115233111977099271)](https://discord.gg/dphp)
 
 Bindings and abstractions for the Zend API to build PHP extensions natively in
 Rust.

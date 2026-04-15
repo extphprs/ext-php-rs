@@ -29,6 +29,7 @@ ext-php-rs-derive = { version = "=0.11.11", path = "./crates/macros" }
 
 [dev-dependencies]
 skeptic = "0.13"
+criterion = { package = "codspeed-criterion-compat", version = "4" }
 
 [build-dependencies]
 anyhow = "1"
@@ -95,3 +96,9 @@ path = "tests/module.rs"
 [[test]]
 name = "sapi_tests"
 path = "tests/sapi.rs"
+
+[[bench]]
+name = "embed_benchmarks"
+path = "benches/codspeed/embed_benchmarks.rs"
+harness = false
+required-features = ["embed"]
