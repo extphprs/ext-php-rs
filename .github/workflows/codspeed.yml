@@ -62,7 +62,7 @@ jobs:
           echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
 
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@cargo-codspeed
+        run: cargo install cargo-codspeed --locked
 
       - name: Build benchmarks
         run: cargo codspeed build --features embed
