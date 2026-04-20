@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.12](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.11...ext-php-rs-derive-v0.11.12) - 2026-04-20
+
+### Other
+- Pre-compute mangled property names in get_properties ([#724](https://github.com/extphprs/ext-php-rs/pull/724)) (by @ptondereau) [[#724](https://github.com/extphprs/ext-php-rs/issues/724)] 
 ## [0.11.11](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.10...ext-php-rs-derive-v0.11.11) - 2026-04-14
 
 ### Added
