@@ -588,10 +588,8 @@ fn build_ext(
     for message in cargo_metadata::Message::parse_stream(reader) {
         let message = message.with_context(|| "Invalid message received from `cargo build`")?;
         match message {
-            cargo_metadata::Message::CompilerArtifact(a) => {
-                if &a.target == target {
-                    artifact = Some(a);
-                }
+            cargo_metadata::Message::CompilerArtifact(a) if &a.target == target => {
+                artifact = Some(a);
             }
             cargo_metadata::Message::BuildFinished(b) => {
                 if b.success {

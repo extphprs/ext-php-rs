@@ -147,7 +147,7 @@ unsafe fn read_exception_property(exception: *mut ffi::zend_object, name: &str) 
     let prop_ref = unsafe { &*prop };
     let type_info = unsafe { prop_ref.u1.type_info };
 
-    if (type_info & 0xFF) as u32 == ffi::IS_STRING {
+    if (type_info & 0xFF) == ffi::IS_STRING {
         let zs = unsafe { prop_ref.value.str_ };
         unsafe { zend_string_to_string(zs) }
     } else {
@@ -187,7 +187,7 @@ unsafe fn read_exception_property_long(exception: *mut ffi::zend_object, name: &
     let prop_ref = unsafe { &*prop };
     let type_info = unsafe { prop_ref.u1.type_info };
 
-    if (type_info & 0xFF) as u32 == ffi::IS_LONG {
+    if (type_info & 0xFF) == ffi::IS_LONG {
         unsafe { prop_ref.value.lval }
     } else {
         0

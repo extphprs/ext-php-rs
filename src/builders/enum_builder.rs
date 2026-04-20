@@ -125,7 +125,7 @@ impl EnumBuilder {
         if let Some(register) = self.register {
             register(unsafe { &mut *class });
         } else {
-            panic!("Enum was not registered with a registration function",);
+            panic!("Enum was not registered with a registration function");
         }
 
         Ok(())
