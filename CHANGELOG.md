@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## [0.15.11](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.10...ext-php-rs-v0.15.11) - 2026-04-20
+
+### Added
+- *(observer)* Allow zend_extension registration for low level function ([#678](https://github.com/extphprs/ext-php-rs/pull/678)) (by @ptondereau) [[#678](https://github.com/extphprs/ext-php-rs/issues/678)] 
+
+### Fixed
+- Address clippy 1.95.0 lint errors ([#728](https://github.com/extphprs/ext-php-rs/pull/728)) (by @ptondereau) [[#728](https://github.com/extphprs/ext-php-rs/issues/728)] 
+
+### Other
+- Cache property lookups across repeated accesses ([#726](https://github.com/extphprs/ext-php-rs/pull/726)) (by @ptondereau) [[#726](https://github.com/extphprs/ext-php-rs/issues/726)] 
+- Pre-compute mangled property names in get_properties ([#724](https://github.com/extphprs/ext-php-rs/pull/724)) (by @ptondereau) [[#724](https://github.com/extphprs/ext-php-rs/issues/724)] 
 ## [0.15.10](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.9...ext-php-rs-v0.15.10) - 2026-04-14
 
 ### Added

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.21](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.20...cargo-php-v0.1.21) - 2026-04-20
+
+### Fixed
+- Address clippy 1.95.0 lint errors ([#728](https://github.com/extphprs/ext-php-rs/pull/728)) (by @ptondereau) [[#728](https://github.com/extphprs/ext-php-rs/issues/728)] 
 ## [0.1.20](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.19...cargo-php-v0.1.20) - 2026-04-14
 
 ### Added
