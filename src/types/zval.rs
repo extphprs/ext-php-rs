@@ -197,6 +197,11 @@ impl Zval {
     /// a vector of a given type. Similar to the [`unpack`] function in PHP,
     /// except you can only unpack one type.
     ///
+    /// Returns `None` if the zval is not a string, or if the byte length of
+    /// the string is not a whole multiple of `size_of::<T>()`. The previous
+    /// behavior (silent truncation of trailing bytes) hid off-by-one input
+    /// errors and was a correctness hazard.
+    ///
     /// # Safety
     ///
     /// There is no way to tell if the data stored in the string is actually of
@@ -207,8 +212,13 @@ impl Zval {
     ///
     /// [`pack`]: https://www.php.net/manual/en/function.pack.php
     /// [`unpack`]: https://www.php.net/manual/en/function.unpack.php
+    #[must_use]
     pub fn binary<T: Pack>(&self) -> Option<Vec<T>> {
-        self.zend_str().map(T::unpack_into)
+        let s = self.zend_str()?;
+        if !s.len.is_multiple_of(std::mem::size_of::<T>()) {
+            return None;
+        }
+        Some(T::unpack_into(s))
     }
 
     /// Returns the value of the zval if it is a string and can be unpacked into
@@ -219,6 +229,9 @@ impl Zval {
     /// returned instead of a vector, meaning the contents of the string is
     /// not copied.
     ///
+    /// Returns `None` if the zval is not a string, or if the byte length of
+    /// the string is not a whole multiple of `size_of::<T>()`.
+    ///
     /// # Safety
     ///
     /// There is no way to tell if the data stored in the string is actually of
@@ -229,8 +242,13 @@ impl Zval {
     ///
     /// [`pack`]: https://www.php.net/manual/en/function.pack.php
     /// [`unpack`]: https://www.php.net/manual/en/function.unpack.php
+    #[must_use]
     pub fn binary_slice<T: PackSlice>(&self) -> Option<&[T]> {
-        self.zend_str().map(T::unpack_into)
+        let s = self.zend_str()?;
+        if !s.len.is_multiple_of(std::mem::size_of::<T>()) {
+            return None;
+        }
+        Some(T::unpack_into(s))
     }
 
     /// Returns the value of the zval if it is a resource.
@@ -869,6 +887,15 @@ impl Zval {
     /// The Zval takes ownership of the string. When the Zval is dropped,
     /// the string will be released.
     ///
+    /// This is the canonical path for assigning any raw `zend_string` to a
+    /// zval from Rust: it reads the string's `GC_IMMUTABLE` flag and picks
+    /// [`ZvalTypeFlags::InternedStringEx`] (non-refcounted) for interned
+    /// permanent statics like `zend_empty_string` / `zend_one_char_string[c]`,
+    /// otherwise [`ZvalTypeFlags::StringEx`] (refcounted). This mirrors
+    /// PHP's own `ZVAL_STR` macro in `Zend/zend_types.h`. Other `set_*`
+    /// helpers that produce strings (including [`Zval::set_binary`]) route
+    /// through this function to stay in lockstep with upstream flag logic.
+    ///
     /// # Parameters
     ///
     /// * `val` - String content.
@@ -890,9 +917,15 @@ impl Zval {
     ///
     /// * `val` - The value to set the zval as.
     pub fn set_binary<T: Pack>(&mut self, val: Vec<T>) {
-        self.change_type(ZvalTypeFlags::StringEx);
         let ptr = T::pack_into(val);
-        self.value.str_ = ptr;
+        // SAFETY: Pack::pack_into returns a non-null zend_string from
+        // ext_php_rs_zend_string_init: either a freshly allocated refcounted
+        // string or an interned permanent static (zend_empty_string or
+        // zend_one_char_string[c]) for packed length 0 or 1. Both are valid
+        // inputs for ZBox::from_raw; zend_string_release short-circuits on
+        // interned strings, matching PHP's own zend_string_release.
+        let zs = unsafe { ZBox::from_raw(ptr) };
+        self.set_zend_string(zs);
     }
 
     /// Sets the value of the zval as an interned string. Returns nothing in a
@@ -1944,5 +1977,97 @@ mod tests {
         assert_eq!(php_float_to_string(1e13), "10000000000000");
         assert_eq!(php_float_to_string(0.001), "0.001");
         assert_eq!(php_float_to_string(0.0001), "0.0001"); // 1e-4 is decimal
+    }
+
+    #[test]
+    fn test_set_binary_interned_flag() {
+        Embed::run(|| {
+            // Regression for #729: packed length 0 or 1 returns an interned
+            // permanent static; flagging the zval as refcounted corrupts the
+            // heap on drop. Mirrors Zval::set_zend_string's GC_IMMUTABLE check.
+
+            let assert_interned = |zv: &Zval, label: &str| {
+                let flags = ZvalTypeFlags::from_bits_truncate(unsafe { zv.u1.type_info });
+                assert!(
+                    flags.contains(ZvalTypeFlags::String),
+                    "{label}: expected String type, got {flags:?}",
+                );
+                assert!(
+                    !flags.contains(ZvalTypeFlags::RefCounted),
+                    "{label}: interned string zval must not carry RefCounted, got {flags:?}",
+                );
+            };
+
+            let mut zv = Zval::new();
+            zv.set_binary::<u8>(vec![]);
+            assert_eq!(zv.get_type(), DataType::String);
+            assert_interned(&zv, "empty u8");
+
+            let mut zv = Zval::new();
+            zv.set_binary::<u8>(vec![42u8]);
+            assert_eq!(zv.get_type(), DataType::String);
+            assert_interned(&zv, "single u8");
+            assert_eq!(zv.binary::<u8>(), Some(vec![42u8]));
+
+            let mut zv = Zval::new();
+            zv.set_binary::<u32>(Vec::<u32>::new());
+            assert_eq!(zv.get_type(), DataType::String);
+            assert_interned(&zv, "empty u32");
+
+            // A packed payload of 2+ bytes must still take the refcounted path.
+            let mut zv = Zval::new();
+            zv.set_binary::<u32>(vec![42u32]);
+            let flags = ZvalTypeFlags::from_bits_truncate(unsafe { zv.u1.type_info });
+            assert!(
+                flags.contains(ZvalTypeFlags::RefCounted),
+                "multi-byte packed string must be refcounted, got {flags:?}",
+            );
+        });
+    }
+
+    #[test]
+    fn test_binary_roundtrip_and_size_mismatch() {
+        Embed::run(|| {
+            // Roundtrip at the native widths used by Pack.
+            let u32s = vec![1u32, 0xdead_beef, 42u32, 0u32];
+            let mut zv = Zval::new();
+            zv.set_binary::<u32>(u32s.clone());
+            assert_eq!(zv.binary::<u32>(), Some(u32s));
+
+            let u16s = vec![0x1234u16, 0xabcdu16, 0xffffu16];
+            let mut zv = Zval::new();
+            zv.set_binary::<u16>(u16s.clone());
+            assert_eq!(zv.binary::<u16>(), Some(u16s));
+
+            // Empty string roundtrips cleanly at every width.
+            for width in [1usize, 2, 4, 8] {
+                let mut zv = Zval::new();
+                match width {
+                    1 => zv.set_binary::<u8>(vec![]),
+                    2 => zv.set_binary::<u16>(vec![]),
+                    4 => zv.set_binary::<u32>(vec![]),
+                    8 => zv.set_binary::<u64>(vec![]),
+                    _ => unreachable!(),
+                }
+                assert_eq!(zv.binary::<u8>(), Some(vec![]));
+            }
+
+            // A byte count that isn't a multiple of size_of::<T>() must return
+            // None rather than silently dropping trailing bytes. 5 bytes of u8
+            // should unpack as u8 (len=5) but refuse to unpack as u32 (5 % 4 != 0).
+            let mut zv = Zval::new();
+            zv.set_binary::<u8>(vec![1u8, 2, 3, 4, 5]);
+            assert_eq!(zv.binary::<u8>(), Some(vec![1u8, 2, 3, 4, 5]));
+            assert!(zv.binary::<u32>().is_none());
+            assert!(zv.binary::<u16>().is_none());
+            assert!(zv.binary::<u64>().is_none());
+
+            // Single-byte payload must fail cleanly for any width > 1.
+            let mut zv = Zval::new();
+            zv.set_binary::<u8>(vec![42u8]);
+            assert_eq!(zv.binary::<u8>(), Some(vec![42u8]));
+            assert!(zv.binary::<u16>().is_none());
+            assert!(zv.binary::<u32>().is_none());
+        });
     }
 }
