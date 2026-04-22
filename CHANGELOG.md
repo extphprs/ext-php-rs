@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.15.12](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.11...ext-php-rs-v0.15.12) - 2026-04-22
+
+### Fixed
+- Heap corruption when returning Binary of 0/1 packed bytes ([#730](https://github.com/extphprs/ext-php-rs/pull/730)) (by @ptondereau) [[#730](https://github.com/extphprs/ext-php-rs/issues/730)] 
 ## [0.15.11](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.10...ext-php-rs-v0.15.11) - 2026-04-20
 
 ### Added
