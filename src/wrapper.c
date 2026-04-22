@@ -5,6 +5,7 @@
 
 zend_string *ext_php_rs_zend_string_init(const char *str, size_t len, bool persistent) {
   if (!persistent && len <= 1
+      && zend_empty_string != NULL
       && zend_one_char_string != NULL && zend_one_char_string[0] != NULL) {
     return len == 0 ? zend_empty_string : ZSTR_CHAR((zend_uchar) *str);
   }
