@@ -145,10 +145,8 @@ impl<'a> FunctionBuilder<'a> {
         // for those single-type returns. Unions never resolve to those types
         // syntactically, so the user's `allow_null` is honoured directly.
         self.ret_as_null = match &ty {
-            PhpType::Simple(dt) => {
-                allow_null && *dt != DataType::Void && *dt != DataType::Mixed
-            }
-            PhpType::Union(_) => allow_null,
+            PhpType::Simple(dt) => allow_null && *dt != DataType::Void && *dt != DataType::Mixed,
+            PhpType::Union(_) | PhpType::ClassUnion(_) => allow_null,
         };
         self.retval = Some(ty);
         self.ret_as_ref = as_ref;
@@ -195,15 +193,19 @@ impl<'a> FunctionBuilder<'a> {
             // required_num_args
             name: n_req as *const _,
             type_: match &self.retval {
-                Some(PhpType::Simple(dt)) => ZendType::empty_from_type(
-                    *dt,
+                Some(PhpType::Simple(dt)) => {
+                    ZendType::empty_from_type(*dt, self.ret_as_ref, false, self.ret_as_null)
+                        .ok_or(Error::InvalidCString)?
+                }
+                Some(PhpType::Union(types)) => ZendType::empty_from_primitive_union(
+                    types,
                     self.ret_as_ref,
                     false,
                     self.ret_as_null,
                 )
                 .ok_or(Error::InvalidCString)?,
-                Some(PhpType::Union(types)) => ZendType::empty_from_primitive_union(
-                    types,
+                Some(PhpType::ClassUnion(class_names)) => ZendType::empty_from_class_union(
+                    class_names,
                     self.ret_as_ref,
                     false,
                     self.ret_as_null,
@@ -227,5 +229,54 @@ impl<'a> FunctionBuilder<'a> {
         self.function.arg_info = Box::into_raw(args.into_boxed_slice()) as *const ArgInfo;
 
         Ok(self.function)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    extern "C" fn noop_handler(_: &mut ExecuteData, _: &mut Zval) {}
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_class_union_emits_literal_name_on_retval_arg_info() {
+        use crate::ffi::_ZEND_TYPE_LITERAL_NAME_BIT;
+        use std::ffi::CStr;
+
+        let entry = FunctionBuilder::new("ret_class_union", noop_handler)
+            .returns(
+                PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+                false,
+                false,
+            )
+            .build()
+            .expect("class union return should build");
+
+        // arg_info[0] is the retval slot (zend_internal_function_info).
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_LITERAL_NAME_BIT, 0,);
+        assert!(!retval_info.type_.ptr.is_null());
+        let class_str = unsafe { CStr::from_ptr(retval_info.type_.ptr.cast()) };
+        assert_eq!(class_str.to_str().unwrap(), "Foo|Bar");
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_class_union_with_allow_null_propagates_nullable_bit() {
+        use crate::ffi::_ZEND_TYPE_NULLABLE_BIT;
+
+        let entry = FunctionBuilder::new("ret_nullable_class_union", noop_handler)
+            .returns(
+                PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+                false,
+                true,
+            )
+            .build()
+            .expect("nullable class union return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
     }
 }

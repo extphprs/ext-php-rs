@@ -153,6 +153,7 @@ fn retval_to_describe(
         PhpType::Union(members) => {
             ret_allow_null || members.iter().any(|m| matches!(m, DataType::Null))
         }
+        PhpType::ClassUnion(_) => ret_allow_null,
     };
     Option::Some(Retval {
         ty: r.into(),
@@ -203,6 +204,10 @@ impl From<PhpType> for PhpTypeAbi {
         match ty {
             PhpType::Simple(dt) => Self::Simple(dt),
             PhpType::Union(members) => Self::Union(members.into()),
+            // Placeholder until the `PhpTypeAbi::ClassUnion` variant lands; the
+            // runtime path declines class unions before they reach the describe
+            // layer (see `Arg::as_arg_info`), so this map is unobservable today.
+            PhpType::ClassUnion(_) => Self::Simple(DataType::Mixed),
         }
     }
 }

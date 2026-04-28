@@ -165,15 +165,19 @@ impl<'a> Arg<'a> {
     /// Returns the internal PHP argument info.
     pub(crate) fn as_arg_info(&self) -> Result<ArgInfo> {
         let zend_type = match &self.r#type {
-            PhpType::Simple(dt) => ZendType::empty_from_type(
-                *dt,
+            PhpType::Simple(dt) => {
+                ZendType::empty_from_type(*dt, self.as_ref, self.variadic, self.allow_null)
+                    .ok_or(Error::InvalidCString)?
+            }
+            PhpType::Union(types) => ZendType::empty_from_primitive_union(
+                types,
                 self.as_ref,
                 self.variadic,
                 self.allow_null,
             )
             .ok_or(Error::InvalidCString)?,
-            PhpType::Union(types) => ZendType::empty_from_primitive_union(
-                types,
+            PhpType::ClassUnion(class_names) => ZendType::empty_from_class_union(
+                class_names,
                 self.as_ref,
                 self.variadic,
                 self.allow_null,
@@ -200,6 +204,7 @@ impl From<Arg<'_>> for _zend_expected_type {
         let dt = match &arg.r#type {
             PhpType::Simple(dt) => *dt,
             PhpType::Union(types) => types.first().copied().unwrap_or(DataType::Mixed),
+            PhpType::ClassUnion(_) => DataType::Object(None),
         };
         let type_id = match dt {
             DataType::False | DataType::True => _zend_expected_type_Z_EXPECTED_BOOL,
@@ -568,6 +573,21 @@ mod tests {
         let arg = Arg::new("test", DataType::Double).allow_null();
         let actual: _zend_expected_type = arg.into();
         assert_eq!(actual, 21);
+
+        let arg = Arg::new(
+            "test",
+            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        );
+        let actual: _zend_expected_type = arg.into();
+        assert_eq!(actual, 18, "class union maps to Z_EXPECTED_OBJECT");
+
+        let arg = Arg::new(
+            "test",
+            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        )
+        .allow_null();
+        let actual: _zend_expected_type = arg.into();
+        assert_eq!(actual, 19, "nullable class union bumps the discriminant");
     }
 
     #[test]
@@ -603,6 +623,56 @@ mod tests {
         assert_eq!(parser.args.len(), 1);
         assert_eq!(parser.args[0].name, "test");
         assert_eq!(parser.args[0].r#type, PhpType::Simple(DataType::Long));
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn class_union_arg_emits_literal_name_with_pipe_joined_classes() {
+        use crate::ffi::_ZEND_TYPE_LITERAL_NAME_BIT;
+        use std::ffi::CStr;
+
+        let arg = Arg::new(
+            "value",
+            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        );
+        let arg_info = arg.as_arg_info().expect("class union should build");
+
+        assert_ne!(
+            arg_info.type_.type_mask & _ZEND_TYPE_LITERAL_NAME_BIT,
+            0,
+            "literal-name bit must be set on PHP 8.3+",
+        );
+        assert!(!arg_info.type_.ptr.is_null());
+
+        let class_str = unsafe { CStr::from_ptr(arg_info.type_.ptr.cast()) };
+        assert_eq!(class_str.to_str().unwrap(), "Foo|Bar");
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn class_union_arg_with_allow_null_sets_nullable_bit() {
+        use crate::ffi::_ZEND_TYPE_NULLABLE_BIT;
+
+        let arg = Arg::new(
+            "value",
+            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        )
+        .allow_null();
+        let arg_info = arg
+            .as_arg_info()
+            .expect("nullable class union should build");
+
+        assert_ne!(
+            arg_info.type_.type_mask & _ZEND_TYPE_NULLABLE_BIT,
+            0,
+            "allow_null must propagate _ZEND_TYPE_NULLABLE_BIT",
+        );
+    }
+
+    #[test]
+    fn class_union_arg_with_empty_member_list_errors() {
+        let arg = Arg::new("value", PhpType::ClassUnion(vec![]));
+        assert!(arg.as_arg_info().is_err());
     }
 
     // TODO: test parse
