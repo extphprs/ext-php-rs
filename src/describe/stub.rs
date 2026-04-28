@@ -320,6 +320,17 @@ fn phptype_to_phpdoc(ty: &PhpTypeAbi, nullable: bool) -> String {
             }
             s
         }
+        PhpTypeAbi::ClassUnion(members) => {
+            let parts: StdVec<String> = members
+                .iter()
+                .map(|name| format_class_type(name.as_ref(), false))
+                .collect();
+            let mut s = parts.join("|");
+            if nullable {
+                s.push_str("|null");
+            }
+            s
+        }
     }
 }
 
@@ -522,14 +533,12 @@ fn param_to_stub(
 
     // Check if we should use a type override from # Parameters section
     // Only use override if the param type is Mixed (i.e., Zval in Rust)
-    let type_override = type_overrides
-        .get(param.name.as_ref())
-        .filter(|_| {
-            matches!(
-                &param.ty,
-                Option::Some(PhpTypeAbi::Simple(DataType::Mixed)) | Option::None
-            )
-        });
+    let type_override = type_overrides.get(param.name.as_ref()).filter(|_| {
+        matches!(
+            &param.ty,
+            Option::Some(PhpTypeAbi::Simple(DataType::Mixed)) | Option::None
+        )
+    });
 
     if let Some(override_str) = type_override {
         // Use the documented type from # Parameters
@@ -582,6 +591,22 @@ impl ToStub for PhpTypeAbi {
                 }
                 Ok(())
             }
+            Self::ClassUnion(members) => {
+                let mut first = true;
+                for name in members.iter() {
+                    if !first {
+                        write!(buf, "|")?;
+                    }
+                    let name_ref: &str = name.as_ref();
+                    if name_ref.starts_with('\\') {
+                        write!(buf, "{name_ref}")?;
+                    } else {
+                        write!(buf, "\\{name_ref}")?;
+                    }
+                    first = false;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -592,7 +617,9 @@ impl ToStub for PhpTypeAbi {
 /// which are intrinsically non-nullable in PHP). `Union(members)` always
 /// expands `null` as an explicit member with `|null` syntax (PHP rejects
 /// `?` shorthand on union types). Already-nullable unions (`Null` member)
-/// are not duplicated.
+/// are not duplicated. `ClassUnion(members)` follows the same rule, except
+/// members are class names so they cannot include `null` themselves: the
+/// dedup check collapses to "always append `|null` when nullable".
 fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) -> FmtResult {
     match ty {
         PhpTypeAbi::Simple(dt) => {
@@ -604,6 +631,13 @@ fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) 
         PhpTypeAbi::Union(members) => {
             ty.fmt_stub(buf)?;
             if nullable && !members.iter().any(|m| matches!(m, DataType::Null)) {
+                write!(buf, "|null")?;
+            }
+            Ok(())
+        }
+        PhpTypeAbi::ClassUnion(_) => {
+            ty.fmt_stub(buf)?;
+            if nullable {
                 write!(buf, "|null")?;
             }
             Ok(())
@@ -1359,10 +1393,7 @@ mod test {
     #[allow(clippy::unwrap_used)]
     fn phptypeabi_simple_renders_as_datatype() {
         use super::PhpTypeAbi;
-        assert_eq!(
-            PhpTypeAbi::Simple(DataType::Long).to_stub().unwrap(),
-            "int"
-        );
+        assert_eq!(PhpTypeAbi::Simple(DataType::Long).to_stub().unwrap(), "int");
     }
 
     #[test]
@@ -1371,6 +1402,14 @@ mod test {
         use super::PhpTypeAbi;
         let ty = PhpTypeAbi::Union(vec![DataType::Long, DataType::String].into());
         assert_eq!(ty.to_stub().unwrap(), "int|string");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_class_union_renders_with_fqdn_pipes() {
+        use super::PhpTypeAbi;
+        let ty = PhpTypeAbi::ClassUnion(vec!["Foo".into(), "Bar".into()].into());
+        assert_eq!(ty.to_stub().unwrap(), "\\Foo|\\Bar");
     }
 
     #[test]
@@ -1546,6 +1585,85 @@ mod test {
         assert!(
             !stub.contains("null|null"),
             "must not duplicate null when already a member, got: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn function_with_class_union_param_renders_fqdn_pipes() {
+        use super::{Function, PhpTypeAbi};
+        use crate::describe::DocBlock;
+        use crate::describe::Parameter;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::None,
+            params: vec![Parameter {
+                name: "x".into(),
+                ty: Option::Some(PhpTypeAbi::ClassUnion(
+                    vec!["Foo".into(), "Bar".into()].into(),
+                )),
+                nullable: false,
+                variadic: false,
+                default: Option::None,
+            }]
+            .into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("function foo(\\Foo|\\Bar $x)"),
+            "expected 'function foo(\\Foo|\\Bar $x)' in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn function_with_class_union_retval_renders_fqdn_pipes() {
+        use super::{Function, PhpTypeAbi, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: PhpTypeAbi::ClassUnion(vec!["Foo".into(), "Bar".into()].into()),
+                nullable: false,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("): \\Foo|\\Bar {"),
+            "expected '): \\Foo|\\Bar {{' in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn nullable_class_union_appends_null_member() {
+        use super::{Function, PhpTypeAbi, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: PhpTypeAbi::ClassUnion(vec!["Foo".into(), "Bar".into()].into()),
+                nullable: true,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("): \\Foo|\\Bar|null {"),
+            "expected '): \\Foo|\\Bar|null' in: {stub}"
         );
     }
 }

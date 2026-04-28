@@ -197,6 +197,11 @@ pub enum PhpTypeAbi {
     /// A primitive union, e.g. `int|string` or `int|string|null`.
     /// Members appear in the order the author declared them.
     Union(Vec<DataType>),
+    /// A class union, e.g. `Foo|Bar`. Members are class-name strings in
+    /// declaration order. Nullability is carried separately on `Parameter`
+    /// / `Retval` because PHP rejects the `?` shorthand on a union (the
+    /// rendered stub spells it `Foo|Bar|null`).
+    ClassUnion(Vec<RString>),
 }
 
 impl From<PhpType> for PhpTypeAbi {
@@ -204,10 +209,13 @@ impl From<PhpType> for PhpTypeAbi {
         match ty {
             PhpType::Simple(dt) => Self::Simple(dt),
             PhpType::Union(members) => Self::Union(members.into()),
-            // Placeholder until the `PhpTypeAbi::ClassUnion` variant lands; the
-            // runtime path declines class unions before they reach the describe
-            // layer (see `Arg::as_arg_info`), so this map is unobservable today.
-            PhpType::ClassUnion(_) => Self::Simple(DataType::Mixed),
+            PhpType::ClassUnion(class_names) => Self::ClassUnion(
+                class_names
+                    .into_iter()
+                    .map(RString::from)
+                    .collect::<StdVec<_>>()
+                    .into(),
+            ),
         }
     }
 }
@@ -874,7 +882,7 @@ mod tests {
         let ty: PhpTypeAbi = PhpType::Simple(DataType::Long).into();
         match ty {
             PhpTypeAbi::Simple(dt) => assert_eq!(dt, DataType::Long),
-            PhpTypeAbi::Union(_) => panic!("expected Simple"),
+            PhpTypeAbi::Union(_) | PhpTypeAbi::ClassUnion(_) => panic!("expected Simple"),
         }
     }
 
@@ -887,16 +895,25 @@ mod tests {
                 &*members,
                 &[DataType::Long, DataType::String, DataType::Null]
             ),
-            PhpTypeAbi::Simple(_) => panic!("expected Union"),
+            PhpTypeAbi::Simple(_) | PhpTypeAbi::ClassUnion(_) => panic!("expected Union"),
+        }
+    }
+
+    #[test]
+    fn php_type_class_union_preserves_member_order() {
+        let ty: PhpTypeAbi = PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]).into();
+        match ty {
+            PhpTypeAbi::ClassUnion(members) => {
+                let names: StdVec<&str> = members.iter().map(AsRef::as_ref).collect();
+                assert_eq!(names, &["Foo", "Bar"]);
+            }
+            PhpTypeAbi::Simple(_) | PhpTypeAbi::Union(_) => panic!("expected ClassUnion"),
         }
     }
 
     #[test]
     fn parameter_from_arg_preserves_primitive_union() {
-        let arg = Arg::new(
-            "x",
-            PhpType::Union(vec![DataType::Long, DataType::String]),
-        );
+        let arg = Arg::new("x", PhpType::Union(vec![DataType::Long, DataType::String]));
         let p: Parameter = arg.into();
         assert_eq!(
             p.ty,
@@ -990,11 +1007,8 @@ mod tests {
             .function(
                 FunctionBuilder::new("u_int_string_allow_null", crate::test::test_function)
                     .arg(
-                        Arg::new(
-                            "v",
-                            PhpType::Union(vec![DataType::Long, DataType::String]),
-                        )
-                        .allow_null(),
+                        Arg::new("v", PhpType::Union(vec![DataType::Long, DataType::String]))
+                            .allow_null(),
                     )
                     .returns(DataType::Long, false, false),
             )
@@ -1007,15 +1021,12 @@ mod tests {
                     ),
             )
             .function(
-                FunctionBuilder::new(
-                    "u_returns_int_string_or_null",
-                    crate::test::test_function,
-                )
-                .returns(
-                    PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
-                    false,
-                    false,
-                ),
+                FunctionBuilder::new("u_returns_int_string_or_null", crate::test::test_function)
+                    .returns(
+                        PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
+                        false,
+                        false,
+                    ),
             );
         builder.into()
     }
@@ -1065,9 +1076,7 @@ mod tests {
     fn stub_renders_nullable_union_return_type() {
         let stub = build_union_module().to_stub().unwrap();
         assert!(
-            stub.contains(
-                "function u_returns_int_string_or_null(): int|string|null {}"
-            ),
+            stub.contains("function u_returns_int_string_or_null(): int|string|null {}"),
             "missing nullable union return type: {stub}"
         );
     }
