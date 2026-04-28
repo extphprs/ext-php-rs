@@ -19,7 +19,6 @@ pub(crate) mod module_globals;
 #[cfg(feature = "observer")]
 pub(crate) mod observer;
 mod streams;
-mod string;
 mod try_catch;
 #[cfg(feature = "observer")]
 pub(crate) mod zend_extension;
