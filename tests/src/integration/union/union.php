@@ -46,3 +46,39 @@ foreach (
     assert($fname("hello") === 2, "$fname: string call");
     assert($fname(null) === 3, "$fname: null call");
 }
+
+// Slice 3: union return types.
+foreach ([
+    [
+        'fname' => 'test_returns_int_or_string',
+        'nullable' => false,
+        'members' => ['int', 'string'],
+    ],
+    [
+        'fname' => 'test_returns_int_string_or_null',
+        'nullable' => true,
+        'members' => ['int', 'null', 'string'],
+    ],
+] as $case) {
+    $rf = new ReflectionFunction($case['fname']);
+    $ret = $rf->getReturnType();
+    assert(
+        $ret instanceof ReflectionUnionType,
+        "{$case['fname']}: expected ReflectionUnionType return",
+    );
+    assert(
+        $ret->allowsNull() === $case['nullable'],
+        "{$case['fname']}: nullable mismatch",
+    );
+
+    $members = array_map(
+        static fn(ReflectionNamedType $t): string => $t->getName(),
+        $ret->getTypes(),
+    );
+    sort($members);
+    assert(
+        $members === $case['members'],
+        "{$case['fname']}: expected " . implode('|', $case['members'])
+            . ", got " . implode('|', $members),
+    );
+}

@@ -51,6 +51,23 @@ extern "C" fn handler_int_string_allow_null(execute_data: &mut ExecuteData, retv
     classify(arg.zval().map(|z| &**z), retval);
 }
 
+extern "C" fn handler_returns_int_or_string(execute_data: &mut ExecuteData, retval: &mut Zval) {
+    if execute_data.parser().parse().is_err() {
+        return;
+    }
+    retval.set_long(1);
+}
+
+extern "C" fn handler_returns_int_string_or_null(
+    execute_data: &mut ExecuteData,
+    retval: &mut Zval,
+) {
+    if execute_data.parser().parse().is_err() {
+        return;
+    }
+    retval.set_null();
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let int_or_string = FunctionBuilder::new("test_union_int_or_string", handler_int_or_string)
         .arg(Arg::new(
@@ -82,10 +99,32 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     )
     .returns(DataType::Long, false, false);
 
+    let returns_int_or_string = FunctionBuilder::new(
+        "test_returns_int_or_string",
+        handler_returns_int_or_string,
+    )
+    .returns(
+        PhpType::Union(vec![DataType::Long, DataType::String]),
+        false,
+        false,
+    );
+
+    let returns_int_string_or_null = FunctionBuilder::new(
+        "test_returns_int_string_or_null",
+        handler_returns_int_string_or_null,
+    )
+    .returns(
+        PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
+        false,
+        false,
+    );
+
     builder
         .function(int_or_string)
         .function(int_string_or_null)
         .function(int_string_allow_null)
+        .function(returns_int_or_string)
+        .function(returns_int_string_or_null)
 }
 
 #[cfg(test)]

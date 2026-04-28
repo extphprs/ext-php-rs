@@ -9,6 +9,7 @@ use crate::{
     constant::IntoConst,
     flags::{DataType, MethodFlags, PropertyFlags},
     prelude::ModuleBuilder,
+    types::PhpType,
 };
 use abi::{Option, RString, Str, Vec};
 
@@ -133,6 +134,26 @@ pub struct Function {
     pub params: Vec<Parameter>,
 }
 
+/// Converts a builder retval (`PhpType`) into the lossy describe ABI shape.
+///
+/// `Retval { ty: DataType, nullable: bool }` cannot represent a union directly,
+/// so unions are mapped to `DataType::Mixed` until the ABI grows union
+/// awareness. Nullability stays observable: it is the OR of the user's
+/// `allow_null` flag and the presence of `DataType::Null` in the union.
+fn retval_to_describe(retval: std::option::Option<PhpType>, ret_allow_null: bool) -> Option<Retval> {
+    let Some(r) = retval else {
+        return Option::None;
+    };
+    let (ty, nullable) = match r {
+        PhpType::Simple(dt) => (dt, dt != DataType::Mixed && ret_allow_null),
+        PhpType::Union(members) => {
+            let contains_null = members.iter().any(|m| matches!(m, DataType::Null));
+            (DataType::Mixed, ret_allow_null || contains_null)
+        }
+    };
+    Option::Some(Retval { ty, nullable })
+}
+
 impl From<FunctionBuilder<'_>> for Function {
     fn from(val: FunctionBuilder<'_>) -> Self {
         let ret_allow_null = val.ret_as_null;
@@ -145,13 +166,7 @@ impl From<FunctionBuilder<'_>> for Function {
                     .collect::<StdVec<_>>()
                     .into(),
             ),
-            ret: val
-                .retval
-                .map(|r| Retval {
-                    ty: r,
-                    nullable: r != DataType::Mixed && ret_allow_null,
-                })
-                .into(),
+            ret: retval_to_describe(val.retval, ret_allow_null),
             params: val
                 .args
                 .into_iter()
@@ -442,13 +457,7 @@ impl From<(FunctionBuilder<'_>, MethodFlags)> for Method {
                     .collect::<StdVec<_>>()
                     .into(),
             ),
-            retval: builder
-                .retval
-                .map(|r| Retval {
-                    ty: r,
-                    nullable: r != DataType::Mixed && ret_allow_null,
-                })
-                .into(),
+            retval: retval_to_describe(builder.retval, ret_allow_null),
             params: builder
                 .args
                 .into_iter()

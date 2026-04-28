@@ -3,7 +3,7 @@ use crate::{
     describe::DocComments,
     error::{Error, Result},
     flags::{DataType, MethodFlags},
-    types::Zval,
+    types::{PhpType, Zval},
     zend::{ExecuteData, FunctionEntry, ZendType},
 };
 use std::{ffi::CString, mem, ptr};
@@ -30,7 +30,7 @@ pub struct FunctionBuilder<'a> {
     function: FunctionEntry,
     pub(crate) args: Vec<Arg<'a>>,
     n_req: Option<usize>,
-    pub(crate) retval: Option<DataType>,
+    pub(crate) retval: Option<PhpType>,
     ret_as_ref: bool,
     pub(crate) ret_as_null: bool,
     pub(crate) docs: DocComments,
@@ -130,15 +130,28 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets the return value of the function.
     ///
+    /// Accepts a [`DataType`] for the simple case (via [`From<DataType> for
+    /// PhpType`]) or a full [`PhpType`] for compound forms such as
+    /// [`PhpType::Union`].
+    ///
     /// # Parameters
     ///
-    /// * `type_` - The return type of the function.
+    /// * `ty` - The return type of the function.
     /// * `as_ref` - Whether the function returns a reference.
     /// * `allow_null` - Whether the function return value is nullable.
-    pub fn returns(mut self, type_: DataType, as_ref: bool, allow_null: bool) -> Self {
-        self.retval = Some(type_);
+    pub fn returns<T: Into<PhpType>>(mut self, ty: T, as_ref: bool, allow_null: bool) -> Self {
+        let ty = ty.into();
+        // PHP rejects `?void` and `?mixed`, so the nullable flag is squashed
+        // for those single-type returns. Unions never resolve to those types
+        // syntactically, so the user's `allow_null` is honoured directly.
+        self.ret_as_null = match &ty {
+            PhpType::Simple(dt) => {
+                allow_null && *dt != DataType::Void && *dt != DataType::Mixed
+            }
+            PhpType::Union(_) => allow_null,
+        };
+        self.retval = Some(ty);
         self.ret_as_ref = as_ref;
-        self.ret_as_null = allow_null && type_ != DataType::Void && type_ != DataType::Mixed;
         self
     }
 
@@ -181,11 +194,21 @@ impl<'a> FunctionBuilder<'a> {
         args.push(ArgInfo {
             // required_num_args
             name: n_req as *const _,
-            type_: match self.retval {
-                Some(retval) => {
-                    ZendType::empty_from_type(retval, self.ret_as_ref, false, self.ret_as_null)
-                        .ok_or(Error::InvalidCString)?
-                }
+            type_: match &self.retval {
+                Some(PhpType::Simple(dt)) => ZendType::empty_from_type(
+                    *dt,
+                    self.ret_as_ref,
+                    false,
+                    self.ret_as_null,
+                )
+                .ok_or(Error::InvalidCString)?,
+                Some(PhpType::Union(types)) => ZendType::empty_from_primitive_union(
+                    types,
+                    self.ret_as_ref,
+                    false,
+                    self.ret_as_null,
+                )
+                .ok_or(Error::InvalidCString)?,
                 None => ZendType::empty(false, false),
             },
             default_value: ptr::null(),
