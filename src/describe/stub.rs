@@ -9,8 +9,8 @@ use std::{
 };
 
 use super::{
-    Class, Constant, DocBlock, Function, Method, MethodType, Module, Parameter, Property, Retval,
-    Visibility,
+    Class, Constant, DocBlock, Function, Method, MethodType, Module, Parameter, PhpTypeAbi,
+    Property, Retval, Visibility,
     abi::{Option, RString, Str},
 };
 
@@ -261,7 +261,7 @@ fn format_phpdoc(
             extract_php_type(type_override)
         } else {
             match &param.ty {
-                Option::Some(ty) => datatype_to_phpdoc(ty, param.nullable),
+                Option::Some(ty) => phptype_to_phpdoc(ty, param.nullable),
                 Option::None => "mixed".to_string(),
             }
         };
@@ -276,7 +276,7 @@ fn format_phpdoc(
 
     // Output @return tag
     if let Some(retval) = ret {
-        let type_str = datatype_to_phpdoc(&retval.ty, retval.nullable);
+        let type_str = phptype_to_phpdoc(&retval.ty, retval.nullable);
         if let Some(desc) = &parsed.returns {
             writeln!(buf, " * @return {type_str} {desc}")?;
         } else {
@@ -303,6 +303,14 @@ fn extract_php_type(type_str: &str) -> String {
         .next()
         .unwrap_or("mixed")
         .to_string()
+}
+
+/// Convert a `PhpTypeAbi` to `PHPDoc` type string.
+fn phptype_to_phpdoc(ty: &PhpTypeAbi, nullable: bool) -> String {
+    match ty {
+        PhpTypeAbi::Simple(dt) => datatype_to_phpdoc(dt, nullable),
+        PhpTypeAbi::Union(_) => "mixed".to_string(),
+    }
 }
 
 /// Convert a `DataType` to `PHPDoc` type string.
@@ -485,13 +493,7 @@ impl ToStub for Function {
 
         if let Option::Some(retval) = &self.ret {
             write!(buf, ": ")?;
-            // Don't add ? for mixed/null/void - they already include null or can't be nullable
-            if retval.nullable
-                && !matches!(retval.ty, DataType::Mixed | DataType::Null | DataType::Void)
-            {
-                write!(buf, "?")?;
-            }
-            retval.ty.fmt_stub(buf)?;
+            render_type_with_nullable(&retval.ty, retval.nullable, buf)?;
         }
 
         writeln!(buf, " {{}}")
@@ -512,18 +514,19 @@ fn param_to_stub(
     // Only use override if the param type is Mixed (i.e., Zval in Rust)
     let type_override = type_overrides
         .get(param.name.as_ref())
-        .filter(|_| matches!(&param.ty, Option::Some(DataType::Mixed) | Option::None));
+        .filter(|_| {
+            matches!(
+                &param.ty,
+                Option::Some(PhpTypeAbi::Simple(DataType::Mixed)) | Option::None
+            )
+        });
 
     if let Some(override_str) = type_override {
         // Use the documented type from # Parameters
         let type_str = extract_php_type(override_str);
         write!(buf, "{type_str} ")?;
     } else if let Option::Some(ty) = &param.ty {
-        // Don't add ? for mixed/null/void - they already include null or can't be nullable
-        if param.nullable && !matches!(ty, DataType::Mixed | DataType::Null | DataType::Void) {
-            write!(buf, "?")?;
-        }
-        ty.fmt_stub(&mut buf)?;
+        render_type_with_nullable(ty, param.nullable, &mut buf)?;
         write!(buf, " ")?;
     }
 
@@ -551,6 +554,50 @@ impl ToStub for Parameter {
         let result = param_to_stub(self, &empty_overrides)?;
         buf.push_str(&result);
         Ok(())
+    }
+}
+
+impl ToStub for PhpTypeAbi {
+    fn fmt_stub(&self, buf: &mut String) -> FmtResult {
+        match self {
+            Self::Simple(dt) => dt.fmt_stub(buf),
+            Self::Union(members) => {
+                let mut first = true;
+                for dt in members.iter() {
+                    if !first {
+                        write!(buf, "|")?;
+                    }
+                    dt.fmt_stub(buf)?;
+                    first = false;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Render a `PhpTypeAbi` with the nullable flag honored.
+///
+/// `Simple(dt)` uses the `?T` shorthand (except for `Mixed`/`Null`/`Void`
+/// which are intrinsically non-nullable in PHP). `Union(members)` always
+/// expands `null` as an explicit member with `|null` syntax (PHP rejects
+/// `?` shorthand on union types). Already-nullable unions (`Null` member)
+/// are not duplicated.
+fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) -> FmtResult {
+    match ty {
+        PhpTypeAbi::Simple(dt) => {
+            if nullable && !matches!(dt, DataType::Mixed | DataType::Null | DataType::Void) {
+                write!(buf, "?")?;
+            }
+            dt.fmt_stub(buf)
+        }
+        PhpTypeAbi::Union(members) => {
+            ty.fmt_stub(buf)?;
+            if nullable && !members.iter().any(|m| matches!(m, DataType::Null)) {
+                write!(buf, "|null")?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -812,13 +859,7 @@ impl ToStub for Method {
             && let Option::Some(retval) = &self.retval
         {
             write!(buf, ": ")?;
-            // Don't add ? for mixed/null/void - they already include null or can't be nullable
-            if retval.nullable
-                && !matches!(retval.ty, DataType::Mixed | DataType::Null | DataType::Void)
-            {
-                write!(buf, "?")?;
-            }
-            retval.ty.fmt_stub(buf)?;
+            render_type_with_nullable(&retval.ty, retval.nullable, buf)?;
         }
 
         if self.r#abstract {
@@ -1260,7 +1301,7 @@ mod test {
 
     #[test]
     fn test_format_phpdoc() {
-        use super::{DocBlock, Parameter, Retval, Str, format_phpdoc};
+        use super::{DocBlock, Parameter, PhpTypeAbi, Retval, Str, format_phpdoc};
         use crate::describe::abi::Option;
         use crate::flags::DataType;
 
@@ -1282,14 +1323,14 @@ mod test {
 
         let params = vec![Parameter {
             name: "name".into(),
-            ty: Option::Some(DataType::String),
+            ty: Option::Some(PhpTypeAbi::Simple(DataType::String)),
             nullable: false,
             variadic: false,
             default: Option::None,
         }];
 
         let retval = Retval {
-            ty: DataType::String,
+            ty: PhpTypeAbi::Simple(DataType::String),
             nullable: false,
         };
 
@@ -1304,5 +1345,199 @@ mod test {
         // Should NOT contain rustdoc section headers
         assert!(!buf.contains("# Arguments"));
         assert!(!buf.contains("# Returns"));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_simple_renders_as_datatype() {
+        use super::PhpTypeAbi;
+        assert_eq!(
+            PhpTypeAbi::Simple(DataType::Long).to_stub().unwrap(),
+            "int"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_union_renders_with_pipes() {
+        use super::PhpTypeAbi;
+        let ty = PhpTypeAbi::Union(vec![DataType::Long, DataType::String].into());
+        assert_eq!(ty.to_stub().unwrap(), "int|string");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn function_with_union_param_renders_pipes() {
+        use super::{Function, PhpTypeAbi};
+        use crate::describe::DocBlock;
+        use crate::describe::Parameter;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::None,
+            params: vec![Parameter {
+                name: "x".into(),
+                ty: Option::Some(PhpTypeAbi::Union(
+                    vec![DataType::Long, DataType::String].into(),
+                )),
+                nullable: false,
+                variadic: false,
+                default: Option::None,
+            }]
+            .into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("function foo(int|string $x)"),
+            "expected 'function foo(int|string $x)' in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn function_with_union_retval_renders_pipes() {
+        use super::{Function, PhpTypeAbi, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: PhpTypeAbi::Union(vec![DataType::Long, DataType::String].into()),
+                nullable: false,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("): int|string {"),
+            "expected '): int|string {{' in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn nullable_union_param_via_explicit_null_member() {
+        use super::{Function, PhpTypeAbi};
+        use crate::describe::DocBlock;
+        use crate::describe::Parameter;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::None,
+            params: vec![Parameter {
+                name: "x".into(),
+                ty: Option::Some(PhpTypeAbi::Union(
+                    vec![DataType::Long, DataType::String, DataType::Null].into(),
+                )),
+                nullable: false,
+                variadic: false,
+                default: Option::None,
+            }]
+            .into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("function foo(int|string|null $x"),
+            "expected 'int|string|null' (no `?` prefix, no duplicate null) in: {stub}"
+        );
+        assert!(
+            !stub.contains("?int"),
+            "must not prefix union with `?`, got: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn nullable_union_param_via_flag() {
+        use super::{Function, PhpTypeAbi};
+        use crate::describe::DocBlock;
+        use crate::describe::Parameter;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::None,
+            params: vec![Parameter {
+                name: "x".into(),
+                ty: Option::Some(PhpTypeAbi::Union(
+                    vec![DataType::Long, DataType::String].into(),
+                )),
+                nullable: true,
+                variadic: false,
+                default: Option::None,
+            }]
+            .into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("function foo(int|string|null $x"),
+            "expected '|null' appended for nullable Union, got: {stub}"
+        );
+        assert!(
+            !stub.contains("?int"),
+            "must not prefix union with `?`, got: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn nullable_union_retval_via_flag() {
+        use super::{Function, PhpTypeAbi, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: PhpTypeAbi::Union(vec![DataType::Long, DataType::String].into()),
+                nullable: true,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("): int|string|null {"),
+            "expected '): int|string|null' in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn nullable_union_does_not_duplicate_null_member() {
+        use super::{Function, PhpTypeAbi, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: PhpTypeAbi::Union(
+                    vec![DataType::Long, DataType::String, DataType::Null].into(),
+                ),
+                nullable: true,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(stub.contains("): int|string|null {"));
+        assert!(
+            !stub.contains("null|null"),
+            "must not duplicate null when already a member, got: {stub}"
+        );
     }
 }

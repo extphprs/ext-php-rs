@@ -134,24 +134,30 @@ pub struct Function {
     pub params: Vec<Parameter>,
 }
 
-/// Converts a builder retval (`PhpType`) into the lossy describe ABI shape.
+/// Converts a builder retval (`PhpType`) into the describe ABI shape.
 ///
-/// `Retval { ty: DataType, nullable: bool }` cannot represent a union directly,
-/// so unions are mapped to `DataType::Mixed` until the ABI grows union
-/// awareness. Nullability stays observable: it is the OR of the user's
-/// `allow_null` flag and the presence of `DataType::Null` in the union.
-fn retval_to_describe(retval: std::option::Option<PhpType>, ret_allow_null: bool) -> Option<Retval> {
+/// Nullability rules:
+/// - `Simple(dt)` with `Mixed` is never nullable (PHP rejects `?mixed`).
+/// - `Union(members)` is nullable if `ret_allow_null` is set OR `Null`
+///   already appears in `members` (the two spellings produce the same
+///   `_ZEND_TYPE_NULLABLE_BIT` at the Zend level).
+fn retval_to_describe(
+    retval: std::option::Option<PhpType>,
+    ret_allow_null: bool,
+) -> Option<Retval> {
     let Some(r) = retval else {
         return Option::None;
     };
-    let (ty, nullable) = match r {
-        PhpType::Simple(dt) => (dt, dt != DataType::Mixed && ret_allow_null),
+    let nullable = match &r {
+        PhpType::Simple(dt) => *dt != DataType::Mixed && ret_allow_null,
         PhpType::Union(members) => {
-            let contains_null = members.iter().any(|m| matches!(m, DataType::Null));
-            (DataType::Mixed, ret_allow_null || contains_null)
+            ret_allow_null || members.iter().any(|m| matches!(m, DataType::Null))
         }
     };
-    Option::Some(Retval { ty, nullable })
+    Option::Some(Retval {
+        ty: r.into(),
+        nullable,
+    })
 }
 
 impl From<FunctionBuilder<'_>> for Function {
@@ -177,6 +183,30 @@ impl From<FunctionBuilder<'_>> for Function {
     }
 }
 
+/// ABI-stable representation of a PHP type expression.
+///
+/// Mirrors [`crate::types::PhpType`] but uses the ABI-stable [`abi::Vec`]
+/// wrapper so the `cargo-php` CLI can read this enum across the FFI
+/// boundary without depending on Rust's unstable struct layout.
+#[repr(C, u8)]
+#[derive(Debug, PartialEq)]
+pub enum PhpTypeAbi {
+    /// A single type, e.g. `int`, `string`, or a class name.
+    Simple(DataType),
+    /// A primitive union, e.g. `int|string` or `int|string|null`.
+    /// Members appear in the order the author declared them.
+    Union(Vec<DataType>),
+}
+
+impl From<PhpType> for PhpTypeAbi {
+    fn from(ty: PhpType) -> Self {
+        match ty {
+            PhpType::Simple(dt) => Self::Simple(dt),
+            PhpType::Union(members) => Self::Union(members.into()),
+        }
+    }
+}
+
 /// Represents a parameter attached to an exported function or method.
 #[repr(C)]
 #[derive(Debug, PartialEq)]
@@ -184,7 +214,7 @@ pub struct Parameter {
     /// Name of the parameter.
     pub name: RString,
     /// Type of the parameter.
-    pub ty: Option<DataType>,
+    pub ty: Option<PhpTypeAbi>,
     /// Whether the parameter is nullable.
     pub nullable: bool,
     /// Whether the parameter is variadic.
@@ -233,14 +263,14 @@ impl Class {
                 ty: MethodType::Member,
                 params: vec![Parameter {
                     name: "args".into(),
-                    ty: Option::Some(DataType::Mixed),
+                    ty: Option::Some(PhpTypeAbi::Simple(DataType::Mixed)),
                     nullable: false,
                     variadic: true,
                     default: Option::None,
                 }]
                 .into(),
                 retval: Option::Some(Retval {
-                    ty: DataType::Mixed,
+                    ty: PhpTypeAbi::Simple(DataType::Mixed),
                     nullable: false,
                 }),
                 r#static: false,
@@ -477,7 +507,7 @@ impl From<(FunctionBuilder<'_>, MethodFlags)> for Method {
 #[derive(Debug, PartialEq)]
 pub struct Retval {
     /// Type of the return value.
-    pub ty: DataType,
+    pub ty: PhpTypeAbi,
     /// Whether the return value is nullable.
     pub nullable: bool,
 }
@@ -644,7 +674,7 @@ mod tests {
             function.params,
             vec![Parameter {
                 name: "foo".into(),
-                ty: Option::Some(DataType::Long),
+                ty: Option::Some(PhpTypeAbi::Simple(DataType::Long)),
                 nullable: false,
                 variadic: false,
                 default: Option::None,
@@ -654,7 +684,7 @@ mod tests {
         assert_eq!(
             function.ret,
             Option::Some(Retval {
-                ty: DataType::Bool,
+                ty: PhpTypeAbi::Simple(DataType::Bool),
                 nullable: true,
             })
         );
@@ -755,7 +785,7 @@ mod tests {
             method.params,
             vec![Parameter {
                 name: "foo".into(),
-                ty: Option::Some(DataType::Long),
+                ty: Option::Some(PhpTypeAbi::Simple(DataType::Long)),
                 nullable: false,
                 variadic: false,
                 default: Option::None,
@@ -765,7 +795,7 @@ mod tests {
         assert_eq!(
             method.retval,
             Option::Some(Retval {
-                ty: DataType::Bool,
+                ty: PhpTypeAbi::Simple(DataType::Bool),
                 nullable: true,
             })
         );
@@ -829,5 +859,208 @@ mod tests {
 
         let empty: Visibility = MethodFlags::empty().into();
         assert_eq!(empty, Visibility::Public);
+    }
+
+    #[test]
+    fn php_type_simple_maps_to_phptypeabi_simple() {
+        let ty: PhpTypeAbi = PhpType::Simple(DataType::Long).into();
+        match ty {
+            PhpTypeAbi::Simple(dt) => assert_eq!(dt, DataType::Long),
+            PhpTypeAbi::Union(_) => panic!("expected Simple"),
+        }
+    }
+
+    #[test]
+    fn php_type_union_preserves_member_order() {
+        let ty: PhpTypeAbi =
+            PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]).into();
+        match ty {
+            PhpTypeAbi::Union(members) => assert_eq!(
+                &*members,
+                &[DataType::Long, DataType::String, DataType::Null]
+            ),
+            PhpTypeAbi::Simple(_) => panic!("expected Union"),
+        }
+    }
+
+    #[test]
+    fn parameter_from_arg_preserves_primitive_union() {
+        let arg = Arg::new(
+            "x",
+            PhpType::Union(vec![DataType::Long, DataType::String]),
+        );
+        let p: Parameter = arg.into();
+        assert_eq!(
+            p.ty,
+            Option::Some(PhpTypeAbi::Union(
+                vec![DataType::Long, DataType::String].into()
+            ))
+        );
+    }
+
+    #[test]
+    fn retval_to_describe_preserves_simple() {
+        let r = retval_to_describe(Some(PhpType::Simple(DataType::Long)), false);
+        assert_eq!(
+            r,
+            Option::Some(Retval {
+                ty: PhpTypeAbi::Simple(DataType::Long),
+                nullable: false,
+            })
+        );
+    }
+
+    #[test]
+    fn retval_to_describe_preserves_union() {
+        let r = retval_to_describe(
+            Some(PhpType::Union(vec![DataType::Long, DataType::String])),
+            false,
+        );
+        assert_eq!(
+            r,
+            Option::Some(Retval {
+                ty: PhpTypeAbi::Union(vec![DataType::Long, DataType::String].into()),
+                nullable: false,
+            })
+        );
+    }
+
+    #[test]
+    fn retval_to_describe_nullable_union_via_member() {
+        let r = retval_to_describe(
+            Some(PhpType::Union(vec![
+                DataType::Long,
+                DataType::String,
+                DataType::Null,
+            ])),
+            false,
+        );
+        assert_eq!(
+            r,
+            Option::Some(Retval {
+                ty: PhpTypeAbi::Union(
+                    vec![DataType::Long, DataType::String, DataType::Null].into()
+                ),
+                nullable: true,
+            })
+        );
+    }
+
+    #[test]
+    fn retval_to_describe_nullable_union_via_flag() {
+        let r = retval_to_describe(
+            Some(PhpType::Union(vec![DataType::Long, DataType::String])),
+            true,
+        );
+        assert_eq!(
+            r,
+            Option::Some(Retval {
+                ty: PhpTypeAbi::Union(vec![DataType::Long, DataType::String].into()),
+                nullable: true,
+            })
+        );
+    }
+
+    fn build_union_module() -> Module {
+        let builder = ModuleBuilder::new("union_stubs", "0.0.0")
+            .function(
+                FunctionBuilder::new("u_int_or_string", crate::test::test_function)
+                    .arg(Arg::new(
+                        "v",
+                        PhpType::Union(vec![DataType::Long, DataType::String]),
+                    ))
+                    .returns(DataType::Long, false, false),
+            )
+            .function(
+                FunctionBuilder::new("u_int_string_or_null", crate::test::test_function)
+                    .arg(Arg::new(
+                        "v",
+                        PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
+                    ))
+                    .returns(DataType::Long, false, false),
+            )
+            .function(
+                FunctionBuilder::new("u_int_string_allow_null", crate::test::test_function)
+                    .arg(
+                        Arg::new(
+                            "v",
+                            PhpType::Union(vec![DataType::Long, DataType::String]),
+                        )
+                        .allow_null(),
+                    )
+                    .returns(DataType::Long, false, false),
+            )
+            .function(
+                FunctionBuilder::new("u_returns_int_or_string", crate::test::test_function)
+                    .returns(
+                        PhpType::Union(vec![DataType::Long, DataType::String]),
+                        false,
+                        false,
+                    ),
+            )
+            .function(
+                FunctionBuilder::new(
+                    "u_returns_int_string_or_null",
+                    crate::test::test_function,
+                )
+                .returns(
+                    PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
+                    false,
+                    false,
+                ),
+            );
+        builder.into()
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_primitive_union_param() {
+        let stub = build_union_module().to_stub().unwrap();
+        assert!(
+            stub.contains("function u_int_or_string(int|string $v): int {}"),
+            "missing primitive union param: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_nullable_union_via_explicit_null_member() {
+        let stub = build_union_module().to_stub().unwrap();
+        assert!(
+            stub.contains("function u_int_string_or_null(int|string|null $v): int {}"),
+            "missing union with explicit null member: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_nullable_union_via_allow_null_flag() {
+        let stub = build_union_module().to_stub().unwrap();
+        assert!(
+            stub.contains("function u_int_string_allow_null(int|string|null $v"),
+            "missing union with allow_null flag: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_union_return_type() {
+        let stub = build_union_module().to_stub().unwrap();
+        assert!(
+            stub.contains("function u_returns_int_or_string(): int|string {}"),
+            "missing union return type: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_nullable_union_return_type() {
+        let stub = build_union_module().to_stub().unwrap();
+        assert!(
+            stub.contains(
+                "function u_returns_int_string_or_null(): int|string|null {}"
+            ),
+            "missing nullable union return type: {stub}"
+        );
     }
 }

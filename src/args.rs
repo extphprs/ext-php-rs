@@ -218,16 +218,9 @@ impl From<Arg<'_>> for _zend_expected_type {
 
 impl From<Arg<'_>> for Parameter {
     fn from(val: Arg<'_>) -> Self {
-        // Slice 1: `Parameter.ty` keeps its `Option<DataType>` shape, so
-        // unions degrade to `None` (rendered as `mixed` in stubs) until the
-        // describe ABI grows a richer representation.
-        let ty = match &val.r#type {
-            PhpType::Simple(dt) => Some(*dt),
-            PhpType::Union(_) => None,
-        };
         Parameter {
             name: val.name.into(),
-            ty: ty.into(),
+            ty: Some(val.r#type.into()).into(),
             nullable: val.allow_null,
             variadic: val.variadic,
             default: val.default_value.map(abi::RString::from).into(),
@@ -584,7 +577,10 @@ mod tests {
             .allow_null();
         let param: Parameter = arg.into();
         assert_eq!(param.name, "test".into());
-        assert_eq!(param.ty, abi::Option::Some(DataType::Long));
+        assert_eq!(
+            param.ty,
+            abi::Option::Some(crate::describe::PhpTypeAbi::Simple(DataType::Long))
+        );
         assert!(param.nullable);
         assert_eq!(param.default, abi::Option::Some("default".into()));
     }
