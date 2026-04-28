@@ -127,6 +127,51 @@ impl ZendType {
         }
     }
 
+    /// Builds a Zend type for a primitive union (e.g. `int|string`).
+    ///
+    /// PHP encodes pure primitive unions as a single [`zend_type`] whose
+    /// `type_mask` ORs together the `MAY_BE_*` bits of every member; no
+    /// `zend_type_list` is needed. The runtime fast-path
+    /// (`zend_check_type` -> `ZEND_TYPE_CONTAINS_CODE`) reads exactly that
+    /// outer mask. Lists become necessary only when class types enter the
+    /// picture, which is handled by later additions.
+    ///
+    /// Returns [`None`] if `types` is empty (a union with zero members is
+    /// malformed). Callers should pass at least two distinct member types;
+    /// a single-member input is accepted but is semantically equivalent to
+    /// [`Self::empty_from_type`].
+    ///
+    /// # Parameters
+    ///
+    /// * `types` - Member types of the union.
+    /// * `pass_by_ref` - Whether the value should be passed by reference.
+    /// * `is_variadic` - Whether this type represents a variadic argument.
+    /// * `allow_null` - Whether the value can be null.
+    #[must_use]
+    pub fn empty_from_primitive_union(
+        types: &[DataType],
+        pass_by_ref: bool,
+        is_variadic: bool,
+        allow_null: bool,
+    ) -> Option<Self> {
+        if types.is_empty() {
+            return None;
+        }
+
+        let mut type_mask = Self::arg_info_flags(pass_by_ref, is_variadic);
+        if allow_null {
+            type_mask |= _ZEND_TYPE_NULLABLE_BIT;
+        }
+        for dt in types {
+            type_mask |= primitive_may_be(*dt);
+        }
+
+        Some(Self {
+            ptr: ptr::null_mut(),
+            type_mask,
+        })
+    }
+
     /// Calculates the internal flags of the type.
     /// Translation of of the `_ZEND_ARG_INFO_FLAGS` macro from
     /// `zend_API.h:110`.
@@ -172,5 +217,18 @@ impl ZendType {
         } else {
             0
         }) | Self::arg_info_flags(pass_by_ref, is_variadic)
+    }
+}
+
+/// Maps a [`DataType`] to its single-bit `MAY_BE_*` mask, expanding the two
+/// pseudo-codes (`_IS_BOOL`, `IS_MIXED`) the same way [`ZendType::type_init_code`] does.
+fn primitive_may_be(dt: DataType) -> u32 {
+    let code = dt.as_u32();
+    if code == _IS_BOOL {
+        MAY_BE_BOOL
+    } else if code == IS_MIXED {
+        MAY_BE_ANY
+    } else {
+        1u32 << code
     }
 }

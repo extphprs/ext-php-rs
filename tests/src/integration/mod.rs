@@ -24,6 +24,7 @@ pub mod reference;
 pub mod separated;
 pub mod string;
 pub mod types;
+pub mod union;
 pub mod variadic_args;
 
 #[cfg(test)]

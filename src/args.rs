@@ -14,7 +14,7 @@ use crate::{
         zend_internal_arg_info, zend_wrong_parameters_count_error,
     },
     flags::DataType,
-    types::Zval,
+    types::{PhpType, Zval},
     zend::ZendType,
 };
 
@@ -23,7 +23,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Arg<'a> {
     name: String,
-    r#type: DataType,
+    r#type: PhpType,
     as_ref: bool,
     allow_null: bool,
     pub(crate) variadic: bool,
@@ -38,11 +38,17 @@ impl<'a> Arg<'a> {
     /// # Parameters
     ///
     /// * `name` - The name of the parameter.
-    /// * `_type` - The type of the parameter.
-    pub fn new<T: Into<String>>(name: T, r#type: DataType) -> Self {
+    /// * `ty` - The type of the parameter. Accepts a [`DataType`] for the
+    ///   single-type case (via [`From<DataType> for PhpType`]) or a full
+    ///   [`PhpType`] for compound forms such as [`PhpType::Union`].
+    pub fn new<T, U>(name: T, ty: U) -> Self
+    where
+        T: Into<String>,
+        U: Into<PhpType>,
+    {
         Arg {
             name: name.into(),
-            r#type,
+            r#type: ty.into(),
             as_ref: false,
             allow_null: false,
             variadic: false,
@@ -158,15 +164,25 @@ impl<'a> Arg<'a> {
 
     /// Returns the internal PHP argument info.
     pub(crate) fn as_arg_info(&self) -> Result<ArgInfo> {
-        Ok(ArgInfo {
-            name: CString::new(self.name.as_str())?.into_raw(),
-            type_: ZendType::empty_from_type(
-                self.r#type,
+        let zend_type = match &self.r#type {
+            PhpType::Simple(dt) => ZendType::empty_from_type(
+                *dt,
                 self.as_ref,
                 self.variadic,
                 self.allow_null,
             )
             .ok_or(Error::InvalidCString)?,
+            PhpType::Union(types) => ZendType::empty_from_primitive_union(
+                types,
+                self.as_ref,
+                self.variadic,
+                self.allow_null,
+            )
+            .ok_or(Error::InvalidCString)?,
+        };
+        Ok(ArgInfo {
+            name: CString::new(self.name.as_str())?.into_raw(),
+            type_: zend_type,
             default_value: match &self.default_value {
                 Some(val) if val.as_str() == "None" => CString::new("null")?.into_raw(),
                 Some(val) => CString::new(val.as_str())?.into_raw(),
@@ -178,7 +194,14 @@ impl<'a> Arg<'a> {
 
 impl From<Arg<'_>> for _zend_expected_type {
     fn from(arg: Arg) -> Self {
-        let type_id = match arg.r#type {
+        // The legacy ArgParser error path expects a single discriminant.
+        // Compound types (slice 1: only `Union`) fall back to the first
+        // member; this is best-effort and only affects error message text.
+        let dt = match &arg.r#type {
+            PhpType::Simple(dt) => *dt,
+            PhpType::Union(types) => types.first().copied().unwrap_or(DataType::Mixed),
+        };
+        let type_id = match dt {
             DataType::False | DataType::True => _zend_expected_type_Z_EXPECTED_BOOL,
             DataType::Long => _zend_expected_type_Z_EXPECTED_LONG,
             DataType::Double => _zend_expected_type_Z_EXPECTED_DOUBLE,
@@ -195,9 +218,16 @@ impl From<Arg<'_>> for _zend_expected_type {
 
 impl From<Arg<'_>> for Parameter {
     fn from(val: Arg<'_>) -> Self {
+        // Slice 1: `Parameter.ty` keeps its `Option<DataType>` shape, so
+        // unions degrade to `None` (rendered as `mixed` in stubs) until the
+        // describe ABI grows a richer representation.
+        let ty = match &val.r#type {
+            PhpType::Simple(dt) => Some(*dt),
+            PhpType::Union(_) => None,
+        };
         Parameter {
             name: val.name.into(),
-            ty: Some(val.r#type).into(),
+            ty: ty.into(),
             nullable: val.allow_null,
             variadic: val.variadic,
             default: val.default_value.map(abi::RString::from).into(),
@@ -313,13 +343,25 @@ mod tests {
     fn test_new() {
         let arg = Arg::new("test", DataType::Long);
         assert_eq!(arg.name, "test");
-        assert_eq!(arg.r#type, DataType::Long);
+        assert_eq!(arg.r#type, PhpType::Simple(DataType::Long));
         assert!(!arg.as_ref);
         assert!(!arg.allow_null);
         assert!(!arg.variadic);
         assert!(arg.default_value.is_none());
         assert!(arg.zval.is_none());
         assert!(arg.variadic_zvals.is_empty());
+    }
+
+    #[test]
+    fn test_new_with_union() {
+        let arg = Arg::new(
+            "test",
+            PhpType::Union(vec![DataType::Long, DataType::String]),
+        );
+        assert_eq!(
+            arg.r#type,
+            PhpType::Union(vec![DataType::Long, DataType::String])
+        );
     }
 
     #[test]
@@ -564,7 +606,7 @@ mod tests {
         parser = parser.arg(&mut arg);
         assert_eq!(parser.args.len(), 1);
         assert_eq!(parser.args[0].name, "test");
-        assert_eq!(parser.args[0].r#type, DataType::Long);
+        assert_eq!(parser.args[0].r#type, PhpType::Simple(DataType::Long));
     }
 
     // TODO: test parse

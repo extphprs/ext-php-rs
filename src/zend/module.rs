@@ -122,8 +122,15 @@ pub unsafe fn cleanup_module_allocations(entry: *mut ModuleEntry) {
                 if !arg.default_value.is_null() {
                     unsafe { drop(CString::from_raw(arg.default_value.cast_mut())) };
                 }
-                if !arg.type_.ptr.is_null() && zend_type_has_name(arg.type_.type_mask) {
-                    unsafe { drop(CString::from_raw(arg.type_.ptr.cast::<c_char>())) };
+                if !arg.type_.ptr.is_null() {
+                    if (arg.type_.type_mask & crate::ffi::_ZEND_TYPE_LIST_BIT) != 0 {
+                        // Zend frees the `zend_type_list` itself at MSHUTDOWN
+                        // through `zend_type_release` -> `pefree(_, 1)`. See
+                        // `Zend/zend_opcode.c:112-124` in php-src. Touching it
+                        // here would double-free.
+                    } else if zend_type_has_name(arg.type_.type_mask) {
+                        unsafe { drop(CString::from_raw(arg.type_.ptr.cast::<c_char>())) };
+                    }
                 }
             }
 
