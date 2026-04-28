@@ -309,7 +309,17 @@ fn extract_php_type(type_str: &str) -> String {
 fn phptype_to_phpdoc(ty: &PhpTypeAbi, nullable: bool) -> String {
     match ty {
         PhpTypeAbi::Simple(dt) => datatype_to_phpdoc(dt, nullable),
-        PhpTypeAbi::Union(_) => "mixed".to_string(),
+        PhpTypeAbi::Union(members) => {
+            let parts: StdVec<String> = members
+                .iter()
+                .map(|dt| datatype_to_phpdoc(dt, false))
+                .collect();
+            let mut s = parts.join("|");
+            if nullable && !members.iter().any(|m| matches!(m, DataType::Null)) {
+                s.push_str("|null");
+            }
+            s
+        }
     }
 }
 
@@ -780,7 +790,7 @@ impl ToStub for Property {
             }
             if let Option::Some(ty) = &self.ty {
                 writeln!(buf, " *")?;
-                writeln!(buf, " * @var {}", datatype_to_phpdoc(ty, self.nullable))?;
+                writeln!(buf, " * @var {}", phptype_to_phpdoc(ty, self.nullable))?;
             }
             writeln!(buf, " */")?;
         }
@@ -794,11 +804,7 @@ impl ToStub for Property {
             write!(buf, "readonly ")?;
         }
         if let Option::Some(ty) = &self.ty {
-            let nullable = self.nullable && !matches!(ty, DataType::Mixed | DataType::Null);
-            if nullable {
-                write!(buf, "?")?;
-            }
-            ty.fmt_stub(buf)?;
+            render_type_with_nullable(ty, self.nullable, buf)?;
             write!(buf, " ")?;
         }
         write!(buf, "${}", self.name)?;
@@ -996,7 +1002,7 @@ mod test {
         let prop = Property {
             name: "foo".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::String),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::String)),
             vis: Visibility::Public,
             static_: false,
             nullable: false,
@@ -1017,7 +1023,7 @@ mod test {
         let prop = Property {
             name: "bar".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::String),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::String)),
             vis: Visibility::Public,
             static_: false,
             nullable: true,
@@ -1039,7 +1045,7 @@ mod test {
         let prop = Property {
             name: "limit".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::Long),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::Long)),
             vis: Visibility::Public,
             static_: true,
             nullable: false,
@@ -1061,7 +1067,7 @@ mod test {
         let prop = Property {
             name: "label".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::String),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::String)),
             vis: Visibility::Public,
             static_: true,
             nullable: false,
@@ -1083,7 +1089,7 @@ mod test {
         let prop = Property {
             name: "bar".into(),
             docs: super::DocBlock(vec![" The user name.".into()].into()),
-            ty: Option::Some(DataType::String),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::String)),
             vis: Visibility::Public,
             static_: false,
             nullable: true,
@@ -1131,7 +1137,7 @@ mod test {
         let prop = Property {
             name: "baz".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::Array),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::Array)),
             vis: Visibility::Public,
             static_: false,
             nullable: false,
@@ -1173,7 +1179,7 @@ mod test {
         let prop = Property {
             name: "count".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::Long),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::Long)),
             vis: Visibility::Protected,
             static_: true,
             nullable: false,
@@ -1195,7 +1201,7 @@ mod test {
         let prop = Property {
             name: "val".into(),
             docs: super::DocBlock(vec![].into()),
-            ty: Option::Some(DataType::Mixed),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::Mixed)),
             vis: Visibility::Public,
             static_: false,
             nullable: true,
@@ -1215,7 +1221,9 @@ mod test {
         let prop = Property {
             name: "ref_".into(),
             docs: super::DocBlock(vec![" The related entity.".into()].into()),
-            ty: Option::Some(DataType::Object(Some("App\\Entity"))),
+            ty: Option::Some(super::PhpTypeAbi::Simple(DataType::Object(Some(
+                "App\\Entity",
+            )))),
             vis: Visibility::Private,
             static_: false,
             nullable: true,

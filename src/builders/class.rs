@@ -11,8 +11,8 @@ use crate::{
         zend_declare_class_constant, zend_declare_property, zend_do_implement_interface,
         zend_register_internal_class_ex, zend_register_internal_interface,
     },
-    flags::{ClassFlags, DataType, MethodFlags, PropertyFlags},
-    types::{ZendClassObject, ZendObject, ZendStr, Zval},
+    flags::{ClassFlags, MethodFlags, PropertyFlags},
+    types::{PhpType, ZendClassObject, ZendObject, ZendStr, Zval},
     zend::{ClassEntry, ExecuteData, FunctionEntry},
     zend_fastcall,
 };
@@ -36,8 +36,10 @@ pub struct ClassProperty {
     pub default: PropertyDefault,
     /// Documentation comments.
     pub docs: DocComments,
-    /// PHP type for stub generation.
-    pub ty: Option<DataType>,
+    /// PHP type for stub generation. Accepts a single [`DataType`] (via
+    /// [`PhpType::Simple`]) or a primitive [`PhpType::Union`] for stubs
+    /// like `public int|string $foo`.
+    pub ty: Option<PhpType>,
     /// Whether the property accepts null.
     pub nullable: bool,
     /// Whether the property is read-only (getter without setter).
@@ -451,6 +453,7 @@ impl ClassBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::flags::DataType;
     use crate::test::test_function;
 
     use super::*;
@@ -498,7 +501,7 @@ mod tests {
             flags: PropertyFlags::Public,
             default: None,
             docs: &["Doc 1"],
-            ty: Some(DataType::String),
+            ty: Some(DataType::String.into()),
             nullable: false,
             readonly: false,
             default_stub: None,
@@ -508,7 +511,10 @@ mod tests {
         assert_eq!(class.properties[0].flags, PropertyFlags::Public);
         assert!(class.properties[0].default.is_none());
         assert_eq!(class.properties[0].docs, &["Doc 1"] as DocComments);
-        assert_eq!(class.properties[0].ty, Some(DataType::String));
+        assert_eq!(
+            class.properties[0].ty,
+            Some(PhpType::Simple(DataType::String))
+        );
     }
 
     #[test]

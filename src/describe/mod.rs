@@ -419,7 +419,7 @@ pub struct Property {
     /// Documentation comments for the property.
     pub docs: DocBlock,
     /// Type of the property.
-    pub ty: Option<DataType>,
+    pub ty: Option<PhpTypeAbi>,
     /// Visibility of the property.
     pub vis: Visibility,
     /// Whether the property is static.
@@ -441,7 +441,7 @@ impl From<crate::builders::ClassProperty> for Property {
         Self {
             name: val.name.into(),
             docs,
-            ty: val.ty.into(),
+            ty: val.ty.map(PhpTypeAbi::from).into(),
             vis,
             static_,
             nullable: val.nullable,
@@ -757,7 +757,7 @@ mod tests {
             flags: PropertyFlags::Protected,
             default: None,
             docs: &["doc1", "doc2"],
-            ty: Some(DataType::String),
+            ty: Some(DataType::String.into()),
             nullable: true,
             readonly: false,
             default_stub: Some("null".into()),
@@ -769,7 +769,10 @@ mod tests {
         assert!(!property.static_);
         assert!(property.nullable);
         assert_eq!(property.default, Option::Some("null".into()));
-        assert_eq!(property.ty, Option::Some(DataType::String));
+        assert_eq!(
+            property.ty,
+            Option::Some(PhpTypeAbi::Simple(DataType::String))
+        );
     }
 
     #[test]
@@ -1061,6 +1064,75 @@ mod tests {
                 "function u_returns_int_string_or_null(): int|string|null {}"
             ),
             "missing nullable union return type: {stub}"
+        );
+    }
+
+    #[test]
+    fn property_from_class_property_preserves_union() {
+        let cp = crate::builders::ClassProperty {
+            name: "x".into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty: Some(PhpType::Union(vec![DataType::Long, DataType::String])),
+            nullable: false,
+            readonly: false,
+            default_stub: None,
+        };
+        let p: Property = cp.into();
+        assert_eq!(
+            p.ty,
+            Option::Some(PhpTypeAbi::Union(
+                vec![DataType::Long, DataType::String].into()
+            ))
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_union_property_type() {
+        use crate::builders::ClassProperty;
+        let cp = ClassProperty {
+            name: "x".into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty: Some(PhpType::Union(vec![DataType::Long, DataType::String])),
+            nullable: false,
+            readonly: false,
+            default_stub: None,
+        };
+        let p: Property = cp.into();
+        let stub = p.to_stub().unwrap();
+        assert!(
+            stub.contains("public int|string $x"),
+            "expected 'public int|string $x' in: {stub}"
+        );
+        assert!(
+            !stub.contains("?int"),
+            "must not prefix union with `?`, got: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn stub_renders_nullable_union_property_via_flag() {
+        use crate::builders::ClassProperty;
+        let cp = ClassProperty {
+            name: "x".into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty: Some(PhpType::Union(vec![DataType::Long, DataType::String])),
+            nullable: true,
+            readonly: false,
+            default_stub: None,
+        };
+        let p: Property = cp.into();
+        let stub = p.to_stub().unwrap();
+        assert!(
+            stub.contains("public int|string|null $x"),
+            "expected 'public int|string|null $x' in: {stub}"
         );
     }
 }

@@ -511,7 +511,7 @@ impl ModuleBuilder<'_> {
                     flags: desc.flags,
                     default: None,
                     docs: desc.docs,
-                    ty: Some(desc.ty),
+                    ty: Some(desc.ty.into()),
                     nullable: desc.nullable,
                     readonly: desc.readonly,
                     default_stub,
