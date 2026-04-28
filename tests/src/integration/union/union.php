@@ -21,3 +21,28 @@ assert($members === ['int', 'string'], 'expected int|string members, got ' . imp
 // End-to-end: function is callable with each accepted member.
 assert(test_union_int_or_string(42) === 1);
 assert(test_union_int_or_string("hello") === 2);
+
+// Slice 2: nullable union, in both spellings.
+foreach (
+    ['test_union_int_string_or_null', 'test_union_int_string_allow_null'] as $fname
+) {
+    $rf = new ReflectionFunction($fname);
+    $param = $rf->getParameters()[0];
+    $type = $param->getType();
+    assert($type instanceof ReflectionUnionType, "$fname: expected union type");
+    assert($param->allowsNull() === true, "$fname: expected nullable");
+
+    $members = array_map(
+        static fn(ReflectionNamedType $t): string => $t->getName(),
+        $type->getTypes(),
+    );
+    sort($members);
+    assert(
+        $members === ['int', 'null', 'string'],
+        "$fname: expected int|null|string, got " . implode('|', $members),
+    );
+
+    assert($fname(42) === 1, "$fname: int call");
+    assert($fname("hello") === 2, "$fname: string call");
+    assert($fname(null) === 3, "$fname: null call");
+}

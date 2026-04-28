@@ -22,6 +22,14 @@ pub enum PhpType {
     /// A single type, e.g. `int`, `string`, `Foo`.
     Simple(DataType),
     /// A union of primitive types, e.g. `int|string`.
+    ///
+    /// Including [`DataType::Null`] as a member produces a nullable union
+    /// (`int|string|null`). The same shape can be expressed by combining a
+    /// non-null `Union` with [`Arg::allow_null`](crate::args::Arg::allow_null);
+    /// both forms emit identical bits because `MAY_BE_NULL` and
+    /// `_ZEND_TYPE_NULLABLE_BIT` share the same value (see
+    /// `Zend/zend_types.h:148` in php-src). Pick whichever reads best at
+    /// the call site.
     Union(Vec<DataType>),
 }
 
