@@ -17,6 +17,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module = integration::bool::build_module(module);
     module = integration::callable::build_module(module);
     module = integration::class::build_module(module);
+    module = integration::class_union::build_module(module);
     module = integration::closure::build_module(module);
     module = integration::defaults::build_module(module);
     #[cfg(feature = "enum")]

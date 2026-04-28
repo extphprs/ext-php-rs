@@ -4,6 +4,7 @@ pub mod binary;
 pub mod bool;
 pub mod callable;
 pub mod class;
+pub mod class_union;
 pub mod closure;
 pub mod defaults;
 #[cfg(feature = "enum")]
