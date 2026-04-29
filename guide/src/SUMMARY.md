@@ -35,6 +35,7 @@
   - [Constants](./macros/constant.md)
   - [PHP Functions](./macros/extern.md)
   - [`ZvalConvert`](./macros/zval_convert.md)
+  - [`PhpUnion`](./macros/php_union.md)
   - [`Attributes`](./macros/php.md)
 - [Exceptions](./exceptions.md)
 - [Output](./output.md)

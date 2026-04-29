@@ -5,7 +5,7 @@ use crate::{
     error::Result,
     exception::PhpException,
     flags::DataType,
-    types::{ZendObject, Zval},
+    types::{PhpType, ZendObject, Zval},
 };
 
 /// Allows zvals to be converted into Rust types in a fallible way. Reciprocal
@@ -13,6 +13,17 @@ use crate::{
 pub trait FromZval<'a>: Sized {
     /// The corresponding type of the implemented value in PHP.
     const TYPE: DataType;
+
+    /// Returns the full PHP type expression for this value, used to register
+    /// arguments on `#[php_function]` and `#[php_impl]` signatures.
+    ///
+    /// The default wraps [`Self::TYPE`] as [`PhpType::Simple`]; compound types
+    /// such as [`crate::types::PhpUnion`]-derived enums override this to
+    /// return the actual union shape.
+    #[must_use]
+    fn php_type() -> PhpType {
+        PhpType::Simple(Self::TYPE)
+    }
 
     /// Attempts to retrieve an instance of `Self` from a reference to a
     /// [`Zval`].
@@ -29,6 +40,10 @@ where
 {
     const TYPE: DataType = T::TYPE;
 
+    fn php_type() -> PhpType {
+        T::php_type()
+    }
+
     fn from_zval(zval: &'a Zval) -> Option<Self> {
         Some(T::from_zval(zval))
     }
@@ -42,6 +57,17 @@ where
 pub trait FromZvalMut<'a>: Sized {
     /// The corresponding type of the implemented value in PHP.
     const TYPE: DataType;
+
+    /// Returns the full PHP type expression for this value, used to register
+    /// arguments on `#[php_function]` and `#[php_impl]` signatures.
+    ///
+    /// The default wraps [`Self::TYPE`] as [`PhpType::Simple`]; types
+    /// implementing [`crate::types::PhpUnion`] override this to return the
+    /// actual union shape.
+    #[must_use]
+    fn php_type() -> PhpType {
+        PhpType::Simple(Self::TYPE)
+    }
 
     /// Attempts to retrieve an instance of `Self` from a mutable reference to a
     /// [`Zval`].
@@ -57,6 +83,11 @@ where
     T: FromZval<'a>,
 {
     const TYPE: DataType = <T as FromZval>::TYPE;
+
+    #[inline]
+    fn php_type() -> PhpType {
+        <T as FromZval>::php_type()
+    }
 
     #[inline]
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
@@ -143,6 +174,17 @@ pub trait IntoZval: Sized {
     /// Whether converting into a [`Zval`] may result in null.
     const NULLABLE: bool;
 
+    /// Returns the full PHP type expression for this value, used to register
+    /// return types on `#[php_function]` and `#[php_impl]` signatures.
+    ///
+    /// The default wraps [`Self::TYPE`] as [`PhpType::Simple`]; types
+    /// implementing [`crate::types::PhpUnion`] override this to return the
+    /// actual union shape.
+    #[must_use]
+    fn php_type() -> PhpType {
+        PhpType::Simple(Self::TYPE)
+    }
+
     /// Converts a Rust primitive type into a Zval. Returns a result containing
     /// the Zval if successful.
     ///
@@ -199,6 +241,10 @@ where
     const TYPE: DataType = T::TYPE;
     const NULLABLE: bool = true;
 
+    fn php_type() -> PhpType {
+        T::php_type()
+    }
+
     #[inline]
     fn set_zval(self, zv: &mut Zval, persistent: bool) -> Result<()> {
         if let Some(val) = self {
@@ -217,6 +263,10 @@ where
 {
     const TYPE: DataType = T::TYPE;
     const NULLABLE: bool = T::NULLABLE;
+
+    fn php_type() -> PhpType {
+        T::php_type()
+    }
 
     fn set_zval(self, zv: &mut Zval, persistent: bool) -> Result<()> {
         match self {

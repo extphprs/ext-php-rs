@@ -68,6 +68,7 @@ pub mod prelude {
     pub use crate::php_print;
     pub use crate::php_println;
     pub use crate::php_write;
+    pub use crate::types::PhpUnion;
     pub use crate::types::ZendCallable;
     #[cfg(feature = "observer")]
     pub use crate::zend::{
@@ -76,8 +77,8 @@ pub mod prelude {
     };
     pub use crate::zend::{BailoutGuard, ModuleGlobal, ModuleGlobals};
     pub use crate::{
-        ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_impl_interface,
-        php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
+        PhpUnion, ZvalConvert, php_class, php_const, php_extern, php_function, php_impl,
+        php_impl_interface, php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
     };
 }
 
@@ -108,6 +109,6 @@ pub const PHP_85: bool = cfg!(php85);
 #[cfg(feature = "enum")]
 pub use ext_php_rs_derive::php_enum;
 pub use ext_php_rs_derive::{
-    ZvalConvert, php_class, php_const, php_extern, php_function, php_impl, php_impl_interface,
-    php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
+    PhpUnion, ZvalConvert, php_class, php_const, php_extern, php_function, php_impl,
+    php_impl_interface, php_interface, php_module, wrap_constant, wrap_function, zend_fastcall,
 };

@@ -26,6 +26,7 @@ pub mod object;
 pub mod observer;
 pub mod persistent_string;
 pub mod php_types_attr;
+pub mod php_union;
 pub mod reference;
 pub mod separated;
 pub mod string;

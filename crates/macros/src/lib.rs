@@ -12,6 +12,7 @@ mod impl_interface;
 mod interface;
 mod module;
 mod parsing;
+mod php_union;
 mod syn_ext;
 mod zval;
 
@@ -2448,6 +2449,62 @@ fn zval_convert_derive_internal(input: TokenStream2) -> TokenStream2 {
     zval::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
 
+/// # `PhpUnion` Derive Macro
+///
+/// The `#[derive(PhpUnion)]` macro lets a Rust enum stand in for a PHP union
+/// type on `#[php_function]` and `#[php_impl]` signatures. Each variant must
+/// newtype-wrap exactly one field; the inner type must implement `IntoZval`
+/// and `FromZval`. The derive emits:
+///
+/// - an `impl PhpUnion` whose `union_types()` returns
+///   `PhpType::Union(vec![<T1 as IntoZval>::TYPE, <T2 as IntoZval>::TYPE, ...])`;
+/// - an `impl IntoZval` whose `set_zval` dispatches on the variant;
+/// - an `impl FromZval` whose `from_zval` tries each variant's inner type in
+///   declaration order. Order matters when two inner types accept the same
+///   PHP value (e.g. `String` and a parsed numeric `String`); list the more
+///   specific variant first.
+///
+/// V1 only supports newtype variants — unit, named, and multi-field tuple
+/// variants are compile errors. Generics on the enum are also rejected.
+///
+/// ## Example
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// #[derive(PhpUnion)]
+/// pub enum IntOrString {
+///     Int(i64),
+///     Str(String),
+/// }
+///
+/// #[php_function]
+/// pub fn echo_either(value: IntOrString) -> IntOrString {
+///     value
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.function(wrap_function!(echo_either))
+/// }
+/// # fn main() {}
+/// ```
+///
+/// PHP `ReflectionFunction::getParameters()[0]->getType()` reports
+/// `int|string` on the parameter, and the same union on the return type.
+#[proc_macro_derive(PhpUnion)]
+pub fn php_union_derive(input: TokenStream) -> TokenStream {
+    php_union_derive_internal(input.into()).into()
+}
+
+fn php_union_derive_internal(input: TokenStream2) -> TokenStream2 {
+    let input = parse_macro_input2!(input as DeriveInput);
+
+    php_union::parser(input).unwrap_or_else(|e| e.to_compile_error())
+}
+
 /// Defines an `extern` function with the Zend fastcall convention based on
 /// operating system.
 ///
@@ -2584,6 +2641,7 @@ mod tests {
     type AttributeFn =
         fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream;
     type FunctionLikeFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
+    type DeriveFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
 
     #[rustversion::attr(nightly, test)]
     #[allow(dead_code)]
@@ -2640,7 +2698,10 @@ mod tests {
         let file = std::fs::File::open(path).expect("Failed to open expand test file");
         runtime_macros::emulate_derive_macro_expansion(
             file,
-            &[("ZvalConvert", zval_convert_derive_internal)],
+            &[
+                ("ZvalConvert", zval_convert_derive_internal as DeriveFn),
+                ("PhpUnion", php_union_derive_internal as DeriveFn),
+            ],
         )
         .expect("Failed to expand derive macros in test file");
     }

@@ -34,3 +34,18 @@ Return types can also include:
 
 For a type to be returnable, it must implement `IntoZval`, while for it to be
 valid as a parameter, it must implement `FromZval`.
+
+## Compound PHP types
+
+`int|string`, `Foo|Bar`, `Countable&Traversable`, and `(A&B)|C` are all
+expressible at the `Arg` and `FunctionBuilder` layer through the [`PhpType`]
+enum. Two ergonomic paths surface this on `#[php_function]` and
+`#[php_impl]` signatures:
+
+- The [`#[php(types = "...")]`](../macros/php.md) attribute, which takes a
+  PHP type string and parses it at extension load.
+- The [`#[derive(PhpUnion)]`](../macros/php_union.md) macro, which lets you
+  model a union as a Rust enum and have the macro infer the registered shape
+  from the variants.
+
+[`PhpType`]: https://docs.rs/ext-php-rs/latest/ext_php_rs/types/enum.PhpType.html

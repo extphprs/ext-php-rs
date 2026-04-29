@@ -460,7 +460,7 @@ impl<'a> Function<'a> {
         {
             return quote! {
                 .returns(
-                    <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::TYPE,
+                    <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::php_type(),
                     false,
                     <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                 )
@@ -474,7 +474,7 @@ impl<'a> Function<'a> {
         {
             return quote! {
                 .returns(
-                    <#class as ::ext_php_rs::convert::IntoZval>::TYPE,
+                    <#class as ::ext_php_rs::convert::IntoZval>::php_type(),
                     false,
                     <#class as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                 )
@@ -483,7 +483,7 @@ impl<'a> Function<'a> {
 
         quote! {
             .returns(
-                <#output as ::ext_php_rs::convert::IntoZval>::TYPE,
+                <#output as ::ext_php_rs::convert::IntoZval>::php_type(),
                 false,
                 <#output as ::ext_php_rs::convert::IntoZval>::NULLABLE,
             )
@@ -1230,7 +1230,7 @@ impl TypedArg<'_> {
             None
         };
         quote! {
-            ::ext_php_rs::args::Arg::new(#name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE)
+            ::ext_php_rs::args::Arg::new(#name, <#ty as ::ext_php_rs::convert::FromZvalMut>::php_type())
                 #null
                 #default
                 #as_ref
