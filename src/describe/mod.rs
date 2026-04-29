@@ -153,7 +153,7 @@ fn retval_to_describe(
         PhpType::Union(members) => {
             ret_allow_null || members.iter().any(|m| matches!(m, DataType::Null))
         }
-        PhpType::ClassUnion(_) => ret_allow_null,
+        PhpType::ClassUnion(_) | PhpType::Intersection(_) => ret_allow_null,
     };
     Option::Some(Retval {
         ty: r.into(),
@@ -202,6 +202,11 @@ pub enum PhpTypeAbi {
     /// / `Retval` because PHP rejects the `?` shorthand on a union (the
     /// rendered stub spells it `Foo|Bar|null`).
     ClassUnion(Vec<RString>),
+    /// A class intersection, e.g. `Foo&Bar`. Members are class-name strings
+    /// in declaration order. Nullable intersections do not exist at this
+    /// layer: PHP cannot spell `?Foo&Bar`, and the equivalent DNF
+    /// `(Foo&Bar)|null` is the future DNF representation's responsibility.
+    Intersection(Vec<RString>),
 }
 
 impl From<PhpType> for PhpTypeAbi {
@@ -210,6 +215,13 @@ impl From<PhpType> for PhpTypeAbi {
             PhpType::Simple(dt) => Self::Simple(dt),
             PhpType::Union(members) => Self::Union(members.into()),
             PhpType::ClassUnion(class_names) => Self::ClassUnion(
+                class_names
+                    .into_iter()
+                    .map(RString::from)
+                    .collect::<StdVec<_>>()
+                    .into(),
+            ),
+            PhpType::Intersection(class_names) => Self::Intersection(
                 class_names
                     .into_iter()
                     .map(RString::from)
@@ -882,7 +894,9 @@ mod tests {
         let ty: PhpTypeAbi = PhpType::Simple(DataType::Long).into();
         match ty {
             PhpTypeAbi::Simple(dt) => assert_eq!(dt, DataType::Long),
-            PhpTypeAbi::Union(_) | PhpTypeAbi::ClassUnion(_) => panic!("expected Simple"),
+            PhpTypeAbi::Union(_) | PhpTypeAbi::ClassUnion(_) | PhpTypeAbi::Intersection(_) => {
+                panic!("expected Simple")
+            }
         }
     }
 
@@ -895,7 +909,9 @@ mod tests {
                 &*members,
                 &[DataType::Long, DataType::String, DataType::Null]
             ),
-            PhpTypeAbi::Simple(_) | PhpTypeAbi::ClassUnion(_) => panic!("expected Union"),
+            PhpTypeAbi::Simple(_) | PhpTypeAbi::ClassUnion(_) | PhpTypeAbi::Intersection(_) => {
+                panic!("expected Union")
+            }
         }
     }
 
@@ -907,7 +923,24 @@ mod tests {
                 let names: StdVec<&str> = members.iter().map(AsRef::as_ref).collect();
                 assert_eq!(names, &["Foo", "Bar"]);
             }
-            PhpTypeAbi::Simple(_) | PhpTypeAbi::Union(_) => panic!("expected ClassUnion"),
+            PhpTypeAbi::Simple(_) | PhpTypeAbi::Union(_) | PhpTypeAbi::Intersection(_) => {
+                panic!("expected ClassUnion")
+            }
+        }
+    }
+
+    #[test]
+    fn php_type_intersection_preserves_member_order() {
+        let ty: PhpTypeAbi =
+            PhpType::Intersection(vec!["Countable".to_owned(), "Traversable".to_owned()]).into();
+        match ty {
+            PhpTypeAbi::Intersection(members) => {
+                let names: StdVec<&str> = members.iter().map(AsRef::as_ref).collect();
+                assert_eq!(names, &["Countable", "Traversable"]);
+            }
+            PhpTypeAbi::Simple(_) | PhpTypeAbi::Union(_) | PhpTypeAbi::ClassUnion(_) => {
+                panic!("expected Intersection")
+            }
         }
     }
 

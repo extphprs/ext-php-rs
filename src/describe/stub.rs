@@ -331,6 +331,16 @@ fn phptype_to_phpdoc(ty: &PhpTypeAbi, nullable: bool) -> String {
             }
             s
         }
+        PhpTypeAbi::Intersection(members) => {
+            // Slice 03 cannot represent nullable intersections (PHP needs DNF
+            // for `(Foo&Bar)|null`); the `nullable` flag is intentionally
+            // ignored here. DNF support arrives in slice 04.
+            let parts: StdVec<String> = members
+                .iter()
+                .map(|name| format_class_type(name.as_ref(), false))
+                .collect();
+            parts.join("&")
+        }
     }
 }
 
@@ -607,6 +617,22 @@ impl ToStub for PhpTypeAbi {
                 }
                 Ok(())
             }
+            Self::Intersection(members) => {
+                let mut first = true;
+                for name in members.iter() {
+                    if !first {
+                        write!(buf, "&")?;
+                    }
+                    let name_ref: &str = name.as_ref();
+                    if name_ref.starts_with('\\') {
+                        write!(buf, "{name_ref}")?;
+                    } else {
+                        write!(buf, "\\{name_ref}")?;
+                    }
+                    first = false;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -620,6 +646,9 @@ impl ToStub for PhpTypeAbi {
 /// are not duplicated. `ClassUnion(members)` follows the same rule, except
 /// members are class names so they cannot include `null` themselves: the
 /// dedup check collapses to "always append `|null` when nullable".
+/// `Intersection(_)` cannot be nullable in slice 03 (PHP needs DNF for
+/// `(Foo&Bar)|null`), so the flag is ignored and the rendering falls
+/// through to the plain `fmt_stub` output. DNF support arrives in slice 04.
 fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) -> FmtResult {
     match ty {
         PhpTypeAbi::Simple(dt) => {
@@ -642,6 +671,7 @@ fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) 
             }
             Ok(())
         }
+        PhpTypeAbi::Intersection(_) => ty.fmt_stub(buf),
     }
 }
 
@@ -1410,6 +1440,25 @@ mod test {
         use super::PhpTypeAbi;
         let ty = PhpTypeAbi::ClassUnion(vec!["Foo".into(), "Bar".into()].into());
         assert_eq!(ty.to_stub().unwrap(), "\\Foo|\\Bar");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_intersection_renders_with_fqdn_amps() {
+        use super::PhpTypeAbi;
+        let ty = PhpTypeAbi::Intersection(vec!["Countable".into(), "Traversable".into()].into());
+        assert_eq!(ty.to_stub().unwrap(), "\\Countable&\\Traversable");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn render_type_with_nullable_ignores_flag_for_intersection() {
+        use super::PhpTypeAbi;
+        use super::render_type_with_nullable;
+        let ty = PhpTypeAbi::Intersection(vec!["A".into(), "B".into()].into());
+        let mut buf = String::new();
+        render_type_with_nullable(&ty, true, &mut buf).unwrap();
+        assert_eq!(buf, "\\A&\\B");
     }
 
     #[test]
