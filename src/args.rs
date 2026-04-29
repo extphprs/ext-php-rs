@@ -183,6 +183,16 @@ impl<'a> Arg<'a> {
                 self.allow_null,
             )
             .ok_or(Error::InvalidCString)?,
+            #[cfg(php81)]
+            PhpType::Intersection(class_names) => ZendType::empty_from_class_intersection(
+                class_names,
+                self.as_ref,
+                self.variadic,
+                self.allow_null,
+            )
+            .ok_or(Error::InvalidCString)?,
+            #[cfg(not(php81))]
+            PhpType::Intersection(_) => return Err(Error::InvalidCString),
         };
         Ok(ArgInfo {
             name: CString::new(self.name.as_str())?.into_raw(),
@@ -204,7 +214,7 @@ impl From<Arg<'_>> for _zend_expected_type {
         let dt = match &arg.r#type {
             PhpType::Simple(dt) => *dt,
             PhpType::Union(types) => types.first().copied().unwrap_or(DataType::Mixed),
-            PhpType::ClassUnion(_) => DataType::Object(None),
+            PhpType::ClassUnion(_) | PhpType::Intersection(_) => DataType::Object(None),
         };
         let type_id = match dt {
             DataType::False | DataType::True => _zend_expected_type_Z_EXPECTED_BOOL,
@@ -672,6 +682,43 @@ mod tests {
     #[test]
     fn class_union_arg_with_empty_member_list_errors() {
         let arg = Arg::new("value", PhpType::ClassUnion(vec![]));
+        assert!(arg.as_arg_info().is_err());
+    }
+
+    #[test]
+    #[cfg(php81)]
+    fn intersection_arg_emits_list_with_intersection_bit() {
+        use crate::ffi::{_ZEND_TYPE_INTERSECTION_BIT, _ZEND_TYPE_LIST_BIT};
+
+        let arg = Arg::new(
+            "value",
+            PhpType::Intersection(vec!["Countable".to_owned(), "Traversable".to_owned()]),
+        );
+        let arg_info = arg.as_arg_info().expect("intersection should build");
+
+        assert_ne!(arg_info.type_.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+        assert_ne!(arg_info.type_.type_mask & _ZEND_TYPE_INTERSECTION_BIT, 0);
+        assert!(!arg_info.type_.ptr.is_null());
+    }
+
+    #[test]
+    #[cfg(php81)]
+    fn intersection_arg_with_allow_null_errors() {
+        let arg = Arg::new(
+            "value",
+            PhpType::Intersection(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        )
+        .allow_null();
+        assert!(
+            arg.as_arg_info().is_err(),
+            "nullable intersection must error: DNF lands in slice 04"
+        );
+    }
+
+    #[test]
+    #[cfg(php81)]
+    fn intersection_arg_with_empty_member_list_errors() {
+        let arg = Arg::new("value", PhpType::Intersection(vec![]));
         assert!(arg.as_arg_info().is_err());
     }
 

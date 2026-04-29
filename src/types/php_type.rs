@@ -2,9 +2,9 @@
 //!
 //! [`PhpType`] is the single vocabulary used by [`Arg`](crate::args::Arg) to
 //! describe every shape of PHP type declaration that ext-php-rs supports.
-//! [`PhpType::Simple`], primitive [`PhpType::Union`], and class
-//! [`PhpType::ClassUnion`] are handled today; later work will extend the enum
-//! with intersections and DNF combinations.
+//! [`PhpType::Simple`], primitive [`PhpType::Union`], class
+//! [`PhpType::ClassUnion`], and class [`PhpType::Intersection`] are handled
+//! today; later work will extend the enum with DNF combinations.
 
 use crate::flags::DataType;
 
@@ -46,6 +46,21 @@ pub enum PhpType {
     /// `?` on a union), so the rendered stub spells nullables as
     /// `Foo|Bar|null`.
     ClassUnion(Vec<String>),
+    /// An intersection of class/interface names, e.g. `Countable&Traversable`.
+    /// A value satisfies the type only when it is an instance of every named
+    /// class or interface. Each entry must be a valid PHP class name (no NUL
+    /// bytes).
+    ///
+    /// A single-element vec is accepted but degenerate: prefer
+    /// `Simple(DataType::Object(Some(name)))` for the single-class case.
+    ///
+    /// Nullable intersections are not expressible in this slice. PHP user
+    /// code cannot write `?Foo&Bar`; the legal form is the DNF
+    /// `(Foo&Bar)|null`, which is the responsibility of the future DNF
+    /// representation. Pairing this variant with
+    /// [`Arg::allow_null`](crate::args::Arg::allow_null) is rejected by the
+    /// FFI emission layer; build a DNF type once that lands.
+    Intersection(Vec<String>),
 }
 
 impl From<DataType> for PhpType {
@@ -76,5 +91,24 @@ mod tests {
 
         assert_ne!(class, primitive);
         assert_ne!(class, simple);
+    }
+
+    #[test]
+    fn intersection_round_trips_through_clone_and_eq() {
+        let countable_and_traversable =
+            PhpType::Intersection(vec!["Countable".to_owned(), "Traversable".to_owned()]);
+        assert_eq!(countable_and_traversable.clone(), countable_and_traversable);
+    }
+
+    #[test]
+    fn intersection_is_distinct_from_class_union_simple_and_primitive_union() {
+        let intersection = PhpType::Intersection(vec!["Foo".to_owned(), "Bar".to_owned()]);
+        let class_union = PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]);
+        let primitive = PhpType::Union(vec![DataType::Long, DataType::String]);
+        let simple = PhpType::Simple(DataType::String);
+
+        assert_ne!(intersection, class_union);
+        assert_ne!(intersection, primitive);
+        assert_ne!(intersection, simple);
     }
 }

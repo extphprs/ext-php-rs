@@ -21,6 +21,11 @@ unsafe extern "C" {
     pub fn ext_php_rs_zend_string_release(zs: *mut zend_string);
     pub fn ext_php_rs_is_known_valid_utf8(zs: *const zend_string) -> bool;
     pub fn ext_php_rs_set_known_valid_utf8(zs: *mut zend_string);
+    pub fn ext_php_rs_pemalloc_persistent(size: usize) -> *mut c_void;
+    pub fn ext_php_rs_zend_string_init_persistent_interned(
+        str_: *const c_char,
+        len: usize,
+    ) -> *mut zend_string;
 
     pub fn ext_php_rs_php_build_id() -> *const c_char;
     pub fn ext_php_rs_zend_object_alloc(obj_size: usize, ce: *mut zend_class_entry) -> *mut c_void;

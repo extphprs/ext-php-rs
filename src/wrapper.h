@@ -49,6 +49,9 @@ void ext_php_rs_zend_string_release(zend_string *zs);
 bool ext_php_rs_is_known_valid_utf8(const zend_string *zs);
 void ext_php_rs_set_known_valid_utf8(zend_string *zs);
 
+void *ext_php_rs_pemalloc_persistent(size_t size);
+zend_string *ext_php_rs_zend_string_init_persistent_interned(const char *str, size_t len);
+
 const char *ext_php_rs_php_build_id();
 void *ext_php_rs_zend_object_alloc(size_t obj_size, zend_class_entry *ce);
 void ext_php_rs_zend_object_release(zend_object *obj);
