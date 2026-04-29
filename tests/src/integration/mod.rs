@@ -7,12 +7,14 @@ pub mod class;
 pub mod class_union;
 pub mod closure;
 pub mod defaults;
+#[cfg(php83)]
+pub mod dnf;
 #[cfg(feature = "enum")]
 pub mod enum_;
 pub mod exception;
 pub mod globals;
 pub mod interface;
-#[cfg(php81)]
+#[cfg(php83)]
 pub mod intersection;
 pub mod iterator;
 pub mod magic_method;
