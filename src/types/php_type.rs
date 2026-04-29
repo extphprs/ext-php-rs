@@ -1,18 +1,42 @@
 //! PHP argument and return type expressions.
 //!
 //! [`PhpType`] is the single vocabulary used by [`Arg`](crate::args::Arg) to
-//! describe every shape of PHP type declaration that ext-php-rs supports.
+//! describe every shape of PHP type declaration that ext-php-rs supports:
 //! [`PhpType::Simple`], primitive [`PhpType::Union`], class
-//! [`PhpType::ClassUnion`], and class [`PhpType::Intersection`] are handled
-//! today; later work will extend the enum with DNF combinations.
+//! [`PhpType::ClassUnion`], class [`PhpType::Intersection`] (PHP 8.1+), and
+//! the disjunctive normal form [`PhpType::Dnf`] (PHP 8.2+).
 
 use crate::flags::DataType;
+
+/// One disjunct of a [`PhpType::Dnf`] type. PHP 8.2+.
+///
+/// PHP's DNF grammar is a top-level union whose alternatives may themselves
+/// be intersection groups, e.g. `(A&B)|C`. Each [`DnfTerm`] is one alternative
+/// on the union side: either a single class name (the `C`) or an intersection
+/// group (the `A&B`).
+///
+/// `Intersection` always carries 2 or more members. A single-element group is
+/// rejected by the FFI emission layer; callers should use [`DnfTerm::Single`]
+/// for one-class disjuncts. The future type-string parser canonicalises this
+/// shape automatically.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DnfTerm {
+    /// A single class name, e.g. the `C` in `(A&B)|C`. Class names must be
+    /// non-empty and contain no interior NUL bytes.
+    Single(String),
+    /// An intersection group of class/interface names, e.g. the `A&B` in
+    /// `(A&B)|C`. Always carries 2 or more members; one-element groups are
+    /// rejected at the FFI emission layer (use [`DnfTerm::Single`] instead).
+    Intersection(Vec<String>),
+}
 
 /// A PHP type expression as used in argument or return position.
 ///
 /// `Simple` covers the long-standing single-type form (`int`, `string`,
 /// `Foo`, ...). `Union` covers a primitive union such as `int|string`.
 /// `ClassUnion` covers a union of class names such as `Foo|Bar`.
+/// `Intersection` covers `Countable&Traversable`. `Dnf` covers
+/// `(A&B)|C` and its nullable form `(A&B)|null`.
 ///
 /// A `Union` carrying fewer than two members is technically constructable but
 /// semantically equivalent to (or weaker than) a [`PhpType::Simple`]; callers
@@ -38,8 +62,8 @@ pub enum PhpType {
     /// A single-element vec is accepted but degenerate: prefer
     /// `Simple(DataType::Object(Some(name)))` for the single-class case.
     ///
-    /// Mixing primitives and classes (e.g. `int|Foo`) is not yet
-    /// expressible; that is the job of the future DNF representation.
+    /// Mixing primitives and classes (e.g. `int|Foo`) is not expressible
+    /// here; class-side DNF such as `(A&B)|C` lives in [`PhpType::Dnf`].
     ///
     /// Nullability flows through [`Arg::allow_null`](crate::args::Arg::allow_null);
     /// PHP's `?Foo|Bar` shorthand is not legal syntax (the engine rejects
@@ -54,13 +78,32 @@ pub enum PhpType {
     /// A single-element vec is accepted but degenerate: prefer
     /// `Simple(DataType::Object(Some(name)))` for the single-class case.
     ///
-    /// Nullable intersections are not expressible in this slice. PHP user
-    /// code cannot write `?Foo&Bar`; the legal form is the DNF
-    /// `(Foo&Bar)|null`, which is the responsibility of the future DNF
-    /// representation. Pairing this variant with
+    /// Pairing this variant with
     /// [`Arg::allow_null`](crate::args::Arg::allow_null) is rejected by the
-    /// FFI emission layer; build a DNF type once that lands.
+    /// FFI emission layer. The legal nullable form is the DNF
+    /// `(Foo&Bar)|null`; build a [`PhpType::Dnf`] for that case.
     Intersection(Vec<String>),
+    /// Disjunctive Normal Form: a top-level union whose alternatives may
+    /// themselves be intersection groups, e.g. `(A&B)|C`. PHP 8.2+.
+    ///
+    /// Examples:
+    /// - `(A&B)|C` produces
+    ///   `Dnf(vec![DnfTerm::Intersection(["A","B"]), DnfTerm::Single("C")])`.
+    /// - `(A&B)|null` produces
+    ///   `Dnf(vec![DnfTerm::Intersection(["A","B"])])` with
+    ///   [`Arg::allow_null`](crate::args::Arg::allow_null) on the arg.
+    ///
+    /// Nullability is carried via `allow_null`, never as a stringly-typed
+    /// `DnfTerm::Single("null")` term — the same canonicalisation rule the
+    /// other compound variants follow. Mixing primitives with class terms
+    /// (e.g. `(A&B)|int`) is intentionally not modelled here; if demand
+    /// surfaces, [`DnfTerm`] can grow a third variant in a follow-up.
+    ///
+    /// Validation (see the FFI emission layer): empty `terms` is rejected;
+    /// `terms.len() == 1` is degenerate (use [`PhpType::Simple`] or
+    /// [`PhpType::Intersection`]); each
+    /// [`DnfTerm::Intersection`] must carry 2 or more members.
+    Dnf(Vec<DnfTerm>),
 }
 
 impl From<DataType> for PhpType {
@@ -110,5 +153,38 @@ mod tests {
         assert_ne!(intersection, class_union);
         assert_ne!(intersection, primitive);
         assert_ne!(intersection, simple);
+    }
+
+    #[test]
+    fn dnf_round_trips_through_clone_and_eq() {
+        let dnf = PhpType::Dnf(vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ]);
+        assert_eq!(dnf.clone(), dnf);
+    }
+
+    #[test]
+    fn dnf_is_distinct_from_intersection_class_union_and_simple() {
+        let dnf = PhpType::Dnf(vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ]);
+        let intersection = PhpType::Intersection(vec!["A".to_owned(), "B".to_owned()]);
+        let class_union = PhpType::ClassUnion(vec!["A".to_owned(), "C".to_owned()]);
+        let simple = PhpType::Simple(DataType::String);
+
+        assert_ne!(dnf, intersection);
+        assert_ne!(dnf, class_union);
+        assert_ne!(dnf, simple);
+    }
+
+    #[test]
+    fn dnf_term_round_trips_through_clone_and_eq() {
+        let single = DnfTerm::Single("Foo".to_owned());
+        let group = DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]);
+        assert_eq!(single.clone(), single);
+        assert_eq!(group.clone(), group);
+        assert_ne!(single, group);
     }
 }

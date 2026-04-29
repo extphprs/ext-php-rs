@@ -1,5 +1,7 @@
 use std::{ffi::c_void, ptr};
 
+#[cfg(php83)]
+use crate::types::DnfTerm;
 use crate::{
     ffi::{
         _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT, IS_MIXED,
@@ -240,9 +242,23 @@ impl ZendType {
     /// * `class_names` - Class-name members of the intersection.
     /// * `pass_by_ref` - Whether the value should be passed by reference.
     /// * `is_variadic` - Whether this type represents a variadic argument.
-    /// * `allow_null` - Whether the value can be null. Must be `false` in
-    ///   slice 03; `true` returns [`None`].
-    #[cfg(php81)]
+    /// * `allow_null` - Whether the value can be null. Must be `false`;
+    ///   `true` returns [`None`] (the legal nullable form is the DNF
+    ///   `(Foo&Bar)|null`, build a [`PhpType::Dnf`] for that).
+    ///
+    /// # Version constraint
+    ///
+    /// Available on PHP 8.3+ only. `ReflectionIntersectionType` was
+    /// introduced in PHP 8.1, but `zend_register_functions` on 8.1/8.2
+    /// rejects pre-built `zend_type_list` for internal-function `arg_info`
+    /// (`Zend/zend_API.c` insists on `ZEND_TYPE_HAS_NAME` and re-parses
+    /// from a literal `const char*`; the engine only splits on `|`, not
+    /// `&`, so an `&`-joined literal name is not a viable encoding
+    /// either). 8.3+ added the `ZEND_TYPE_HAS_LITERAL_NAME` check that
+    /// leaves pre-built lists alone.
+    ///
+    /// [`PhpType::Dnf`]: crate::types::PhpType::Dnf
+    #[cfg(php83)]
     #[must_use]
     pub fn empty_from_class_intersection(
         class_names: &[String],
@@ -254,63 +270,7 @@ impl ZendType {
             return None;
         }
 
-        for name in class_names {
-            if name.as_bytes().contains(&0u8) {
-                return None;
-            }
-        }
-
-        let num_types = u32::try_from(class_names.len()).ok()?;
-
-        // SAFETY: Layout matches Zend's `ZEND_TYPE_LIST_SIZE(num_types)` macro
-        // (`Zend/zend_types.h`). The `types` field is a flexible array
-        // member declared as `[zend_type; 1]`, so the struct already
-        // accounts for one entry; remaining entries are tail-allocated.
-        let list_size = std::mem::size_of::<crate::ffi::zend_type_list>()
-            + (class_names.len().saturating_sub(1)) * std::mem::size_of::<zend_type>();
-
-        // SAFETY: Allocates with `pemalloc(_, 1)`. The arena bit set on the
-        // outer mask below tells Zend's `zend_type_release` to skip the
-        // `pefree` of this list, so the allocation lives for the process
-        // lifetime (one list per intersection arg/retval per module).
-        let list_ptr = unsafe { crate::ffi::ext_php_rs_pemalloc_persistent(list_size) }
-            .cast::<crate::ffi::zend_type_list>();
-
-        if list_ptr.is_null() {
-            return None;
-        }
-
-        // SAFETY: `list_ptr` points to a freshly-allocated `zend_type_list`
-        // with capacity for `num_types` entries.
-        unsafe {
-            (*list_ptr).num_types = num_types;
-        }
-
-        for (i, name) in class_names.iter().enumerate() {
-            let str_ptr = unsafe {
-                crate::ffi::ext_php_rs_zend_string_init_persistent_interned(
-                    name.as_ptr().cast::<i8>(),
-                    name.len(),
-                )
-            };
-            if str_ptr.is_null() {
-                // No teardown needed: Zend will reclaim the partially-built
-                // list and any strings already attached when the module
-                // fails to load (the outer caller propagates None as an
-                // `Error::InvalidCString`).
-                return None;
-            }
-
-            // SAFETY: `types` is a flexible array; index `i` is within the
-            // freshly-allocated capacity (num_types entries).
-            unsafe {
-                let entry = (*list_ptr).types.as_mut_ptr().add(i);
-                *entry = zend_type {
-                    ptr: str_ptr.cast::<c_void>(),
-                    type_mask: crate::ffi::_ZEND_TYPE_NAME_BIT,
-                };
-            }
-        }
+        let list_ptr = build_class_list(class_names)?;
 
         let type_mask = Self::arg_info_flags(pass_by_ref, is_variadic)
             | crate::ffi::_ZEND_TYPE_LIST_BIT
@@ -319,6 +279,161 @@ impl ZendType {
 
         Some(Self {
             ptr: list_ptr.cast::<c_void>(),
+            type_mask,
+        })
+    }
+
+    /// Builds a Zend type for a DNF (Disjunctive Normal Form) type
+    /// (e.g. `(A&B)|C`). PHP 8.2+.
+    ///
+    /// DNF is a top-level union whose alternatives may themselves be class
+    /// intersection groups. The on-disk shape mirrors what `zend_compile.c`
+    /// produces for `(A&B)|C`:
+    ///
+    /// 1. An outer [`zend_type_list`](crate::ffi::zend_type_list) with one
+    ///    entry per [`DnfTerm`].
+    /// 2. Each [`DnfTerm::Single`] becomes a list entry whose `ptr` is a
+    ///    persistent-interned `zend_string*` and whose mask is
+    ///    `_ZEND_TYPE_NAME_BIT`.
+    /// 3. Each [`DnfTerm::Intersection`] becomes a nested
+    ///    [`zend_type_list`](crate::ffi::zend_type_list) (allocated and
+    ///    populated identically to a flat
+    ///    [`Self::empty_from_class_intersection`]); the corresponding outer
+    ///    list entry's `ptr` points at that inner list and its mask carries
+    ///    `_ZEND_TYPE_LIST_BIT | _ZEND_TYPE_INTERSECTION_BIT |
+    ///    _ZEND_TYPE_ARENA_BIT`.
+    /// 4. The outer mask carries `_ZEND_TYPE_LIST_BIT |
+    ///    _ZEND_TYPE_UNION_BIT | _ZEND_TYPE_ARENA_BIT`, plus
+    ///    `_ZEND_TYPE_NULLABLE_BIT` when `allow_null` is set.
+    ///
+    /// The arena bit on every list (outer and inner) tells Zend's recursive
+    /// `zend_type_release` (`Zend/zend_opcode.c:112-124`) to skip the
+    /// `pefree` of our hand-allocations. Each `zend_string` is tagged
+    /// `IS_STR_INTERNED` by
+    /// [`crate::ffi::ext_php_rs_zend_string_init_persistent_interned`] so
+    /// `zend_string_release` becomes a no-op and the strings survive embed
+    /// MSHUTDOWN cycles. Lists and strings live for the process lifetime
+    /// (one allocation set per DNF arg/retval per module — bounded leak,
+    /// reclaimed at `DL_UNLOAD`). The
+    /// [`_ZEND_TYPE_LIST_BIT`](crate::ffi::_ZEND_TYPE_LIST_BIT) skip in
+    /// [`crate::zend::module::cleanup_module_allocations`] already covers
+    /// every level of this nested layout.
+    ///
+    /// Returns [`None`] when:
+    ///
+    /// - `terms` is empty,
+    /// - `terms.len() == 1` (degenerate; use [`PhpType::Simple`] for a
+    ///   single class or [`PhpType::Intersection`] for a flat intersection),
+    /// - any [`DnfTerm::Intersection`] carries fewer than 2 members,
+    /// - any class name is empty or contains an interior NUL byte, or
+    /// - allocation fails.
+    ///
+    /// [`PhpType::Simple`]: crate::types::PhpType::Simple
+    /// [`PhpType::Intersection`]: crate::types::PhpType::Intersection
+    ///
+    /// # Parameters
+    ///
+    /// * `terms` - Class-side disjuncts in declaration order.
+    /// * `pass_by_ref` - Whether the value should be passed by reference.
+    /// * `is_variadic` - Whether this type represents a variadic argument.
+    /// * `allow_null` - Whether the value can be null. Threads the
+    ///   `_ZEND_TYPE_NULLABLE_BIT` on the outer mask; this is the canonical
+    ///   way to spell `(A&B)|null`.
+    ///
+    /// # Version constraint
+    ///
+    /// Available on PHP 8.3+ only. PHP 8.2 introduced DNF in user code but
+    /// its `zend_register_functions` does not accept pre-built
+    /// `zend_type_list` for internal-function `arg_info` (same root cause as
+    /// [`Self::empty_from_class_intersection`]); the engine only began
+    /// honouring `_ZEND_TYPE_LIST_BIT` here in 8.3+ via the
+    /// `ZEND_TYPE_HAS_LITERAL_NAME` gate.
+    #[cfg(php83)]
+    #[must_use]
+    pub fn empty_from_dnf(
+        terms: &[DnfTerm],
+        pass_by_ref: bool,
+        is_variadic: bool,
+        allow_null: bool,
+    ) -> Option<Self> {
+        if terms.len() < 2 {
+            // Empty or single-term DNF is degenerate — callers should pick
+            // the more specific variant (Simple, ClassUnion, Intersection)
+            // explicitly. Refusing here keeps a single canonical spelling
+            // per legal PHP type.
+            return None;
+        }
+
+        for term in terms {
+            if !dnf_term_is_valid(term) {
+                return None;
+            }
+        }
+
+        let num_terms = u32::try_from(terms.len()).ok()?;
+
+        let outer_size = std::mem::size_of::<crate::ffi::zend_type_list>()
+            + (terms.len().saturating_sub(1)) * std::mem::size_of::<zend_type>();
+
+        // SAFETY: pemalloc(_, 1). Arena bit on the outer mask below tells
+        // Zend's `zend_type_release` to skip the `pefree` of this list, so
+        // the allocation lives for the process lifetime.
+        let outer_list = unsafe { crate::ffi::ext_php_rs_pemalloc_persistent(outer_size) }
+            .cast::<crate::ffi::zend_type_list>();
+
+        if outer_list.is_null() {
+            return None;
+        }
+
+        // SAFETY: `outer_list` points to a freshly-allocated
+        // `zend_type_list` with capacity for `num_terms` entries.
+        unsafe {
+            (*outer_list).num_types = num_terms;
+        }
+
+        for (i, term) in terms.iter().enumerate() {
+            let entry = match term {
+                DnfTerm::Single(name) => {
+                    let s = unsafe {
+                        crate::ffi::ext_php_rs_zend_string_init_persistent_interned(
+                            name.as_ptr().cast::<i8>(),
+                            name.len(),
+                        )
+                    };
+                    if s.is_null() {
+                        return None;
+                    }
+                    zend_type {
+                        ptr: s.cast::<c_void>(),
+                        type_mask: crate::ffi::_ZEND_TYPE_NAME_BIT,
+                    }
+                }
+                DnfTerm::Intersection(names) => {
+                    let inner_list = build_class_list(names)?;
+                    zend_type {
+                        ptr: inner_list.cast::<c_void>(),
+                        type_mask: crate::ffi::_ZEND_TYPE_LIST_BIT
+                            | crate::ffi::_ZEND_TYPE_INTERSECTION_BIT
+                            | crate::ffi::_ZEND_TYPE_ARENA_BIT,
+                    }
+                }
+            };
+
+            // SAFETY: `types` is a flexible array; index `i` is within the
+            // freshly-allocated capacity (`num_terms` entries).
+            unsafe {
+                let slot = (*outer_list).types.as_mut_ptr().add(i);
+                *slot = entry;
+            }
+        }
+
+        let type_mask = Self::arg_info_flags_with_nullable(pass_by_ref, is_variadic, allow_null)
+            | crate::ffi::_ZEND_TYPE_LIST_BIT
+            | crate::ffi::_ZEND_TYPE_UNION_BIT
+            | crate::ffi::_ZEND_TYPE_ARENA_BIT;
+
+        Some(Self {
+            ptr: outer_list.cast::<c_void>(),
             type_mask,
         })
     }
@@ -444,7 +559,114 @@ fn primitive_may_be(dt: DataType) -> u32 {
     }
 }
 
-#[cfg(all(test, php81))]
+/// Allocates and populates a `zend_type_list` for a sequence of class names.
+///
+/// Shared between [`ZendType::empty_from_class_intersection`] and
+/// [`ZendType::empty_from_dnf`] (both PHP 8.3+) — DNF nests one of these
+/// lists per intersection group. The caller owns the bit flags on the outer
+/// `zend_type` that points at this list; this helper only handles the list
+/// itself and its entries.
+///
+/// Returns [`None`] when `class_names` is empty, any name has interior NUL
+/// bytes or is empty, or allocation fails. Each entry is tagged
+/// `_ZEND_TYPE_NAME_BIT` with a persistent-interned `zend_string*`
+/// (allocated via
+/// [`crate::ffi::ext_php_rs_zend_string_init_persistent_interned`], which
+/// sets `IS_STR_INTERNED` so `zend_string_release` becomes a no-op).
+///
+/// The engine processes our pre-built list directly in
+/// `zend_register_functions` — `Zend/zend_API.c` 8.3+ uses
+/// `ZEND_TYPE_HAS_LITERAL_NAME` to decide whether to re-parse a literal
+/// name, leaving `_ZEND_TYPE_LIST_BIT`-bearing types alone. PHP 8.1/8.2
+/// instead used `ZEND_TYPE_IS_COMPLEX` and asserted `HAS_NAME`, so this
+/// pre-built shape would crash at registration time on those versions.
+/// The caller is responsible for setting `_ZEND_TYPE_ARENA_BIT` on the
+/// parent mask so Zend's recursive `zend_type_release` skips the `pefree`
+/// of the list itself.
+#[cfg(php83)]
+fn build_class_list(class_names: &[String]) -> Option<*mut crate::ffi::zend_type_list> {
+    if class_names.is_empty() {
+        return None;
+    }
+
+    for name in class_names {
+        if name.is_empty() || name.as_bytes().contains(&0u8) {
+            return None;
+        }
+    }
+
+    let num_types = u32::try_from(class_names.len()).ok()?;
+
+    // SAFETY: Layout matches Zend's `ZEND_TYPE_LIST_SIZE(num_types)` macro
+    // (`Zend/zend_types.h`). The `types` field is a flexible array
+    // member declared as `[zend_type; 1]`, so the struct already
+    // accounts for one entry; remaining entries are tail-allocated.
+    let list_size = std::mem::size_of::<crate::ffi::zend_type_list>()
+        + (class_names.len().saturating_sub(1)) * std::mem::size_of::<zend_type>();
+
+    // SAFETY: Allocates with `pemalloc(_, 1)`. The caller sets the arena
+    // bit on the parent mask so Zend's `zend_type_release` skips the
+    // `pefree` of this list.
+    let list_ptr = unsafe { crate::ffi::ext_php_rs_pemalloc_persistent(list_size) }
+        .cast::<crate::ffi::zend_type_list>();
+
+    if list_ptr.is_null() {
+        return None;
+    }
+
+    // SAFETY: `list_ptr` points to a freshly-allocated `zend_type_list`
+    // with capacity for `num_types` entries.
+    unsafe {
+        (*list_ptr).num_types = num_types;
+    }
+
+    for (i, name) in class_names.iter().enumerate() {
+        let str_ptr = unsafe {
+            crate::ffi::ext_php_rs_zend_string_init_persistent_interned(
+                name.as_ptr().cast::<i8>(),
+                name.len(),
+            )
+        };
+        if str_ptr.is_null() {
+            // No teardown needed: Zend will reclaim the partially-built
+            // list and any strings already attached when the module
+            // fails to load (the outer caller propagates None as an
+            // `Error::InvalidCString`).
+            return None;
+        }
+
+        // SAFETY: `types` is a flexible array; index `i` is within the
+        // freshly-allocated capacity (num_types entries).
+        unsafe {
+            let entry = (*list_ptr).types.as_mut_ptr().add(i);
+            *entry = zend_type {
+                ptr: str_ptr.cast::<c_void>(),
+                type_mask: crate::ffi::_ZEND_TYPE_NAME_BIT,
+            };
+        }
+    }
+
+    Some(list_ptr)
+}
+
+/// Returns `true` when the given DNF term is a legal shape:
+/// `Single` carries a non-empty NUL-free name; `Intersection` carries 2 or
+/// more such names. One-element intersection groups are rejected to keep a
+/// single canonical Rust spelling per legal PHP type.
+#[cfg(php83)]
+fn dnf_term_is_valid(term: &DnfTerm) -> bool {
+    match term {
+        DnfTerm::Single(name) => !name.is_empty() && !name.as_bytes().contains(&0u8),
+        DnfTerm::Intersection(names) => {
+            names.len() >= 2
+                && names
+                    .iter()
+                    .all(|n| !n.is_empty() && !n.as_bytes().contains(&0u8))
+        }
+    }
+}
+
+#[cfg(all(test, php83))]
 mod intersection_tests {
     use super::*;
     use crate::ffi::{
@@ -514,5 +736,177 @@ mod intersection_tests {
             );
             assert!(!entry.ptr.is_null(), "entry {i} must hold a zend_string*");
         }
+    }
+}
+
+#[cfg(all(test, php83))]
+mod dnf_tests {
+    use super::*;
+    use crate::ffi::{
+        _ZEND_TYPE_ARENA_BIT, _ZEND_TYPE_INTERSECTION_BIT, _ZEND_TYPE_LIST_BIT,
+        _ZEND_TYPE_NAME_BIT, _ZEND_TYPE_NULLABLE_BIT, _ZEND_TYPE_UNION_BIT, zend_type_list,
+    };
+
+    fn dnf_a_and_b_or_c() -> Vec<DnfTerm> {
+        vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ]
+    }
+
+    #[test]
+    fn empty_from_dnf_sets_outer_list_union_arena_bits() {
+        let terms = dnf_a_and_b_or_c();
+        let ty = ZendType::empty_from_dnf(&terms, false, false, false).expect("DNF should build");
+
+        assert_ne!(ty.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+        assert_ne!(ty.type_mask & _ZEND_TYPE_UNION_BIT, 0);
+        assert_ne!(
+            ty.type_mask & _ZEND_TYPE_ARENA_BIT,
+            0,
+            "arena bit must be set on the outer DNF list",
+        );
+        assert_eq!(
+            ty.type_mask & _ZEND_TYPE_INTERSECTION_BIT,
+            0,
+            "outer DNF list is a union, not an intersection",
+        );
+        assert_eq!(ty.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+        assert!(!ty.ptr.is_null());
+
+        let list = ty.ptr.cast::<zend_type_list>();
+        let num = unsafe { (*list).num_types };
+        assert_eq!(num, 2);
+    }
+
+    #[test]
+    fn empty_from_dnf_intersection_term_has_list_intersection_arena_bits() {
+        let terms = dnf_a_and_b_or_c();
+        let ty = ZendType::empty_from_dnf(&terms, false, false, false).expect("DNF should build");
+
+        let list = ty.ptr.cast::<zend_type_list>();
+        let entry0 = unsafe { *(*list).types.as_ptr() };
+
+        assert_ne!(entry0.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+        assert_ne!(entry0.type_mask & _ZEND_TYPE_INTERSECTION_BIT, 0);
+        assert_ne!(
+            entry0.type_mask & _ZEND_TYPE_ARENA_BIT,
+            0,
+            "inner intersection list must also carry the arena bit",
+        );
+        assert!(!entry0.ptr.is_null());
+    }
+
+    #[test]
+    fn empty_from_dnf_single_class_term_has_name_bit_only() {
+        let terms = dnf_a_and_b_or_c();
+        let ty = ZendType::empty_from_dnf(&terms, false, false, false).expect("DNF should build");
+
+        let list = ty.ptr.cast::<zend_type_list>();
+        let entry1 = unsafe { *(*list).types.as_ptr().add(1) };
+
+        assert_ne!(entry1.type_mask & _ZEND_TYPE_NAME_BIT, 0);
+        assert_eq!(
+            entry1.type_mask & _ZEND_TYPE_LIST_BIT,
+            0,
+            "single-class term is not a list",
+        );
+        assert!(!entry1.ptr.is_null(), "must hold a zend_string*");
+    }
+
+    #[test]
+    fn empty_from_dnf_with_allow_null_sets_nullable_bit() {
+        let terms = dnf_a_and_b_or_c();
+        let ty = ZendType::empty_from_dnf(&terms, false, false, true)
+            .expect("nullable DNF should build");
+
+        assert_ne!(
+            ty.type_mask & _ZEND_TYPE_NULLABLE_BIT,
+            0,
+            "allow_null must propagate _ZEND_TYPE_NULLABLE_BIT",
+        );
+    }
+
+    #[test]
+    fn empty_from_dnf_two_intersection_terms() {
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Intersection(vec!["C".to_owned(), "D".to_owned()]),
+        ];
+        let ty = ZendType::empty_from_dnf(&terms, false, false, false)
+            .expect("(A&B)|(C&D) should build");
+
+        let list = ty.ptr.cast::<zend_type_list>();
+        for i in 0..2 {
+            let entry = unsafe { *(*list).types.as_ptr().add(i) };
+            assert_ne!(entry.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+            assert_ne!(entry.type_mask & _ZEND_TYPE_INTERSECTION_BIT, 0);
+            assert_ne!(entry.type_mask & _ZEND_TYPE_ARENA_BIT, 0);
+        }
+    }
+
+    #[test]
+    fn empty_from_dnf_rejects_empty_terms() {
+        assert!(ZendType::empty_from_dnf(&[], false, false, false).is_none());
+    }
+
+    #[test]
+    fn empty_from_dnf_rejects_single_class_only() {
+        let terms = vec![DnfTerm::Single("C".to_owned())];
+        assert!(
+            ZendType::empty_from_dnf(&terms, false, false, false).is_none(),
+            "single-class DNF should be rejected (use PhpType::Simple)",
+        );
+    }
+
+    #[test]
+    fn empty_from_dnf_rejects_single_intersection_only() {
+        let terms = vec![DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()])];
+        assert!(
+            ZendType::empty_from_dnf(&terms, false, false, false).is_none(),
+            "single-intersection DNF should be rejected (use PhpType::Intersection)",
+        );
+    }
+
+    #[test]
+    fn empty_from_dnf_rejects_intersection_with_one_member() {
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ];
+        assert!(
+            ZendType::empty_from_dnf(&terms, false, false, false).is_none(),
+            "single-element intersection group should be rejected",
+        );
+    }
+
+    #[test]
+    fn empty_from_dnf_rejects_interior_nul() {
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B\0".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ];
+        assert!(ZendType::empty_from_dnf(&terms, false, false, false).is_none());
+
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single("C\0".to_owned()),
+        ];
+        assert!(ZendType::empty_from_dnf(&terms, false, false, false).is_none());
+    }
+
+    #[test]
+    fn empty_from_dnf_rejects_empty_class_name() {
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), String::new()]),
+            DnfTerm::Single("C".to_owned()),
+        ];
+        assert!(ZendType::empty_from_dnf(&terms, false, false, false).is_none());
+
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single(String::new()),
+        ];
+        assert!(ZendType::empty_from_dnf(&terms, false, false, false).is_none());
     }
 }

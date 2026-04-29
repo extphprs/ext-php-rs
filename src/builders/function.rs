@@ -146,7 +146,10 @@ impl<'a> FunctionBuilder<'a> {
         // syntactically, so the user's `allow_null` is honoured directly.
         self.ret_as_null = match &ty {
             PhpType::Simple(dt) => allow_null && *dt != DataType::Void && *dt != DataType::Mixed,
-            PhpType::Union(_) | PhpType::ClassUnion(_) | PhpType::Intersection(_) => allow_null,
+            PhpType::Union(_)
+            | PhpType::ClassUnion(_)
+            | PhpType::Intersection(_)
+            | PhpType::Dnf(_) => allow_null,
         };
         self.retval = Some(ty);
         self.ret_as_ref = as_ref;
@@ -211,7 +214,7 @@ impl<'a> FunctionBuilder<'a> {
                     self.ret_as_null,
                 )
                 .ok_or(Error::InvalidCString)?,
-                #[cfg(php81)]
+                #[cfg(php83)]
                 Some(PhpType::Intersection(class_names)) => {
                     ZendType::empty_from_class_intersection(
                         class_names,
@@ -221,8 +224,15 @@ impl<'a> FunctionBuilder<'a> {
                     )
                     .ok_or(Error::InvalidCString)?
                 }
-                #[cfg(not(php81))]
+                #[cfg(not(php83))]
                 Some(PhpType::Intersection(_)) => return Err(Error::InvalidCString),
+                #[cfg(php83)]
+                Some(PhpType::Dnf(terms)) => {
+                    ZendType::empty_from_dnf(terms, self.ret_as_ref, false, self.ret_as_null)
+                        .ok_or(Error::InvalidCString)?
+                }
+                #[cfg(not(php83))]
+                Some(PhpType::Dnf(_)) => return Err(Error::InvalidCString),
                 None => ZendType::empty(false, false),
             },
             default_value: ptr::null(),
@@ -293,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(php81)]
+    #[cfg(php83)]
     fn returns_intersection_emits_list_with_intersection_bit_on_retval() {
         use crate::ffi::{_ZEND_TYPE_INTERSECTION_BIT, _ZEND_TYPE_LIST_BIT};
 
@@ -313,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(php81)]
+    #[cfg(php83)]
     fn returns_intersection_with_allow_null_errors() {
         let result = FunctionBuilder::new("ret_nullable_intersection", noop_handler)
             .returns(
@@ -325,7 +335,62 @@ mod tests {
 
         assert!(
             result.is_err(),
-            "nullable intersection retval must error: DNF in slice 04"
+            "nullable intersection retval must error: nullable form is the DNF (Foo&Bar)|null"
         );
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_dnf_emits_outer_list_with_union_bit_on_retval() {
+        use crate::ffi::{_ZEND_TYPE_LIST_BIT, _ZEND_TYPE_UNION_BIT};
+        use crate::types::DnfTerm;
+
+        let entry = FunctionBuilder::new("ret_dnf", noop_handler)
+            .returns(
+                PhpType::Dnf(vec![
+                    DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+                    DnfTerm::Single("C".to_owned()),
+                ]),
+                false,
+                false,
+            )
+            .build()
+            .expect("DNF return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_UNION_BIT, 0);
+        assert!(!retval_info.type_.ptr.is_null());
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_dnf_with_allow_null_propagates_nullable_bit() {
+        use crate::ffi::_ZEND_TYPE_NULLABLE_BIT;
+        use crate::types::DnfTerm;
+
+        let entry = FunctionBuilder::new("ret_nullable_dnf", noop_handler)
+            .returns(
+                PhpType::Dnf(vec![
+                    DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+                    DnfTerm::Single("C".to_owned()),
+                ]),
+                false,
+                true,
+            )
+            .build()
+            .expect("nullable DNF return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_empty_dnf_errors() {
+        let result = FunctionBuilder::new("ret_empty_dnf", noop_handler)
+            .returns(PhpType::Dnf(vec![]), false, false)
+            .build();
+        assert!(result.is_err());
     }
 }

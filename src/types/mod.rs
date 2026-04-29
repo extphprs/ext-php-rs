@@ -24,7 +24,7 @@ pub use iterator::ZendIterator;
 pub use long::ZendLong;
 pub use object::{PropertyQuery, ZendObject};
 pub use php_ref::PhpRef;
-pub use php_type::PhpType;
+pub use php_type::{DnfTerm, PhpType};
 pub use separated::Separated;
 pub use string::ZendStr;
 pub use zval::Zval;
