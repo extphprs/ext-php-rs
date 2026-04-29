@@ -45,6 +45,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         module = integration::observer::build_module(module);
     }
     module = integration::persistent_string::build_module(module);
+    module = integration::php_types_attr::build_module(module);
     module = integration::reference::build_module(module);
     module = integration::separated::build_module(module);
     module = integration::string::build_module(module);

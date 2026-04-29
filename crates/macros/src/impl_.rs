@@ -3,10 +3,13 @@ use darling::util::Flag;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::{HashMap, HashSet};
-use syn::{Expr, Ident, ItemImpl};
+use syn::{Expr, Ident, ItemImpl, LitStr};
 
 use crate::constant::PhpConstAttribute;
-use crate::function::{Args, CallType, Function, MethodReceiver};
+use crate::function::{
+    Args, CallType, Function, MethodReceiver, extract_arg_php_type_overrides,
+    strip_per_arg_php_attrs, validate_php_types_litstr,
+};
 use crate::helpers::get_docs;
 use crate::parsing::{
     PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
@@ -71,6 +74,9 @@ struct MethodArgs {
     optional: Option<Ident>,
     /// Default values for optional arguments.
     defaults: HashMap<Ident, Expr>,
+    /// Optional `#[php(returns = "...")]` override for the registered PHP
+    /// return type.
+    returns: Option<LitStr>,
     /// Visibility of the method (public, protected, private).
     vis: Visibility,
     /// Method type.
@@ -86,6 +92,7 @@ pub struct PhpFunctionImplAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
+    returns: Option<LitStr>,
     vis: Option<Visibility>,
     attrs: Vec<syn::Attribute>,
     getter: Flag,
@@ -156,6 +163,7 @@ impl MethodArgs {
             name,
             optional: attr.optional,
             defaults: attr.defaults,
+            returns: attr.returns,
             vis: attr.vis.unwrap_or(Visibility::Public),
             ty,
             is_final,
@@ -321,8 +329,24 @@ impl<'a> ParsedImpl<'a> {
                         continue;
                     }
 
-                    let args = Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
-                    let mut func = Function::new(&method.sig, opts.name, args, opts.optional, docs);
+                    let arg_overrides = extract_arg_php_type_overrides(method.sig.inputs.iter())?;
+                    strip_per_arg_php_attrs(&mut method.sig.inputs);
+                    if let Some(lit) = &opts.returns {
+                        validate_php_types_litstr(lit)?;
+                    }
+
+                    let args = Args::parse_from_fnargs(
+                        method.sig.inputs.iter().zip(arg_overrides),
+                        opts.defaults,
+                    )?;
+                    let mut func = Function::new(
+                        &method.sig,
+                        opts.name,
+                        args,
+                        opts.optional,
+                        opts.returns,
+                        docs,
+                    );
 
                     let mut modifiers: HashSet<MethodModifier> = HashSet::new();
 

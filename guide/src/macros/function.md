@@ -122,6 +122,76 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 # fn main() {}
 ```
 
+## Overriding the registered PHP type
+
+Rust signatures can express many but not all PHP types. Compound types such as
+primitive unions (`int|string`), class unions (`\Foo|\Bar`), intersections
+(`\Countable&\Traversable`) and DNF (`(\A&\B)|\C`) cannot be derived from a
+single Rust type via the `IntoZval`/`FromZval` trait path.
+
+The `#[php(types = "...")]` attribute on a parameter and the
+`#[php(returns = "...")]` attribute on a function override the registered PHP
+type metadata. The string is parsed at extension load by `PhpType::from_str`;
+the syntax matches the PHP type-hint grammar (with `\` for namespace
+separators).
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
+
+#[php_function]
+#[php(returns = "int|string|null")]
+pub fn flexible_id(
+    #[php(types = "int|string")] _id: &Zval,
+) -> i64 {
+    0
+}
+```
+
+The override is the source of truth for the PHP type, including nullability —
+put `null` in the string if the parameter or return should be nullable. The
+runtime modifiers (`default`, `optional`, variadic, by-reference) are
+orthogonal to type and still apply.
+
+Validation runs in two stages:
+
+- **At macro-expansion time** the attribute is checked syntactically (LitStr
+  present, non-empty, allowed character set). Invalid input becomes a
+  `compile_error!` pointing at the literal.
+- **At extension load** the runtime parser builds the actual `PhpType`. A
+  parser-rejected string (for example `?Foo&Bar`, which the parser
+  refuses because class-side nullables aren't representable yet) panics with
+  the original literal in the message, surfacing on the first `cargo run` of
+  the consuming crate.
+
+The same attributes work inside `#[php_impl]`:
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
+
+#[php_class]
+pub struct MyClass;
+
+#[php_impl]
+impl MyClass {
+    pub fn __construct() -> Self { Self }
+
+    pub fn accept(
+        &self,
+        #[php(types = "int|string")] _value: &Zval,
+    ) -> i64 { 1 }
+
+    #[php(returns = "int|string|null")]
+    pub fn produce(&self) -> i64 { 0 }
+}
+```
+
+Version constraint: intersection and DNF type hints on internal arg_info
+require PHP 8.3 or newer. On 8.1/8.2 the runtime returns
+`Err(InvalidCString)` from `Arg::as_arg_info` for those shapes; build the
+test extension on 8.3+ if you need them.
+
 ## Variadic Functions
 
 Variadic functions can be implemented by specifying the last argument in the Rust

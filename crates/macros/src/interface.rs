@@ -2,13 +2,18 @@ use std::collections::{HashMap, HashSet};
 
 use crate::class::ClassEntryAttribute;
 use crate::constant::PhpConstAttribute;
-use crate::function::{Args, Function};
+use crate::function::{
+    Args, Function, extract_arg_php_type_overrides, strip_per_arg_php_attrs,
+    validate_php_types_litstr,
+};
 use crate::helpers::{CleanPhpAttr, get_docs};
 use darling::FromAttributes;
 use darling::util::Flag;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn, TypeParamBound};
+use syn::{
+    Expr, Ident, ItemTrait, LitStr, Path, TraitItem, TraitItemConst, TraitItemFn, TypeParamBound,
+};
 
 use crate::impl_::{FnBuilder, MethodModifier};
 use crate::parsing::{
@@ -304,6 +309,7 @@ pub struct PhpFunctionInterfaceAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
+    returns: Option<LitStr>,
     vis: Option<Visibility>,
     attrs: Vec<syn::Attribute>,
     getter: Flag,
@@ -327,7 +333,16 @@ fn parse_trait_item_fn(
     let php_attr = PhpFunctionInterfaceAttribute::from_attributes(&fn_item.attrs)?;
     fn_item.attrs.clean_php();
 
-    let mut args = Args::parse_from_fnargs(fn_item.sig.inputs.iter(), php_attr.defaults)?;
+    let arg_overrides = extract_arg_php_type_overrides(fn_item.sig.inputs.iter())?;
+    strip_per_arg_php_attrs(&mut fn_item.sig.inputs);
+    if let Some(lit) = &php_attr.returns {
+        validate_php_types_litstr(lit)?;
+    }
+
+    let mut args = Args::parse_from_fnargs(
+        fn_item.sig.inputs.iter().zip(arg_overrides),
+        php_attr.defaults,
+    )?;
 
     let docs = get_docs(&php_attr.attrs)?;
 
@@ -349,7 +364,14 @@ fn parse_trait_item_fn(
         PhpNameContext::Method,
         fn_item.sig.ident.span(),
     )?;
-    let f = Function::new(&fn_item.sig, method_name, args, php_attr.optional, docs);
+    let f = Function::new(
+        &fn_item.sig,
+        method_name,
+        args,
+        php_attr.optional,
+        php_attr.returns,
+        docs,
+    );
 
     if php_attr.constructor.is_present() {
         Ok(MethodKind::Constructor(f))

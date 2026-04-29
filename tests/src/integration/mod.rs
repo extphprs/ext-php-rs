@@ -25,6 +25,7 @@ pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
 pub mod persistent_string;
+pub mod php_types_attr;
 pub mod reference;
 pub mod separated;
 pub mod string;
