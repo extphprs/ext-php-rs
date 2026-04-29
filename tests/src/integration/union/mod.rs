@@ -76,15 +76,13 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         ))
         .returns(DataType::Long, false, false);
 
-    let int_string_or_null = FunctionBuilder::new(
-        "test_union_int_string_or_null",
-        handler_int_string_or_null,
-    )
-    .arg(Arg::new(
-        "value",
-        PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
-    ))
-    .returns(DataType::Long, false, false);
+    let int_string_or_null =
+        FunctionBuilder::new("test_union_int_string_or_null", handler_int_string_or_null)
+            .arg(Arg::new(
+                "value",
+                PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
+            ))
+            .returns(DataType::Long, false, false);
 
     let int_string_allow_null = FunctionBuilder::new(
         "test_union_int_string_allow_null",
@@ -99,15 +97,12 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     )
     .returns(DataType::Long, false, false);
 
-    let returns_int_or_string = FunctionBuilder::new(
-        "test_returns_int_or_string",
-        handler_returns_int_or_string,
-    )
-    .returns(
-        PhpType::Union(vec![DataType::Long, DataType::String]),
-        false,
-        false,
-    );
+    let returns_int_or_string =
+        FunctionBuilder::new("test_returns_int_or_string", handler_returns_int_or_string).returns(
+            PhpType::Union(vec![DataType::Long, DataType::String]),
+            false,
+            false,
+        );
 
     let returns_int_string_or_null = FunctionBuilder::new(
         "test_returns_int_string_or_null",

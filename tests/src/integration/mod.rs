@@ -12,6 +12,8 @@ pub mod enum_;
 pub mod exception;
 pub mod globals;
 pub mod interface;
+#[cfg(php81)]
+pub mod intersection;
 pub mod iterator;
 pub mod magic_method;
 pub mod module_globals;
