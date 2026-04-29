@@ -9,8 +9,8 @@ use std::{
 };
 
 use super::{
-    Class, Constant, DocBlock, Function, Method, MethodType, Module, Parameter, PhpTypeAbi,
-    Property, Retval, Visibility,
+    Class, Constant, DnfTermAbi, DocBlock, Function, Method, MethodType, Module, Parameter,
+    PhpTypeAbi, Property, Retval, Visibility,
     abi::{Option, RString, Str},
 };
 
@@ -332,14 +332,35 @@ fn phptype_to_phpdoc(ty: &PhpTypeAbi, nullable: bool) -> String {
             s
         }
         PhpTypeAbi::Intersection(members) => {
-            // Slice 03 cannot represent nullable intersections (PHP needs DNF
-            // for `(Foo&Bar)|null`); the `nullable` flag is intentionally
-            // ignored here. DNF support arrives in slice 04.
+            // Nullable intersections cannot be expressed in PHP user code;
+            // the legal form is the DNF `(Foo&Bar)|null`, which lives in
+            // [`PhpTypeAbi::Dnf`]. The `nullable` flag is intentionally
+            // ignored here.
             let parts: StdVec<String> = members
                 .iter()
                 .map(|name| format_class_type(name.as_ref(), false))
                 .collect();
             parts.join("&")
+        }
+        PhpTypeAbi::Dnf(terms) => {
+            let parts: StdVec<String> = terms
+                .iter()
+                .map(|term| match term {
+                    DnfTermAbi::Single(name) => format_class_type(name.as_ref(), false),
+                    DnfTermAbi::Intersection(members) => {
+                        let inner: StdVec<String> = members
+                            .iter()
+                            .map(|n| format_class_type(n.as_ref(), false))
+                            .collect();
+                        format!("({})", inner.join("&"))
+                    }
+                })
+                .collect();
+            let mut s = parts.join("|");
+            if nullable {
+                s.push_str("|null");
+            }
+            s
         }
     }
 }
@@ -607,12 +628,7 @@ impl ToStub for PhpTypeAbi {
                     if !first {
                         write!(buf, "|")?;
                     }
-                    let name_ref: &str = name.as_ref();
-                    if name_ref.starts_with('\\') {
-                        write!(buf, "{name_ref}")?;
-                    } else {
-                        write!(buf, "\\{name_ref}")?;
-                    }
+                    write_class_name(name.as_ref(), buf)?;
                     first = false;
                 }
                 Ok(())
@@ -623,17 +639,48 @@ impl ToStub for PhpTypeAbi {
                     if !first {
                         write!(buf, "&")?;
                     }
-                    let name_ref: &str = name.as_ref();
-                    if name_ref.starts_with('\\') {
-                        write!(buf, "{name_ref}")?;
-                    } else {
-                        write!(buf, "\\{name_ref}")?;
+                    write_class_name(name.as_ref(), buf)?;
+                    first = false;
+                }
+                Ok(())
+            }
+            Self::Dnf(terms) => {
+                let mut first = true;
+                for term in terms.iter() {
+                    if !first {
+                        write!(buf, "|")?;
+                    }
+                    match term {
+                        DnfTermAbi::Single(name) => write_class_name(name.as_ref(), buf)?,
+                        DnfTermAbi::Intersection(members) => {
+                            write!(buf, "(")?;
+                            let mut inner_first = true;
+                            for name in members.iter() {
+                                if !inner_first {
+                                    write!(buf, "&")?;
+                                }
+                                write_class_name(name.as_ref(), buf)?;
+                                inner_first = false;
+                            }
+                            write!(buf, ")")?;
+                        }
                     }
                     first = false;
                 }
                 Ok(())
             }
         }
+    }
+}
+
+/// Writes a class name with a leading backslash (PHP FQCN form), unless one
+/// is already present. Shared by the `ClassUnion`, `Intersection`, and
+/// `Dnf` stub arms so a single rule governs every class-name rendering.
+fn write_class_name(name: &str, buf: &mut String) -> FmtResult {
+    if name.starts_with('\\') {
+        write!(buf, "{name}")
+    } else {
+        write!(buf, "\\{name}")
     }
 }
 
@@ -646,9 +693,10 @@ impl ToStub for PhpTypeAbi {
 /// are not duplicated. `ClassUnion(members)` follows the same rule, except
 /// members are class names so they cannot include `null` themselves: the
 /// dedup check collapses to "always append `|null` when nullable".
-/// `Intersection(_)` cannot be nullable in slice 03 (PHP needs DNF for
-/// `(Foo&Bar)|null`), so the flag is ignored and the rendering falls
-/// through to the plain `fmt_stub` output. DNF support arrives in slice 04.
+/// `Intersection(_)` cannot be nullable in PHP user code (the legal form
+/// `(Foo&Bar)|null` is the DNF), so the flag is ignored and the rendering
+/// falls through to the plain `fmt_stub` output. `Dnf(_)` is always a
+/// union: it appends `|null` (never `?` shorthand) when `nullable` is set.
 fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) -> FmtResult {
     match ty {
         PhpTypeAbi::Simple(dt) => {
@@ -664,7 +712,7 @@ fn render_type_with_nullable(ty: &PhpTypeAbi, nullable: bool, buf: &mut String) 
             }
             Ok(())
         }
-        PhpTypeAbi::ClassUnion(_) => {
+        PhpTypeAbi::ClassUnion(_) | PhpTypeAbi::Dnf(_) => {
             ty.fmt_stub(buf)?;
             if nullable {
                 write!(buf, "|null")?;
@@ -1714,5 +1762,163 @@ mod test {
             stub.contains("): \\Foo|\\Bar|null {"),
             "expected '): \\Foo|\\Bar|null' in: {stub}"
         );
+    }
+
+    fn dnf_a_and_b_or_c() -> super::PhpTypeAbi {
+        use super::{DnfTermAbi, PhpTypeAbi};
+        PhpTypeAbi::Dnf(
+            vec![
+                DnfTermAbi::Intersection(vec!["A".into(), "B".into()].into()),
+                DnfTermAbi::Single("C".into()),
+            ]
+            .into(),
+        )
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_dnf_renders_with_parens_and_pipes() {
+        let ty = dnf_a_and_b_or_c();
+        assert_eq!(ty.to_stub().unwrap(), "(\\A&\\B)|\\C");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_dnf_two_intersections() {
+        use super::{DnfTermAbi, PhpTypeAbi};
+        let ty = PhpTypeAbi::Dnf(
+            vec![
+                DnfTermAbi::Intersection(vec!["A".into(), "B".into()].into()),
+                DnfTermAbi::Intersection(vec!["C".into(), "D".into()].into()),
+            ]
+            .into(),
+        );
+        assert_eq!(ty.to_stub().unwrap(), "(\\A&\\B)|(\\C&\\D)");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn phptypeabi_dnf_preserves_existing_backslash() {
+        use super::{DnfTermAbi, PhpTypeAbi};
+        let ty = PhpTypeAbi::Dnf(
+            vec![
+                DnfTermAbi::Intersection(vec!["\\Ns\\A".into(), "B".into()].into()),
+                DnfTermAbi::Single("\\Other\\C".into()),
+            ]
+            .into(),
+        );
+        assert_eq!(ty.to_stub().unwrap(), "(\\Ns\\A&\\B)|\\Other\\C");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn render_type_with_nullable_appends_pipe_null_for_dnf() {
+        use super::render_type_with_nullable;
+        let ty = dnf_a_and_b_or_c();
+        let mut buf = String::new();
+        render_type_with_nullable(&ty, true, &mut buf).unwrap();
+        assert_eq!(buf, "(\\A&\\B)|\\C|null");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn render_type_with_nullable_dnf_does_not_emit_question_mark() {
+        use super::render_type_with_nullable;
+        let ty = dnf_a_and_b_or_c();
+        let mut buf = String::new();
+        render_type_with_nullable(&ty, true, &mut buf).unwrap();
+        assert!(
+            !buf.starts_with('?'),
+            "DNF must never use the `?` shorthand: {buf}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn function_with_dnf_param_renders_full_grammar() {
+        use super::Function;
+        use crate::describe::DocBlock;
+        use crate::describe::Parameter;
+        use crate::describe::abi::Option;
+        use crate::flags::DataType;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(super::Retval {
+                ty: super::PhpTypeAbi::Simple(DataType::Long),
+                nullable: false,
+            }),
+            params: vec![Parameter {
+                name: "x".into(),
+                ty: Option::Some(dnf_a_and_b_or_c()),
+                nullable: false,
+                variadic: false,
+                default: Option::None,
+            }]
+            .into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("function foo((\\A&\\B)|\\C $x): int {}"),
+            "expected DNF param rendering in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn function_with_dnf_retval_renders_full_grammar() {
+        use super::{Function, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: dnf_a_and_b_or_c(),
+                nullable: false,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("): (\\A&\\B)|\\C {"),
+            "expected DNF retval rendering in: {stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn nullable_dnf_retval_via_flag() {
+        use super::{Function, Retval};
+        use crate::describe::DocBlock;
+        use crate::describe::abi::Option;
+
+        let function = Function {
+            name: "foo".into(),
+            docs: DocBlock(vec![].into()),
+            ret: Option::Some(Retval {
+                ty: dnf_a_and_b_or_c(),
+                nullable: true,
+            }),
+            params: vec![].into(),
+        };
+
+        let stub = function.to_stub().unwrap();
+        assert!(
+            stub.contains("): (\\A&\\B)|\\C|null {"),
+            "expected nullable DNF retval rendering in: {stub}"
+        );
+    }
+
+    #[test]
+    fn phptype_to_phpdoc_dnf_matches_stub_form() {
+        use super::phptype_to_phpdoc;
+        let ty = dnf_a_and_b_or_c();
+        assert_eq!(phptype_to_phpdoc(&ty, false), "(\\A&\\B)|\\C");
+        assert_eq!(phptype_to_phpdoc(&ty, true), "(\\A&\\B)|\\C|null");
     }
 }

@@ -9,7 +9,7 @@ use crate::{
     constant::IntoConst,
     flags::{DataType, MethodFlags, PropertyFlags},
     prelude::ModuleBuilder,
-    types::PhpType,
+    types::{DnfTerm, PhpType},
 };
 use abi::{Option, RString, Str, Vec};
 
@@ -153,7 +153,7 @@ fn retval_to_describe(
         PhpType::Union(members) => {
             ret_allow_null || members.iter().any(|m| matches!(m, DataType::Null))
         }
-        PhpType::ClassUnion(_) | PhpType::Intersection(_) => ret_allow_null,
+        PhpType::ClassUnion(_) | PhpType::Intersection(_) | PhpType::Dnf(_) => ret_allow_null,
     };
     Option::Some(Retval {
         ty: r.into(),
@@ -184,6 +184,19 @@ impl From<FunctionBuilder<'_>> for Function {
     }
 }
 
+/// ABI-stable mirror of [`DnfTerm`].
+///
+/// Carries class-name strings as [`RString`] so the `cargo-php` CLI can
+/// read DNF terms across the FFI boundary.
+#[repr(C, u8)]
+#[derive(Debug, PartialEq)]
+pub enum DnfTermAbi {
+    /// A single class name (the `C` in `(A&B)|C`).
+    Single(RString),
+    /// An intersection group of class/interface names (the `A&B`).
+    Intersection(Vec<RString>),
+}
+
 /// ABI-stable representation of a PHP type expression.
 ///
 /// Mirrors [`crate::types::PhpType`] but uses the ABI-stable [`abi::Vec`]
@@ -205,8 +218,12 @@ pub enum PhpTypeAbi {
     /// A class intersection, e.g. `Foo&Bar`. Members are class-name strings
     /// in declaration order. Nullable intersections do not exist at this
     /// layer: PHP cannot spell `?Foo&Bar`, and the equivalent DNF
-    /// `(Foo&Bar)|null` is the future DNF representation's responsibility.
+    /// `(Foo&Bar)|null` lives in [`PhpTypeAbi::Dnf`].
     Intersection(Vec<RString>),
+    /// Disjunctive Normal Form, e.g. `(A&B)|C`. Terms appear in declaration
+    /// order. Nullability is carried separately on `Parameter` / `Retval`;
+    /// the rendered stub spells nullables as `(A&B)|C|null`.
+    Dnf(Vec<DnfTermAbi>),
 }
 
 impl From<PhpType> for PhpTypeAbi {
@@ -225,6 +242,22 @@ impl From<PhpType> for PhpTypeAbi {
                 class_names
                     .into_iter()
                     .map(RString::from)
+                    .collect::<StdVec<_>>()
+                    .into(),
+            ),
+            PhpType::Dnf(terms) => Self::Dnf(
+                terms
+                    .into_iter()
+                    .map(|t| match t {
+                        DnfTerm::Single(name) => DnfTermAbi::Single(name.into()),
+                        DnfTerm::Intersection(names) => DnfTermAbi::Intersection(
+                            names
+                                .into_iter()
+                                .map(RString::from)
+                                .collect::<StdVec<_>>()
+                                .into(),
+                        ),
+                    })
                     .collect::<StdVec<_>>()
                     .into(),
             ),
@@ -894,7 +927,10 @@ mod tests {
         let ty: PhpTypeAbi = PhpType::Simple(DataType::Long).into();
         match ty {
             PhpTypeAbi::Simple(dt) => assert_eq!(dt, DataType::Long),
-            PhpTypeAbi::Union(_) | PhpTypeAbi::ClassUnion(_) | PhpTypeAbi::Intersection(_) => {
+            PhpTypeAbi::Union(_)
+            | PhpTypeAbi::ClassUnion(_)
+            | PhpTypeAbi::Intersection(_)
+            | PhpTypeAbi::Dnf(_) => {
                 panic!("expected Simple")
             }
         }
@@ -909,7 +945,10 @@ mod tests {
                 &*members,
                 &[DataType::Long, DataType::String, DataType::Null]
             ),
-            PhpTypeAbi::Simple(_) | PhpTypeAbi::ClassUnion(_) | PhpTypeAbi::Intersection(_) => {
+            PhpTypeAbi::Simple(_)
+            | PhpTypeAbi::ClassUnion(_)
+            | PhpTypeAbi::Intersection(_)
+            | PhpTypeAbi::Dnf(_) => {
                 panic!("expected Union")
             }
         }
@@ -923,7 +962,10 @@ mod tests {
                 let names: StdVec<&str> = members.iter().map(AsRef::as_ref).collect();
                 assert_eq!(names, &["Foo", "Bar"]);
             }
-            PhpTypeAbi::Simple(_) | PhpTypeAbi::Union(_) | PhpTypeAbi::Intersection(_) => {
+            PhpTypeAbi::Simple(_)
+            | PhpTypeAbi::Union(_)
+            | PhpTypeAbi::Intersection(_)
+            | PhpTypeAbi::Dnf(_) => {
                 panic!("expected ClassUnion")
             }
         }
@@ -938,9 +980,58 @@ mod tests {
                 let names: StdVec<&str> = members.iter().map(AsRef::as_ref).collect();
                 assert_eq!(names, &["Countable", "Traversable"]);
             }
-            PhpTypeAbi::Simple(_) | PhpTypeAbi::Union(_) | PhpTypeAbi::ClassUnion(_) => {
+            PhpTypeAbi::Simple(_)
+            | PhpTypeAbi::Union(_)
+            | PhpTypeAbi::ClassUnion(_)
+            | PhpTypeAbi::Dnf(_) => {
                 panic!("expected Intersection")
             }
+        }
+    }
+
+    #[test]
+    fn php_type_dnf_preserves_terms_and_order() {
+        let ty: PhpTypeAbi = PhpType::Dnf(vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ])
+        .into();
+        match ty {
+            PhpTypeAbi::Dnf(terms) => {
+                assert_eq!(terms.len(), 2);
+                match &terms[0] {
+                    DnfTermAbi::Intersection(names) => {
+                        let s: StdVec<&str> = names.iter().map(AsRef::as_ref).collect();
+                        assert_eq!(s, &["A", "B"]);
+                    }
+                    DnfTermAbi::Single(_) => panic!("term 0 should be Intersection"),
+                }
+                match &terms[1] {
+                    DnfTermAbi::Single(name) => assert_eq!(name.as_ref(), "C"),
+                    DnfTermAbi::Intersection(_) => panic!("term 1 should be Single"),
+                }
+            }
+            PhpTypeAbi::Simple(_)
+            | PhpTypeAbi::Union(_)
+            | PhpTypeAbi::ClassUnion(_)
+            | PhpTypeAbi::Intersection(_) => panic!("expected Dnf"),
+        }
+    }
+
+    #[test]
+    fn retval_to_describe_dnf_passes_through_allow_null() {
+        let r = retval_to_describe(
+            Some(PhpType::Dnf(vec![
+                DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+                DnfTerm::Single("C".to_owned()),
+            ])),
+            true,
+        );
+        match r {
+            Option::Some(retval) => {
+                assert!(retval.nullable, "DNF retval honours ret_allow_null flag");
+            }
+            Option::None => panic!("DNF retval should be Some"),
         }
     }
 
