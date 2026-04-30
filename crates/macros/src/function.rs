@@ -112,7 +112,7 @@ const PHP_TYPES_ALLOWED: &[char] = &['|', '&', '(', ')', '?', ' ', ',', '\\', '_
 
 const PHP_TYPES_MAX_LEN: usize = 1024;
 
-/// Lightweight syntactic validation for the LitStr passed to
+/// Lightweight syntactic validation for the `LitStr` passed to
 /// `#[php(types = ...)]` / `#[php(returns = ...)]`. Catches obvious typos at
 /// macro expansion time with a span on the literal; the full
 /// `PhpType::from_str` parse runs at extension load (see issue 10 for the
