@@ -32,7 +32,7 @@ impl PhpUnionHolder {
         Self
     }
 
-    pub fn accept(&self, value: IntOrString) -> IntOrString {
+    pub fn accept(value: IntOrString) -> IntOrString {
         value
     }
 }

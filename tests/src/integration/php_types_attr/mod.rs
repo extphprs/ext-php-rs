@@ -16,12 +16,12 @@ impl PhpTypesAttrHolder {
         Self
     }
 
-    pub fn accept(&self, #[php(types = "int|string")] _value: &Zval) -> i64 {
+    pub fn accept(#[php(types = "int|string")] _value: &Zval) -> i64 {
         1
     }
 
     #[php(returns = "int|string|null")]
-    pub fn produce(&self) -> i64 {
+    pub fn produce() -> i64 {
         0
     }
 }

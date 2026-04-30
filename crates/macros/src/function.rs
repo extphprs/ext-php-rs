@@ -1621,8 +1621,7 @@ mod tests {
         let err = parser(input).unwrap_err();
         assert!(
             err.to_string().contains("unsupported character"),
-            "unexpected error: {}",
-            err
+            "unexpected error: {err}",
         );
     }
 

@@ -132,12 +132,11 @@ assert(
     'method: expected int|string return, got ' . implode('|', $members),
 );
 
-$holder = new PhpUnionHolder();
 assert(
-    $holder->accept(99) === 99,
+    PhpUnionHolder::accept(99) === 99,
     'method call: int must round-trip',
 );
 assert(
-    $holder->accept('hello') === 'hello',
+    PhpUnionHolder::accept('hello') === 'hello',
     'method call: string must round-trip',
 );
