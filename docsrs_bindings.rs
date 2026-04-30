@@ -2657,8 +2657,16 @@ pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING: _zend_expected_type =
 pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING_OR_NULL: _zend_expected_type = 33;
 pub const _zend_expected_type_Z_EXPECTED_LAST: _zend_expected_type = 34;
 pub type _zend_expected_type = ::std::os::raw::c_uint;
+pub use self::_zend_expected_type as zend_expected_type;
 unsafe extern "C" {
     pub fn zend_wrong_parameters_count_error(min_num_args: u32, max_num_args: u32);
+}
+unsafe extern "C" {
+    pub fn zend_wrong_parameter_type_error(
+        num: u32,
+        expected_type: zend_expected_type,
+        arg: *mut zval,
+    );
 }
 unsafe extern "C" {
     pub fn php_printf(format: *const ::std::os::raw::c_char, ...) -> usize;

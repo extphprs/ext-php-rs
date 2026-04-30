@@ -6,14 +6,7 @@ use crate::{
     convert::{FromZvalMut, IntoZvalDyn},
     describe::{Parameter, abi},
     error::{Error, Result},
-    ffi::{
-        _zend_expected_type, _zend_expected_type_Z_EXPECTED_ARRAY,
-        _zend_expected_type_Z_EXPECTED_BOOL, _zend_expected_type_Z_EXPECTED_DOUBLE,
-        _zend_expected_type_Z_EXPECTED_LONG, _zend_expected_type_Z_EXPECTED_OBJECT,
-        _zend_expected_type_Z_EXPECTED_RESOURCE, _zend_expected_type_Z_EXPECTED_STRING,
-        zend_internal_arg_info, zend_wrong_parameters_count_error,
-    },
-    flags::DataType,
+    ffi::{zend_internal_arg_info, zend_wrong_parameters_count_error},
     types::{PhpType, Zval},
     zend::ZendType,
 };
@@ -162,6 +155,42 @@ impl<'a> Arg<'a> {
         self.zval.as_ref().ok_or(Error::Callable)?.try_call(params)
     }
 
+    /// Returns the legacy `Z_EXPECTED_*` discriminant for this argument.
+    ///
+    /// This is a thin projection used by extensions that drive PHP's legacy
+    /// ZPP error path (`zend_wrong_parameter_type_error`) themselves. The
+    /// discriminant enum predates compound types: PHP itself uses
+    /// `zend_argument_type_error` with a custom format string for unions and
+    /// intersections (see `Zend/zend_API.c` and `ext/standard/array.c`).
+    ///
+    /// For compound declared types, format the type via [`Arg::ty`] and
+    /// throw a [`crate::exception::PhpException`] instead.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::NoExpectedTypeDiscriminant`] - the argument's declared
+    ///   type has no equivalent in PHP's `Z_EXPECTED_*` enum (compound
+    ///   types or scalar [`DataType`] variants without a slot, such as
+    ///   `Mixed`, `Void`, `Iterable`, `Callable`, `Null`).
+    pub fn expected_type(&self) -> Result<crate::zend::ExpectedType> {
+        let dt = match &self.r#type {
+            PhpType::Simple(dt) => *dt,
+            _ => return Err(Error::NoExpectedTypeDiscriminant),
+        };
+        crate::zend::ExpectedType::from_simple(dt, self.allow_null)
+            .ok_or(Error::NoExpectedTypeDiscriminant)
+    }
+
+    /// Returns the declared PHP type for this argument.
+    ///
+    /// Use [`std::fmt::Display`] on the result (e.g.
+    /// `format!("{}", arg.ty())`) to render the canonical PHP-syntax
+    /// string for the type, including unions, intersections, and DNF.
+    #[must_use]
+    pub fn ty(&self) -> &PhpType {
+        &self.r#type
+    }
+
     /// Returns the internal PHP argument info.
     pub(crate) fn as_arg_info(&self) -> Result<ArgInfo> {
         let zend_type = match &self.r#type {
@@ -210,33 +239,6 @@ impl<'a> Arg<'a> {
                 None => ptr::null(),
             },
         })
-    }
-}
-
-impl From<Arg<'_>> for _zend_expected_type {
-    fn from(arg: Arg) -> Self {
-        // The legacy ArgParser error path expects a single discriminant.
-        // Compound types (slice 1: only `Union`) fall back to the first
-        // member; this is best-effort and only affects error message text.
-        let dt = match &arg.r#type {
-            PhpType::Simple(dt) => *dt,
-            PhpType::Union(types) => types.first().copied().unwrap_or(DataType::Mixed),
-            PhpType::ClassUnion(_) | PhpType::Intersection(_) | PhpType::Dnf(_) => {
-                DataType::Object(None)
-            }
-        };
-        let type_id = match dt {
-            DataType::False | DataType::True => _zend_expected_type_Z_EXPECTED_BOOL,
-            DataType::Long => _zend_expected_type_Z_EXPECTED_LONG,
-            DataType::Double => _zend_expected_type_Z_EXPECTED_DOUBLE,
-            DataType::String => _zend_expected_type_Z_EXPECTED_STRING,
-            DataType::Array => _zend_expected_type_Z_EXPECTED_ARRAY,
-            DataType::Object(_) => _zend_expected_type_Z_EXPECTED_OBJECT,
-            DataType::Resource => _zend_expected_type_Z_EXPECTED_RESOURCE,
-            _ => unreachable!(),
-        };
-
-        if arg.allow_null { type_id + 1 } else { type_id }
     }
 }
 
@@ -353,6 +355,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     #[cfg(feature = "embed")]
     use crate::embed::Embed;
+    use crate::flags::DataType;
 
     use super::*;
 
@@ -528,88 +531,6 @@ mod tests {
     }
 
     #[test]
-    fn test_type_from_arg() {
-        let arg = Arg::new("test", DataType::Long);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 0);
-
-        let arg = Arg::new("test", DataType::Long).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 1);
-
-        let arg = Arg::new("test", DataType::False);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 2);
-
-        let arg = Arg::new("test", DataType::False).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 3);
-
-        let arg = Arg::new("test", DataType::True);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 2);
-
-        let arg = Arg::new("test", DataType::True).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 3);
-
-        let arg = Arg::new("test", DataType::String);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 4);
-
-        let arg = Arg::new("test", DataType::String).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 5);
-
-        let arg = Arg::new("test", DataType::Array);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 6);
-
-        let arg = Arg::new("test", DataType::Array).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 7);
-
-        let arg = Arg::new("test", DataType::Resource);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 14);
-
-        let arg = Arg::new("test", DataType::Resource).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 15);
-
-        let arg = Arg::new("test", DataType::Object(None));
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 18);
-
-        let arg = Arg::new("test", DataType::Object(None)).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 19);
-
-        let arg = Arg::new("test", DataType::Double);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 20);
-
-        let arg = Arg::new("test", DataType::Double).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 21);
-
-        let arg = Arg::new(
-            "test",
-            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
-        );
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 18, "class union maps to Z_EXPECTED_OBJECT");
-
-        let arg = Arg::new(
-            "test",
-            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
-        )
-        .allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 19, "nullable class union bumps the discriminant");
-    }
-
-    #[test]
     fn test_param_from_arg() {
         let arg = Arg::new("test", DataType::Long)
             .default("default")
@@ -778,32 +699,115 @@ mod tests {
         assert!(arg.as_arg_info().is_err());
     }
 
-    #[test]
-    #[cfg(php83)]
-    fn dnf_arg_to_zend_expected_type_maps_to_object_const() {
-        use crate::types::DnfTerm;
+    // TODO: test parse
 
+    #[test]
+    fn expected_type_for_simple_long() {
+        let arg = Arg::new("v", DataType::Long);
+        let got = arg.expected_type().expect("simple long should map");
+        assert_eq!(got, crate::zend::ExpectedType::Long);
+    }
+
+    #[test]
+    fn expected_type_for_nullable_simple_long() {
+        let arg = Arg::new("v", DataType::Long).allow_null();
+        let got = arg.expected_type().expect("nullable long should map");
+        assert_eq!(got, crate::zend::ExpectedType::LongOrNull);
+    }
+
+    #[test]
+    fn expected_type_for_simple_object() {
+        let arg = Arg::new("v", DataType::Object(Some("Foo")));
+        let got = arg.expected_type().expect("simple object should map");
+        assert_eq!(got, crate::zend::ExpectedType::Object);
+    }
+
+    #[test]
+    fn expected_type_for_nullable_object() {
+        let arg = Arg::new("v", DataType::Object(None)).allow_null();
+        let got = arg.expected_type().expect("nullable object should map");
+        assert_eq!(got, crate::zend::ExpectedType::ObjectOrNull);
+    }
+
+    #[test]
+    fn expected_type_for_unmappable_simple_returns_no_discriminant() {
+        let arg = Arg::new("v", DataType::Mixed);
+        assert!(matches!(
+            arg.expected_type(),
+            Err(Error::NoExpectedTypeDiscriminant)
+        ));
+    }
+
+    #[test]
+    fn expected_type_for_primitive_union_returns_no_discriminant() {
+        let arg = Arg::new("v", PhpType::Union(vec![DataType::Long, DataType::String]));
+        assert!(matches!(
+            arg.expected_type(),
+            Err(Error::NoExpectedTypeDiscriminant)
+        ));
+    }
+
+    #[test]
+    fn expected_type_for_class_union_returns_no_discriminant() {
         let arg = Arg::new(
-            "value",
+            "v",
+            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        );
+        assert!(matches!(
+            arg.expected_type(),
+            Err(Error::NoExpectedTypeDiscriminant)
+        ));
+    }
+
+    #[test]
+    fn expected_type_for_intersection_returns_no_discriminant() {
+        let arg = Arg::new(
+            "v",
+            PhpType::Intersection(vec!["Countable".to_owned(), "Traversable".to_owned()]),
+        );
+        assert!(matches!(
+            arg.expected_type(),
+            Err(Error::NoExpectedTypeDiscriminant)
+        ));
+    }
+
+    #[test]
+    fn ty_returns_simple_php_type() {
+        let arg = Arg::new("v", DataType::Long);
+        assert_eq!(arg.ty(), &PhpType::Simple(DataType::Long));
+    }
+
+    #[test]
+    fn ty_returns_union_php_type() {
+        let arg = Arg::new("v", PhpType::Union(vec![DataType::Long, DataType::String]));
+        assert_eq!(
+            arg.ty(),
+            &PhpType::Union(vec![DataType::Long, DataType::String])
+        );
+    }
+
+    #[test]
+    fn ty_renders_as_php_syntax_string() {
+        let arg = Arg::new(
+            "v",
+            PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+        );
+        assert_eq!(format!("{}", arg.ty()), "\\Foo|\\Bar");
+    }
+
+    #[test]
+    fn expected_type_for_dnf_returns_no_discriminant() {
+        use crate::types::DnfTerm;
+        let arg = Arg::new(
+            "v",
             PhpType::Dnf(vec![
                 DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
                 DnfTerm::Single("C".to_owned()),
             ]),
         );
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 18, "DNF maps to Z_EXPECTED_OBJECT");
-
-        let arg = Arg::new(
-            "value",
-            PhpType::Dnf(vec![
-                DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
-                DnfTerm::Single("C".to_owned()),
-            ]),
-        )
-        .allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 19, "nullable DNF bumps the discriminant");
+        assert!(matches!(
+            arg.expected_type(),
+            Err(Error::NoExpectedTypeDiscriminant)
+        ));
     }
-
-    // TODO: test parse
 }
