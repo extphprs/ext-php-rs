@@ -11,6 +11,10 @@ namespace {
 
     const HELLO_WORLD = 100;
 
+    class OtherTestClass {
+        public function __construct() {}
+    }
+
     class TestClass {
         const NEW_CONSTANT_NAME = 5;
 
@@ -59,6 +63,30 @@ namespace {
     }
 
     /**
+     * Companion to `flexible_id` showing that the same compile-time parsing
+     * works for class-side type strings. The literal `\TestClass|\OtherTestClass`
+     * is parsed at macro-expansion time and resolves the class names against
+     * PHP's global namespace at extension load. Use a leading `\` for the
+     * fully qualified name; bare `TestClass` works too because the engine
+     * places `#[php_class]`-defined structs in the global namespace.
+     *
+     * @param \TestClass|\OtherTestClass $_value
+     * @return void
+     */
+    function accept_class_value(\TestClass|\OtherTestClass $_value): void {}
+
+    /**
+     * Demonstrates compound PHP type hints. The argument accepts `int|string`
+     * and the return type registers as `int|string|null`. Both strings are
+     * parsed at macro-expansion time, so a typo such as `?Foo&Bar` would
+     * fail at `cargo build` rather than at extension load.
+     *
+     * @param int|string $_value
+     * @return int|string|null
+     */
+    function flexible_id(int|string $_value): int|string|null {}
+
+    /**
      * @param object $z
      * @return int
      */
@@ -73,4 +101,23 @@ namespace {
      * @return \TestClass
      */
     function new_class(): \TestClass {}
+
+    /**
+     * @param bool $use_float
+     * @return int|float
+     */
+    function pick_number(bool $use_float): int|float {}
+
+    /**
+     * Demonstrates `#[php(returns = "...")]` widening the inferred return
+     * metadata. The Rust signature returns a concrete `TestClass`, so the
+     * macro would otherwise register the return type as just `\TestClass`.
+     * The override widens it to `\TestClass|\OtherTestClass`, which is
+     * useful when a function returns one specific subtype today but the
+     * PHP-side contract should leave room for a wider set of legal
+     * values. Reflection on this function reports the wider union.
+     *
+     * @return \TestClass|\OtherTestClass
+     */
+    function produce_test_class_or_other(): \TestClass|\OtherTestClass {}
 }
