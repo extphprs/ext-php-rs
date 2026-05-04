@@ -65,6 +65,27 @@ impl Zval {
         zval
     }
 
+    /// Creates an `IS_UNDEF` zval (uninitialised marker).
+    ///
+    /// `IS_UNDEF` is what `zend_declare_typed_property` expects for a typed
+    /// property without an explicit default; the engine flags the slot as
+    /// `IS_PROP_UNINIT` so reads before the first assignment trigger the
+    /// standard "must not be accessed before initialization" error. Distinct
+    /// from [`Zval::new`], which produces `IS_NULL` and would be a type
+    /// violation on a non-nullable typed property.
+    #[must_use]
+    pub const fn undef() -> Self {
+        Self {
+            value: zend_value {
+                ptr: ptr::null_mut(),
+            },
+            #[allow(clippy::used_underscore_items)]
+            u1: _zval_struct__bindgen_ty_1 { type_info: 0 },
+            #[allow(clippy::used_underscore_items)]
+            u2: _zval_struct__bindgen_ty_2 { next: 0 },
+        }
+    }
+
     /// Creates a zval containing an empty array.
     #[must_use]
     pub fn new_array() -> Zval {

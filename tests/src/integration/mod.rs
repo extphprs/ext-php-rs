@@ -30,6 +30,7 @@ pub mod php_union;
 pub mod reference;
 pub mod separated;
 pub mod string;
+pub mod typed_property;
 pub mod types;
 pub mod union;
 pub mod variadic_args;

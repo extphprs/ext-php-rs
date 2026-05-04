@@ -8,12 +8,13 @@ use crate::{
     error::{Error, Result},
     exception::PhpException,
     ffi::{
-        zend_declare_class_constant, zend_declare_property, zend_do_implement_interface,
-        zend_register_internal_class_ex, zend_register_internal_interface,
+        zend_declare_class_constant, zend_declare_property, zend_declare_typed_property,
+        zend_do_implement_interface, zend_register_internal_class_ex,
+        zend_register_internal_interface,
     },
     flags::{ClassFlags, MethodFlags, PropertyFlags},
     types::{PhpType, ZendClassObject, ZendObject, ZendStr, Zval},
-    zend::{ClassEntry, ExecuteData, FunctionEntry},
+    zend::{ClassEntry, ExecuteData, FunctionEntry, ZendType},
     zend_fastcall,
 };
 
@@ -410,19 +411,7 @@ impl ClassBuilder {
         }
 
         for prop in self.properties {
-            let mut default_zval = match prop.default {
-                Some(f) => f()?,
-                None => Zval::new(),
-            };
-            unsafe {
-                zend_declare_property(
-                    class,
-                    CString::new(prop.name.as_str())?.as_ptr(),
-                    prop.name.len() as _,
-                    &raw mut default_zval,
-                    prop.flags.bits().try_into()?,
-                );
-            }
+            register_property(class, prop)?;
         }
 
         for (name, value, _, _) in self.constants {
@@ -449,6 +438,70 @@ impl ClassBuilder {
 
         Ok(())
     }
+}
+
+/// Registers a single property on the given class entry, dispatching to the
+/// typed (`zend_declare_typed_property`) or untyped (`zend_declare_property`)
+/// path based on whether [`ClassProperty::ty`] is set.
+///
+/// For the typed path: when [`ClassProperty::default`] is absent the slot is
+/// initialised with [`Zval::undef`] (`IS_UNDEF`) so the engine flags the
+/// property as `IS_PROP_UNINIT` — same shape php-src `gen_stub.php` emits for
+/// typed properties without an explicit default. The `zend_type` is built via
+/// [`ZendType::empty_for_property`] which uses engine-managed allocations
+/// (refcounted persistent strings, no `_ZEND_TYPE_ARENA_BIT`) so the engine
+/// reclaims them at internal-class destroy without coordination from the
+/// arg_info-side `cleanup_module_allocations` hook.
+fn register_property(class: &mut ClassEntry, prop: ClassProperty) -> Result<()> {
+    let access_type: i32 = prop.flags.bits().try_into()?;
+
+    if let Some(ty) = prop.ty.as_ref() {
+        let mut default_zval = match prop.default {
+            Some(f) => f()?,
+            None => Zval::undef(),
+        };
+
+        let zend_type =
+            ZendType::empty_for_property(ty, prop.nullable).ok_or(Error::InvalidCString)?;
+
+        let name_zs = ZendStr::new(prop.name.as_str(), true).into_raw();
+
+        unsafe {
+            zend_declare_typed_property(
+                class,
+                name_zs,
+                &raw mut default_zval,
+                access_type,
+                ptr::null_mut(),
+                zend_type,
+            );
+            // Match php-src `gen_stub.php` (every supported version): for
+            // persistent internal classes, `zend_declare_typed_property`
+            // copies + interns the name via
+            // `zend_new_interned_string(zend_string_copy(name))` and stores
+            // the copy in `property_info->name`. The caller-allocated
+            // refcounted string is unused after the call; release it here so
+            // each MINIT allocation pairs with a release rather than leaking
+            // one `zend_string` per typed property per re-init cycle.
+            crate::ffi::ext_php_rs_zend_string_release(name_zs);
+        }
+    } else {
+        let mut default_zval = match prop.default {
+            Some(f) => f()?,
+            None => Zval::new(),
+        };
+        unsafe {
+            zend_declare_property(
+                class,
+                CString::new(prop.name.as_str())?.as_ptr(),
+                prop.name.len() as _,
+                &raw mut default_zval,
+                access_type,
+            );
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use std::{ffi::c_void, ptr};
 
-#[cfg(php83)]
+#[cfg(php82)]
 use crate::types::DnfTerm;
 use crate::{
     ffi::{
@@ -270,7 +270,7 @@ impl ZendType {
             return None;
         }
 
-        let list_ptr = build_class_list(class_names)?;
+        let list_ptr = build_class_list(class_names, true)?;
 
         let type_mask = Self::arg_info_flags(pass_by_ref, is_variadic)
             | crate::ffi::_ZEND_TYPE_LIST_BIT
@@ -409,7 +409,7 @@ impl ZendType {
                     }
                 }
                 DnfTerm::Intersection(names) => {
-                    let inner_list = build_class_list(names)?;
+                    let inner_list = build_class_list(names, true)?;
                     zend_type {
                         ptr: inner_list.cast::<c_void>(),
                         type_mask: crate::ffi::_ZEND_TYPE_LIST_BIT
@@ -479,6 +479,293 @@ impl ZendType {
             ptr: ptr::null_mut(),
             type_mask,
         })
+    }
+
+    /// Builds a Zend type suitable for `zend_declare_typed_property`.
+    ///
+    /// Property registration is structurally distinct from `arg_info` on every
+    /// supported PHP version: `zend_declare_typed_property` stores the
+    /// `zend_type` verbatim, with no `zend_register_functions`-style literal
+    /// name preprocessing. Class names must therefore reach the engine as
+    /// `zend_string*` (not `const char*` literals), and class unions must be
+    /// pre-built `zend_type_list`s instead of pipe-joined literals.
+    /// php-src's own `gen_stub.php` emits this shape on every supported
+    /// version (`build/gen_stub.php` 8.1 line 1450, 8.2 line 2194, master
+    /// line 2419).
+    ///
+    /// Lifecycle: every allocation here is engine-managed. Strings are
+    /// refcounted persistent (no `IS_STR_INTERNED`); `zend_type_list`s carry
+    /// no `_ZEND_TYPE_ARENA_BIT`. At internal-class destroy (MSHUTDOWN), the
+    /// engine's `zend_type_release` (`Zend/zend_opcode.c:112-124`) walks the
+    /// shape and `pefree`s the list + `zend_string_release`s each entry.
+    /// Mirrors the per-MINIT allocation rhythm: every cycle re-builds the
+    /// shape against a fresh class entry, every MSHUTDOWN releases it. No
+    /// accumulating leak in embed tests; no `cleanup_module_allocations`
+    /// involvement (that hook is `arg_info`-only).
+    ///
+    /// # Version constraints
+    ///
+    /// - `Simple` (primitive or class), `Union`, `ClassUnion`: every
+    ///   supported version. Properties accept these on 8.0+; the engine
+    ///   surface for typed properties exists since the language feature
+    ///   landed.
+    /// - `Intersection`: PHP 8.1+ (language minimum). Returns [`None`] on
+    ///   earlier versions.
+    /// - `Dnf`: PHP 8.2+ (DNF RFC). Returns [`None`] on earlier versions.
+    ///
+    /// Differs from the `arg_info` `cfg(php83)` gate on intersection / DNF:
+    /// `zend_declare_typed_property` accepts pre-built `zend_type_list`s on
+    /// every version that supports the language feature, whereas
+    /// `zend_register_functions` did not until 8.3.
+    ///
+    /// # Returns
+    ///
+    /// [`None`] when:
+    ///
+    /// - any class name is empty or contains an interior NUL byte,
+    /// - allocation fails,
+    /// - the variant is `Intersection` on PHP < 8.1 or `Dnf` on PHP < 8.2,
+    /// - the variant is empty (e.g. `ClassUnion(vec![])`),
+    /// - the variant is structurally degenerate per its constructor's rules
+    ///   (e.g. single-term DNF — see [`Self::empty_from_dnf`] for the
+    ///   canonical-spelling rationale, mirrored here for property symmetry).
+    ///
+    /// # Parameters
+    ///
+    /// * `ty` - The PHP type to build for.
+    /// * `allow_null` - Whether the property accepts `null`. Combined with
+    ///   the type's nullability rules.
+    #[must_use]
+    pub fn empty_for_property(ty: &crate::types::PhpType, allow_null: bool) -> Option<Self> {
+        use crate::types::PhpType;
+
+        match ty {
+            PhpType::Simple(DataType::Object(Some(class))) => {
+                Self::empty_from_class_for_property(class, allow_null)
+            }
+            PhpType::Simple(dt) => Some(Self {
+                ptr: ptr::null_mut(),
+                type_mask: Self::type_init_code(*dt, false, false, allow_null),
+            }),
+            PhpType::Union(members) => {
+                let mut type_mask = if allow_null {
+                    _ZEND_TYPE_NULLABLE_BIT
+                } else {
+                    0
+                };
+                for dt in members {
+                    type_mask |= primitive_may_be(*dt);
+                }
+                Some(Self {
+                    ptr: ptr::null_mut(),
+                    type_mask,
+                })
+            }
+            PhpType::ClassUnion(class_names) => {
+                Self::empty_from_class_union_for_property(class_names, allow_null)
+            }
+            PhpType::Intersection(class_names) => {
+                Self::empty_from_class_intersection_for_property(class_names, allow_null)
+            }
+            PhpType::Dnf(terms) => Self::empty_from_dnf_for_property(terms, allow_null),
+        }
+    }
+
+    /// Property-side single class builder. Emits a `zend_string*`-bearing
+    /// `zend_type` (mask = `_ZEND_TYPE_NAME_BIT [| _ZEND_TYPE_NULLABLE_BIT]`)
+    /// instead of the literal-name shape used by [`Self::empty_from_class_type`]
+    /// for `arg_info`, because `zend_declare_typed_property` does no
+    /// literal-name preprocessing on any version.
+    ///
+    /// The string is allocated via
+    /// [`crate::ffi::ext_php_rs_zend_string_init`] with `persistent = true`,
+    /// so the engine takes ownership and refcount-releases it at
+    /// internal-class destroy.
+    ///
+    /// Returns [`None`] on empty / interior-NUL class name or allocation
+    /// failure.
+    fn empty_from_class_for_property(class_name: &str, allow_null: bool) -> Option<Self> {
+        if class_name.is_empty() || class_name.as_bytes().contains(&0u8) {
+            return None;
+        }
+
+        let str_ptr = unsafe {
+            crate::ffi::ext_php_rs_zend_string_init(
+                class_name.as_ptr().cast::<i8>(),
+                class_name.len(),
+                true,
+            )
+        };
+        if str_ptr.is_null() {
+            return None;
+        }
+
+        let mut type_mask = crate::ffi::_ZEND_TYPE_NAME_BIT;
+        if allow_null {
+            type_mask |= _ZEND_TYPE_NULLABLE_BIT;
+        }
+
+        Some(Self {
+            ptr: str_ptr.cast::<c_void>(),
+            type_mask,
+        })
+    }
+
+    /// Property-side class union builder. Allocates a real `zend_type_list`
+    /// with one `_ZEND_TYPE_NAME_BIT` + `zend_string*` entry per member, then
+    /// wraps it with `_ZEND_TYPE_LIST_BIT | _ZEND_TYPE_UNION_BIT [|
+    /// _ZEND_TYPE_NULLABLE_BIT]`. No arena bit — the engine `pefree`s the
+    /// list at internal-class destroy.
+    ///
+    /// Mirrors `gen_stub.php`'s property emission for `Foo|Bar`:
+    /// `ZEND_TYPE_INIT_UNION(<list>, MAY_BE_NULL?)`.
+    fn empty_from_class_union_for_property(
+        class_names: &[String],
+        allow_null: bool,
+    ) -> Option<Self> {
+        if class_names.is_empty() {
+            return None;
+        }
+
+        let list_ptr = build_class_list(class_names, false)?;
+
+        let mut type_mask = crate::ffi::_ZEND_TYPE_LIST_BIT | crate::ffi::_ZEND_TYPE_UNION_BIT;
+        if allow_null {
+            type_mask |= _ZEND_TYPE_NULLABLE_BIT;
+        }
+
+        Some(Self {
+            ptr: list_ptr.cast::<c_void>(),
+            type_mask,
+        })
+    }
+
+    /// Property-side class intersection builder (PHP 8.1+).
+    ///
+    /// Same shape as the `arg_info` intersection but without the `_ZEND_TYPE_ARENA_BIT`
+    /// (engine reclaims the list) and with non-interned strings (engine refcount-releases).
+    /// `allow_null` is rejected; nullable intersections must be expressed as
+    /// `(A&B)|null` via [`PhpType::Dnf`](crate::types::PhpType::Dnf).
+    #[cfg(php81)]
+    fn empty_from_class_intersection_for_property(
+        class_names: &[String],
+        allow_null: bool,
+    ) -> Option<Self> {
+        if class_names.is_empty() || allow_null {
+            return None;
+        }
+
+        let list_ptr = build_class_list(class_names, false)?;
+
+        let type_mask = crate::ffi::_ZEND_TYPE_LIST_BIT | crate::ffi::_ZEND_TYPE_INTERSECTION_BIT;
+
+        Some(Self {
+            ptr: list_ptr.cast::<c_void>(),
+            type_mask,
+        })
+    }
+
+    /// Property-side intersection on pre-8.1 returns `None`.
+    #[cfg(not(php81))]
+    fn empty_from_class_intersection_for_property(
+        _class_names: &[String],
+        _allow_null: bool,
+    ) -> Option<Self> {
+        None
+    }
+
+    /// Property-side DNF builder (PHP 8.2+).
+    ///
+    /// Same nested-list shape as the `arg_info` DNF but without `_ZEND_TYPE_ARENA_BIT`
+    /// at every level (8.2's `zend_type_release` is recursive enough to free
+    /// the inner intersection lists), and with non-interned strings.
+    #[cfg(php82)]
+    fn empty_from_dnf_for_property(terms: &[DnfTerm], allow_null: bool) -> Option<Self> {
+        if terms.len() < 2 {
+            return None;
+        }
+
+        for term in terms {
+            if !dnf_term_is_valid(term) {
+                return None;
+            }
+        }
+
+        let num_terms = u32::try_from(terms.len()).ok()?;
+
+        let outer_size = std::mem::size_of::<crate::ffi::zend_type_list>()
+            + (terms.len().saturating_sub(1)) * std::mem::size_of::<zend_type>();
+
+        // SAFETY: pemalloc(_, 1). No arena bit on the outer mask below, so
+        // Zend's `zend_type_release` will `pefree` this list at internal-class
+        // destroy.
+        let outer_list = unsafe { crate::ffi::ext_php_rs_pemalloc_persistent(outer_size) }
+            .cast::<crate::ffi::zend_type_list>();
+
+        if outer_list.is_null() {
+            return None;
+        }
+
+        // SAFETY: `outer_list` points to a freshly-allocated `zend_type_list`
+        // with capacity for `num_terms` entries.
+        unsafe {
+            (*outer_list).num_types = num_terms;
+        }
+
+        for (i, term) in terms.iter().enumerate() {
+            let entry = match term {
+                DnfTerm::Single(name) => {
+                    let s = unsafe {
+                        crate::ffi::ext_php_rs_zend_string_init(
+                            name.as_ptr().cast::<i8>(),
+                            name.len(),
+                            true,
+                        )
+                    };
+                    if s.is_null() {
+                        return None;
+                    }
+                    zend_type {
+                        ptr: s.cast::<c_void>(),
+                        type_mask: crate::ffi::_ZEND_TYPE_NAME_BIT,
+                    }
+                }
+                DnfTerm::Intersection(names) => {
+                    let inner_list = build_class_list(names, false)?;
+                    zend_type {
+                        ptr: inner_list.cast::<c_void>(),
+                        type_mask: crate::ffi::_ZEND_TYPE_LIST_BIT
+                            | crate::ffi::_ZEND_TYPE_INTERSECTION_BIT,
+                    }
+                }
+            };
+
+            // SAFETY: `types` is a flexible array; index `i` is within the
+            // freshly-allocated capacity (`num_terms` entries).
+            unsafe {
+                let slot = (*outer_list).types.as_mut_ptr().add(i);
+                *slot = entry;
+            }
+        }
+
+        let mut type_mask = crate::ffi::_ZEND_TYPE_LIST_BIT | crate::ffi::_ZEND_TYPE_UNION_BIT;
+        if allow_null {
+            type_mask |= _ZEND_TYPE_NULLABLE_BIT;
+        }
+
+        Some(Self {
+            ptr: outer_list.cast::<c_void>(),
+            type_mask,
+        })
+    }
+
+    /// Property-side DNF on pre-8.2 returns `None`.
+    #[cfg(not(php82))]
+    fn empty_from_dnf_for_property(
+        _terms: &[crate::types::DnfTerm],
+        _allow_null: bool,
+    ) -> Option<Self> {
+        None
     }
 
     /// Calculates the internal flags of the type.
@@ -561,30 +848,51 @@ fn primitive_may_be(dt: DataType) -> u32 {
 
 /// Allocates and populates a `zend_type_list` for a sequence of class names.
 ///
-/// Shared between [`ZendType::empty_from_class_intersection`] and
-/// [`ZendType::empty_from_dnf`] (both PHP 8.3+) — DNF nests one of these
-/// lists per intersection group. The caller owns the bit flags on the outer
+/// Used by both the `arg_info` path
+/// ([`ZendType::empty_from_class_intersection`] / [`ZendType::empty_from_dnf`],
+/// PHP 8.3+) and the property path ([`ZendType::empty_from_class_union_for_property`]
+/// and friends, PHP 8.1+ depending on variant). DNF nests one of these lists
+/// per intersection group. The caller owns the bit flags on the outer
 /// `zend_type` that points at this list; this helper only handles the list
 /// itself and its entries.
 ///
+/// `interned` selects the lifetime model:
+///
+/// - `true` (`arg_info`): each `zend_string` is allocated via
+///   [`crate::ffi::ext_php_rs_zend_string_init_persistent_interned`], which
+///   sets `IS_STR_INTERNED` so `zend_string_release` becomes a no-op. The
+///   caller MUST set `_ZEND_TYPE_ARENA_BIT` on the parent mask so Zend's
+///   `zend_type_release` (`Zend/zend_opcode.c:112-124`) skips the `pefree` of
+///   the list. Net effect: the list and strings live for the process
+///   lifetime — needed because `#[php_module]` caches function entries
+///   across embed-test re-init cycles, and the engine would otherwise free
+///   the list-owned strings out from under our cached `arg_info`.
+/// - `false` (property): each `zend_string` is allocated via
+///   [`crate::ffi::ext_php_rs_zend_string_init`] with `persistent = true`,
+///   producing a refcounted persistent string. The caller MUST NOT set
+///   `_ZEND_TYPE_ARENA_BIT`; Zend's `zend_type_release` then `pefree`s the
+///   list and `zend_string_release`s each entry at internal-class destroy
+///   (MSHUTDOWN). Property registration runs through `ClassBuilder::register`
+///   per MINIT against a fresh class entry, so the engine-managed cleanup
+///   matches the per-cycle allocation lifetime — no accumulating leak in
+///   embed tests, no double-free, mirrors what php-src `gen_stub.php` emits
+///   for typed property declarations on every supported version.
+///
+/// The engine processes our pre-built list directly: in
+/// `zend_register_functions` 8.3+ via `ZEND_TYPE_HAS_LITERAL_NAME` (`arg_info`),
+/// and in `zend_declare_typed_property` on every supported version
+/// (property). PHP 8.1/8.2's `zend_register_functions` rejected pre-built
+/// lists for `arg_info` — that's why the `cfg(php83)` gate stays on the
+/// `arg_info` callers — but `zend_declare_typed_property` accepts them on 8.1+.
+///
 /// Returns [`None`] when `class_names` is empty, any name has interior NUL
 /// bytes or is empty, or allocation fails. Each entry is tagged
-/// `_ZEND_TYPE_NAME_BIT` with a persistent-interned `zend_string*`
-/// (allocated via
-/// [`crate::ffi::ext_php_rs_zend_string_init_persistent_interned`], which
-/// sets `IS_STR_INTERNED` so `zend_string_release` becomes a no-op).
-///
-/// The engine processes our pre-built list directly in
-/// `zend_register_functions` — `Zend/zend_API.c` 8.3+ uses
-/// `ZEND_TYPE_HAS_LITERAL_NAME` to decide whether to re-parse a literal
-/// name, leaving `_ZEND_TYPE_LIST_BIT`-bearing types alone. PHP 8.1/8.2
-/// instead used `ZEND_TYPE_IS_COMPLEX` and asserted `HAS_NAME`, so this
-/// pre-built shape would crash at registration time on those versions.
-/// The caller is responsible for setting `_ZEND_TYPE_ARENA_BIT` on the
-/// parent mask so Zend's recursive `zend_type_release` skips the `pefree`
-/// of the list itself.
-#[cfg(php83)]
-fn build_class_list(class_names: &[String]) -> Option<*mut crate::ffi::zend_type_list> {
+/// `_ZEND_TYPE_NAME_BIT` regardless of `interned`; only the underlying
+/// `zend_string` allocator differs.
+fn build_class_list(
+    class_names: &[String],
+    interned: bool,
+) -> Option<*mut crate::ffi::zend_type_list> {
     if class_names.is_empty() {
         return None;
     }
@@ -604,9 +912,10 @@ fn build_class_list(class_names: &[String]) -> Option<*mut crate::ffi::zend_type
     let list_size = std::mem::size_of::<crate::ffi::zend_type_list>()
         + (class_names.len().saturating_sub(1)) * std::mem::size_of::<zend_type>();
 
-    // SAFETY: Allocates with `pemalloc(_, 1)`. The caller sets the arena
-    // bit on the parent mask so Zend's `zend_type_release` skips the
-    // `pefree` of this list.
+    // SAFETY: Allocates with `pemalloc(_, 1)`. With `interned = true`, the
+    // caller sets the arena bit on the parent mask so Zend's
+    // `zend_type_release` skips the `pefree` of this list. With
+    // `interned = false`, Zend `pefree`s this allocation at class destroy.
     let list_ptr = unsafe { crate::ffi::ext_php_rs_pemalloc_persistent(list_size) }
         .cast::<crate::ffi::zend_type_list>();
 
@@ -622,10 +931,18 @@ fn build_class_list(class_names: &[String]) -> Option<*mut crate::ffi::zend_type
 
     for (i, name) in class_names.iter().enumerate() {
         let str_ptr = unsafe {
-            crate::ffi::ext_php_rs_zend_string_init_persistent_interned(
-                name.as_ptr().cast::<i8>(),
-                name.len(),
-            )
+            if interned {
+                crate::ffi::ext_php_rs_zend_string_init_persistent_interned(
+                    name.as_ptr().cast::<i8>(),
+                    name.len(),
+                )
+            } else {
+                crate::ffi::ext_php_rs_zend_string_init(
+                    name.as_ptr().cast::<i8>(),
+                    name.len(),
+                    true,
+                )
+            }
         };
         if str_ptr.is_null() {
             // No teardown needed: Zend will reclaim the partially-built
@@ -653,7 +970,7 @@ fn build_class_list(class_names: &[String]) -> Option<*mut crate::ffi::zend_type
 /// `Single` carries a non-empty NUL-free name; `Intersection` carries 2 or
 /// more such names. One-element intersection groups are rejected to keep a
 /// single canonical Rust spelling per legal PHP type.
-#[cfg(php83)]
+#[cfg(php82)]
 fn dnf_term_is_valid(term: &DnfTerm) -> bool {
     match term {
         DnfTerm::Single(name) => !name.is_empty() && !name.as_bytes().contains(&0u8),
@@ -908,5 +1225,216 @@ mod dnf_tests {
             DnfTerm::Single(String::new()),
         ];
         assert!(ZendType::empty_from_dnf(&terms, false, false, false).is_none());
+    }
+}
+
+#[cfg(test)]
+mod property_tests {
+    use super::*;
+    use crate::ffi::{_ZEND_TYPE_LIST_BIT, _ZEND_TYPE_NULLABLE_BIT, IS_LONG, IS_STRING};
+    use crate::types::PhpType;
+
+    #[cfg(feature = "embed")]
+    use crate::ffi::{
+        _ZEND_TYPE_ARENA_BIT, _ZEND_TYPE_NAME_BIT, _ZEND_TYPE_UNION_BIT, zend_type_list,
+    };
+
+    fn may_be_long() -> u32 {
+        1u32 << IS_LONG
+    }
+
+    fn may_be_string() -> u32 {
+        1u32 << IS_STRING
+    }
+
+    #[test]
+    fn empty_for_property_simple_primitive_emits_type_mask_only() {
+        let ty = ZendType::empty_for_property(&PhpType::Simple(DataType::Long), false)
+            .expect("simple primitive should build");
+
+        assert!(ty.ptr.is_null(), "primitive must not carry a pointer");
+        assert_ne!(ty.type_mask & may_be_long(), 0);
+        assert_eq!(
+            ty.type_mask & _ZEND_TYPE_LIST_BIT,
+            0,
+            "primitive must not set the list bit",
+        );
+        assert_eq!(ty.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+    }
+
+    #[test]
+    fn empty_for_property_nullable_primitive_sets_nullable_bit() {
+        let ty = ZendType::empty_for_property(&PhpType::Simple(DataType::Long), true)
+            .expect("nullable primitive should build");
+
+        assert_ne!(ty.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+        assert_ne!(ty.type_mask & may_be_long(), 0);
+    }
+
+    #[test]
+    fn empty_for_property_primitive_union_ors_may_be_bits() {
+        let ty = ZendType::empty_for_property(
+            &PhpType::Union(vec![DataType::Long, DataType::String]),
+            false,
+        )
+        .expect("primitive union should build");
+
+        assert!(ty.ptr.is_null(), "primitive union must not carry a pointer");
+        assert_ne!(ty.type_mask & may_be_long(), 0);
+        assert_ne!(ty.type_mask & may_be_string(), 0);
+        assert_eq!(ty.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+    }
+
+    #[test]
+    #[cfg(feature = "embed")]
+    fn empty_for_property_class_emits_name_bit_with_zend_string() {
+        crate::embed::Embed::run(|| {
+            let ty = ZendType::empty_for_property(
+                &PhpType::Simple(DataType::Object(Some("Foo"))),
+                false,
+            )
+            .expect("class should build");
+
+            assert_ne!(
+                ty.type_mask & _ZEND_TYPE_NAME_BIT,
+                0,
+                "single class property must carry _ZEND_TYPE_NAME_BIT",
+            );
+            assert_eq!(
+                ty.type_mask & _ZEND_TYPE_LIST_BIT,
+                0,
+                "single class property must not set the list bit",
+            );
+            assert_eq!(ty.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+            assert!(
+                !ty.ptr.is_null(),
+                "single class property must hold a zend_string pointer",
+            );
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "embed")]
+    fn empty_for_property_class_union_builds_list_without_arena() {
+        crate::embed::Embed::run(|| {
+            let ty = ZendType::empty_for_property(
+                &PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+                false,
+            )
+            .expect("class union property should build");
+
+            assert_ne!(ty.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+            assert_ne!(ty.type_mask & _ZEND_TYPE_UNION_BIT, 0);
+            assert_eq!(
+                ty.type_mask & _ZEND_TYPE_ARENA_BIT,
+                0,
+                "property class union must NOT set the arena bit (engine-managed cleanup)",
+            );
+
+            let list = ty.ptr.cast::<zend_type_list>();
+            let num = unsafe { (*list).num_types };
+            assert_eq!(num, 2);
+
+            for i in 0..2 {
+                let entry = unsafe { *(*list).types.as_ptr().add(i) };
+                assert_ne!(entry.type_mask & _ZEND_TYPE_NAME_BIT, 0);
+                assert!(!entry.ptr.is_null());
+            }
+        });
+    }
+
+    #[test]
+    #[cfg(all(feature = "embed", php81))]
+    fn empty_for_property_class_intersection_no_arena() {
+        crate::embed::Embed::run(|| {
+            let ty = ZendType::empty_for_property(
+                &PhpType::Intersection(vec!["Countable".to_owned(), "Traversable".to_owned()]),
+                false,
+            )
+            .expect("intersection property should build on 8.1+");
+
+            assert_ne!(ty.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+            assert_ne!(ty.type_mask & crate::ffi::_ZEND_TYPE_INTERSECTION_BIT, 0,);
+            assert_eq!(
+                ty.type_mask & _ZEND_TYPE_ARENA_BIT,
+                0,
+                "property intersection must NOT set the arena bit",
+            );
+        });
+    }
+
+    #[test]
+    #[cfg(all(feature = "embed", php82))]
+    fn empty_for_property_dnf_no_arena_at_any_level() {
+        crate::embed::Embed::run(|| {
+            let terms = vec![
+                DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+                DnfTerm::Single("C".to_owned()),
+            ];
+            let ty = ZendType::empty_for_property(&PhpType::Dnf(terms), false)
+                .expect("DNF property should build on 8.2+");
+
+            assert_ne!(ty.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+            assert_ne!(ty.type_mask & _ZEND_TYPE_UNION_BIT, 0);
+            assert_eq!(
+                ty.type_mask & _ZEND_TYPE_ARENA_BIT,
+                0,
+                "outer DNF list must NOT set arena bit",
+            );
+
+            let list = ty.ptr.cast::<zend_type_list>();
+            let entry0 = unsafe { *(*list).types.as_ptr() };
+            assert_ne!(entry0.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+            assert_ne!(
+                entry0.type_mask & crate::ffi::_ZEND_TYPE_INTERSECTION_BIT,
+                0,
+            );
+            assert_eq!(
+                entry0.type_mask & _ZEND_TYPE_ARENA_BIT,
+                0,
+                "inner intersection list must NOT set arena bit",
+            );
+
+            let entry1 = unsafe { *(*list).types.as_ptr().add(1) };
+            assert_ne!(entry1.type_mask & _ZEND_TYPE_NAME_BIT, 0);
+            assert_eq!(
+                entry1.type_mask & _ZEND_TYPE_LIST_BIT,
+                0,
+                "single-class DNF term is not a list",
+            );
+        });
+    }
+
+    #[test]
+    fn empty_for_property_rejects_empty_class_union() {
+        let ty = ZendType::empty_for_property(&PhpType::ClassUnion(vec![]), false);
+        assert!(ty.is_none(), "empty class union must be rejected");
+    }
+
+    #[test]
+    fn empty_for_property_rejects_empty_class_name() {
+        let ty = ZendType::empty_for_property(&PhpType::Simple(DataType::Object(Some(""))), false);
+        assert!(ty.is_none(), "empty class name must be rejected");
+    }
+
+    #[cfg(not(php81))]
+    #[test]
+    fn empty_for_property_intersection_returns_none_pre_81() {
+        let ty = ZendType::empty_for_property(
+            &PhpType::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            false,
+        );
+        assert!(ty.is_none(), "intersection property is 8.1+");
+    }
+
+    #[cfg(not(php82))]
+    #[test]
+    fn empty_for_property_dnf_returns_none_pre_82() {
+        let terms = vec![
+            DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+            DnfTerm::Single("C".to_owned()),
+        ];
+        let ty = ZendType::empty_for_property(&PhpType::Dnf(terms), false);
+        assert!(ty.is_none(), "DNF property is 8.2+");
     }
 }

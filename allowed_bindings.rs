@@ -93,6 +93,7 @@ bind! {
     zend_class_entry,
     zend_declare_class_constant,
     zend_declare_property,
+    zend_declare_typed_property,
     zend_do_implement_interface,
     zend_empty_array,
     zend_read_property,
