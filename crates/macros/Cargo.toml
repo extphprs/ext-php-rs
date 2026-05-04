@@ -18,10 +18,13 @@ proc-macro = true
 [dependencies]
 syn = { version = "2.0.100", features = ["full", "extra-traits", "printing"] }
 darling = "0.23"
-quote = "1.0.9"
-proc-macro2 = "1.0.26"
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
 convert_case = "0.11.0"
 itertools = "0.14.0"
+ext-php-rs-types = { version = "=0.1.0", path = "../types", features = [
+    "proc-macro",
+] }
 
 [lints.rust]
 missing_docs = "warn"

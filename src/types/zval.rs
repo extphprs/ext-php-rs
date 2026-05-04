@@ -50,7 +50,7 @@ impl Zval {
             },
             #[allow(clippy::used_underscore_items)]
             u1: _zval_struct__bindgen_ty_1 {
-                type_info: DataType::Null.as_u32(),
+                type_info: crate::flags::data_type_as_u32(&DataType::Null),
             },
             #[allow(clippy::used_underscore_items)]
             u2: _zval_struct__bindgen_ty_2 { next: 0 },
@@ -498,7 +498,7 @@ impl Zval {
     /// Returns the type of the Zval.
     #[must_use]
     pub fn get_type(&self) -> DataType {
-        DataType::from(u32::from(unsafe { self.u1.v.type_ }))
+        crate::flags::data_type_from_raw(u32::from(unsafe { self.u1.v.type_ }))
     }
 
     /// Returns true if the zval is a long, false otherwise.

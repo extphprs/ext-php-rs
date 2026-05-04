@@ -106,7 +106,7 @@ impl EnumBuilder {
         let class = unsafe {
             zend_register_internal_enum(
                 CString::new(self.name)?.as_ptr(),
-                self.datatype.as_u32().try_into()?,
+                crate::flags::data_type_as_u32(&self.datatype).try_into()?,
                 methods.into_boxed_slice().as_ptr(),
             )
         };

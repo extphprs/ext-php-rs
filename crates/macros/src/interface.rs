@@ -3,8 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::class::ClassEntryAttribute;
 use crate::constant::PhpConstAttribute;
 use crate::function::{
-    Args, Function, extract_arg_php_type_overrides, strip_per_arg_php_attrs,
-    validate_php_types_litstr,
+    Args, Function, extract_arg_php_type_overrides, parse_php_type_litstr, strip_per_arg_php_attrs,
 };
 use crate::helpers::{CleanPhpAttr, get_docs};
 use darling::FromAttributes;
@@ -335,9 +334,10 @@ fn parse_trait_item_fn(
 
     let arg_overrides = extract_arg_php_type_overrides(fn_item.sig.inputs.iter())?;
     strip_per_arg_php_attrs(&mut fn_item.sig.inputs);
-    if let Some(lit) = &php_attr.returns {
-        validate_php_types_litstr(lit)?;
-    }
+    let returns_override = match &php_attr.returns {
+        Some(lit) => Some(parse_php_type_litstr(lit)?),
+        None => None,
+    };
 
     let mut args = Args::parse_from_fnargs(
         fn_item.sig.inputs.iter().zip(arg_overrides),
@@ -369,7 +369,7 @@ fn parse_trait_item_fn(
         method_name,
         args,
         php_attr.optional,
-        php_attr.returns,
+        returns_override,
         docs,
     );
 

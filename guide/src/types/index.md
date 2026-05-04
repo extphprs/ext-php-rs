@@ -43,7 +43,8 @@ enum. Two ergonomic paths surface this on `#[php_function]` and
 `#[php_impl]` signatures:
 
 - The [`#[php(types = "...")]`](../macros/php.md) attribute, which takes a
-  PHP type string and parses it at extension load.
+  PHP type string and parses it at macro-expansion time — invalid syntax
+  becomes a `compile_error!` spanned on the literal.
 - The [`#[derive(PhpUnion)]`](../macros/php_union.md) macro, which lets you
   model a union as a Rust enum and have the macro infer the registered shape
   from the variants.

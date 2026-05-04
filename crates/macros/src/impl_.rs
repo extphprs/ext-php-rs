@@ -8,7 +8,7 @@ use syn::{Expr, Ident, ItemImpl, LitStr};
 use crate::constant::PhpConstAttribute;
 use crate::function::{
     Args, CallType, Function, MethodReceiver, extract_arg_php_type_overrides,
-    strip_per_arg_php_attrs, validate_php_types_litstr,
+    parse_php_type_litstr, strip_per_arg_php_attrs,
 };
 use crate::helpers::get_docs;
 use crate::parsing::{
@@ -331,9 +331,10 @@ impl<'a> ParsedImpl<'a> {
 
                     let arg_overrides = extract_arg_php_type_overrides(method.sig.inputs.iter())?;
                     strip_per_arg_php_attrs(&mut method.sig.inputs);
-                    if let Some(lit) = &opts.returns {
-                        validate_php_types_litstr(lit)?;
-                    }
+                    let returns_override = match &opts.returns {
+                        Some(lit) => Some(parse_php_type_litstr(lit)?),
+                        None => None,
+                    };
 
                     let args = Args::parse_from_fnargs(
                         method.sig.inputs.iter().zip(arg_overrides),
@@ -344,7 +345,7 @@ impl<'a> ParsedImpl<'a> {
                         opts.name,
                         args,
                         opts.optional,
-                        opts.returns,
+                        returns_override,
                         docs,
                     );
 

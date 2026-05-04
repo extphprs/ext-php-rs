@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use darling::{FromAttributes, ToTokens};
+use ext_php_rs_types::PhpType;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::punctuated::Punctuated;
@@ -78,18 +80,23 @@ pub struct PhpArgAttribute {
 /// Pulls a per-argument `#[php(types = "...")]` override off each `FnArg`,
 /// returning a `Vec` aligned with the iteration order so it can be zipped
 /// into [`Args::parse_from_fnargs`]. Receivers always yield `None`.
+///
+/// Each `#[php(types = "...")]` literal is parsed at expansion time via
+/// [`parse_php_type_litstr`]; a parse failure surfaces as a `compile_error!`
+/// spanned on the offending literal.
 pub fn extract_arg_php_type_overrides<'a>(
     inputs: impl Iterator<Item = &'a FnArg>,
-) -> Result<Vec<Option<LitStr>>> {
+) -> Result<Vec<Option<PhpType>>> {
     let mut overrides = Vec::new();
     for fn_arg in inputs {
         match fn_arg {
             FnArg::Typed(pat_type) => {
                 let attr = PhpArgAttribute::from_attributes(&pat_type.attrs)?;
-                if let Some(lit) = &attr.types {
-                    validate_php_types_litstr(lit)?;
-                }
-                overrides.push(attr.types);
+                let parsed = match &attr.types {
+                    Some(lit) => Some(parse_php_type_litstr(lit)?),
+                    None => None,
+                };
+                overrides.push(parsed);
             }
             FnArg::Receiver(_) => overrides.push(None),
         }
@@ -108,44 +115,23 @@ pub fn strip_per_arg_php_attrs(inputs: &mut Punctuated<FnArg, Comma>) {
     }
 }
 
-const PHP_TYPES_ALLOWED: &[char] = &['|', '&', '(', ')', '?', ' ', ',', '\\', '_'];
-
-const PHP_TYPES_MAX_LEN: usize = 1024;
-
-/// Lightweight syntactic validation for the `LitStr` passed to
-/// `#[php(types = ...)]` / `#[php(returns = ...)]`. Catches obvious typos at
-/// macro expansion time with a span on the literal; the full
-/// `PhpType::from_str` parse runs at extension load (see issue 10 for the
-/// upgrade path).
-pub fn validate_php_types_litstr(lit: &LitStr) -> Result<()> {
+/// Parses the `LitStr` passed to `#[php(types = ...)]` / `#[php(returns = ...)]`
+/// into a [`PhpType`] at macro-expansion time.
+///
+/// The parser is the same one the runtime would call — it lives in the
+/// shared `ext-php-rs-types` crate so both this proc-macro and the runtime
+/// crate share a single grammar. A parse failure becomes a `compile_error!`
+/// spanned on the offending literal, so authors see the diagnostic at
+/// `cargo build` instead of `cargo run`.
+///
+/// # Errors
+///
+/// Returns a [`syn::Error`] spanned on `lit` whenever
+/// [`PhpType::from_str`] returns an error.
+pub fn parse_php_type_litstr(lit: &LitStr) -> Result<PhpType> {
     let value = lit.value();
-    if value.is_empty() {
-        bail!(lit => "expected a non-empty PHP type string");
-    }
-    if value.len() > PHP_TYPES_MAX_LEN {
-        bail!(lit => "PHP type string too long ({} > {} chars)", value.len(), PHP_TYPES_MAX_LEN);
-    }
-    for c in value.chars() {
-        let allowed = c.is_ascii_alphanumeric() || PHP_TYPES_ALLOWED.contains(&c);
-        if !allowed {
-            bail!(lit => "unsupported character {:?} in PHP type string; allowed: ASCII alphanumeric, '|', '&', '(', ')', '?', ' ', ',', '\\\\', '_'", c);
-        }
-    }
-    Ok(())
-}
-
-/// Emits the runtime `from_str` call used by the override branches of
-/// [`TypedArg::arg_builder`] and [`Function::build_returns`]. Parsing happens
-/// at extension load; on failure the panic carries the original literal.
-fn emit_phptype_from_str(lit: &LitStr) -> TokenStream {
-    quote_spanned! { lit.span() =>
-        <::ext_php_rs::types::PhpType as ::core::str::FromStr>::from_str(#lit)
-            .unwrap_or_else(|e| ::std::panic!(
-                "invalid #[php(types = {:?})]: {}",
-                #lit,
-                e,
-            ))
-    }
+    PhpType::from_str(&value)
+        .map_err(|err| syn::Error::new(lit.span(), format!("invalid PHP type {value:?}: {err}")))
 }
 
 pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
@@ -154,9 +140,10 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
 
     let arg_overrides = extract_arg_php_type_overrides(input.sig.inputs.iter())?;
     strip_per_arg_php_attrs(&mut input.sig.inputs);
-    if let Some(lit) = &php_attr.returns {
-        validate_php_types_litstr(lit)?;
-    }
+    let returns_override = match &php_attr.returns {
+        Some(lit) => Some(parse_php_type_litstr(lit)?),
+        None => None,
+    };
 
     let args = Args::parse_from_fnargs(
         input.sig.inputs.iter().zip(arg_overrides),
@@ -177,7 +164,7 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
         func_name,
         args,
         php_attr.optional,
-        php_attr.returns,
+        returns_override,
         docs,
     );
     let function_impl = func.php_function_impl();
@@ -201,10 +188,10 @@ pub struct Function<'a> {
     /// The first optional argument of the function.
     pub optional: Option<Ident>,
     /// Optional `#[php(returns = "...")]` override for the registered PHP
-    /// return type. When set, the macro emits a runtime
-    /// `PhpType::from_str(LIT)` call instead of deriving the type from the
-    /// Rust signature via `IntoZval::TYPE`.
-    pub returns_override: Option<LitStr>,
+    /// return type. When set, the macro emits the parsed [`PhpType`]
+    /// directly via [`quote::ToTokens`] instead of deriving the type from
+    /// the Rust signature via `IntoZval::TYPE`.
+    pub returns_override: Option<PhpType>,
     /// Doc comments for the function.
     pub docs: Vec<String>,
 }
@@ -243,7 +230,7 @@ impl<'a> Function<'a> {
         name: String,
         args: Args<'a>,
         optional: Option<Ident>,
-        returns_override: Option<LitStr>,
+        returns_override: Option<PhpType>,
         docs: Vec<String>,
     ) -> Self {
         Self {
@@ -429,10 +416,9 @@ impl<'a> Function<'a> {
         // `#[php(returns = "...")]` overrides whatever the Rust signature
         // would derive. Nullability is encoded inside the parsed `PhpType`
         // (e.g. `int|string|null`), so we pass `allow_null=false` here.
-        if let Some(lit) = &self.returns_override {
-            let from_str = emit_phptype_from_str(lit);
+        if let Some(parsed) = &self.returns_override {
             return quote! {
-                .returns(#from_str, false, false)
+                .returns(#parsed, false, false)
             };
         }
 
@@ -1007,10 +993,10 @@ pub struct TypedArg<'a> {
     pub as_ref: bool,
     pub variadic: bool,
     /// Optional `#[php(types = "...")]` override for the registered PHP type
-    /// of this argument. When set, the macro emits a runtime
-    /// `PhpType::from_str(LIT)` call instead of deriving the type from the
-    /// Rust signature via `FromZvalMut::TYPE`.
-    pub php_type_override: Option<LitStr>,
+    /// of this argument. When set, the macro emits the parsed [`PhpType`]
+    /// directly via [`quote::ToTokens`] instead of deriving the type from
+    /// the Rust signature via `FromZvalMut::TYPE`.
+    pub php_type_override: Option<PhpType>,
 }
 
 #[derive(Debug)]
@@ -1021,7 +1007,7 @@ pub struct Args<'a> {
 
 impl<'a> Args<'a> {
     pub fn parse_from_fnargs(
-        args: impl Iterator<Item = (&'a FnArg, Option<LitStr>)>,
+        args: impl Iterator<Item = (&'a FnArg, Option<PhpType>)>,
         mut defaults: HashMap<Ident, Expr>,
     ) -> Result<Self> {
         let mut result = Self {
@@ -1213,10 +1199,9 @@ impl TypedArg<'_> {
         // truth for the PHP type — including nullability. Other modifiers
         // (default, as_ref, variadic) are about the argument-passing
         // protocol, not the type, so they still apply.
-        if let Some(lit) = &self.php_type_override {
-            let from_str = emit_phptype_from_str(lit);
+        if let Some(parsed) = &self.php_type_override {
             return quote! {
-                ::ext_php_rs::args::Arg::new(#name, #from_str)
+                ::ext_php_rs::args::Arg::new(#name, #parsed)
                     #default
                     #as_ref
                     #variadic
@@ -1499,57 +1484,66 @@ mod tests {
     }
 
     #[test]
-    fn validate_php_types_litstr_accepts_primitive_union() {
+    fn parse_php_type_litstr_accepts_primitive_union() {
         let lit: LitStr = syn::parse_quote!("int|string|null");
-        assert!(validate_php_types_litstr(&lit).is_ok());
+        let parsed = parse_php_type_litstr(&lit).expect("primitive union parses");
+        assert_eq!(format!("{parsed}"), "int|string|null");
     }
 
     #[test]
-    fn validate_php_types_litstr_accepts_class_union() {
+    fn parse_php_type_litstr_accepts_class_union() {
         let lit: LitStr = syn::parse_quote!("\\Foo|\\Bar");
-        assert!(validate_php_types_litstr(&lit).is_ok());
+        let parsed = parse_php_type_litstr(&lit).expect("class union parses");
+        assert_eq!(format!("{parsed}"), "\\Foo|\\Bar");
     }
 
     #[test]
-    fn validate_php_types_litstr_accepts_intersection() {
+    fn parse_php_type_litstr_accepts_intersection() {
         let lit: LitStr = syn::parse_quote!("\\Countable&\\Traversable");
-        assert!(validate_php_types_litstr(&lit).is_ok());
+        let parsed = parse_php_type_litstr(&lit).expect("intersection parses");
+        assert_eq!(format!("{parsed}"), "\\Countable&\\Traversable");
     }
 
     #[test]
-    fn validate_php_types_litstr_accepts_dnf() {
+    fn parse_php_type_litstr_accepts_dnf() {
         let lit: LitStr = syn::parse_quote!("(\\A&\\B)|\\C");
-        assert!(validate_php_types_litstr(&lit).is_ok());
+        let parsed = parse_php_type_litstr(&lit).expect("DNF parses");
+        assert_eq!(format!("{parsed}"), "(\\A&\\B)|\\C");
     }
 
     #[test]
-    fn validate_php_types_litstr_rejects_empty() {
+    fn parse_php_type_litstr_rejects_empty() {
         let lit: LitStr = syn::parse_quote!("");
-        let err = validate_php_types_litstr(&lit).unwrap_err();
+        let err = parse_php_type_litstr(&lit).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("non-empty"), "unexpected error message: {msg}");
+        assert!(msg.contains("empty"), "unexpected error message: {msg}");
     }
 
     #[test]
-    fn validate_php_types_litstr_rejects_disallowed_char() {
-        // `@` is not in the allowed set.
-        let lit: LitStr = syn::parse_quote!("int@string");
-        let err = validate_php_types_litstr(&lit).unwrap_err();
+    fn parse_php_type_litstr_rejects_double_pipe() {
+        // The parser rejects `||` because the empty alternative between
+        // pipes is not a legal PHP type term.
+        let lit: LitStr = syn::parse_quote!("int||string");
+        let err = parse_php_type_litstr(&lit).unwrap_err();
         let msg = err.to_string();
         assert!(
-            msg.contains("unsupported character"),
+            msg.contains("empty term"),
             "unexpected error message: {msg}"
         );
     }
 
     #[test]
-    fn validate_php_types_litstr_rejects_overlong() {
-        // > 1024 chars must be rejected.
-        let too_long = "a".repeat(2048);
-        let lit: LitStr = syn::parse_quote!(#too_long);
-        let err = validate_php_types_litstr(&lit).unwrap_err();
+    fn parse_php_type_litstr_rejects_class_nullable_shorthand() {
+        // `?Foo` was previously accepted by the lightweight syntactic check
+        // and only failed at extension load. With the parser running at
+        // expansion time, the rejection now spans the LitStr at compile time.
+        let lit: LitStr = syn::parse_quote!("?Foo");
+        let err = parse_php_type_litstr(&lit).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("too long"), "unexpected error message: {msg}");
+        assert!(
+            msg.contains("class-side nullable"),
+            "unexpected error message: {msg}"
+        );
     }
 
     #[test]
@@ -1572,7 +1566,7 @@ mod tests {
     }
 
     #[test]
-    fn parser_emits_runtime_from_str_for_typed_override() {
+    fn parser_emits_compile_time_phptype_for_typed_override() {
         let input: ItemFn = syn::parse_quote! {
             pub fn foo(
                 #[php(types = "int|string")] _value: i64,
@@ -1581,77 +1575,82 @@ mod tests {
             }
         };
         let output = parser(input).expect("parser should succeed").to_string();
+        // No more `from_str` runtime call: the macro emits the parsed
+        // `PhpType::Union(vec![DataType::Long, DataType::String])` literal.
         assert!(
-            output.contains("from_str"),
-            "expected runtime from_str call in expansion, output: {output}"
+            !output.contains("from_str"),
+            "expected NO runtime from_str call, output: {output}"
         );
         assert!(
-            output.contains("\"int|string\""),
-            "expected literal in expansion, output: {output}"
+            output.contains("PhpType :: Union"),
+            "expected literal Union variant, output: {output}"
+        );
+        assert!(
+            output.contains("DataType :: Long"),
+            "expected DataType::Long in expansion, output: {output}"
+        );
+        assert!(
+            output.contains("DataType :: String"),
+            "expected DataType::String in expansion, output: {output}"
         );
     }
 
     #[test]
-    fn parser_emits_runtime_from_str_for_returns_override() {
+    fn parser_emits_compile_time_phptype_for_returns_override() {
         let input: ItemFn = syn::parse_quote! {
             #[php(returns = "int|string|null")]
             pub fn foo() -> i64 { 0 }
         };
         let output = parser(input).expect("parser should succeed").to_string();
         assert!(
-            output.contains("from_str"),
-            "expected runtime from_str call for returns, output: {output}"
+            !output.contains("from_str"),
+            "expected NO runtime from_str call for returns, output: {output}"
         );
         assert!(
-            output.contains("\"int|string|null\""),
-            "expected returns literal in expansion, output: {output}"
+            output.contains("PhpType :: Union"),
+            "expected literal Union variant in returns, output: {output}"
+        );
+        assert!(
+            output.contains("DataType :: Null"),
+            "expected DataType::Null in expansion, output: {output}"
         );
     }
 
     #[test]
     fn parser_rejects_invalid_per_arg_litstr() {
-        // Compile-time syntactic validation: `@` is not in the allowed set.
+        // Compile-time grammar rejection — the parser refuses an empty
+        // term between two pipes, surfaced as a `compile_error!` spanned on
+        // the LitStr.
         let input: ItemFn = syn::parse_quote! {
             pub fn foo(
-                #[php(types = "int@string")] _value: i64,
+                #[php(types = "int||string")] _value: i64,
             ) -> i64 {
                 _value
             }
         };
         let err = parser(input).unwrap_err();
         assert!(
-            err.to_string().contains("unsupported character"),
+            err.to_string().contains("empty term"),
             "unexpected error: {err}",
         );
     }
 
     #[test]
-    fn emit_phptype_from_str_uses_runtime_parser_with_panic_message() {
-        // Tracer for the load-time parse-error path: the macro must emit a
-        // `PhpType::from_str(LIT)` call wrapped in `unwrap_or_else` whose
-        // panic message carries the original literal so a developer can
-        // diagnose at first `cargo run`.
-        let lit: LitStr = syn::parse_quote!("int|string");
-        let rendered = emit_phptype_from_str(&lit).to_string();
+    fn parser_rejects_class_nullable_shorthand_at_compile_time() {
+        // `?Foo` used to pass the syntactic check and panic at extension
+        // load. Now the parser runs at expansion time, so the diagnostic
+        // appears at `cargo build`.
+        let input: ItemFn = syn::parse_quote! {
+            pub fn foo(
+                #[php(types = "?Foo")] _value: i64,
+            ) -> i64 {
+                _value
+            }
+        };
+        let err = parser(input).unwrap_err();
         assert!(
-            rendered.contains("PhpType"),
-            "missing PhpType reference: {rendered}"
-        );
-        assert!(
-            rendered.contains("from_str"),
-            "missing from_str call: {rendered}"
-        );
-        assert!(
-            rendered.contains("unwrap_or_else"),
-            "missing unwrap_or_else: {rendered}"
-        );
-        assert!(
-            rendered.contains("\"int|string\""),
-            "literal not propagated: {rendered}"
-        );
-        assert!(
-            rendered.contains("invalid"),
-            "missing diagnostic prefix: {rendered}"
+            err.to_string().contains("class-side nullable"),
+            "unexpected error: {err}",
         );
     }
 }

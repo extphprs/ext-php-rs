@@ -26,6 +26,7 @@ smartstring = { version = "1", optional = true }
 indexmap = { version = "2", optional = true }
 inventory = "0.3"
 ext-php-rs-derive = { version = "=0.11.14", path = "./crates/macros" }
+ext-php-rs-types = { version = "=0.1.0", path = "./crates/types" }
 
 [dev-dependencies]
 skeptic = "0.13"
@@ -61,7 +62,11 @@ runtime = ["ext-php-rs-bindgen/runtime"]
 static = ["ext-php-rs-bindgen/static"]
 
 [workspace]
-members = ["crates/macros", "crates/cli", "crates/php-build", "tests"]
+members = ["crates/macros", "crates/cli", "crates/php-build", "crates/types", "tests"]
+
+[workspace.dependencies]
+proc-macro2 = "1.0.26"
+quote = "1.0.9"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docs"]

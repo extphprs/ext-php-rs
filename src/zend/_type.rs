@@ -817,7 +817,7 @@ impl ZendType {
         is_variadic: bool,
         allow_null: bool,
     ) -> u32 {
-        let type_ = type_.as_u32();
+        let type_ = crate::flags::data_type_as_u32(&type_);
 
         (if type_ == _IS_BOOL {
             MAY_BE_BOOL
@@ -836,7 +836,7 @@ impl ZendType {
 /// Maps a [`DataType`] to its single-bit `MAY_BE_*` mask, expanding the two
 /// pseudo-codes (`_IS_BOOL`, `IS_MIXED`) the same way [`ZendType::type_init_code`] does.
 fn primitive_may_be(dt: DataType) -> u32 {
-    let code = dt.as_u32();
+    let code = crate::flags::data_type_as_u32(&dt);
     if code == _IS_BOOL {
         MAY_BE_BOOL
     } else if code == IS_MIXED {
