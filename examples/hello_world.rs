@@ -1,6 +1,10 @@
 #![allow(missing_docs, clippy::must_use_candidate)]
 #![cfg_attr(windows, feature(abi_vectorcall))]
-use ext_php_rs::{constant::IntoConst, prelude::*, types::ZendClassObject};
+use ext_php_rs::{
+    constant::IntoConst,
+    prelude::*,
+    types::{ZendClassObject, Zval},
+};
 
 #[derive(Debug)]
 #[php_class]
@@ -72,6 +76,16 @@ pub fn hello_world() -> &'static str {
     "Hello, world!"
 }
 
+/// Demonstrates compound PHP type hints. The argument accepts `int|string`
+/// and the return type registers as `int|string|null`. Both strings are
+/// parsed at macro-expansion time, so a typo such as `?Foo&Bar` would
+/// fail at `cargo build` rather than at extension load.
+#[php_function]
+#[php(returns = "int|string|null")]
+pub fn flexible_id(#[php(types = "int|string")] _value: &Zval) -> Option<i64> {
+    None
+}
+
 #[php_const]
 pub const HELLO_WORLD: i32 = 100;
 
@@ -104,6 +118,7 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
     module
         .class::<TestClass>()
         .function(wrap_function!(hello_world))
+        .function(wrap_function!(flexible_id))
         .function(wrap_function!(new_class))
         .function(wrap_function!(get_zval_convert))
         .constant(wrap_constant!(HELLO_WORLD))
