@@ -1583,7 +1583,7 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 ///
 /// - **`?Foo&Bar`**: a leading `?` on an intersection is not legal PHP, and the
 ///   parser refuses it. The legal nullable form `(Foo&Bar)|null` requires DNF
-///   (PHP 8.2+ in user code, 8.3+ on internal arg_info; see the version
+///   (PHP 8.2+ in user code, 8.3+ on internal `arg_info`; see the version
 ///   constraint below).
 /// - **Class-side nullables (`?Foo`, `\Foo|null`, `\Foo|\Bar|null`,
 ///   `(\A&\B)|null`)**: the parser refuses these because the class-side
@@ -1618,7 +1618,7 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 /// }
 /// ```
 ///
-/// Version constraint: intersection and DNF type hints on internal arg_info
+/// Version constraint: intersection and DNF type hints on internal `arg_info`
 /// require PHP 8.3 or newer. On 8.1/8.2 the runtime returns
 /// `Err(InvalidCString)` from `Arg::as_arg_info` for those shapes; build the
 /// test extension on 8.3+ if you need them.
