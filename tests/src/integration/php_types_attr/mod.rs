@@ -24,6 +24,33 @@ impl PhpTypesAttrHolder {
     pub fn produce() -> i64 {
         0
     }
+
+    #[php(returns = "\\PhpTypesAttrFoo|\\PhpTypesAttrBar")]
+    pub fn produce_class_union() -> i64 {
+        0
+    }
+}
+
+#[cfg(php83)]
+#[php_class]
+pub struct PhpTypesAttrHolder83;
+
+#[cfg(php83)]
+#[php_impl]
+impl PhpTypesAttrHolder83 {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    #[php(returns = "\\Countable&\\Traversable")]
+    pub fn produce_intersection() -> i64 {
+        0
+    }
+
+    #[php(returns = "(\\Countable&\\Traversable)|\\PhpTypesAttrFoo")]
+    pub fn produce_dnf() -> i64 {
+        0
+    }
 }
 
 #[php_function]
@@ -58,6 +85,26 @@ pub fn test_attr_dnf(
     1
 }
 
+#[php_function]
+#[php(returns = "\\PhpTypesAttrFoo|\\PhpTypesAttrBar")]
+pub fn test_attr_returns_class_union() -> i64 {
+    0
+}
+
+#[cfg(php83)]
+#[php_function]
+#[php(returns = "\\Countable&\\Traversable")]
+pub fn test_attr_returns_intersection() -> i64 {
+    0
+}
+
+#[cfg(php83)]
+#[php_function]
+#[php(returns = "(\\Countable&\\Traversable)|\\PhpTypesAttrFoo")]
+pub fn test_attr_returns_dnf() -> i64 {
+    0
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<PhpTypesAttrFoo>()
@@ -65,12 +112,16 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<PhpTypesAttrHolder>()
         .function(wrap_function!(test_attr_int_or_string))
         .function(wrap_function!(test_attr_returns_int_string_or_null))
-        .function(wrap_function!(test_attr_class_union));
+        .function(wrap_function!(test_attr_class_union))
+        .function(wrap_function!(test_attr_returns_class_union));
 
     #[cfg(php83)]
     let builder = builder
+        .class::<PhpTypesAttrHolder83>()
         .function(wrap_function!(test_attr_intersection))
-        .function(wrap_function!(test_attr_dnf));
+        .function(wrap_function!(test_attr_dnf))
+        .function(wrap_function!(test_attr_returns_intersection))
+        .function(wrap_function!(test_attr_returns_dnf));
 
     builder
 }
