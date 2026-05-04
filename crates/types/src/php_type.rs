@@ -827,9 +827,9 @@ impl quote::ToTokens for DnfTerm {
                 ))
             }
             Self::Intersection(names) => {
-                let lits = names.iter().map(String::as_str);
+                let literals = names.iter().map(String::as_str);
                 quote!(::ext_php_rs::types::DnfTerm::Intersection(
-                    ::std::vec![ #( ::std::string::String::from(#lits) ),* ]
+                    ::std::vec![ #( ::std::string::String::from(#literals) ),* ]
                 ))
             }
         };
@@ -849,15 +849,15 @@ impl quote::ToTokens for PhpType {
                 ))
             }
             Self::ClassUnion(names) => {
-                let lits = names.iter().map(String::as_str);
+                let literals = names.iter().map(String::as_str);
                 quote!(::ext_php_rs::types::PhpType::ClassUnion(
-                    ::std::vec![ #( ::std::string::String::from(#lits) ),* ]
+                    ::std::vec![ #( ::std::string::String::from(#literals) ),* ]
                 ))
             }
             Self::Intersection(names) => {
-                let lits = names.iter().map(String::as_str);
+                let literals = names.iter().map(String::as_str);
                 quote!(::ext_php_rs::types::PhpType::Intersection(
-                    ::std::vec![ #( ::std::string::String::from(#lits) ),* ]
+                    ::std::vec![ #( ::std::string::String::from(#literals) ),* ]
                 ))
             }
             Self::Dnf(terms) => {
