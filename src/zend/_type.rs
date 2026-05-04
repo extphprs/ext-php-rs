@@ -1430,6 +1430,7 @@ mod property_tests {
     #[cfg(not(php82))]
     #[test]
     fn empty_for_property_dnf_returns_none_pre_82() {
+        use crate::types::DnfTerm;
         let terms = vec![
             DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
             DnfTerm::Single("C".to_owned()),
