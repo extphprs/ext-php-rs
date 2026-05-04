@@ -618,5 +618,102 @@ mod tests {
         assert_eq!(class.docs, &["Doc 1"] as DocComments);
     }
 
-    // TODO: Test the register function
+    /// Property registration validation gates run before any FFI dispatch,
+    /// so they can be exercised against a zeroed `ClassEntry` (the same
+    /// zeroed-init pattern [`ClassBuilder::new`] already relies on for the
+    /// rest of the builder). Each test here picks an input that fails at a
+    /// distinct gate of [`register_property`] so a refactor that moves a
+    /// gate to the wrong side of the FFI call would surface as either a
+    /// missing `Err` here or a crash on the zeroed entry.
+    fn zeroed_class_entry() -> ClassEntry {
+        // SAFETY: `zend_class_entry` is `repr(C)` with no Drop impl. A
+        // zeroed value is never dereferenced by these tests because every
+        // input here trips a validation gate before the FFI call.
+        unsafe { MaybeUninit::zeroed().assume_init() }
+    }
+
+    fn build_property(name: &str, ty: Option<PhpType>) -> ClassProperty {
+        ClassProperty {
+            name: name.into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty,
+            nullable: false,
+            readonly: false,
+            default_stub: None,
+        }
+    }
+
+    #[test]
+    fn register_property_rejects_empty_class_union() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property("p", Some(PhpType::ClassUnion(vec![])));
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_nul_in_class_name() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property(
+            "p",
+            Some(PhpType::Simple(DataType::Object(Some("Foo\0Bar")))),
+        );
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_empty_simple_class_name() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property("p", Some(PhpType::Simple(DataType::Object(Some("")))));
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_nul_in_class_union_member() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property(
+            "p",
+            Some(PhpType::ClassUnion(vec!["Foo".into(), "Bar\0Baz".into()])),
+        );
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_nul_in_untyped_property_name() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property("bad\0name", None);
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[cfg(not(php81))]
+    #[test]
+    fn register_property_rejects_intersection_pre_81() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property(
+            "p",
+            Some(PhpType::Intersection(vec!["A".into(), "B".into()])),
+        );
+
+        let result = register_property(&mut ce, prop);
+        assert!(
+            matches!(result, Err(Error::InvalidCString)),
+            "intersection property should be rejected on PHP < 8.1",
+        );
+    }
+
+    // TODO: Happy-path coverage for `register_property` runs through the
+    // integration crate (`tests/src/integration/typed_property/`), since
+    // exercising the FFI call requires a fully-registered class entry inside
+    // an Embed run.
 }
