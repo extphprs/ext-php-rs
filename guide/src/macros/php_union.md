@@ -100,7 +100,7 @@ reflection or strict-types coercion to see the actual union members, prefer
 
 ## Relationship to `#[php(types = "...")]`
 
-The slice-06 attribute `#[php(types = "int|string")]` is the explicit override
+The `#[php(types = "int|string")]` attribute is the explicit override
 when a Rust signature is `&Zval` or otherwise can't carry the type information
 in the type system. `PhpUnion` is the type-driven path: the type itself
 encodes the union, so the function signature is plain Rust and the macro
