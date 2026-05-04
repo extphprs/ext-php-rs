@@ -148,16 +148,59 @@ pub fn flexible_id(
 }
 ```
 
+The same attributes accept class names from your `#[php_class]`-defined
+structs. The string is the canonical PHP type-hint grammar, so unions
+(`\Foo|\Bar`), intersections (`\Countable&\Traversable`), and DNF
+(`(\A&\B)|\C`) all work:
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
+
+#[php_class]
+pub struct Foo;
+
+#[php_class]
+pub struct Bar;
+
+#[php_function]
+pub fn accept(#[php(types = "\\Foo|\\Bar")] _value: &Zval) {}
+
+#[php_function]
+#[php(returns = "\\Foo|\\Bar")]
+pub fn produce() -> Foo { Foo }
+```
+
+Use a leading `\` to anchor the class in PHP's global namespace, matching
+how PHP code spells fully qualified names. Bare names without the leading
+`\` work too: `\Foo` and `Foo` produce the same registered metadata,
+because every `#[php_class]`-defined struct is placed in PHP's global
+namespace by the engine.
+
 The override is the source of truth for the PHP type, including nullability —
 put `null` in the string if the parameter or return should be nullable. The
 runtime modifiers (`default`, `optional`, variadic, by-reference) are
 orthogonal to type and still apply.
 
-Parsing runs once, at compile time. A parser-rejected string (for example
-`?Foo&Bar`, which the parser refuses because class-side nullables aren't
-representable as a single `PhpType`) becomes a `compile_error!` spanned on
-the literal — `cargo build` surfaces the diagnostic before the extension
-ever loads.
+Parsing runs once, at compile time. A parser-rejected string becomes a
+`compile_error!` spanned on the literal, so `cargo build` surfaces the
+diagnostic before the extension ever loads. Two shapes are deliberately
+rejected:
+
+- **`?Foo&Bar`**: a leading `?` on an intersection is not legal PHP,
+  and the parser refuses it. The legal nullable form `(Foo&Bar)|null`
+  requires DNF (PHP 8.2+ in user code, 8.3+ on internal arg_info; see
+  the version constraint below).
+- **Class-side nullables (`?Foo`, `\Foo|null`, `\Foo|\Bar|null`,
+  `(\A&\B)|null`)**: the parser refuses these because the class-side
+  variants of `PhpType` cannot carry an inline `null` member today.
+  This is a known asymmetry with the primitive side, which DOES accept
+  `int|null` (since `DataType::Null` is a primitive variant). For a
+  class-side function that may return null today, use a function whose
+  Rust return type is unconditional and pass nullable values through a
+  separate `null` return path managed by the caller; or wait on the
+  parser follow-up that will surface a `parse_with_nullable(&str)`
+  variant.
 
 The same attributes work inside `#[php_impl]`:
 
