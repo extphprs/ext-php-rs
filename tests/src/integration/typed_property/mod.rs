@@ -107,7 +107,7 @@ fn inject_typed_props(b: ClassBuilder) -> ClassBuilder {
         });
     }
 
-    #[cfg(php82)]
+    #[cfg(php83)]
     {
         b = b.property(ClassProperty {
             name: "dnfProp".into(),

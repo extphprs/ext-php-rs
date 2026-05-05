@@ -22,7 +22,7 @@ $declaredNames = [
 if (PHP_VERSION_ID >= 80100) {
     $declaredNames[] = 'intersectProp';
 }
-if (PHP_VERSION_ID >= 80200) {
+if (PHP_VERSION_ID >= 80300) {
     $declaredNames[] = 'dnfProp';
 }
 foreach ($declaredNames as $declaredName) {
@@ -113,8 +113,8 @@ if (PHP_VERSION_ID >= 80100) {
     );
 }
 
-// 7. DNF ((Countable&Traversable)|TypedPropFooClass) on PHP 8.2+
-if (PHP_VERSION_ID >= 80200) {
+// 7. DNF ((Countable&Traversable)|TypedPropFooClass) on PHP 8.3+
+if (PHP_VERSION_ID >= 80300) {
     $dnfProp = $rc->getProperty('dnfProp');
     $dnfType = $dnfProp->getType();
     assert(
@@ -202,7 +202,7 @@ if (PHP_VERSION_ID >= 80100) {
     assert($caught, 'intersectProp must reject stdClass assignment');
 }
 
-if (PHP_VERSION_ID >= 80200) {
+if (PHP_VERSION_ID >= 80300) {
     // dnfProp accepts ArrayObject (matches first arm) and TypedPropFooClass (matches second)
     $obj->dnfProp = new ArrayObject();
     $obj->dnfProp = new TypedPropFooClass();

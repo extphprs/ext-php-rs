@@ -511,7 +511,9 @@ impl ZendType {
     ///   landed.
     /// - `Intersection`: PHP 8.1+ (language minimum). Returns [`None`] on
     ///   earlier versions.
-    /// - `Dnf`: PHP 8.2+ (DNF RFC). Returns [`None`] on earlier versions.
+    /// - `Dnf`: PHP 8.3+ (the language feature is 8.2 but
+    ///   `zend_declare_typed_property` only accepts the nested intersection
+    ///   terms from 8.3 onwards). Returns [`None`] on earlier versions.
     ///
     /// Differs from the `arg_info` `cfg(php83)` gate on intersection / DNF:
     /// `zend_declare_typed_property` accepts pre-built `zend_type_list`s on
@@ -524,7 +526,7 @@ impl ZendType {
     ///
     /// - any class name is empty or contains an interior NUL byte,
     /// - allocation fails,
-    /// - the variant is `Intersection` on PHP < 8.1 or `Dnf` on PHP < 8.2,
+    /// - the variant is `Intersection` on PHP < 8.1 or `Dnf` on PHP < 8.3,
     /// - the variant is empty (e.g. `ClassUnion(vec![])`),
     /// - the variant is structurally degenerate per its constructor's rules
     ///   (e.g. single-term DNF — see [`Self::empty_from_dnf`] for the
@@ -674,12 +676,16 @@ impl ZendType {
         None
     }
 
-    /// Property-side DNF builder (PHP 8.2+).
+    /// Property-side DNF builder (PHP 8.3+).
     ///
     /// Same nested-list shape as the `arg_info` DNF but without `_ZEND_TYPE_ARENA_BIT`
-    /// at every level (8.2's `zend_type_release` is recursive enough to free
-    /// the inner intersection lists), and with non-interned strings.
-    #[cfg(php82)]
+    /// at every level (the engine's recursive `zend_type_release` frees the
+    /// inner intersection lists), and with non-interned strings. Gated at
+    /// PHP 8.3 because 8.2's `zend_declare_typed_property` iterates the type
+    /// list with `ZEND_ASSERT(!ZEND_TYPE_HAS_LIST(*single_type))`, rejecting
+    /// the nested intersection terms a DNF embeds. PHP 8.3 dropped that
+    /// assertion in favour of `zend_normalize_internal_type`.
+    #[cfg(php83)]
     fn empty_from_dnf_for_property(terms: &[DnfTerm], allow_null: bool) -> Option<Self> {
         if terms.len() < 2 {
             return None;
@@ -759,8 +765,8 @@ impl ZendType {
         })
     }
 
-    /// Property-side DNF on pre-8.2 returns `None`.
-    #[cfg(not(php82))]
+    /// Property-side DNF on pre-8.3 returns `None`.
+    #[cfg(not(php83))]
     fn empty_from_dnf_for_property(
         _terms: &[crate::types::DnfTerm],
         _allow_null: bool,
@@ -1427,15 +1433,15 @@ mod property_tests {
         assert!(ty.is_none(), "intersection property is 8.1+");
     }
 
-    #[cfg(not(php82))]
+    #[cfg(not(php83))]
     #[test]
-    fn empty_for_property_dnf_returns_none_pre_82() {
+    fn empty_for_property_dnf_returns_none_pre_83() {
         use crate::types::DnfTerm;
         let terms = vec![
             DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
             DnfTerm::Single("C".to_owned()),
         ];
         let ty = ZendType::empty_for_property(&PhpType::Dnf(terms), false);
-        assert!(ty.is_none(), "DNF property is 8.2+");
+        assert!(ty.is_none(), "DNF property registration is 8.3+");
     }
 }
