@@ -49,6 +49,8 @@ mod test {
         BUILD.call_once(|| {
             let mut command = Command::new("cargo");
             command.arg("build");
+            // Don't let the parent cargo test leak -lphp into the cdylib.
+            command.env_remove("EXT_PHP_RS_LINK_LIBPHP");
 
             #[cfg(not(debug_assertions))]
             command.arg("--release");

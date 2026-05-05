@@ -37,9 +37,9 @@ pub struct ClassProperty {
     pub default: PropertyDefault,
     /// Documentation comments.
     pub docs: DocComments,
-    /// PHP type for stub generation. Accepts a single [`DataType`] (via
-    /// [`PhpType::Simple`]) or a primitive [`PhpType::Union`] for stubs
-    /// like `public int|string $foo`.
+    /// PHP type for stub generation. Accepts a single
+    /// [`crate::flags::DataType`] (via [`PhpType::Simple`]) or a primitive
+    /// [`PhpType::Union`] for stubs like `public int|string $foo`.
     pub ty: Option<PhpType>,
     /// Whether the property accepts null.
     pub nullable: bool,

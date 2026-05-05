@@ -31,9 +31,10 @@ impl<'a> Arg<'a> {
     /// # Parameters
     ///
     /// * `name` - The name of the parameter.
-    /// * `ty` - The type of the parameter. Accepts a [`DataType`] for the
-    ///   single-type case (via [`From<DataType> for PhpType`]) or a full
-    ///   [`PhpType`] for compound forms such as [`PhpType::Union`].
+    /// * `ty` - The type of the parameter. Accepts a
+    ///   [`crate::flags::DataType`] for the single-type case (via
+    ///   [`From<crate::flags::DataType> for PhpType`]) or a full [`PhpType`]
+    ///   for compound forms such as [`PhpType::Union`].
     pub fn new<T, U>(name: T, ty: U) -> Self
     where
         T: Into<String>,
@@ -170,8 +171,8 @@ impl<'a> Arg<'a> {
     ///
     /// * [`Error::NoExpectedTypeDiscriminant`] - the argument's declared
     ///   type has no equivalent in PHP's `Z_EXPECTED_*` enum (compound
-    ///   types or scalar [`DataType`] variants without a slot, such as
-    ///   `Mixed`, `Void`, `Iterable`, `Callable`, `Null`).
+    ///   types or scalar [`crate::flags::DataType`] variants without a slot,
+    ///   such as `Mixed`, `Void`, `Iterable`, `Callable`, `Null`).
     pub fn expected_type(&self) -> Result<crate::zend::ExpectedType> {
         let dt = match &self.r#type {
             PhpType::Simple(dt) => *dt,

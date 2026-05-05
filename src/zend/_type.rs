@@ -197,10 +197,10 @@ impl ZendType {
     /// emits for property/argument intersection types (see
     /// `Zend/ext/zend_test/test_arginfo.h:1363-1370` in php-src):
     ///
-    /// 1. Allocate a [`zend_type_list`] with `pemalloc(_, 1)` (via
+    /// 1. Allocate a `zend_type_list` with `pemalloc(_, 1)` (via
     ///    `ext_php_rs_pemalloc_persistent`, which hides the file/line
     ///    parameters that vary between debug and release builds).
-    /// 2. For each class name, allocate a persistent [`zend_string`] tagged
+    /// 2. For each class name, allocate a persistent `zend_string` tagged
     ///    with `IS_STR_INTERNED` (via
     ///    `ext_php_rs_zend_string_init_persistent_interned`). The interned
     ///    flag turns Zend's `zend_string_release` into a no-op so the
