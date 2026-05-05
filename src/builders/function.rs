@@ -259,7 +259,13 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
 
-    extern "C" fn noop_handler(_: &mut ExecuteData, _: &mut Zval) {}
+    #[cfg(php83)]
+    use crate::zend_fastcall;
+
+    #[cfg(php83)]
+    zend_fastcall! {
+        extern "C" fn noop_handler(_: &mut ExecuteData, _: &mut Zval) {}
+    }
 
     #[test]
     #[cfg(php83)]

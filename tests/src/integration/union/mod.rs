@@ -4,6 +4,7 @@ use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::{PhpType, Zval};
 use ext_php_rs::zend::ExecuteData;
+use ext_php_rs::zend_fastcall;
 
 /// Maps the parsed [`Zval`] to a small integer code so PHP-side assertions can
 /// distinguish which union member was received without inspecting the value
@@ -18,54 +19,64 @@ fn classify(zval: Option<&Zval>, retval: &mut Zval) {
     retval.set_long(code);
 }
 
-extern "C" fn handler_int_or_string(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new(
-        "value",
-        PhpType::Union(vec![DataType::Long, DataType::String]),
-    );
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_int_or_string(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new(
+            "value",
+            PhpType::Union(vec![DataType::Long, DataType::String]),
+        );
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        classify(arg.zval().map(|z| &**z), retval);
     }
-    classify(arg.zval().map(|z| &**z), retval);
 }
 
-extern "C" fn handler_int_string_or_null(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new(
-        "value",
-        PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
-    );
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_int_string_or_null(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new(
+            "value",
+            PhpType::Union(vec![DataType::Long, DataType::String, DataType::Null]),
+        );
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        classify(arg.zval().map(|z| &**z), retval);
     }
-    classify(arg.zval().map(|z| &**z), retval);
 }
 
-extern "C" fn handler_int_string_allow_null(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new(
-        "value",
-        PhpType::Union(vec![DataType::Long, DataType::String]),
-    );
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_int_string_allow_null(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new(
+            "value",
+            PhpType::Union(vec![DataType::Long, DataType::String]),
+        );
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        classify(arg.zval().map(|z| &**z), retval);
     }
-    classify(arg.zval().map(|z| &**z), retval);
 }
 
-extern "C" fn handler_returns_int_or_string(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    if execute_data.parser().parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_returns_int_or_string(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        if execute_data.parser().parse().is_err() {
+            return;
+        }
+        retval.set_long(1);
     }
-    retval.set_long(1);
 }
 
-extern "C" fn handler_returns_int_string_or_null(
-    execute_data: &mut ExecuteData,
-    retval: &mut Zval,
-) {
-    if execute_data.parser().parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_returns_int_string_or_null(
+        execute_data: &mut ExecuteData,
+        retval: &mut Zval,
+    ) {
+        if execute_data.parser().parse().is_err() {
+            return;
+        }
+        retval.set_null();
     }
-    retval.set_null();
 }
 
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {

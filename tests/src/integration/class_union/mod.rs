@@ -4,6 +4,7 @@ use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::{PhpType, Zval};
 use ext_php_rs::zend::ExecuteData;
+use ext_php_rs::zend_fastcall;
 
 #[php_class]
 pub struct ClassUnionLeft;
@@ -18,29 +19,33 @@ fn class_union() -> PhpType {
     ])
 }
 
-extern "C" fn handler_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new("value", class_union());
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new("value", class_union());
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        retval.set_long(1);
     }
-    retval.set_long(1);
 }
 
-extern "C" fn handler_nullable_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new("value", class_union()).allow_null();
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_nullable_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new("value", class_union()).allow_null();
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        retval.set_long(1);
     }
-    retval.set_long(1);
 }
 
-extern "C" fn handler_returns(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    if execute_data.parser().parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_returns(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        if execute_data.parser().parse().is_err() {
+            return;
+        }
+        retval.set_null();
     }
-    // Slice 02 only verifies metadata (Reflection); the actual return value
-    // shape is exercised by separate object-handling tests.
-    retval.set_null();
 }
 
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {

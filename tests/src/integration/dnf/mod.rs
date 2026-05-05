@@ -4,6 +4,7 @@ use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::{DnfTerm, PhpType, Zval};
 use ext_php_rs::zend::ExecuteData;
+use ext_php_rs::zend_fastcall;
 
 fn dnf_a_and_b_or_c() -> PhpType {
     PhpType::Dnf(vec![
@@ -19,38 +20,43 @@ fn dnf_two_intersections() -> PhpType {
     ])
 }
 
-extern "C" fn handler_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new("value", dnf_a_and_b_or_c());
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new("value", dnf_a_and_b_or_c());
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        retval.set_long(1);
     }
-    retval.set_long(1);
 }
 
-extern "C" fn handler_nullable_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new("value", dnf_a_and_b_or_c()).allow_null();
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_nullable_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new("value", dnf_a_and_b_or_c()).allow_null();
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        retval.set_long(1);
     }
-    retval.set_long(1);
 }
 
-extern "C" fn handler_two_intersections_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    let mut arg = Arg::new("value", dnf_two_intersections());
-    if execute_data.parser().arg(&mut arg).parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_two_intersections_arg(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        let mut arg = Arg::new("value", dnf_two_intersections());
+        if execute_data.parser().arg(&mut arg).parse().is_err() {
+            return;
+        }
+        retval.set_long(1);
     }
-    retval.set_long(1);
 }
 
-extern "C" fn handler_returns(execute_data: &mut ExecuteData, retval: &mut Zval) {
-    if execute_data.parser().parse().is_err() {
-        return;
+zend_fastcall! {
+    extern "C" fn handler_returns(execute_data: &mut ExecuteData, retval: &mut Zval) {
+        if execute_data.parser().parse().is_err() {
+            return;
+        }
+        retval.set_null();
     }
-    // Mirror the slice 03 intersection harness: this slice verifies metadata
-    // (Reflection) only; runtime call-site enforcement of internal-function
-    // arg types is `#if ZEND_DEBUG` in php-src and not a stable test surface.
-    retval.set_null();
 }
 
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {

@@ -670,7 +670,6 @@ impl From<(String, Box<dyn IntoConst + Send>, DocComments)> for Constant {
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(windows, feature(abi_vectorcall))]
     use cfg_if::cfg_if;
 
     use super::*;
