@@ -2552,6 +2552,16 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    pub fn zend_declare_typed_property(
+        ce: *mut zend_class_entry,
+        name: *mut zend_string,
+        property: *mut zval,
+        access_type: ::std::os::raw::c_int,
+        doc_comment: *mut zend_string,
+        type_: zend_type,
+    ) -> *mut zend_property_info;
+}
+unsafe extern "C" {
     pub fn zend_declare_property(
         ce: *mut zend_class_entry,
         name: *const ::std::os::raw::c_char,

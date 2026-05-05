@@ -115,8 +115,8 @@ pub fn strip_per_arg_php_attrs(inputs: &mut Punctuated<FnArg, Comma>) {
     }
 }
 
-/// Parses the `LitStr` passed to `#[php(types = ...)]` / `#[php(returns = ...)]`
-/// into a [`PhpType`] at macro-expansion time.
+/// Parses the `LitStr` passed to `#[php(types = ...)]` / `#[php(returns =
+/// ...)]` into a [`PhpType`] at macro-expansion time.
 ///
 /// The parser is the same one the runtime would call — it lives in the
 /// shared `ext-php-rs-types` crate so both this proc-macro and the runtime
