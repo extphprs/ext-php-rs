@@ -130,6 +130,36 @@ pub fn throw_exception() -> PhpResult<i32> {
     )
 }
 
+/// Regression coverage for the `ZBox<ZendClassObject<T>>::set_zval` refcount
+/// bug: throwing an exception built through `ZendClassObject::new(...)
+/// .into_zval(...)` (rather than `T.into_zval(...)`) and carrying a
+/// `#[php(prop)]` field leaks the underlying object. On a PHP debug build the
+/// leak cascades into a `_zend_hash_str_add_or_update_i` assertion at module
+/// shutdown.
+#[php_class]
+#[php(extends(ce = ce::exception, stub = "\\Exception"))]
+#[derive(Default)]
+pub struct TestClassExtendsWithProp {
+    #[php(prop)]
+    pub payload: String,
+}
+
+#[php_impl]
+impl TestClassExtendsWithProp {
+    pub fn __construct() -> Self {
+        Self::default()
+    }
+}
+
+#[php_function]
+pub fn throw_class_object_exception_with_prop() -> PhpResult<i32> {
+    let payload = TestClassExtendsWithProp {
+        payload: "boom".to_string(),
+    };
+    let zval = ZendClassObject::new(payload).into_zval(false)?;
+    Err(PhpException::from_class::<TestClassExtendsWithProp>("ignored".into()).with_object(zval))
+}
+
 #[php_class]
 #[php(implements(ce = ce::arrayaccess, stub = "ArrayAccess"))]
 #[php(extends(ce = ce::exception, stub = "\\Exception"))]
@@ -606,6 +636,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClass>()
         .class::<TestClassArrayAccess>()
         .class::<TestClassExtends>()
+        .class::<TestClassExtendsWithProp>()
         .class::<TestClassExtendsImpl>()
         .class::<TestClassMethodVisibility>()
         .class::<TestClassProtectedConstruct>()
@@ -622,7 +653,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestCloneableClass>()
         .class::<TestUncloneableClass>()
         .function(wrap_function!(test_class))
-        .function(wrap_function!(throw_exception));
+        .function(wrap_function!(throw_exception))
+        .function(wrap_function!(throw_class_object_exception_with_prop));
 
     #[cfg(php84)]
     let builder = builder

@@ -57,6 +57,34 @@ $ex = new TestClassExtends();
 assert_exception_thrown(fn() => throw $ex);
 assert_exception_thrown(fn() => throwException());
 
+// Regression coverage for the ZBox<ZendClassObject<T>>::set_zval refcount bug.
+// The Rust side builds the exception via ZendClassObject::new(...).into_zval(...)
+// rather than T.into_zval(...), and the class carries a #[php(prop)] field. Before
+// the fix the buggy set_zval leaked one ref per throw; debug_zval_dump exposes the
+// surplus deterministically and works on both release and debug PHP builds.
+//
+// The refcount has to be read INSIDE the catch block: PHP keeps the catch-bound
+// variable in scope after the block ends, so any dump after the closing brace would
+// see both bindings and report one ref too many.
+$reported_refcount = null;
+try {
+    throw_class_object_exception_with_prop();
+} catch (TestClassExtendsWithProp $e) {
+    assert($e->payload === 'boom', 'Property value should survive the throw round-trip');
+    ob_start();
+    debug_zval_dump($e);
+    $dump = ob_get_clean();
+    if (preg_match('/refcount\((\d+)\)\{/', $dump, $m)) {
+        $reported_refcount = (int) $m[1];
+    }
+}
+assert(
+    $reported_refcount === 2,
+    "Caught exception refcount should be 2 (\$e + debug_zval_dump's copy); a " .
+        "regression in ZBox<ZendClassObject<T>>::set_zval pushes it to 3. Got: " .
+        var_export($reported_refcount, true)
+);
+
 $arrayAccess = new TestClassArrayAccess();
 assert_exception_thrown(fn() => $arrayAccess[0] = 'foo');
 assert_exception_thrown(fn() => $arrayAccess['foo']);
