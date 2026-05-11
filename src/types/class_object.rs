@@ -19,6 +19,7 @@ use crate::{
         zend_object, zend_object_std_init, zend_objects_clone_members,
     },
     flags::DataType,
+    rc::PhpRc,
     types::{ZendObject, Zval},
     zend::ClassEntry,
 };
@@ -331,7 +332,10 @@ impl<T: RegisteredClass> IntoZval for ZBox<ZendClassObject<T>> {
     const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
     const NULLABLE: bool = false;
 
-    fn set_zval(self, zv: &mut Zval, _: bool) -> Result<()> {
+    fn set_zval(mut self, zv: &mut Zval, _: bool) -> Result<()> {
+        // `set_object` inc_counts on insertion, so dec_count first to keep the
+        // net refcount at 1. Matches `ZBox<ZendObject>::set_zval` in object.rs.
+        self.std.dec_count();
         let obj = self.into_raw();
         zv.set_object(&mut obj.std);
         Ok(())
