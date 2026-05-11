@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.15.13](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.12...ext-php-rs-v0.15.13) - 2026-05-11
+
+### Fixed
+- Leak one refcount in ZBox<ZendClassObject<T>>::set_zval ([#735](https://github.com/extphprs/ext-php-rs/pull/735)) (by @ptondereau) [[#735](https://github.com/extphprs/ext-php-rs/issues/735)] 
 ## [0.15.12](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.11...ext-php-rs-v0.15.12) - 2026-04-22
 
 ### Fixed
