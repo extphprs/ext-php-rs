@@ -10,6 +10,7 @@ use crate::{
     error::{Error, Result},
     ffi::zend_enum_get_case,
     flags::{ClassFlags, DataType},
+    rc::PhpRc,
     types::{ZendObject, ZendStr, Zval},
 };
 
@@ -88,7 +89,12 @@ where
     const NULLABLE: bool = false;
 
     fn set_zval(self, zv: &mut Zval, _persistent: bool) -> Result<()> {
-        let obj = self.into_zend_object()?;
+        // `set_object` increments the object refcount; the ZBox returned by
+        // `into_zend_object` already owns one ref, so we drop one before
+        // handing the pointer over to keep the net count at 1. Same pattern as
+        // `ZBox<ZendObject>::set_zval` in `object.rs`.
+        let mut obj = self.into_zend_object()?;
+        obj.dec_count();
         zv.set_object(obj.into_raw());
         Ok(())
     }
