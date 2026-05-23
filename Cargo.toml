@@ -32,7 +32,7 @@ skeptic = "0.13"
 
 [build-dependencies]
 anyhow = "1"
-ext-php-rs-bindgen = { version = "0.72.1-extphprs.1", default-features = false, features = [
+ext-php-rs-bindgen = { version = "0.72.1-extphprs.2", default-features = false, features = [
     "logging",
     "prettyplease",
 ] }
