@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.15.14](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.13...ext-php-rs-v0.15.14) - 2026-05-23
+
+### Fixed
+- *(bindgen)* Bump ext-php-rs-bindgen to drop the clang-sys fork ([#741](https://github.com/extphprs/ext-php-rs/pull/741)) (by @ptondereau) [[#741](https://github.com/extphprs/ext-php-rs/issues/741)] [[#740](https://github.com/extphprs/ext-php-rs/issues/740)] 
 ## [0.15.13](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.12...ext-php-rs-v0.15.13) - 2026-05-11
 
 ### Fixed
