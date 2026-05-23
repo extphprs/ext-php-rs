@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.13](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.12...ext-php-rs-derive-v0.11.13) - 2026-05-23
+
+### Other
+- *(prop)* Document the Exception::getMessage refcount leak ([#737](https://github.com/extphprs/ext-php-rs/pull/737)) (by @ptondereau) [[#737](https://github.com/extphprs/ext-php-rs/issues/737)] 
 ## [0.11.12](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.11...ext-php-rs-derive-v0.11.12) - 2026-04-20
 
 ### Other
