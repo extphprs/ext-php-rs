@@ -32,6 +32,7 @@ use crate::{
     error::Result,
     ffi::{
         zend_hash_index_find, zend_hash_index_update, zend_hash_str_find, zend_hash_str_update,
+        zend_hash_find, zend_hash_update,
         zend_ulong,
     },
     types::Zval,
@@ -328,6 +329,9 @@ impl<'a, 'k> OccupiedEntry<'a, 'k> {
             ArrayKey::Str(key) => unsafe {
                 zend_hash_str_find(self.ht, key.as_ptr().cast(), key.len()).as_ref()
             },
+            ArrayKey::ZendString(key) => unsafe {
+                zend_hash_find(self.ht, key.as_ptr().cast_mut()).as_ref()
+            },
         }
     }
 
@@ -584,6 +588,9 @@ fn get_value_mut<'a>(key: &ArrayKey<'_>, ht: &'a mut ZendHashTable) -> Option<&'
         ArrayKey::Str(key) => unsafe {
             zend_hash_str_find(ht, key.as_ptr().cast(), key.len()).as_mut()
         },
+        ArrayKey::ZendString(key) => unsafe {
+            zend_hash_find(ht, key.as_ptr().cast_mut()).as_mut()
+        },
     }
 }
 
@@ -613,6 +620,12 @@ fn insert_value<'a, V: IntoZval>(
                 .as_mut()
                 .ok_or(Error::InvalidPointer)
         },
+        ArrayKey::ZendString(key) => unsafe {
+            // zend_hash_update does the addref itself for non-interned strings.
+            zend_hash_update(ht, key.as_ptr().cast_mut(), &raw mut *val)
+                .as_mut()
+                .ok_or(Error::InvalidPointer)
+        },
     }
 }
 
@@ -621,6 +634,7 @@ fn insert_value<'a, V: IntoZval>(
 mod tests {
     use super::*;
     use crate::embed::Embed;
+    use crate::types::ZendStr;
 
     #[test]
     fn test_entry_or_insert() {
@@ -746,6 +760,18 @@ mod tests {
             let key = "\0MyClass\0myProp";
             let result = ht.entry(key).or_insert("value");
             assert!(result.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_entry_with_zend_string_key() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let key = ZendStr::new("hello", false);
+
+            let result = ht.entry(&key).or_insert("value");
+            assert!(result.is_ok());
+            assert_eq!(ht.get(&key).and_then(|v| v.str()), Some("value"));
         });
     }
 }

@@ -321,7 +321,8 @@ pub fn zval_to_stub(zval: &Zval) -> String {
                             crate::types::ArrayKey::Str(key) => {
                                 let key_escaped = key.replace('\\', "\\\\").replace('\'', "\\'");
                                 parts.push(format!("'{key_escaped}' => {val_str}"));
-                            }
+                            },
+                            crate::types::ArrayKey::ZendString(_) => todo!()
                         }
                     }
                 }

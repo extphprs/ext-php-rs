@@ -1,4 +1,4 @@
-use crate::{convert::FromZval, error::Error, flags::DataType, types::Zval};
+use crate::{convert::FromZval, error::Error, flags::DataType, types::Zval, types::ZendStr, boxed::ZBox};
 use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display};
 
@@ -13,6 +13,10 @@ pub enum ArrayKey<'a> {
     String(String),
     /// A string key by reference.
     Str(&'a str),
+    /// A PHP zend_string key.
+    /// Allows bypassing repeated zend_string_init allocations and re-hashing
+    /// when working with pre-existing or interned PHP strings
+    ZendString(&'a ZendStr)
 }
 
 impl From<String> for ArrayKey<'_> {
@@ -37,6 +41,7 @@ impl TryFrom<ArrayKey<'_>> for String {
             ArrayKey::String(s) => Ok(s),
             ArrayKey::Str(s) => Ok(s.to_string()),
             ArrayKey::Long(l) => Ok(l.to_string()),
+            ArrayKey::ZendString(s) => s.as_str().map(|s| s.to_string()),
         }
     }
 }
@@ -49,6 +54,8 @@ impl TryFrom<ArrayKey<'_>> for i64 {
             ArrayKey::Long(i) => Ok(i),
             ArrayKey::String(s) => s.parse::<i64>().map_err(|_| Error::InvalidProperty),
             ArrayKey::Str(s) => s.parse::<i64>().map_err(|_| Error::InvalidProperty),
+            ArrayKey::ZendString(s) => s.as_str().map_err(|_| Error::InvalidProperty)?
+                .parse::<i64>().map_err(|_| Error::InvalidProperty)
         }
     }
 }
@@ -63,7 +70,7 @@ impl ArrayKey<'_> {
     pub fn is_long(&self) -> bool {
         match self {
             ArrayKey::Long(_) => true,
-            ArrayKey::String(_) | ArrayKey::Str(_) => false,
+            ArrayKey::String(_) | ArrayKey::Str(_) | ArrayKey::ZendString(_) => false,
         }
     }
 }
@@ -74,6 +81,10 @@ impl Display for ArrayKey<'_> {
             ArrayKey::Long(key) => write!(f, "{key}"),
             ArrayKey::String(key) => write!(f, "{key}"),
             ArrayKey::Str(key) => write!(f, "{key}"),
+            ArrayKey::ZendString(key) => match key.as_str() {
+                Ok(key) => write!(f, "{key}"),
+                Err(_) => write!(f, "{}", String::from_utf8_lossy(key.as_bytes())),
+            },
         }
     }
 }
@@ -121,6 +132,12 @@ impl<'a> From<usize> for ArrayKey<'a> {
         } else {
             ArrayKey::String(index.to_string())
         }
+    }
+}
+
+impl<'a> From<&'a ZBox<ZendStr>> for ArrayKey<'a> {
+    fn from(value: &'a ZBox<ZendStr>) -> Self {
+        ArrayKey::ZendString(value.as_ref())
     }
 }
 

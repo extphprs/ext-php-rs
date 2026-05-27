@@ -10,6 +10,8 @@ use std::{
     ffi::{CStr, CString},
     fmt::Debug,
     ptr, slice,
+    cmp::Ordering,
+    hash::{Hash, Hasher}
 };
 
 use parking_lot::{Mutex, const_mutex};
@@ -353,6 +355,27 @@ where
 {
     fn eq(&self, other: &T) -> bool {
         self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for ZendStr {}
+
+impl PartialOrd for ZendStr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ZendStr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_ref().cmp(other.as_ref())
+    }
+}
+
+impl Hash for ZendStr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_usize(self.len());
+        state.write(self.as_bytes());
     }
 }
 
