@@ -1,4 +1,6 @@
-use crate::{convert::FromZval, error::Error, flags::DataType, types::Zval, types::ZendStr, boxed::ZBox};
+use crate::{
+    boxed::ZBox, convert::FromZval, error::Error, flags::DataType, types::ZendStr, types::Zval,
+};
 use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display};
 
@@ -13,10 +15,10 @@ pub enum ArrayKey<'a> {
     String(String),
     /// A string key by reference.
     Str(&'a str),
-    /// A PHP zend_string key.
-    /// Allows bypassing repeated zend_string_init allocations and re-hashing
+    /// A PHP `zend_string` key.
+    /// Allows bypassing repeated `zend_string_init` allocations and re-hashing
     /// when working with pre-existing or interned PHP strings
-    ZendString(&'a ZendStr)
+    ZendString(&'a ZendStr),
 }
 
 impl From<String> for ArrayKey<'_> {
@@ -41,7 +43,7 @@ impl TryFrom<ArrayKey<'_>> for String {
             ArrayKey::String(s) => Ok(s),
             ArrayKey::Str(s) => Ok(s.to_string()),
             ArrayKey::Long(l) => Ok(l.to_string()),
-            ArrayKey::ZendString(s) => s.as_str().map(|s| s.to_string()),
+            ArrayKey::ZendString(s) => s.as_str().map(ToString::to_string),
         }
     }
 }
@@ -54,8 +56,11 @@ impl TryFrom<ArrayKey<'_>> for i64 {
             ArrayKey::Long(i) => Ok(i),
             ArrayKey::String(s) => s.parse::<i64>().map_err(|_| Error::InvalidProperty),
             ArrayKey::Str(s) => s.parse::<i64>().map_err(|_| Error::InvalidProperty),
-            ArrayKey::ZendString(s) => s.as_str().map_err(|_| Error::InvalidProperty)?
-                .parse::<i64>().map_err(|_| Error::InvalidProperty)
+            ArrayKey::ZendString(s) => s
+                .as_str()
+                .map_err(|_| Error::InvalidProperty)?
+                .parse::<i64>()
+                .map_err(|_| Error::InvalidProperty),
         }
     }
 }

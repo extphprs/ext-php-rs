@@ -112,7 +112,6 @@ bind! {
     zend_hash_add,
     zend_hash_add_new,
     zend_hash_find,
-    zend_hash_find_known_hash,
     zend_hash_del,
     zend_hash_del_ind,
     zend_internal_arg_info,

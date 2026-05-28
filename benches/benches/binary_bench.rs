@@ -11,9 +11,8 @@ use gungraun::{
 
 static BUILD: Once = Once::new();
 
-static BENCH_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
-    std::env::current_dir().expect("Could not get cwd")
-});
+static BENCH_ROOT: LazyLock<PathBuf> =
+    LazyLock::new(|| std::env::current_dir().expect("Could not get cwd"));
 
 static EXT_LIB: LazyLock<String> = LazyLock::new(|| {
     BENCH_ROOT
@@ -23,18 +22,10 @@ static EXT_LIB: LazyLock<String> = LazyLock::new(|| {
 });
 
 fn bench_script(name: &str) -> String {
-    BENCH_ROOT
-        .join("benches")
-        .join(name)
-        .display()
-        .to_string()
+    BENCH_ROOT.join("benches").join(name).display().to_string()
 }
 
-const CACHE_SIM: [&str; 3] = [
-    "--I1=32768,8,64",
-    "--D1=32768,8,64",
-    "--LL=67108864,16,64",
-];
+const CACHE_SIM: [&str; 3] = ["--I1=32768,8,64", "--D1=32768,8,64", "--LL=67108864,16,64"];
 
 fn setup() {
     BUILD.call_once(|| {
@@ -251,6 +242,64 @@ binary_benchmark_group!(
     benchmarks = property_dumps
 );
 
+#[binary_benchmark]
+#[bench::single_iteration(args = ("array_str_ref_keys.php", 1))]
+#[bench::multiple_iterations(args = ("array_str_ref_keys.php", 10))]
+#[bench::lots_of_iterations(args = ("array_str_ref_keys.php", 100_000))]
+fn array_str_ref_keys(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+binary_benchmark_group!(
+    name = array_str_ref_key;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*_internal_bench_array_with_str_ref_keys*handler*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = array_str_ref_keys
+);
+
+#[binary_benchmark]
+#[bench::single_iteration(args = ("array_interned_keys.php", 1))]
+#[bench::multiple_iterations(args = ("array_interned_keys.php", 10))]
+#[bench::lots_of_iterations(args = ("array_interned_keys.php", 100_000))]
+fn array_interned_keys(script: &str, cnt: usize) -> gungraun::Command {
+    setup();
+
+    gungraun::Command::new("php")
+        .arg(format!("-dextension={}", *EXT_LIB))
+        .arg(bench_script(script))
+        .arg(cnt.to_string())
+        .build()
+}
+
+binary_benchmark_group!(
+    name = array_interned_key;
+    config = BinaryBenchmarkConfig::default()
+        .tool(Callgrind::with_args([
+            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
+            "--collect-atstart=no",
+            "--toggle-collect=*_internal_bench_array_with_interned_keys*handler*",
+        ]).flamegraph(FlamegraphConfig::default()));
+    benchmarks = array_interned_keys
+);
+
 main!(
-    binary_benchmark_groups = function, callback, method, static_method, property_read, property_write, property_dump
+    binary_benchmark_groups = function,
+    callback,
+    method,
+    static_method,
+    property_read,
+    property_write,
+    property_dump,
+    array_str_ref_key,
+    array_interned_key
 );

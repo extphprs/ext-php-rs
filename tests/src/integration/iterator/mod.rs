@@ -57,8 +57,8 @@ fn key_to_zval(key: ArrayKey) -> Zval {
             let mut zval = Zval::new();
             zval.set_long(l);
             zval
-        },
-        ArrayKey::ZendString(_) => todo!()
+        }
+        ArrayKey::ZendString(_) => todo!(),
     }
 }
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {

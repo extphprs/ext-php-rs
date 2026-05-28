@@ -6,15 +6,15 @@ mod smartstring_impl;
 
 use std::{
     borrow::Cow,
+    cmp::Ordering,
     convert::TryFrom,
     ffi::{CStr, CString},
     fmt::Debug,
+    hash::{Hash, Hasher},
     ptr, slice,
-    cmp::Ordering,
-    hash::{Hash, Hasher}
 };
 
-use parking_lot::{Mutex, const_mutex};
+use parking_lot::{const_mutex, Mutex};
 
 use crate::{
     boxed::{ZBox, ZBoxable},

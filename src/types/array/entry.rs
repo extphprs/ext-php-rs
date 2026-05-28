@@ -31,9 +31,8 @@ use crate::{
     convert::IntoZval,
     error::Result,
     ffi::{
-        zend_hash_index_find, zend_hash_index_update, zend_hash_str_find, zend_hash_str_update,
-        zend_hash_find, zend_hash_update,
-        zend_ulong,
+        zend_hash_find, zend_hash_index_find, zend_hash_index_update, zend_hash_str_find,
+        zend_hash_str_update, zend_hash_update, zend_ulong,
     },
     types::Zval,
 };

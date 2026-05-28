@@ -10,8 +10,9 @@ use crate::boxed::ZBox;
 use crate::{
     convert::FromZval,
     ffi::{
-        HashPosition, zend_hash_get_current_data_ex, zend_hash_get_current_key_type_ex,
+        zend_hash_get_current_data_ex, zend_hash_get_current_key_type_ex,
         zend_hash_get_current_key_zval_ex, zend_hash_move_backwards_ex, zend_hash_move_forward_ex,
+        HashPosition,
     },
     types::Zval,
 };
