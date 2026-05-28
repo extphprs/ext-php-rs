@@ -9,10 +9,11 @@ use crate::{
     error::Result,
     ffi::zend_ulong,
     ffi::{
-        _zend_new_array, zend_array_count, zend_array_destroy, zend_array_dup, zend_empty_array,
-        zend_hash_clean, zend_hash_del, zend_hash_find, zend_hash_index_del, zend_hash_index_find,
-        zend_hash_index_update, zend_hash_next_index_insert, zend_hash_str_del, zend_hash_str_find,
-        zend_hash_str_update, zend_hash_update, GC_FLAGS_MASK, GC_FLAGS_SHIFT, HT_MIN_SIZE,
+        _zend_new_array, GC_FLAGS_MASK, GC_FLAGS_SHIFT, HT_MIN_SIZE, zend_array_count,
+        zend_array_destroy, zend_array_dup, zend_empty_array, zend_hash_clean, zend_hash_del,
+        zend_hash_find, zend_hash_index_del, zend_hash_index_find, zend_hash_index_update,
+        zend_hash_next_index_insert, zend_hash_str_del, zend_hash_str_find, zend_hash_str_update,
+        zend_hash_update,
     },
     flags::{DataType, ZvalTypeFlags},
     types::Zval,
@@ -362,11 +363,7 @@ impl ZendHashTable {
             ArrayKey::ZendString(key) => unsafe { zend_hash_del(self, key.as_ptr().cast_mut()) },
         };
 
-        if result < 0 {
-            None
-        } else {
-            Some(())
-        }
+        if result < 0 { None } else { Some(()) }
     }
 
     /// Attempts to remove a value from the hash table with a string key.
@@ -399,11 +396,7 @@ impl ZendHashTable {
             zend_hash_index_del(self, key as zend_ulong)
         };
 
-        if result < 0 {
-            None
-        } else {
-            Some(())
-        }
+        if result < 0 { None } else { Some(()) }
     }
 
     /// Attempts to insert an item into the hash table, or update if the key
