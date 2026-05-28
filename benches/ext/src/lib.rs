@@ -9,7 +9,7 @@
 use ext_php_rs::{
     boxed::ZBox,
     prelude::*,
-    types::{PhpRef, ZendStr},
+    types::{ZendHashTable, ZendStr},
 };
 
 #[php_function]
@@ -78,10 +78,8 @@ impl BenchProps {
 }
 
 #[php_function]
-pub fn bench_array_with_str_ref_keys(mut array: PhpRef, n: u64) {
-    let Some(array) = array.array_mut() else {
-        return;
-    };
+pub fn bench_array_with_str_ref_keys(n: u64) -> ZBox<ZendHashTable> {
+    let mut array = ZendHashTable::new();
 
     for i in 0..n {
         let _ = array.insert("key0", i);
@@ -90,13 +88,13 @@ pub fn bench_array_with_str_ref_keys(mut array: PhpRef, n: u64) {
         let _ = array.insert("key3", i);
         let _ = array.insert("key4", i);
     }
+
+    array
 }
 
 #[php_function]
-pub fn bench_array_with_interned_keys(mut array: PhpRef, n: u64) {
-    let Some(array) = array.array_mut() else {
-        return;
-    };
+pub fn bench_array_with_interned_keys(n: u64) -> ZBox<ZendHashTable> {
+    let mut array = ZendHashTable::new();
 
     for i in 0..n {
         let _ = array.insert(INTERNED_KEYS.get().key0.as_ref().unwrap(), i);
@@ -105,6 +103,8 @@ pub fn bench_array_with_interned_keys(mut array: PhpRef, n: u64) {
         let _ = array.insert(INTERNED_KEYS.get().key3.as_ref().unwrap(), i);
         let _ = array.insert(INTERNED_KEYS.get().key4.as_ref().unwrap(), i);
     }
+
+    array
 }
 
 #[derive(Default)]
