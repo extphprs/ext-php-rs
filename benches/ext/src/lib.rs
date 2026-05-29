@@ -96,12 +96,14 @@ pub fn bench_array_with_str_ref_keys(n: u64) -> ZBox<ZendHashTable> {
 pub fn bench_array_with_interned_keys(n: u64) -> ZBox<ZendHashTable> {
     let mut array = ZendHashTable::new();
 
+    let keys = INTERNED_KEYS.get();
+
     for i in 0..n {
-        let _ = array.insert(INTERNED_KEYS.get().key0.as_ref().unwrap(), i);
-        let _ = array.insert(INTERNED_KEYS.get().key1.as_ref().unwrap(), i);
-        let _ = array.insert(INTERNED_KEYS.get().key2.as_ref().unwrap(), i);
-        let _ = array.insert(INTERNED_KEYS.get().key3.as_ref().unwrap(), i);
-        let _ = array.insert(INTERNED_KEYS.get().key4.as_ref().unwrap(), i);
+        let _ = array.insert(keys.key0.as_ref().unwrap(), i);
+        let _ = array.insert(keys.key1.as_ref().unwrap(), i);
+        let _ = array.insert(keys.key2.as_ref().unwrap(), i);
+        let _ = array.insert(keys.key3.as_ref().unwrap(), i);
+        let _ = array.insert(keys.key4.as_ref().unwrap(), i);
     }
 
     array

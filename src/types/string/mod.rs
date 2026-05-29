@@ -14,7 +14,7 @@ use std::{
     ptr, slice,
 };
 
-use parking_lot::{Mutex, const_mutex};
+use parking_lot::{const_mutex, Mutex};
 
 use crate::{
     boxed::{ZBox, ZBoxable},
@@ -374,8 +374,7 @@ impl Ord for ZendStr {
 
 impl Hash for ZendStr {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_usize(self.len());
-        state.write(self.as_bytes());
+        self.as_bytes().hash(state);
     }
 }
 

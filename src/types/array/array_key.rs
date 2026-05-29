@@ -142,7 +142,19 @@ impl<'a> From<usize> for ArrayKey<'a> {
 
 impl<'a> From<&'a ZBox<ZendStr>> for ArrayKey<'a> {
     fn from(value: &'a ZBox<ZendStr>) -> Self {
-        ArrayKey::ZendString(value.as_ref())
+        ArrayKey::from(value.as_ref())
+    }
+}
+
+impl<'a> From<&'a ZendStr> for ArrayKey<'a> {
+    fn from(value: &'a ZendStr) -> Self {
+        if let Ok(text) = value.as_str()
+            && let Ok(index) = i64::from_str(text)
+            && (text == "0" || !text.starts_with('0'))
+        {
+            return ArrayKey::Long(index);
+        }
+        ArrayKey::ZendString(value)
     }
 }
 

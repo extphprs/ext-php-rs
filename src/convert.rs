@@ -322,7 +322,15 @@ pub fn zval_to_stub(zval: &Zval) -> String {
                                 let key_escaped = key.replace('\\', "\\\\").replace('\'', "\\'");
                                 parts.push(format!("'{key_escaped}' => {val_str}"));
                             }
-                            crate::types::ArrayKey::ZendString(_) => todo!(),
+                            crate::types::ArrayKey::ZendString(key) => {
+                                let decoded = match key.as_str() {
+                                    Ok(s) => std::borrow::Cow::Borrowed(s),
+                                    Err(_) => String::from_utf8_lossy(key.as_bytes()),
+                                };
+                                let key_escaped =
+                                    decoded.replace('\\', "\\\\").replace('\'', "\\'");
+                                parts.push(format!("'{key_escaped}' => {val_str}"));
+                            }
                         }
                     }
                 }
