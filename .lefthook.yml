@@ -22,3 +22,7 @@ pre-commit:
         - "guide/src/macros/*.md"
         - "crates/macros/src/lib.rs"
       stage_fixed: true
+    - name: mago
+      run: mago format {staged_files} && mago lint --fix {staged_files}
+      glob: "*.php"
+      stage_fixed: true

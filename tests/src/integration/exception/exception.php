@@ -1,6 +1,6 @@
 <?php
 
-require(__DIR__ . '/../_utils.php');
+require __DIR__ . '/../_utils.php';
 
 assert_exception_thrown(fn() => throw_default_exception(), \Exception::class);
 
@@ -9,5 +9,5 @@ try {
 } catch (\Throwable $e) {
     // Check if object is initiated
     assert($e instanceof \Test\TestException);
-    assert("Not good custom!" === $e->getMessage());
+    assert('Not good custom!' === $e->getMessage());
 }

@@ -1,6 +1,6 @@
 <?php
 
-require(__DIR__ . '/../_utils.php');
+require __DIR__ . '/../_utils.php';
 
 // Tests constructor
 $class = test_class('lorem ipsum', 2022);
@@ -10,9 +10,9 @@ assert($class instanceof TestClass);
 assert($class->string === 'lorem ipsum');
 $class->string = 'dolor et';
 assert($class->string === 'dolor et');
-$class->selfRef("foo");
+$class->selfRef('foo');
 assert($class->string === 'Changed to foo');
-$class->selfMultiRef("bar");
+$class->selfMultiRef('bar');
 assert($class->string === 'Changed to bar');
 
 // Test method returning Self (new instance)
@@ -37,8 +37,14 @@ assert($class->booleanProp === false);
 $testClassReflection = new ReflectionClass(TestClass::class);
 $methodNames = array_map(fn($m) => $m->getName(), $testClassReflection->getMethods());
 $propertyNames = array_map(fn($p) => $p->getName(), $testClassReflection->getProperties());
-assert(!in_array('get_string', $methodNames) && !in_array('getString', $methodNames), 'Getter methods should NOT appear in reflection');
-assert(!in_array('set_string', $methodNames) && !in_array('setString', $methodNames), 'Setter methods should NOT appear in reflection');
+assert(
+    !in_array('get_string', $methodNames) && !in_array('getString', $methodNames),
+    'Getter methods should NOT appear in reflection'
+);
+assert(
+    !in_array('set_string', $methodNames) && !in_array('setString', $methodNames),
+    'Setter methods should NOT appear in reflection'
+);
 assert(in_array('string', $propertyNames), 'Property "string" from getter/setter SHOULD appear in reflection');
 assert(in_array('number', $propertyNames), 'Property "number" from getter/setter SHOULD appear in reflection');
 assert(in_array('booleanProp', $propertyNames), 'Property "booleanProp" from #[php(prop)] SHOULD appear in reflection');
@@ -80,9 +86,9 @@ try {
 }
 assert(
     $reported_refcount === 2,
-    "Caught exception refcount should be 2 (\$e + debug_zval_dump's copy); a " .
-        "regression in ZBox<ZendClassObject<T>>::set_zval pushes it to 3. Got: " .
-        var_export($reported_refcount, true)
+    "Caught exception refcount should be 2 (\$e + debug_zval_dump's copy); a "
+        . 'regression in ZBox<ZendClassObject<T>>::set_zval pushes it to 3. Got: '
+        . var_export($reported_refcount, true)
 );
 
 $arrayAccess = new TestClassArrayAccess();
@@ -164,7 +170,7 @@ $selfRef = $builder2->getSelf();
 assert($selfRef === $builder2, 'getSelf should return $this');
 
 // Test readonly class (PHP 8.2+)
-if (PHP_VERSION_ID >= 80200) {
+if (PHP_VERSION_ID >= 80_200) {
     $readonlyObj = new TestReadonlyClass('hello', 42);
     assert($readonlyObj->getName() === 'hello', 'Readonly class getter should work');
     assert($readonlyObj->getValue() === 42, 'Readonly class getter should work');
@@ -205,10 +211,11 @@ assert_exception_thrown(fn() => $visibilityObj->protectedStr = 'test', 'Writing 
 // Casting to array exposes these mangled keys directly.
 $arr = (array) $visibilityObj;
 assert(array_key_exists('publicNum', $arr), 'Public property should appear unmangled');
-assert(array_key_exists("\0TestPropertyVisibility\0privateStr", $arr),
-    'Private property should appear with \0ClassName\0prop mangling');
-assert(array_key_exists("\0*\0protectedStr", $arr),
-    'Protected property should appear with \0*\0prop mangling');
+assert(
+    array_key_exists("\0TestPropertyVisibility\0privateStr", $arr),
+    'Private property should appear with \0ClassName\0prop mangling'
+);
+assert(array_key_exists("\0*\0protectedStr", $arr), 'Protected property should appear with \0*\0prop mangling');
 
 // Test reserved keyword method names
 $keywordObj = new TestReservedKeywordMethods();
@@ -261,25 +268,34 @@ assert($abstractReflection->isAbstract(), 'TestAbstractClass should be marked as
 
 // Verify abstract methods are marked as abstract in reflection
 assert($abstractReflection->getMethod('abstractMethod')->isAbstract(), 'abstractMethod should be marked as abstract');
-assert(!$abstractReflection->getMethod('concreteMethod')->isAbstract(), 'concreteMethod should NOT be marked as abstract');
+assert(
+    !$abstractReflection->getMethod('concreteMethod')->isAbstract(),
+    'concreteMethod should NOT be marked as abstract'
+);
 
 // Test extending the abstract class in PHP
-class ConcreteTestClass extends TestAbstractClass {
-    public function __construct() {
+class ConcreteTestClass extends TestAbstractClass
+{
+    public function __construct()
+    {
         parent::__construct();
     }
 
-    public function abstractMethod(): string {
+    public function abstractMethod(): string
+    {
         return 'implemented abstract method';
     }
 }
 
 $concreteObj = new ConcreteTestClass();
 assert($concreteObj->abstractMethod() === 'implemented abstract method', 'Implemented abstract method should work');
-assert($concreteObj->concreteMethod() === 'concrete method in abstract class', 'Concrete method from abstract class should work');
+assert(
+    $concreteObj->concreteMethod() === 'concrete method in abstract class',
+    'Concrete method from abstract class should work'
+);
 
 // Test lazy objects (PHP 8.4+)
-if (PHP_VERSION_ID >= 80400) {
+if (PHP_VERSION_ID >= 80_400) {
     // Test with a regular (non-lazy) Rust object first
     $regularObj = new TestLazyClass('regular');
     assert(test_is_lazy($regularObj) === false, 'Regular Rust object should not be lazy');
@@ -288,11 +304,13 @@ if (PHP_VERSION_ID >= 80400) {
     assert(test_is_lazy_initialized($regularObj) === false, 'Regular Rust object lazy_initialized should be false');
     // PHP 8.4 lazy objects only work with user-defined PHP classes, not internal classes.
     // Rust-defined classes are internal classes, so we test with a pure PHP class.
-    class PhpLazyTestClass {
+    class PhpLazyTestClass
+    {
         public string $data = '';
         public bool $initialized = false;
 
-        public function __construct(string $data) {
+        public function __construct(string $data)
+        {
             $this->data = $data;
             $this->initialized = true;
         }
@@ -357,7 +375,10 @@ assert($childObj->getBaseInfo() === 'I am the base class', 'Child should have ba
 
 // Verify inheritance through reflection
 $childReflection = new ReflectionClass(TestChildClass::class);
-assert($childReflection->getParentClass()->getName() === TestBaseClass::class, 'TestChildClass should extend TestBaseClass');
+assert(
+    $childReflection->getParentClass()->getName() === TestBaseClass::class,
+    'TestChildClass should extend TestBaseClass'
+);
 assert($childObj instanceof TestBaseClass, 'TestChildClass instance should be instanceof TestBaseClass');
 
 $original = new TestCloneableClass(42, 'original');
@@ -384,15 +405,15 @@ assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class s
 // hit the cache_slot fast path and return the same correct value.
 $cacheObj = test_class('cached', 999);
 for ($i = 0; $i < 1000; $i++) {
-    assert($cacheObj->string === 'cached', "Cached read failed at iteration $i");
-    assert($cacheObj->number === 999, "Cached read (number) failed at iteration $i");
+    assert($cacheObj->string === 'cached', "Cached read failed at iteration {$i}");
+    assert($cacheObj->number === 999, "Cached read (number) failed at iteration {$i}");
 }
 
 // Test cache_slot: write then read in the same loop iteration.
 // Validates the cache returns the updated descriptor (same descriptor, new value).
 for ($i = 0; $i < 100; $i++) {
     $cacheObj->number = $i;
-    assert($cacheObj->number === $i, "Write-then-read failed at iteration $i");
+    assert($cacheObj->number === $i, "Write-then-read failed at iteration {$i}");
 }
 
 // Test cache_slot: isset() followed by read on the same property.

@@ -31,6 +31,31 @@ lefthook install
 - When updating the macro guides (`guide/src/macros`), you need to have the `nightly` toolchain installed. This is required
   to have the proper formatting in the documentation.
 
+## Code Style
+
+Rust code is formatted with `rustfmt` and linted with `clippy`, both run by the git hooks above.
+
+The repository's PHP files (integration-test fixtures, benchmarks, and embed scripts) are formatted and
+linted with [mago](https://mago.carthage.software). The nix dev shell provides the pinned version, so
+`nix develop` gives you a ready-to-use `mago` with no extra setup. If you do not use nix, install the same
+version from the [mago installation guide](https://mago.carthage.software). The `lefthook` pre-commit hook
+formats and applies safe lint fixes to any staged `*.php` file, and CI runs the same checks.
+
+To run them manually:
+
+```bash
+mago format         # format every PHP file
+mago format --check # verify formatting without writing (what CI runs)
+mago lint           # lint every PHP file
+mago lint --fix     # apply safe lint fixes
+```
+
+The configuration lives in `mago.toml`. Several lint rules are disabled there because these PHP files are
+fixtures for a PHP extension, not application code: they deliberately use patterns an application linter
+would reject (for example calling `debug_zval_dump` for refcount testing, passing literal arguments
+positionally, or omitting `declare(strict_types=1)` to keep weak-mode coercion behaviour). Each disabled
+rule is annotated with the reason it does not apply.
+
 ## Testing
 
 We have both unit and integration tests. When contributing, please ensure that your changes are at least

@@ -7,5 +7,5 @@ function assert_exception_thrown(callable $callback): void
     } catch (\Throwable $th) {
         return;
     }
-    throw new Exception("Exception was not thrown", 255);
+    throw new Exception('Exception was not thrown', 255);
 }
