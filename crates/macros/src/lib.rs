@@ -2572,6 +2572,17 @@ fn zval_convert_derive_internal(input: TokenStream2) -> TokenStream2 {
 /// V1 only supports newtype variants — unit, named, and multi-field tuple
 /// variants are compile errors. Generics on the enum are also rejected.
 ///
+/// ## Limitation: primitive unions only
+///
+/// `PhpUnion` targets unions of **primitive** types (`int|string`,
+/// `int|float|null`, ...). A variant may wrap a `#[php_class]` or interface,
+/// but the registered PHP type for a class-backed variant widens to `object`:
+/// a `#[php_class]` exposes `IntoZval::TYPE = DataType::Object(None)`, so no
+/// class name reaches the derive and `Foo|Bar` registers as `object`. Runtime
+/// `FromZval` dispatch still works; only the declared (reflected) type is
+/// loose. For a precise class union, use `#[php(types = "Foo|Bar")]` instead.
+/// This is a known limitation tracked for a follow-up.
+///
 /// ## Example
 ///
 /// ```rust,no_run,ignore

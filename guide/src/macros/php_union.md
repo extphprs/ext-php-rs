@@ -85,6 +85,25 @@ $param = $rf->getParameters()[0]->getType(); // ReflectionUnionType: int|string
 $ret   = $rf->getReturnType();               // ReflectionUnionType: int|string
 ```
 
+## Limitations: primitive unions only
+
+`#[derive(PhpUnion)]` targets unions of **primitive** types (`int|string`,
+`int|float|null`, ...). A variant may wrap any `IntoZval`/`FromZval` type,
+including a `#[php_class]` or interface, but the registered PHP type for a
+class-backed variant **widens to `object`** — the specific class name is not
+preserved.
+
+The reason: a `#[php_class]` exposes `IntoZval::TYPE = DataType::Object(None)`,
+so no class name is available where the derive builds the union. An
+`enum { A(Foo), B(Bar) }` therefore registers as `object`, not `Foo|Bar`. The
+runtime `FromZval` dispatch still tries each variant in declaration order and
+works correctly; only the declared (reflected) arg-info is loose.
+
+For a real class union (`Foo|Bar`) or a mixed union, use the explicit
+`#[php(types = "...")]` attribute instead (see below), which carries the class
+names through to registration. Promoting an all-class `PhpUnion` enum to a
+precise `Foo|Bar` registration is tracked as a follow-up.
+
 ## Relationship to `#[derive(ZvalConvert)]`
 
 `#[derive(ZvalConvert)]` on an enum produces a similar variant-dispatching

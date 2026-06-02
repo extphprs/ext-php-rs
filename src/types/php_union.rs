@@ -27,6 +27,17 @@
 //!     PhpType::Union(vec![DataType::Long, DataType::String]),
 //! );
 //! ```
+//!
+//! # Limitation: primitive unions only
+//!
+//! `PhpUnion` is designed for unions of primitive types. A variant may wrap a
+//! `#[php_class]` or interface, but the registered PHP type for a class-backed
+//! variant widens to `object` because `#[php_class]` exposes
+//! `IntoZval::TYPE = DataType::Object(None)` — the class name is not available
+//! where the union is built. Runtime [`FromZval`](crate::convert::FromZval)
+//! dispatch still works; only the declared (reflected) arg-info is loose. For a
+//! precise class union, use `#[php(types = "Foo|Bar")]`. Tracked for a
+//! follow-up.
 
 use crate::types::PhpType;
 
