@@ -304,6 +304,13 @@ pub enum PhpTypeParseError {
         /// The duplicated member, rendered in PHP syntax.
         name: String,
     },
+    /// A standalone-only type (`void` or `mixed`) appeared as a union member.
+    /// PHP rejects these with "X can only be used as a standalone type".
+    /// (`never` is caught earlier as an [`Self::UnsupportedKeyword`].)
+    StandaloneType {
+        /// The offending type name, in PHP syntax (`void`, `mixed`).
+        name: String,
+    },
     /// A union mixed primitive types with class names (`int|Foo`). The
     /// runtime [`PhpType`] variants do not model this mixing — see the
     /// note on [`PhpType::Dnf`].
@@ -367,6 +374,9 @@ impl fmt::Display for PhpTypeParseError {
                 "keyword {name:?} is not supported in ext-php-rs argument and return types"
             ),
             Self::DuplicateMember { name } => write!(f, "duplicate type {name:?}"),
+            Self::StandaloneType { name } => {
+                write!(f, "type {name:?} can only be used as a standalone type")
+            }
             Self::MixedPrimitiveAndClass => write!(
                 f,
                 "primitive types and class names cannot be mixed in a union"
@@ -427,7 +437,15 @@ fn parse(s: &str) -> Result<PhpType, PhpTypeParseError> {
 
     let single = parse_atom(body)?;
     match single {
-        Atom::Primitive(dt) if nullable => Ok(PhpType::Union(vec![dt, DataType::Null])),
+        Atom::Primitive(dt) if nullable => {
+            if is_standalone_only_type(dt) {
+                Err(PhpTypeParseError::StandaloneType {
+                    name: PhpType::Simple(dt).to_string(),
+                })
+            } else {
+                Ok(PhpType::Union(vec![dt, DataType::Null]))
+            }
+        }
         Atom::Primitive(dt) => Ok(PhpType::Simple(dt)),
         Atom::Class(_) if nullable => Err(PhpTypeParseError::ClassNullableNotRepresentable),
         Atom::Class(name) => Ok(PhpType::ClassUnion(vec![name])),
@@ -569,6 +587,7 @@ fn parse_union(body: &str, body_offset: usize) -> Result<PhpType, PhpTypeParseEr
                 _ => unreachable!("class-free path"),
             })
             .collect();
+        reject_standalone_only_types(&members)?;
         check_no_duplicate_data_types(&members)?;
         return Ok(PhpType::Union(members));
     }
@@ -589,9 +608,27 @@ fn check_no_duplicate_data_types(members: &[DataType]) -> Result<(), PhpTypePars
         for b in &members[..i] {
             if a == b {
                 return Err(PhpTypeParseError::DuplicateMember {
-                    name: format!("{a}"),
+                    name: PhpType::Simple(*a).to_string(),
                 });
             }
+        }
+    }
+    Ok(())
+}
+
+/// `void` and `mixed` may only be used as standalone PHP types; they are
+/// illegal as members of a union. `never` is rejected even earlier by
+/// [`reject_unsupported_keyword`], so it never reaches the union path.
+fn is_standalone_only_type(dt: DataType) -> bool {
+    matches!(dt, DataType::Void | DataType::Mixed)
+}
+
+fn reject_standalone_only_types(members: &[DataType]) -> Result<(), PhpTypeParseError> {
+    for &dt in members {
+        if is_standalone_only_type(dt) {
+            return Err(PhpTypeParseError::StandaloneType {
+                name: PhpType::Simple(dt).to_string(),
+            });
         }
     }
     Ok(())
@@ -1337,6 +1374,61 @@ mod tests {
     }
 
     #[test]
+    fn rejects_standalone_only_type_as_union_member() {
+        let cases = [
+            ("int|void", "void"),
+            ("int|mixed", "mixed"),
+            ("void|int", "void"),
+            ("mixed|string", "mixed"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                err(input),
+                PhpTypeParseError::StandaloneType {
+                    name: expected.to_owned(),
+                },
+                "input {input:?} should reject {expected:?} as standalone-only"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_standalone_only_type_with_nullable_shorthand() {
+        assert_eq!(
+            err("?void"),
+            PhpTypeParseError::StandaloneType {
+                name: "void".to_owned(),
+            }
+        );
+        assert_eq!(
+            err("?mixed"),
+            PhpTypeParseError::StandaloneType {
+                name: "mixed".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn standalone_only_types_still_parse_alone() {
+        assert_eq!(
+            "void".parse::<PhpType>(),
+            Ok(PhpType::Simple(DataType::Void))
+        );
+        assert_eq!(
+            "mixed".parse::<PhpType>(),
+            Ok(PhpType::Simple(DataType::Mixed))
+        );
+    }
+
+    #[test]
+    fn never_in_union_is_unsupported_keyword_not_standalone() {
+        assert!(matches!(
+            err("int|never"),
+            PhpTypeParseError::UnsupportedKeyword { .. }
+        ));
+    }
+
+    #[test]
     fn rejects_single_element_paren_group() {
         assert!(matches!(
             err("(A)|B"),
@@ -1362,6 +1454,24 @@ mod tests {
             err("int|int"),
             PhpTypeParseError::DuplicateMember { .. }
         ));
+    }
+
+    #[test]
+    fn duplicate_member_reports_php_primitive_name_not_rust_name() {
+        let cases = [
+            ("int|int", "int"),
+            ("float|float", "float"),
+            ("bool|bool", "bool"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                err(input),
+                PhpTypeParseError::DuplicateMember {
+                    name: expected.to_owned(),
+                },
+                "input {input:?} should report the PHP type name {expected:?}"
+            );
+        }
     }
 
     #[test]
