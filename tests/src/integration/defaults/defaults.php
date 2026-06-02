@@ -22,6 +22,9 @@ assert($threw, 'Expected TypeError when passing null to non-nullable parameter w
 assert(test_defaults_nullable_string(null) === null);
 
 // Test nullable parameter with Some() default value
-assert(test_defaults_nullable_with_some_default() === 'fallback', 'Should return fallback when called without arguments');
+assert(
+    test_defaults_nullable_with_some_default() === 'fallback',
+    'Should return fallback when called without arguments'
+);
 assert(test_defaults_nullable_with_some_default(null) === null, 'Should return null when null is passed');
 assert(test_defaults_nullable_with_some_default('custom') === 'custom', 'Should return custom value when provided');

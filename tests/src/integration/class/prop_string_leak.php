@@ -41,13 +41,14 @@ try {
 }
 assert(
     $first_call_returned === 'leak-bait message contents',
-    "Sanity check: one getMessage() call should return the stored message " .
-        "verbatim. Got: " . var_export($first_call_returned, true)
+    'Sanity check: one getMessage() call should return the stored message verbatim. Got: '
+        . var_export($first_call_returned, true)
 );
 assert(
     $leak_observed !== null && $leak_observed < 8192,
-    "getMessage() on a #[php(prop)] String field leaks zend_strings: 500 " .
-        "calls grew the emalloc heap by " . var_export($leak_observed, true) .
-        " bytes. Each call orphans one zend_string refcount (~150 bytes); " .
-        "with the fix this delta should be near zero."
+    'getMessage() on a #[php(prop)] String field leaks zend_strings: 500 '
+    . 'calls grew the emalloc heap by '
+    . var_export($leak_observed, true)
+    . ' bytes. Each call orphans one zend_string refcount (~150 bytes); '
+    . 'with the fix this delta should be near zero.'
 );

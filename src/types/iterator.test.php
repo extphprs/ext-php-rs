@@ -1,13 +1,15 @@
 <?php
 
-function create_generator() {
+function create_generator()
+{
     yield 1;
     yield 2;
     yield 3;
     yield new class {} => new class {};
 }
 
-class TestIterator implements \Iterator {
+class TestIterator implements \Iterator
+{
     private $count = 0;
 
     public function current(): mixed
@@ -17,7 +19,7 @@ class TestIterator implements \Iterator {
             1 => 'bar',
             2 => 'baz',
             3 => new class {},
-            default => null,
+            default => null
         };
     }
 
@@ -33,7 +35,7 @@ class TestIterator implements \Iterator {
             1 => 10,
             2 => 2,
             3 => new class {},
-            default => null,
+            default => null
         };
     }
 

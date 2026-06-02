@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare(strict_types = 1);
 
 $enum_variant = TestEnum::Variant1;
 assert($enum_variant === TestEnum::Variant1);

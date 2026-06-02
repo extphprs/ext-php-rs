@@ -22,7 +22,7 @@ assert(test_separated_array_len([10, 20, 30]) === 3, 'Separated read should repo
 assert(test_separated_array_len([]) === 0, 'Separated should handle empty array');
 
 // Works with different PHP types
-assert(test_separated_string("hello") === "hello", 'Separated should read strings');
+assert(test_separated_string('hello') === 'hello', 'Separated should read strings');
 assert(test_separated_long(42) === 42, 'Separated should read integers');
 
 // Passthrough returns a copy of the value
@@ -31,12 +31,12 @@ $copy = test_separated_passthrough($original);
 assert($copy === [1, 2, 3], 'Passthrough should return equivalent value');
 
 // Type reporting
-assert(test_separated_type(42) === "Long", 'Separated should report Long type');
-assert(test_separated_type("str") === "String", 'Separated should report String type');
-assert(test_separated_type([1]) === "Array", 'Separated should report Array type');
-assert(test_separated_type(null) === "Null", 'Separated should report Null type');
-assert(test_separated_type(true) === "True", 'Separated should report True type');
-assert(test_separated_type(3.14) === "Double", 'Separated should report Double type');
+assert(test_separated_type(42) === 'Long', 'Separated should report Long type');
+assert(test_separated_type('str') === 'String', 'Separated should report String type');
+assert(test_separated_type([1]) === 'Array', 'Separated should report Array type');
+assert(test_separated_type(null) === 'Null', 'Separated should report Null type');
+assert(test_separated_type(true) === 'True', 'Separated should report True type');
+assert(test_separated_type(3.14) === 'Double', 'Separated should report Double type');
 
 // ============================================================
 // PhpRef: requires &$var, DOES modify caller's value
@@ -64,7 +64,7 @@ assert(test_phpref_read($val) === 99, 'PhpRef read should return the value');
 // Replace value through PhpRef
 $val = 42;
 test_phpref_set_string($val);
-assert($val === "replaced_by_rust", 'PhpRef should replace the value entirely');
+assert($val === 'replaced_by_rust', 'PhpRef should replace the value entirely');
 assert(is_string($val), 'Replaced value should be a string');
 
 // PhpRef rejects literals (this should fail — uncomment to verify manually)

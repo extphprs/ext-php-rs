@@ -1,0 +1,32 @@
+# mago — PHP formatter + linter for this repo's PHP files.
+# https://mago.carthage.software
+#
+# Scope: the PHP files here are test fixtures, benchmarks, and embed scripts for
+# a PHP *extension* written in Rust. They are not application code. `analyze`
+# (type checking) and `guard` (architecture) are intentionally not used: the
+# fixtures call extension-registered symbols that only exist at PHP runtime.
+
+php-version = "8.1" # support floor; also flags 8.2+ syntax that would not run on the oldest supported PHP
+
+[source]
+paths = ["tests", "benches", "src"] # mago only processes *.php; this captures every PHP file plus any added later
+extensions = ["php"]
+
+[formatter]
+preset = "psr-12"
+
+# Every rule below is disabled because it conflicts with the deliberate shape of
+# the fixtures, not for convenience. Keep this list honest: if a disable is no
+# longer justified by fixture intent, re-enable it.
+[linter.rules]
+literal-named-argument = { enabled = false }    # fixtures pass literals positionally to assert()/test fns by design
+assert-description = { enabled = false }         # bare assert() is the fixture idiom
+strict-types = { enabled = false }               # declare(strict_types=1) would change coercion across behavior-sensitive fixtures
+strict-behavior = { enabled = false }            # forcing in_array() strict comparison can change what is asserted
+no-debug-symbols = { enabled = false }           # debug_zval_dump is a documented refcount-testing tool (see CONTEXT.md)
+no-empty-catch-clause = { enabled = false }      # empty catch blocks are intentional in exception-throwing tests
+file-name = { enabled = false }                  # fixtures are named by what they test, not by their class name
+no-isset = { enabled = false }                   # isset is the subject under test (e.g. the __isset magic method)
+single-class-per-file = { enabled = false }      # fixtures define several test classes in one file
+no-error-control-operator = { enabled = false }  # the @ operator is intentional in the error-observer test
+no-shorthand-ternary = { enabled = false }       # getenv(...) ?: 'default' is the deliberate runtime env-or-default pattern (a full ternary would double-evaluate getenv())

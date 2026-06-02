@@ -1,11 +1,13 @@
 <?php
 
-$obj = new stdClass;
+$obj = new stdClass();
 $obj->string = 'string';
 $obj->bool = true;
 $obj->number = 2022;
 $obj->array = [
-    1, 2, 3
+    1,
+    2,
+    3
 ];
 
 $test = test_object($obj);

@@ -1,34 +1,34 @@
 <?php
 
-declare(strict_types=1);
+declare(strict_types = 1);
 
 // Test existing functionality: Interface existence and explicit extends
 assert(interface_exists('ExtPhpRs\Interface\EmptyObjectInterface'), 'Interface not exist');
 assert(is_a('ExtPhpRs\Interface\EmptyObjectInterface', Throwable::class, true), 'Interface could extend Throwable');
 
-
 final class Test extends Exception implements ExtPhpRs\Interface\EmptyObjectInterface
 {
-	public static function void(): void
-	{
-	}
+    public static function void(): void
+    {
+    }
 
-	public function nonStatic(string $data): string
-	{
-		return sprintf('%s - TEST', $data);
-	}
+    public function nonStatic(string $data): string
+    {
+        return sprintf('%s - TEST', $data);
+    }
 
-	public function refToLikeThisClass(
-		string $data,
-		ExtPhpRs\Interface\EmptyObjectInterface $other,
-	): string {
-		return sprintf('%s | %s', $this->nonStatic($data), $other->nonStatic($data));
-	}
+    public function refToLikeThisClass(
+        string $data,
+        ExtPhpRs\Interface\EmptyObjectInterface $other
+    ): string {
+        return sprintf('%s | %s', $this->nonStatic($data), $other->nonStatic($data));
+    }
 
-    public function setValue(int $value = 0): void {
-
+    public function setValue(int $value = 0): void
+    {
     }
 }
+
 $f = new Test();
 
 assert(is_a($f, Throwable::class));
@@ -97,8 +97,10 @@ $mapCollected = [];
 foreach ($map as $key => $value) {
     $mapCollected[$key] = $value;
 }
-assert($mapCollected === ['first' => 'one', 'second' => 'two', 'third' => 'three'],
-    'MapIterator should iterate with string keys and values');
+assert(
+    $mapCollected === ['first' => 'one', 'second' => 'two', 'third' => 'three'],
+    'MapIterator should iterate with string keys and values'
+);
 
 // Test VecIterator - dynamic content iterator
 assert(class_exists('ExtPhpRs\Interface\VecIterator'), 'VecIterator class should exist');
@@ -148,18 +150,20 @@ assert(class_exists('ExtPhpRs\Interface\Greeter'), 'Greeter class should exist')
 $greeter = new ExtPhpRs\Interface\Greeter('World');
 
 // Test that Greeter implements ParentInterface via #[php_impl_interface]
-assert($greeter instanceof ExtPhpRs\Interface\ParentInterface,
-    'Greeter should implement ParentInterface via #[php_impl_interface]');
+assert(
+    $greeter instanceof ExtPhpRs\Interface\ParentInterface,
+    'Greeter should implement ParentInterface via #[php_impl_interface]'
+);
 
 // Test is_a() works for interface checking
-assert(is_a($greeter, 'ExtPhpRs\Interface\ParentInterface'),
-    'is_a() should recognize Greeter as ParentInterface');
+assert(is_a($greeter, 'ExtPhpRs\Interface\ParentInterface'), 'is_a() should recognize Greeter as ParentInterface');
 
 // Test the class method
 assert($greeter->getName() === 'World', 'Greeter should return correct name');
 
 // Test type hinting with the interface
-function greetWithInterface(ExtPhpRs\Interface\ParentInterface $obj): string {
+function greetWithInterface(ExtPhpRs\Interface\ParentInterface $obj): string
+{
     // The parentMethod is defined on the interface
     return $obj->parentMethod();
 }

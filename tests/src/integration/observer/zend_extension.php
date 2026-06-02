@@ -5,7 +5,7 @@
 // ============================================================================
 
 $activate_count = zend_ext_test_get_activate_count();
-assert($activate_count >= 1, "Expected activate() to be called at least once, got: " . $activate_count);
+assert($activate_count >= 1, 'Expected activate() to be called at least once, got: ' . $activate_count);
 
 // ============================================================================
 // Test 2: op_array_handler() fires after compilation
@@ -14,7 +14,7 @@ assert($activate_count >= 1, "Expected activate() to be called at least once, go
 // has already been called for the main script and any functions defined above.
 
 $op_count = zend_ext_test_get_op_array_handler_count();
-assert($op_count > 0, "Expected op_array_handler to be called at least once, got: " . $op_count);
+assert($op_count > 0, 'Expected op_array_handler to be called at least once, got: ' . $op_count);
 
 // ============================================================================
 // Test 3: statement_handler() fires for executed statements
@@ -27,7 +27,7 @@ $c = $a + $b;
 $stmt_count = zend_ext_test_get_statement_count();
 // The reset call, three assignments, and the get call each produce
 // ZEND_EXT_STMT opcodes, so the count must be greater than zero.
-assert($stmt_count > 0, "Expected statement_handler to be called, got: " . $stmt_count);
+assert($stmt_count > 0, 'Expected statement_handler to be called, got: ' . $stmt_count);
 
 // ============================================================================
 // Test 4: fcall_begin_handler() / fcall_end_handler() fire around calls
@@ -48,8 +48,8 @@ zend_ext_test_user_fn();
 zend_ext_test_user_fn();
 $begin_count = zend_ext_test_get_fcall_begin_count();
 $end_count = zend_ext_test_get_fcall_end_count();
-assert($begin_count >= 3, "Expected at least 3 fcall_begin, got: " . $begin_count);
-assert($end_count >= 3, "Expected at least 3 fcall_end, got: " . $end_count);
+assert($begin_count >= 3, 'Expected at least 3 fcall_begin, got: ' . $begin_count);
+assert($end_count >= 3, 'Expected at least 3 fcall_end, got: ' . $end_count);
 
 // ============================================================================
 // Test 5: Nested user function calls are tracked
@@ -67,15 +67,15 @@ function zend_ext_inner(): int
 
 zend_ext_test_reset_fcall_counts();
 $result = zend_ext_outer();
-assert($result === 99, "Nested call should return 99, got: " . $result);
+assert($result === 99, 'Nested call should return 99, got: ' . $result);
 
 $nested_begin = zend_ext_test_get_fcall_begin_count();
 $nested_end = zend_ext_test_get_fcall_end_count();
 // outer() calls inner(), each with EXT_FCALL_BEGIN/END at the call-site.
 // The call to outer() in the main script also generates EXT_FCALL, and
 // inner()'s call-site inside outer() generates another pair.
-assert($nested_begin >= 2, "Expected at least 2 nested fcall_begin, got: " . $nested_begin);
-assert($nested_end >= 2, "Expected at least 2 nested fcall_end, got: " . $nested_end);
+assert($nested_begin >= 2, 'Expected at least 2 nested fcall_begin, got: ' . $nested_begin);
+assert($nested_end >= 2, 'Expected at least 2 nested fcall_end, got: ' . $nested_end);
 
 // ============================================================================
 // Test 6: statement_handler counts increase with more statements
@@ -95,5 +95,5 @@ $second_batch = zend_ext_test_get_statement_count();
 
 assert(
     $second_batch > $first_batch,
-    "More statements should produce a higher count: first=$first_batch, second=$second_batch",
+    "More statements should produce a higher count: first={$first_batch}, second={$second_batch}"
 );

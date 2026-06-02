@@ -21,6 +21,21 @@
       php-dev = php.unwrapped.dev;
       php-zts = (pkgs.php.override { ztsSupport = true; }).buildEnv { embedSupport = true; };
       php-zts-dev = php-zts.unwrapped.dev;
+      # mago is not packaged in nixpkgs; pin the upstream static musl binary so
+      # local dev and CI (nhedger/setup-mago) run the exact same version.
+      mago = pkgs.stdenvNoCC.mkDerivation rec {
+        pname = "mago";
+        version = "1.29.0";
+        src = pkgs.fetchurl {
+          url = "https://github.com/carthage-software/mago/releases/download/${version}/mago-${version}-x86_64-unknown-linux-musl.tar.gz";
+          hash = "sha256-XpnRIy+pPmrcb+qt2vK0bBSLKZAXPNzxhAC0dGRr8EY=";
+        };
+        installPhase = ''
+          runHook preInstall
+          install -Dm755 mago "$out/bin/mago"
+          runHook postInstall
+        '';
+      };
       mkShellFor = phpPkg: phpDevPkg: pkgs.mkShell {
         buildInputs = with pkgs; [
           phpPkg
@@ -28,6 +43,7 @@
           libclang.lib
           clang
           valgrind
+          mago
         ];
 
         nativeBuildInputs = [ pkgs.rust-bin.stable.latest.default ];

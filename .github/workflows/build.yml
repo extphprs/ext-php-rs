@@ -29,6 +29,14 @@ jobs:
           fetch-depth: 0
       - name: Check typos
         uses: crate-ci/typos@master
+      - name: Setup Mago
+        uses: nhedger/setup-mago@v1
+        with:
+          version: 1.29.0
+      - name: Check PHP formatting
+        run: mago format --check
+      - name: Lint PHP
+        run: mago lint --reporting-format=github --minimum-fail-level=warning
       - name: Validate commit messages
         run: |
           git show-ref
