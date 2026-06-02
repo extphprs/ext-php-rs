@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.15.15](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.14...ext-php-rs-v0.15.15) - 2026-06-02
+
+### Added
+- Support using ZendStr as ZendHashTable keys ([#743](https://github.com/extphprs/ext-php-rs/pull/743)) (by @hwawshy) [[#743](https://github.com/extphprs/ext-php-rs/issues/743)] 
+
+### Other
+- Add mago for PHP formatting and linting ([#745](https://github.com/extphprs/ext-php-rs/pull/745)) (by @ptondereau) [[#745](https://github.com/extphprs/ext-php-rs/issues/745)] 
 ## [0.15.14](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.13...ext-php-rs-v0.15.14) - 2026-05-23
 
 ### Fixed

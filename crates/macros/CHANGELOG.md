@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.14](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.13...ext-php-rs-derive-v0.11.14) - 2026-06-02
+
+### Added
+- Support using ZendStr as ZendHashTable keys ([#743](https://github.com/extphprs/ext-php-rs/pull/743)) (by @hwawshy) [[#743](https://github.com/extphprs/ext-php-rs/issues/743)] 
 ## [0.11.13](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.12...ext-php-rs-derive-v0.11.13) - 2026-05-23
 
 ### Other
