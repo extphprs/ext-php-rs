@@ -82,35 +82,33 @@ extern crate proc_macro;
 ///
 /// The generated read-property handler writes a fresh `zend_string` with
 /// refcount=1 into the `rv` slot via `set_zval`. PHP's `Exception::getMessage`
-/// (and siblings such as `getFile`) read this with `zval_get_string + RETURN_STR`,
-/// which addrefs to 2 and transfers the pointer to `return_value` without
-/// changing the refcount. The stack `rv` then goes out of scope without
+/// (and siblings such as `getFile`) read this with `zval_get_string +
+/// RETURN_STR`, which addrefs to 2 and transfers the pointer to `return_value`
+/// without changing the refcount. The stack `rv` then goes out of scope without
 /// `zval_ptr_dtor`, orphaning one refcount per call.
 ///
 /// This affects any `#[php_class]` extending `\Exception` with a `#[php(prop)]`
 /// field whose type allocates a `zend_string` (e.g. `String`, `Vec<u8>` when
-/// converted to a binary string, or any `IntoZval` impl producing `IS_STRING_EX`)
-/// — most commonly when the field shadows the parent `\Exception::$message`.
-/// Direct property access (`$obj->field`) via the `FETCH_OBJ_R` opcode is
-/// **not** affected because the bytecode handler properly consumes the rv ref.
+/// converted to a binary string, or any `IntoZval` impl producing
+/// `IS_STRING_EX`) — most commonly when the field shadows the parent
+/// `\Exception::$message`. Direct property access (`$obj->field`) via the
+/// `FETCH_OBJ_R` opcode is **not** affected because the bytecode handler
+/// properly consumes the rv ref.
 ///
 /// **Workarounds, in order of preference:**
 ///
-/// 1. **Do not shadow the inherited property name.** Rename the field
-///    (e.g. `payload` instead of `message`) and expose it through a
-///    `#[php_method]` getter. The method-return path is not affected by
-///    this leak.
-///    Note: `\Exception::getMessage` is `final` in PHP, so overriding it
-///    directly via `#[php_method] fn get_message(...)` is rejected at
-///    class registration.
+/// 1. **Do not shadow the inherited property name.** Rename the field (e.g.
+///    `payload` instead of `message`) and expose it through a `#[php_method]`
+///    getter. The method-return path is not affected by this leak. Note:
+///    `\Exception::getMessage` is `final` in PHP, so overriding it directly via
+///    `#[php_method] fn get_message(...)` is rejected at class registration.
 ///
 /// 2. **Write the value into the parent's real property slot via
-///    `zend_update_property_stringl`** (raw FFI). PHP's `getMessage`
-///    then reads from real storage through `zend_std_read_property`,
-///    bypassing the leaky `rv` path entirely. This requires dropping
-///    `#[php(prop)]` from the shadow field and populating the parent
-///    slot at construction time. See `biscuit-php` (`src/errors.rs`)
-///    for a worked example.
+///    `zend_update_property_stringl`** (raw FFI). PHP's `getMessage` then reads
+///    from real storage through `zend_std_read_property`, bypassing the leaky
+///    `rv` path entirely. This requires dropping `#[php(prop)]` from the shadow
+///    field and populating the parent slot at construction time. See
+///    `biscuit-php` (`src/errors.rs`) for a worked example.
 ///
 /// Tracked by the
 /// `prop_string_field_does_not_leak_on_repeated_get_message` regression test.
