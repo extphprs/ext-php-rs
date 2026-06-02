@@ -1116,6 +1116,38 @@ unsafe extern "C" {
     pub fn zend_hash_clean(ht: *mut HashTable);
 }
 unsafe extern "C" {
+    pub fn zend_hash_add_or_update(
+        ht: *mut HashTable,
+        key: *mut zend_string,
+        pData: *mut zval,
+        flag: u32,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
+    pub fn zend_hash_update(
+        ht: *mut HashTable,
+        key: *mut zend_string,
+        pData: *mut zval,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
+    pub fn zend_hash_update_ind(
+        ht: *mut HashTable,
+        key: *mut zend_string,
+        pData: *mut zval,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
+    pub fn zend_hash_add(ht: *mut HashTable, key: *mut zend_string, pData: *mut zval) -> *mut zval;
+}
+unsafe extern "C" {
+    pub fn zend_hash_add_new(
+        ht: *mut HashTable,
+        key: *mut zend_string,
+        pData: *mut zval,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
     pub fn zend_hash_str_update(
         ht: *mut HashTable,
         key: *const ::std::os::raw::c_char,
@@ -1131,6 +1163,12 @@ unsafe extern "C" {
     pub fn zend_hash_next_index_insert(ht: *mut HashTable, pData: *mut zval) -> *mut zval;
 }
 unsafe extern "C" {
+    pub fn zend_hash_del(ht: *mut HashTable, key: *mut zend_string) -> zend_result;
+}
+unsafe extern "C" {
+    pub fn zend_hash_del_ind(ht: *mut HashTable, key: *mut zend_string) -> zend_result;
+}
+unsafe extern "C" {
     pub fn zend_hash_str_del(
         ht: *mut HashTable,
         key: *const ::std::os::raw::c_char,
@@ -1139,6 +1177,9 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zend_hash_index_del(ht: *mut HashTable, h: zend_ulong) -> zend_result;
+}
+unsafe extern "C" {
+    pub fn zend_hash_find(ht: *const HashTable, key: *mut zend_string) -> *mut zval;
 }
 unsafe extern "C" {
     pub fn zend_hash_str_find(

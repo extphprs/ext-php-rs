@@ -10,9 +10,10 @@ use crate::{
     ffi::zend_ulong,
     ffi::{
         _zend_new_array, GC_FLAGS_MASK, GC_FLAGS_SHIFT, HT_MIN_SIZE, zend_array_count,
-        zend_array_destroy, zend_array_dup, zend_empty_array, zend_hash_clean, zend_hash_index_del,
-        zend_hash_index_find, zend_hash_index_update, zend_hash_next_index_insert,
-        zend_hash_str_del, zend_hash_str_find, zend_hash_str_update,
+        zend_array_destroy, zend_array_dup, zend_empty_array, zend_hash_clean, zend_hash_del,
+        zend_hash_find, zend_hash_index_del, zend_hash_index_find, zend_hash_index_update,
+        zend_hash_next_index_insert, zend_hash_str_del, zend_hash_str_find, zend_hash_str_update,
+        zend_hash_update,
     },
     flags::{DataType, ZvalTypeFlags},
     types::Zval,
@@ -204,6 +205,9 @@ impl ZendHashTable {
             ArrayKey::Str(key) => unsafe {
                 zend_hash_str_find(self, key.as_ptr().cast(), key.len() as _).as_ref()
             },
+            ArrayKey::ZendString(key) => unsafe {
+                zend_hash_find(self, key.as_ptr().cast_mut()).as_ref()
+            },
         }
     }
 
@@ -247,6 +251,9 @@ impl ZendHashTable {
             },
             ArrayKey::Str(key) => unsafe {
                 zend_hash_str_find(self, key.as_ptr().cast(), key.len() as _).as_mut()
+            },
+            ArrayKey::ZendString(key) => unsafe {
+                zend_hash_find(self, key.as_ptr().cast_mut()).as_mut()
             },
         }
     }
@@ -353,6 +360,7 @@ impl ZendHashTable {
             ArrayKey::Str(key) => unsafe {
                 zend_hash_str_del(self, key.as_ptr().cast(), key.len() as _)
             },
+            ArrayKey::ZendString(key) => unsafe { zend_hash_del(self, key.as_ptr().cast_mut()) },
         };
 
         if result < 0 { None } else { Some(()) }
@@ -449,6 +457,12 @@ impl ZendHashTable {
                     // Use raw bytes directly since zend_hash_str_update takes a length.
                     // This allows keys with embedded null bytes (e.g. PHP property mangling).
                     zend_hash_str_update(self, key.as_ptr().cast(), key.len(), &raw mut val)
+                };
+            }
+            ArrayKey::ZendString(key) => {
+                unsafe {
+                    // zend_hash_update does the addref itself for non-interned strings.
+                    zend_hash_update(self, key.as_ptr().cast_mut(), &raw mut val)
                 };
             }
         }
@@ -632,6 +646,8 @@ impl ZendHashTable {
     ///         }
     ///         ArrayKey::Str(key) => {
     ///         }
+    ///         ArrayKey::ZendString(key) => {
+    ///         }
     ///     }
     ///     dbg!(key, val);
     /// }
@@ -725,6 +741,9 @@ impl ZendHashTable {
             },
             ArrayKey::Str(key) => unsafe {
                 !zend_hash_str_find(self, key.as_ptr().cast(), key.len() as _).is_null()
+            },
+            ArrayKey::ZendString(key) => unsafe {
+                !zend_hash_find(self, key.as_ptr().cast_mut()).is_null()
             },
         }
     }
@@ -898,6 +917,7 @@ impl IntoZval for ZendEmptyArray {
 mod tests {
     use super::*;
     use crate::embed::Embed;
+    use crate::types::ZendStr;
 
     #[test]
     fn test_has_key_string() {
@@ -933,6 +953,32 @@ mod tests {
             assert!(ht.has_key(&key));
 
             assert!(!ht.has_key(&ArrayKey::Str("missing")));
+        });
+    }
+
+    #[test]
+    fn test_has_key_zend_string() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let key = ZendStr::new("hello", false);
+
+            let _ = ht.insert(&key, "world");
+            assert!(ht.has_key(&ArrayKey::ZendString(&key)));
+        });
+    }
+
+    #[test]
+    fn test_zend_string_numeric_key_normalizes_to_long() {
+        Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let numeric_key = ZendStr::new("42", false);
+
+            let _ = ht.insert(&numeric_key, "value");
+
+            assert_eq!(ht.get_index(42).and_then(|v| v.str()), Some("value"));
+            assert_eq!(ht.get("42").and_then(|v| v.str()), Some("value"));
+            assert_eq!(ht.get(&numeric_key).and_then(|v| v.str()), Some("value"));
+            assert!(ht.has_key(&ArrayKey::from(&numeric_key)));
         });
     }
 }

@@ -252,7 +252,8 @@ fn generate_registered_class_impl(
         fields.iter().partition(|prop| !prop.is_static());
 
     // Generate instance property descriptors with getter/setter fn pointers.
-    // Each field property gets a pair of static functions and a PropertyDescriptor entry.
+    // Each field property gets a pair of static functions and a PropertyDescriptor
+    // entry.
     let field_prop_count = instance_props.len();
     let field_prop_data: Vec<(TokenStream, TokenStream)> = instance_props
         .iter()

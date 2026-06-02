@@ -58,6 +58,15 @@ fn key_to_zval(key: ArrayKey) -> Zval {
             zval.set_long(l);
             zval
         }
+        ArrayKey::ZendString(s) => {
+            let mut zval = Zval::new();
+            let string = match s.as_str() {
+                Ok(text) => text.to_string(),
+                Err(_) => String::from_utf8_lossy(s.as_bytes()).into_owned(),
+            };
+            let _ = zval.set_string(&string, false);
+            zval
+        }
     }
 }
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {

@@ -19,7 +19,7 @@ in-place.
 # #![cfg_attr(windows, feature(abi_vectorcall))]
 # extern crate ext_php_rs;
 use ext_php_rs::prelude::*;
-use ext_php_rs::types::ZendHashTable;
+use ext_php_rs::types::{ZendHashTable, ZendStr};
 use ext_php_rs::boxed::ZBox;
 
 #[php_function]
@@ -36,6 +36,12 @@ pub fn create_array() -> ZBox<ZendHashTable> {
 
     // Insert at specific numeric index
     ht.insert_at_index(100, "at index 100").unwrap();
+    
+    // Insert with ZendStr keys
+    // This allows bypassing repeated zend_string_init allocations and re-hashing
+    // when working with pre-existing or interned PHP strings
+    let key = ZendStr::new("hello", false);
+    ht.insert(&key, "world");
 
     ht
 }

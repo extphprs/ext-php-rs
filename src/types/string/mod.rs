@@ -6,9 +6,11 @@ mod smartstring_impl;
 
 use std::{
     borrow::Cow,
+    cmp::Ordering,
     convert::TryFrom,
     ffi::{CStr, CString},
     fmt::Debug,
+    hash::{Hash, Hasher},
     ptr, slice,
 };
 
@@ -353,6 +355,26 @@ where
 {
     fn eq(&self, other: &T) -> bool {
         self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for ZendStr {}
+
+impl PartialOrd for ZendStr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ZendStr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_ref().cmp(other.as_ref())
+    }
+}
+
+impl Hash for ZendStr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_bytes().hash(state);
     }
 }
 
