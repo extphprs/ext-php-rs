@@ -30,7 +30,7 @@ jobs:
       - name: Check typos
         uses: crate-ci/typos@master
       - name: Setup Mago
-        uses: nhedger/setup-mago@v1
+        uses: nhedger/setup-mago@v2
         with:
           version: 1.29.0
       - name: Check PHP formatting
