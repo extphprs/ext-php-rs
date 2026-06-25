@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.15.16](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.15...ext-php-rs-v0.15.16) - 2026-06-25
+
+### Other
+- Updated the following local packages: ext-php-rs-derive
 ## [0.15.15](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.14...ext-php-rs-v0.15.15) - 2026-06-02
 
 ### Added

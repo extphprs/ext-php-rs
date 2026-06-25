@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.11.15](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.14...ext-php-rs-derive-v0.11.15) - 2026-06-25
+
+### Other
+- *(deps)* Update itertools requirement from 0.14.0 to 0.15.0 ([#748](https://github.com/extphprs/ext-php-rs/pull/748)) (by @dependabot[bot]) [[#748](https://github.com/extphprs/ext-php-rs/issues/748)] 
 ## [0.11.14](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.13...ext-php-rs-derive-v0.11.14) - 2026-06-02
 
 ### Added
