@@ -3,7 +3,7 @@ use crate::{
     describe::DocComments,
     error::{Error, Result},
     flags::{DataType, MethodFlags},
-    types::Zval,
+    types::{PhpType, Zval},
     zend::{ExecuteData, FunctionEntry, ZendType},
 };
 use std::{ffi::CString, mem, ptr};
@@ -30,7 +30,7 @@ pub struct FunctionBuilder<'a> {
     function: FunctionEntry,
     pub(crate) args: Vec<Arg<'a>>,
     n_req: Option<usize>,
-    pub(crate) retval: Option<DataType>,
+    pub(crate) retval: Option<PhpType>,
     ret_as_ref: bool,
     pub(crate) ret_as_null: bool,
     pub(crate) docs: DocComments,
@@ -130,15 +130,29 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets the return value of the function.
     ///
+    /// Accepts a [`DataType`] for the simple case (via [`From<DataType> for
+    /// PhpType`]) or a full [`PhpType`] for compound forms such as
+    /// [`PhpType::Union`].
+    ///
     /// # Parameters
     ///
-    /// * `type_` - The return type of the function.
+    /// * `ty` - The return type of the function.
     /// * `as_ref` - Whether the function returns a reference.
     /// * `allow_null` - Whether the function return value is nullable.
-    pub fn returns(mut self, type_: DataType, as_ref: bool, allow_null: bool) -> Self {
-        self.retval = Some(type_);
+    pub fn returns<T: Into<PhpType>>(mut self, ty: T, as_ref: bool, allow_null: bool) -> Self {
+        let ty = ty.into();
+        // PHP rejects `?void` and `?mixed`, so the nullable flag is squashed
+        // for those single-type returns. Unions never resolve to those types
+        // syntactically, so the user's `allow_null` is honoured directly.
+        self.ret_as_null = match &ty {
+            PhpType::Simple(dt) => allow_null && *dt != DataType::Void && *dt != DataType::Mixed,
+            PhpType::Union(_)
+            | PhpType::ClassUnion(_)
+            | PhpType::Intersection(_)
+            | PhpType::Dnf(_) => allow_null,
+        };
+        self.retval = Some(ty);
         self.ret_as_ref = as_ref;
-        self.ret_as_null = allow_null && type_ != DataType::Void && type_ != DataType::Mixed;
         self
     }
 
@@ -181,11 +195,44 @@ impl<'a> FunctionBuilder<'a> {
         args.push(ArgInfo {
             // required_num_args
             name: n_req as *const _,
-            type_: match self.retval {
-                Some(retval) => {
-                    ZendType::empty_from_type(retval, self.ret_as_ref, false, self.ret_as_null)
+            type_: match &self.retval {
+                Some(PhpType::Simple(dt)) => {
+                    ZendType::empty_from_type(*dt, self.ret_as_ref, false, self.ret_as_null)
                         .ok_or(Error::InvalidCString)?
                 }
+                Some(PhpType::Union(types)) => ZendType::empty_from_primitive_union(
+                    types,
+                    self.ret_as_ref,
+                    false,
+                    self.ret_as_null,
+                )
+                .ok_or(Error::InvalidCString)?,
+                Some(PhpType::ClassUnion(class_names)) => ZendType::empty_from_class_union(
+                    class_names,
+                    self.ret_as_ref,
+                    false,
+                    self.ret_as_null,
+                )
+                .ok_or(Error::InvalidCString)?,
+                #[cfg(php83)]
+                Some(PhpType::Intersection(class_names)) => {
+                    ZendType::empty_from_class_intersection(
+                        class_names,
+                        self.ret_as_ref,
+                        false,
+                        self.ret_as_null,
+                    )
+                    .ok_or(Error::InvalidCString)?
+                }
+                #[cfg(not(php83))]
+                Some(PhpType::Intersection(_)) => return Err(Error::InvalidCString),
+                #[cfg(php83)]
+                Some(PhpType::Dnf(terms)) => {
+                    ZendType::empty_from_dnf(terms, self.ret_as_ref, false, self.ret_as_null)
+                        .ok_or(Error::InvalidCString)?
+                }
+                #[cfg(not(php83))]
+                Some(PhpType::Dnf(_)) => return Err(Error::InvalidCString),
                 None => ZendType::empty(false, false),
             },
             default_value: ptr::null(),
@@ -204,5 +251,152 @@ impl<'a> FunctionBuilder<'a> {
         self.function.arg_info = Box::into_raw(args.into_boxed_slice()) as *const ArgInfo;
 
         Ok(self.function)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[cfg(php83)]
+    use crate::zend_fastcall;
+
+    #[cfg(php83)]
+    zend_fastcall! {
+        extern "C" fn noop_handler(_: &mut ExecuteData, _: &mut Zval) {}
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_class_union_emits_literal_name_on_retval_arg_info() {
+        use crate::ffi::_ZEND_TYPE_LITERAL_NAME_BIT;
+        use std::ffi::CStr;
+
+        let entry = FunctionBuilder::new("ret_class_union", noop_handler)
+            .returns(
+                PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+                false,
+                false,
+            )
+            .build()
+            .expect("class union return should build");
+
+        // arg_info[0] is the retval slot (zend_internal_function_info).
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_LITERAL_NAME_BIT, 0,);
+        assert!(!retval_info.type_.ptr.is_null());
+        let class_str = unsafe { CStr::from_ptr(retval_info.type_.ptr.cast()) };
+        assert_eq!(class_str.to_str().unwrap(), "Foo|Bar");
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_class_union_with_allow_null_propagates_nullable_bit() {
+        use crate::ffi::_ZEND_TYPE_NULLABLE_BIT;
+
+        let entry = FunctionBuilder::new("ret_nullable_class_union", noop_handler)
+            .returns(
+                PhpType::ClassUnion(vec!["Foo".to_owned(), "Bar".to_owned()]),
+                false,
+                true,
+            )
+            .build()
+            .expect("nullable class union return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_intersection_emits_list_with_intersection_bit_on_retval() {
+        use crate::ffi::{_ZEND_TYPE_INTERSECTION_BIT, _ZEND_TYPE_LIST_BIT};
+
+        let entry = FunctionBuilder::new("ret_intersection", noop_handler)
+            .returns(
+                PhpType::Intersection(vec!["Countable".to_owned(), "Traversable".to_owned()]),
+                false,
+                false,
+            )
+            .build()
+            .expect("intersection return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_INTERSECTION_BIT, 0);
+        assert!(!retval_info.type_.ptr.is_null());
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_intersection_with_allow_null_errors() {
+        let result = FunctionBuilder::new("ret_nullable_intersection", noop_handler)
+            .returns(
+                PhpType::Intersection(vec!["Foo".to_owned(), "Bar".to_owned()]),
+                false,
+                true,
+            )
+            .build();
+
+        assert!(
+            result.is_err(),
+            "nullable intersection retval must error: nullable form is the DNF (Foo&Bar)|null"
+        );
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_dnf_emits_outer_list_with_union_bit_on_retval() {
+        use crate::ffi::{_ZEND_TYPE_LIST_BIT, _ZEND_TYPE_UNION_BIT};
+        use crate::types::DnfTerm;
+
+        let entry = FunctionBuilder::new("ret_dnf", noop_handler)
+            .returns(
+                PhpType::Dnf(vec![
+                    DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+                    DnfTerm::Single("C".to_owned()),
+                ]),
+                false,
+                false,
+            )
+            .build()
+            .expect("DNF return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_LIST_BIT, 0);
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_UNION_BIT, 0);
+        assert!(!retval_info.type_.ptr.is_null());
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_dnf_with_allow_null_propagates_nullable_bit() {
+        use crate::ffi::_ZEND_TYPE_NULLABLE_BIT;
+        use crate::types::DnfTerm;
+
+        let entry = FunctionBuilder::new("ret_nullable_dnf", noop_handler)
+            .returns(
+                PhpType::Dnf(vec![
+                    DnfTerm::Intersection(vec!["A".to_owned(), "B".to_owned()]),
+                    DnfTerm::Single("C".to_owned()),
+                ]),
+                false,
+                true,
+            )
+            .build()
+            .expect("nullable DNF return should build");
+
+        let retval_info = unsafe { &*entry.arg_info };
+        assert_ne!(retval_info.type_.type_mask & _ZEND_TYPE_NULLABLE_BIT, 0);
+    }
+
+    #[test]
+    #[cfg(php83)]
+    fn returns_empty_dnf_errors() {
+        let result = FunctionBuilder::new("ret_empty_dnf", noop_handler)
+            .returns(PhpType::Dnf(vec![]), false, false)
+            .build();
+        assert!(result.is_err());
     }
 }

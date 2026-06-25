@@ -17,8 +17,17 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module = integration::bool::build_module(module);
     module = integration::callable::build_module(module);
     module = integration::class::build_module(module);
+    module = integration::class_union::build_module(module);
+    #[cfg(php83)]
+    {
+        module = integration::intersection::build_module(module);
+    }
     module = integration::closure::build_module(module);
     module = integration::defaults::build_module(module);
+    #[cfg(php83)]
+    {
+        module = integration::dnf::build_module(module);
+    }
     #[cfg(feature = "enum")]
     {
         module = integration::enum_::build_module(module);
@@ -36,9 +45,13 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         module = integration::observer::build_module(module);
     }
     module = integration::persistent_string::build_module(module);
+    module = integration::php_types_attr::build_module(module);
+    module = integration::php_union::build_module(module);
     module = integration::reference::build_module(module);
     module = integration::separated::build_module(module);
     module = integration::string::build_module(module);
+    module = integration::typed_property::build_module(module);
+    module = integration::union::build_module(module);
     module = integration::variadic_args::build_module(module);
     module = integration::interface::build_module(module);
 

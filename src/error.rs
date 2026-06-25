@@ -74,6 +74,13 @@ pub enum Error {
     SapiWriteUnavailable,
     /// Failed to make an object lazy (PHP 8.4+)
     LazyObjectFailed,
+    /// The argument's PHP type has no equivalent in PHP's legacy
+    /// `Z_EXPECTED_*` discriminant enum (compound types, or scalar
+    /// `DataType` variants without a slot). For these arguments, format the
+    /// declared type via [`crate::args::Arg::ty`] and report the error
+    /// through `zend_argument_type_error` or [`crate::exception::PhpException`]
+    /// instead.
+    NoExpectedTypeDiscriminant,
 }
 
 impl Display for Error {
@@ -123,6 +130,10 @@ impl Display for Error {
             Error::LazyObjectFailed => {
                 write!(f, "Failed to make the object lazy")
             }
+            Error::NoExpectedTypeDiscriminant => write!(
+                f,
+                "Argument type has no PHP Z_EXPECTED_* discriminant; format Arg::ty() and use zend_argument_type_error or PhpException instead."
+            ),
         }
     }
 }

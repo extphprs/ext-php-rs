@@ -1,0 +1,24 @@
+[package]
+name = "ext-php-rs-types"
+description = "Shared PHP type-string parser and AST for ext-php-rs."
+repository = "https://github.com/extphprs/ext-php-rs"
+homepage = "https://ext-php.rs"
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+authors = [
+    "Pierre Tondereau <pierre.tondereau@protonmail.com>",
+    "Xenira <xenira@php.rs>",
+    "David Cole <david.cole1340@gmail.com>",
+]
+edition = "2024"
+
+[dependencies]
+proc-macro2 = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
+
+[features]
+default = []
+proc-macro = ["dep:proc-macro2", "dep:quote"]
+
+[lints.rust]
+missing_docs = "warn"

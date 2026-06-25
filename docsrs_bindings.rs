@@ -478,6 +478,10 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
 pub const ZEND_DEBUG: u32 = 1;
 pub const _ZEND_TYPE_NAME_BIT: u32 = 16777216;
 pub const _ZEND_TYPE_LITERAL_NAME_BIT: u32 = 8388608;
+pub const _ZEND_TYPE_LIST_BIT: u32 = 4194304;
+pub const _ZEND_TYPE_ARENA_BIT: u32 = 1048576;
+pub const _ZEND_TYPE_INTERSECTION_BIT: u32 = 524288;
+pub const _ZEND_TYPE_UNION_BIT: u32 = 262144;
 pub const _ZEND_TYPE_NULLABLE_BIT: u32 = 2;
 pub const HT_MIN_SIZE: u32 = 8;
 pub const IS_UNDEF: u32 = 0;
@@ -747,6 +751,12 @@ pub type dtor_func_t = ::std::option::Option<unsafe extern "C" fn(pDest: *mut zv
 pub struct zend_type {
     pub ptr: *mut ::std::os::raw::c_void,
     pub type_mask: u32,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zend_type_list {
+    pub num_types: u32,
+    pub types: [zend_type; 1usize],
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -2542,6 +2552,16 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    pub fn zend_declare_typed_property(
+        ce: *mut zend_class_entry,
+        name: *mut zend_string,
+        property: *mut zval,
+        access_type: ::std::os::raw::c_int,
+        doc_comment: *mut zend_string,
+        type_: zend_type,
+    ) -> *mut zend_property_info;
+}
+unsafe extern "C" {
     pub fn zend_declare_property(
         ce: *mut zend_class_entry,
         name: *const ::std::os::raw::c_char,
@@ -2647,8 +2667,16 @@ pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING: _zend_expected_type =
 pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING_OR_NULL: _zend_expected_type = 33;
 pub const _zend_expected_type_Z_EXPECTED_LAST: _zend_expected_type = 34;
 pub type _zend_expected_type = ::std::os::raw::c_uint;
+pub use self::_zend_expected_type as zend_expected_type;
 unsafe extern "C" {
     pub fn zend_wrong_parameters_count_error(min_num_args: u32, max_num_args: u32);
+}
+unsafe extern "C" {
+    pub fn zend_wrong_parameter_type_error(
+        num: u32,
+        expected_type: zend_expected_type,
+        arg: *mut zval,
+    );
 }
 unsafe extern "C" {
     pub fn php_printf(format: *const ::std::os::raw::c_char, ...) -> usize;

@@ -36,6 +36,10 @@
           runHook postInstall
         '';
       };
+      php82 = pkgs.php82.buildEnv { embedSupport = true; };
+      php82-dev = php82.unwrapped.dev;
+      php83 = pkgs.php83.buildEnv { embedSupport = true; };
+      php83-dev = php83.unwrapped.dev;
       mkShellFor = phpPkg: phpDevPkg: pkgs.mkShell {
         buildInputs = with pkgs; [
           phpPkg
@@ -58,6 +62,8 @@
       devShells.${system} = {
         default = mkShellFor php php-dev;
         zts = mkShellFor php-zts php-zts-dev;
+        php82 = mkShellFor php82 php82-dev;
+        php83 = mkShellFor php83 php83-dev;
       };
     };
 }

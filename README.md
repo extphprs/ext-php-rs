@@ -88,7 +88,11 @@ For more examples read the library
 - **Lightweight:** You don't have to use the built-in helper macros. It's
   possible to write your own glue code around your own functions.
 - **Extensible:** Implement `IntoZval` and `FromZval` for your own custom types,
-  allowing the type to be used as function parameters and return types.
+  allowing the type to be used as function parameters and return types. For
+  PHP type shapes that don't map to a single Rust type (primitive unions,
+  class unions, intersections, DNF), use `#[php(types = "...")]` on a
+  parameter or `#[php(returns = "...")]` on a function — see the
+  [function macro guide](guide/src/macros/function.md#overriding-the-registered-php-type).
 
 ## Goals
 

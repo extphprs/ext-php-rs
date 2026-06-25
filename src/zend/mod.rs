@@ -9,6 +9,7 @@ pub(crate) mod error_observer;
 mod ex;
 #[cfg(feature = "observer")]
 pub(crate) mod exception_observer;
+mod expected_type;
 mod function;
 mod globals;
 mod handlers;
@@ -39,6 +40,7 @@ pub use error_observer::{BacktraceFrame, ErrorInfo, ErrorObserver, ErrorType};
 pub use ex::ExecuteData;
 #[cfg(feature = "observer")]
 pub use exception_observer::{ExceptionInfo, ExceptionObserver};
+pub use expected_type::{ExpectedType, wrong_parameter_type_error};
 pub use function::Function;
 pub use function::FunctionEntry;
 pub use globals::ExecutorGlobals;

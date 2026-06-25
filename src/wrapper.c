@@ -16,6 +16,22 @@ void ext_php_rs_zend_string_release(zend_string *zs) {
   zend_string_release(zs);
 }
 
+void *ext_php_rs_pemalloc_persistent(size_t size) {
+  return pemalloc(size, 1);
+}
+
+/* Allocates a persistent zend_string and marks it as interned so Zend's
+ * `zend_string_release` becomes a no-op on it. Used by intersection type
+ * lists, whose entries we own across the engine's MSHUTDOWN cycle (Embed
+ * tests trigger startup/shutdown repeatedly and would otherwise free the
+ * list-owned strings out from under our cached function entries). */
+zend_string *ext_php_rs_zend_string_init_persistent_interned(const char *str,
+                                                             size_t len) {
+  zend_string *zs = zend_string_init(str, len, 1);
+  GC_ADD_FLAGS(zs, IS_STR_INTERNED);
+  return zs;
+}
+
 bool ext_php_rs_is_known_valid_utf8(const zend_string *zs) {
   return GC_FLAGS(zs) & IS_STR_VALID_UTF8;
 }

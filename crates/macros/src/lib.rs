@@ -12,6 +12,7 @@ mod impl_interface;
 mod interface;
 mod module;
 mod parsing;
+mod php_union;
 mod syn_ext;
 mod zval;
 
@@ -81,35 +82,33 @@ extern crate proc_macro;
 ///
 /// The generated read-property handler writes a fresh `zend_string` with
 /// refcount=1 into the `rv` slot via `set_zval`. PHP's `Exception::getMessage`
-/// (and siblings such as `getFile`) read this with `zval_get_string + RETURN_STR`,
-/// which addrefs to 2 and transfers the pointer to `return_value` without
-/// changing the refcount. The stack `rv` then goes out of scope without
+/// (and siblings such as `getFile`) read this with `zval_get_string +
+/// RETURN_STR`, which addrefs to 2 and transfers the pointer to `return_value`
+/// without changing the refcount. The stack `rv` then goes out of scope without
 /// `zval_ptr_dtor`, orphaning one refcount per call.
 ///
 /// This affects any `#[php_class]` extending `\Exception` with a `#[php(prop)]`
 /// field whose type allocates a `zend_string` (e.g. `String`, `Vec<u8>` when
-/// converted to a binary string, or any `IntoZval` impl producing `IS_STRING_EX`)
-/// — most commonly when the field shadows the parent `\Exception::$message`.
-/// Direct property access (`$obj->field`) via the `FETCH_OBJ_R` opcode is
-/// **not** affected because the bytecode handler properly consumes the rv ref.
+/// converted to a binary string, or any `IntoZval` impl producing
+/// `IS_STRING_EX`) — most commonly when the field shadows the parent
+/// `\Exception::$message`. Direct property access (`$obj->field`) via the
+/// `FETCH_OBJ_R` opcode is **not** affected because the bytecode handler
+/// properly consumes the rv ref.
 ///
 /// **Workarounds, in order of preference:**
 ///
-/// 1. **Do not shadow the inherited property name.** Rename the field
-///    (e.g. `payload` instead of `message`) and expose it through a
-///    `#[php_method]` getter. The method-return path is not affected by
-///    this leak.
-///    Note: `\Exception::getMessage` is `final` in PHP, so overriding it
-///    directly via `#[php_method] fn get_message(...)` is rejected at
-///    class registration.
+/// 1. **Do not shadow the inherited property name.** Rename the field (e.g.
+///    `payload` instead of `message`) and expose it through a `#[php_method]`
+///    getter. The method-return path is not affected by this leak. Note:
+///    `\Exception::getMessage` is `final` in PHP, so overriding it directly via
+///    `#[php_method] fn get_message(...)` is rejected at class registration.
 ///
 /// 2. **Write the value into the parent's real property slot via
-///    `zend_update_property_stringl`** (raw FFI). PHP's `getMessage`
-///    then reads from real storage through `zend_std_read_property`,
-///    bypassing the leaky `rv` path entirely. This requires dropping
-///    `#[php(prop)]` from the shadow field and populating the parent
-///    slot at construction time. See `biscuit-php` (`src/errors.rs`)
-///    for a worked example.
+///    `zend_update_property_stringl`** (raw FFI). PHP's `getMessage` then reads
+///    from real storage through `zend_std_read_property`, bypassing the leaky
+///    `rv` path entirely. This requires dropping `#[php(prop)]` from the shadow
+///    field and populating the parent slot at construction time. See
+///    `biscuit-php` (`src/errors.rs`) for a worked example.
 ///
 /// Tracked by the
 /// `prop_string_field_does_not_leak_on_repeated_get_message` regression test.
@@ -1515,6 +1514,113 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 /// # fn main() {}
 /// ```
 ///
+/// ## Overriding the registered PHP type
+///
+/// Rust signatures can express many but not all PHP types. Compound types such
+/// as primitive unions (`int|string`), class unions (`\Foo|\Bar`),
+/// intersections (`\Countable&\Traversable`) and DNF (`(\A&\B)|\C`) cannot be
+/// derived from a single Rust type via the `IntoZval`/`FromZval` trait path.
+///
+/// The `#[php(types = "...")]` attribute on a parameter and the
+/// `#[php(returns = "...")]` attribute on a function override the registered
+/// PHP type metadata. The string is parsed at macro-expansion time by
+/// `PhpType::from_str`; the syntax matches the PHP type-hint grammar (with `\`
+/// for namespace separators).
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// #[php_function]
+/// #[php(returns = "int|string|null")]
+/// pub fn flexible_id(
+///     #[php(types = "int|string")] _id: &Zval,
+/// ) -> i64 {
+///     0
+/// }
+/// ```
+///
+/// The same attributes accept class names from your `#[php_class]`-defined
+/// structs. The string is the canonical PHP type-hint grammar, so unions
+/// (`\Foo|\Bar`), intersections (`\Countable&\Traversable`), and DNF
+/// (`(\A&\B)|\C`) all work:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// #[php_class]
+/// pub struct Foo;
+///
+/// #[php_class]
+/// pub struct Bar;
+///
+/// #[php_function]
+/// pub fn accept(#[php(types = "\\Foo|\\Bar")] _value: &Zval) {}
+///
+/// #[php_function]
+/// #[php(returns = "\\Foo|\\Bar")]
+/// pub fn produce() -> Foo { Foo }
+/// ```
+///
+/// Use a leading `\` to anchor the class in PHP's global namespace, matching
+/// how PHP code spells fully qualified names. Bare names without the leading
+/// `\` work too: `\Foo` and `Foo` produce the same registered metadata,
+/// because every `#[php_class]`-defined struct is placed in PHP's global
+/// namespace by the engine.
+///
+/// The override is the source of truth for the PHP type, including nullability
+/// — put `null` in the string if the parameter or return should be nullable.
+/// The runtime modifiers (`default`, `optional`, variadic, by-reference) are
+/// orthogonal to type and still apply.
+///
+/// Parsing runs once, at compile time. A parser-rejected string becomes a
+/// `compile_error!` spanned on the literal, so `cargo build` surfaces the
+/// diagnostic before the extension ever loads. Two shapes are deliberately
+/// rejected:
+///
+/// - **`?Foo&Bar`**: a leading `?` on an intersection is not legal PHP, and the
+///   parser refuses it. The legal nullable form `(Foo&Bar)|null` requires DNF
+///   (PHP 8.2+ in user code, 8.3+ on internal `arg_info`; see the version
+///   constraint below).
+/// - **Class-side nullables (`?Foo`, `\Foo|null`, `\Foo|\Bar|null`,
+///   `(\A&\B)|null`)**: the parser refuses these because the class-side
+///   variants of `PhpType` cannot carry an inline `null` member today. This is
+///   a known asymmetry with the primitive side, which DOES accept `int|null`
+///   (since `DataType::Null` is a primitive variant). For a class-side function
+///   that may return null today, use a function whose Rust return type is
+///   unconditional and pass nullable values through a separate `null` return
+///   path managed by the caller; or wait on the parser follow-up that will
+///   surface a `parse_with_nullable(&str)` variant.
+///
+/// The same attributes work inside `#[php_impl]`:
+///
+/// ```rust,ignore
+/// use ext_php_rs::prelude::*;
+/// use ext_php_rs::types::Zval;
+///
+/// #[php_class]
+/// pub struct MyClass;
+///
+/// #[php_impl]
+/// impl MyClass {
+///     pub fn __construct() -> Self { Self }
+///
+///     pub fn accept(
+///         &self,
+///         #[php(types = "int|string")] _value: &Zval,
+///     ) -> i64 { 1 }
+///
+///     #[php(returns = "int|string|null")]
+///     pub fn produce(&self) -> i64 { 0 }
+/// }
+/// ```
+///
+/// Version constraint: intersection and DNF type hints on internal `arg_info`
+/// require PHP 8.3 or newer. On 8.1/8.2 the runtime returns
+/// `Err(InvalidCString)` from `Arg::as_arg_info` for those shapes; build the
+/// test extension on 8.3+ if you need them.
+///
 /// ## Variadic Functions
 ///
 /// Variadic functions can be implemented by specifying the last argument in the
@@ -2448,6 +2554,73 @@ fn zval_convert_derive_internal(input: TokenStream2) -> TokenStream2 {
     zval::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
 
+/// # `PhpUnion` Derive Macro
+///
+/// The `#[derive(PhpUnion)]` macro lets a Rust enum stand in for a PHP union
+/// type on `#[php_function]` and `#[php_impl]` signatures. Each variant must
+/// newtype-wrap exactly one field; the inner type must implement `IntoZval`
+/// and `FromZval`. The derive emits:
+///
+/// - an `impl PhpUnion` whose `union_types()` returns `PhpType::Union(vec![<T1
+///   as IntoZval>::TYPE, <T2 as IntoZval>::TYPE, ...])`;
+/// - an `impl IntoZval` whose `set_zval` dispatches on the variant;
+/// - an `impl FromZval` whose `from_zval` tries each variant's inner type in
+///   declaration order. Order matters when two inner types accept the same PHP
+///   value (e.g. `String` and a parsed numeric `String`); list the more
+///   specific variant first.
+///
+/// V1 only supports newtype variants — unit, named, and multi-field tuple
+/// variants are compile errors. Generics on the enum are also rejected.
+///
+/// ## Limitation: primitive unions only
+///
+/// `PhpUnion` targets unions of **primitive** types (`int|string`,
+/// `int|float|null`, ...). A variant may wrap a `#[php_class]` or interface,
+/// but the registered PHP type for a class-backed variant widens to `object`:
+/// a `#[php_class]` exposes `IntoZval::TYPE = DataType::Object(None)`, so no
+/// class name reaches the derive and `Foo|Bar` registers as `object`. Runtime
+/// `FromZval` dispatch still works; only the declared (reflected) type is
+/// loose. For a precise class union, use `#[php(types = "Foo|Bar")]` instead.
+/// This is a known limitation tracked for a follow-up.
+///
+/// ## Example
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// #[derive(PhpUnion)]
+/// pub enum IntOrString {
+///     Int(i64),
+///     Str(String),
+/// }
+///
+/// #[php_function]
+/// pub fn echo_either(value: IntOrString) -> IntOrString {
+///     value
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.function(wrap_function!(echo_either))
+/// }
+/// # fn main() {}
+/// ```
+///
+/// PHP `ReflectionFunction::getParameters()[0]->getType()` reports
+/// `int|string` on the parameter, and the same union on the return type.
+#[proc_macro_derive(PhpUnion)]
+pub fn php_union_derive(input: TokenStream) -> TokenStream {
+    php_union_derive_internal(input.into()).into()
+}
+
+fn php_union_derive_internal(input: TokenStream2) -> TokenStream2 {
+    let input = parse_macro_input2!(input as DeriveInput);
+
+    php_union::parser(input).unwrap_or_else(|e| e.to_compile_error())
+}
+
 /// Defines an `extern` function with the Zend fastcall convention based on
 /// operating system.
 ///
@@ -2584,6 +2757,7 @@ mod tests {
     type AttributeFn =
         fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream;
     type FunctionLikeFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
+    type DeriveFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
 
     #[rustversion::attr(nightly, test)]
     #[allow(dead_code)]
@@ -2640,7 +2814,10 @@ mod tests {
         let file = std::fs::File::open(path).expect("Failed to open expand test file");
         runtime_macros::emulate_derive_macro_expansion(
             file,
-            &[("ZvalConvert", zval_convert_derive_internal)],
+            &[
+                ("ZvalConvert", zval_convert_derive_internal as DeriveFn),
+                ("PhpUnion", php_union_derive_internal as DeriveFn),
+            ],
         )
         .expect("Failed to expand derive macros in test file");
     }

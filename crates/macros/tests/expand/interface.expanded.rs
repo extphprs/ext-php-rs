@@ -43,12 +43,12 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
                             .arg(
                                 ::ext_php_rs::args::Arg::new(
                                     "arg",
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::TYPE,
+                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::php_type(),
                                 ),
                             )
                             .not_required()
                             .returns(
-                                <String as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                <String as ::ext_php_rs::convert::IntoZval>::php_type(),
                                 false,
                                 <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                             )
@@ -195,12 +195,12 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
                             .arg(
                                 ::ext_php_rs::args::Arg::new(
                                     "arg",
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::TYPE,
+                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::php_type(),
                                 ),
                             )
                             .not_required()
                             .returns(
-                                <String as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                <String as ::ext_php_rs::convert::IntoZval>::php_type(),
                                 false,
                                 <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                             ),
@@ -213,7 +213,7 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
                             )
                             .not_required()
                             .returns(
-                                <i32 as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                <i32 as ::ext_php_rs::convert::IntoZval>::php_type(),
                                 false,
                                 <i32 as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                             ),

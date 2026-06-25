@@ -8,12 +8,13 @@ use crate::{
     error::{Error, Result},
     exception::PhpException,
     ffi::{
-        zend_declare_class_constant, zend_declare_property, zend_do_implement_interface,
-        zend_register_internal_class_ex, zend_register_internal_interface,
+        zend_declare_class_constant, zend_declare_property, zend_declare_typed_property,
+        zend_do_implement_interface, zend_register_internal_class_ex,
+        zend_register_internal_interface,
     },
-    flags::{ClassFlags, DataType, MethodFlags, PropertyFlags},
-    types::{ZendClassObject, ZendObject, ZendStr, Zval},
-    zend::{ClassEntry, ExecuteData, FunctionEntry},
+    flags::{ClassFlags, MethodFlags, PropertyFlags},
+    types::{PhpType, ZendClassObject, ZendObject, ZendStr, Zval},
+    zend::{ClassEntry, ExecuteData, FunctionEntry, ZendType},
     zend_fastcall,
 };
 
@@ -36,8 +37,10 @@ pub struct ClassProperty {
     pub default: PropertyDefault,
     /// Documentation comments.
     pub docs: DocComments,
-    /// PHP type for stub generation.
-    pub ty: Option<DataType>,
+    /// PHP type for stub generation. Accepts a single
+    /// [`crate::flags::DataType`] (via [`PhpType::Simple`]) or a primitive
+    /// [`PhpType::Union`] for stubs like `public int|string $foo`.
+    pub ty: Option<PhpType>,
     /// Whether the property accepts null.
     pub nullable: bool,
     /// Whether the property is read-only (getter without setter).
@@ -408,19 +411,7 @@ impl ClassBuilder {
         }
 
         for prop in self.properties {
-            let mut default_zval = match prop.default {
-                Some(f) => f()?,
-                None => Zval::new(),
-            };
-            unsafe {
-                zend_declare_property(
-                    class,
-                    CString::new(prop.name.as_str())?.as_ptr(),
-                    prop.name.len() as _,
-                    &raw mut default_zval,
-                    prop.flags.bits().try_into()?,
-                );
-            }
+            register_property(class, prop)?;
         }
 
         for (name, value, _, _) in self.constants {
@@ -449,8 +440,73 @@ impl ClassBuilder {
     }
 }
 
+/// Registers a single property on the given class entry, dispatching to the
+/// typed (`zend_declare_typed_property`) or untyped (`zend_declare_property`)
+/// path based on whether [`ClassProperty::ty`] is set.
+///
+/// For the typed path: when [`ClassProperty::default`] is absent the slot is
+/// initialised with [`Zval::undef`] (`IS_UNDEF`) so the engine flags the
+/// property as `IS_PROP_UNINIT` — same shape php-src `gen_stub.php` emits for
+/// typed properties without an explicit default. The `zend_type` is built via
+/// [`ZendType::empty_for_property`] which uses engine-managed allocations
+/// (refcounted persistent strings, no `_ZEND_TYPE_ARENA_BIT`) so the engine
+/// reclaims them at internal-class destroy without coordination from the
+/// arg_info-side `cleanup_module_allocations` hook.
+fn register_property(class: &mut ClassEntry, prop: ClassProperty) -> Result<()> {
+    let access_type: i32 = prop.flags.bits().try_into()?;
+
+    if let Some(ty) = prop.ty.as_ref() {
+        let mut default_zval = match prop.default {
+            Some(f) => f()?,
+            None => Zval::undef(),
+        };
+
+        let zend_type =
+            ZendType::empty_for_property(ty, prop.nullable).ok_or(Error::InvalidCString)?;
+
+        let name_zs = ZendStr::new(prop.name.as_str(), true).into_raw();
+
+        unsafe {
+            zend_declare_typed_property(
+                class,
+                name_zs,
+                &raw mut default_zval,
+                access_type,
+                ptr::null_mut(),
+                zend_type,
+            );
+            // Match php-src `gen_stub.php` (every supported version): for
+            // persistent internal classes, `zend_declare_typed_property`
+            // copies + interns the name via
+            // `zend_new_interned_string(zend_string_copy(name))` and stores
+            // the copy in `property_info->name`. The caller-allocated
+            // refcounted string is unused after the call; release it here so
+            // each MINIT allocation pairs with a release rather than leaking
+            // one `zend_string` per typed property per re-init cycle.
+            crate::ffi::ext_php_rs_zend_string_release(name_zs);
+        }
+    } else {
+        let mut default_zval = match prop.default {
+            Some(f) => f()?,
+            None => Zval::new(),
+        };
+        unsafe {
+            zend_declare_property(
+                class,
+                CString::new(prop.name.as_str())?.as_ptr(),
+                prop.name.len() as _,
+                &raw mut default_zval,
+                access_type,
+            );
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::flags::DataType;
     use crate::test::test_function;
 
     use super::*;
@@ -498,7 +554,7 @@ mod tests {
             flags: PropertyFlags::Public,
             default: None,
             docs: &["Doc 1"],
-            ty: Some(DataType::String),
+            ty: Some(DataType::String.into()),
             nullable: false,
             readonly: false,
             default_stub: None,
@@ -508,7 +564,10 @@ mod tests {
         assert_eq!(class.properties[0].flags, PropertyFlags::Public);
         assert!(class.properties[0].default.is_none());
         assert_eq!(class.properties[0].docs, &["Doc 1"] as DocComments);
-        assert_eq!(class.properties[0].ty, Some(DataType::String));
+        assert_eq!(
+            class.properties[0].ty,
+            Some(PhpType::Simple(DataType::String))
+        );
     }
 
     #[test]
@@ -559,5 +618,102 @@ mod tests {
         assert_eq!(class.docs, &["Doc 1"] as DocComments);
     }
 
-    // TODO: Test the register function
+    /// Property registration validation gates run before any FFI dispatch,
+    /// so they can be exercised against a zeroed `ClassEntry` (the same
+    /// zeroed-init pattern [`ClassBuilder::new`] already relies on for the
+    /// rest of the builder). Each test here picks an input that fails at a
+    /// distinct gate of [`register_property`] so a refactor that moves a
+    /// gate to the wrong side of the FFI call would surface as either a
+    /// missing `Err` here or a crash on the zeroed entry.
+    fn zeroed_class_entry() -> ClassEntry {
+        // SAFETY: `zend_class_entry` is `repr(C)` with no Drop impl. A
+        // zeroed value is never dereferenced by these tests because every
+        // input here trips a validation gate before the FFI call.
+        unsafe { MaybeUninit::zeroed().assume_init() }
+    }
+
+    fn build_property(name: &str, ty: Option<PhpType>) -> ClassProperty {
+        ClassProperty {
+            name: name.into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty,
+            nullable: false,
+            readonly: false,
+            default_stub: None,
+        }
+    }
+
+    #[test]
+    fn register_property_rejects_empty_class_union() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property("p", Some(PhpType::ClassUnion(vec![])));
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_nul_in_class_name() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property(
+            "p",
+            Some(PhpType::Simple(DataType::Object(Some("Foo\0Bar")))),
+        );
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_empty_simple_class_name() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property("p", Some(PhpType::Simple(DataType::Object(Some("")))));
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_nul_in_class_union_member() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property(
+            "p",
+            Some(PhpType::ClassUnion(vec!["Foo".into(), "Bar\0Baz".into()])),
+        );
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[test]
+    fn register_property_rejects_nul_in_untyped_property_name() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property("bad\0name", None);
+
+        let result = register_property(&mut ce, prop);
+        assert!(matches!(result, Err(Error::InvalidCString)));
+    }
+
+    #[cfg(not(php81))]
+    #[test]
+    fn register_property_rejects_intersection_pre_81() {
+        let mut ce = zeroed_class_entry();
+        let prop = build_property(
+            "p",
+            Some(PhpType::Intersection(vec!["A".into(), "B".into()])),
+        );
+
+        let result = register_property(&mut ce, prop);
+        assert!(
+            matches!(result, Err(Error::InvalidCString)),
+            "intersection property should be rejected on PHP < 8.1",
+        );
+    }
+
+    // TODO: Happy-path coverage for `register_property` runs through the
+    // integration crate (`tests/src/integration/typed_property/`), since
+    // exercising the FFI call requires a fully-registered class entry inside
+    // an Embed run.
 }

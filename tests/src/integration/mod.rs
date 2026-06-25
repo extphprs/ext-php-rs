@@ -4,13 +4,18 @@ pub mod binary;
 pub mod bool;
 pub mod callable;
 pub mod class;
+pub mod class_union;
 pub mod closure;
 pub mod defaults;
+#[cfg(php83)]
+pub mod dnf;
 #[cfg(feature = "enum")]
 pub mod enum_;
 pub mod exception;
 pub mod globals;
 pub mod interface;
+#[cfg(php83)]
+pub mod intersection;
 pub mod iterator;
 pub mod magic_method;
 pub mod module_globals;
@@ -20,10 +25,14 @@ pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
 pub mod persistent_string;
+pub mod php_types_attr;
+pub mod php_union;
 pub mod reference;
 pub mod separated;
 pub mod string;
+pub mod typed_property;
 pub mod types;
+pub mod union;
 pub mod variadic_args;
 
 #[cfg(test)]
@@ -40,6 +49,8 @@ mod test {
         BUILD.call_once(|| {
             let mut command = Command::new("cargo");
             command.arg("build");
+            // Don't let the parent cargo test leak -lphp into the cdylib.
+            command.env_remove("EXT_PHP_RS_LINK_LIBPHP");
 
             #[cfg(not(debug_assertions))]
             command.arg("--release");
