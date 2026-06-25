@@ -227,7 +227,19 @@ jobs:
 
       - name: Install libphp-embed
         if: matrix.phpts == 'nts'
-        run: sudo apt update -y && sudo apt install -y libphp${{ env.php_version }}-embed-dbgsym
+        # libphp*-embed-dbgsym is published in the ondrej PPA "main/debug" component,
+        # which setup-php does not always enable. Add it before installing.
+        run: |
+          src=$(grep -rlE 'ondrej' /etc/apt/sources.list.d/ | head -n1)
+          if [ -n "$src" ] && ! grep -q 'main/debug' "$src"; then
+            if [ "${src##*.}" = "sources" ]; then
+              sudo sed -i -E '/^Components:/ s#$# main/debug#' "$src"
+            else
+              sudo sed -i -E 's#(^deb .* )main([[:space:]]*$)#\1main main/debug\2#' "$src"
+            fi
+          fi
+          sudo apt-get update -y
+          sudo apt-get install -y libphp${{ env.php_version }}-embed-dbgsym
 
       - name: Install cargo-expand
         uses: dtolnay/install@cargo-expand
