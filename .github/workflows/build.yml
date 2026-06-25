@@ -227,9 +227,11 @@ jobs:
 
       - name: Install libphp-embed
         if: matrix.phpts == 'nts'
-        # libphp*-embed-dbgsym is published in the ondrej PPA "main/debug" component,
-        # which setup-php does not always enable. Add it before installing.
+        # The GitHub runner image no longer ships the ondrej PPA, and setup-php
+        # uses its cached PHP build. Add the PPA and its "main/debug" component
+        # (where libphp*-embed-dbgsym lives) so the embed library resolves.
         run: |
+          sudo add-apt-repository -y ppa:ondrej/php
           src=$(grep -rlE 'ondrej' /etc/apt/sources.list.d/ | head -n1)
           if [ -n "$src" ] && ! grep -q 'main/debug' "$src"; then
             if [ "${src##*.}" = "sources" ]; then
