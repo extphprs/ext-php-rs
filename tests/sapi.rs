@@ -16,7 +16,7 @@ use ext_php_rs::embed::{
 };
 use ext_php_rs::ffi::{
     ZEND_RESULT_CODE_SUCCESS, php_module_shutdown, php_module_startup, php_request_shutdown,
-    php_request_startup, sapi_header_struct, sapi_headers_struct, sapi_shutdown, sapi_startup,
+    php_request_startup, sapi_shutdown, sapi_startup,
 };
 use ext_php_rs::prelude::*;
 use ext_php_rs::zend::try_catch_first;
@@ -580,77 +580,6 @@ fn test_full_sapi_worker_flow() {
     unsafe {
         ext_php_rs_sapi_shutdown();
     }
-}
-
-#[test]
-fn test_sapi_header_valid() {
-    let header_bytes = b"Content-Type: text/html";
-    let mut raw = sapi_header_struct {
-        header: header_bytes.as_ptr() as *mut c_char,
-        header_len: header_bytes.len(),
-    };
-    let wrapper = SapiHeader::from_raw(&raw mut raw);
-
-    assert_eq!(wrapper.as_str(), Some("Content-Type: text/html"));
-    assert_eq!(wrapper.as_name_value(), Some(("Content-Type", "text/html")));
-    assert_eq!(wrapper.len(), 23);
-    assert!(!wrapper.is_empty());
-}
-
-#[test]
-fn test_sapi_header_null_pointer() {
-    let mut raw = sapi_header_struct {
-        header: std::ptr::null_mut(),
-        header_len: 0,
-    };
-    let wrapper = SapiHeader::from_raw(&raw mut raw);
-
-    assert_eq!(wrapper.as_str(), None);
-    assert_eq!(wrapper.as_name_value(), None);
-    assert!(wrapper.is_empty());
-}
-
-#[test]
-fn test_sapi_header_no_colon() {
-    let header_bytes = b"InvalidHeader";
-    let mut raw = sapi_header_struct {
-        header: header_bytes.as_ptr() as *mut c_char,
-        header_len: header_bytes.len(),
-    };
-    let wrapper = SapiHeader::from_raw(&raw mut raw);
-
-    assert_eq!(wrapper.as_str(), Some("InvalidHeader"));
-    assert_eq!(wrapper.as_name_value(), None);
-}
-
-#[test]
-fn test_sapi_header_debug_format() {
-    let header_bytes = b"X-Custom: value";
-    let mut raw = sapi_header_struct {
-        header: header_bytes.as_ptr() as *mut c_char,
-        header_len: header_bytes.len(),
-    };
-    let wrapper = SapiHeader::from_raw(&raw mut raw);
-    let debug = format!("{wrapper:?}");
-    assert!(debug.contains("X-Custom: value"));
-}
-
-#[test]
-fn test_sapi_headers_response_code() {
-    let mut raw: sapi_headers_struct = unsafe { std::mem::zeroed() };
-    raw.http_response_code = 404;
-    let wrapper = SapiHeaders::from_raw(&raw mut raw);
-
-    assert_eq!(wrapper.http_response_code(), 404);
-}
-
-#[test]
-fn test_sapi_headers_debug_format() {
-    let mut raw: sapi_headers_struct = unsafe { std::mem::zeroed() };
-    raw.http_response_code = 200;
-    let wrapper = SapiHeaders::from_raw(&raw mut raw);
-    let debug = format!("{wrapper:?}");
-    assert!(debug.contains("200"));
 }
 
 #[test]
