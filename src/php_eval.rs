@@ -130,10 +130,8 @@ fn strip_bom(code: &[u8]) -> &[u8] {
 }
 
 fn strip_php_open_tag(code: &[u8]) -> Option<&[u8]> {
-    let trimmed = match code.iter().position(|b| !b.is_ascii_whitespace()) {
-        Some(pos) => &code[pos..],
-        None => return None,
-    };
+    let pos = code.iter().position(|b| !b.is_ascii_whitespace())?;
+    let trimmed = &code[pos..];
 
     if trimmed.len() >= 5 && trimmed[..5].eq_ignore_ascii_case(b"<?php") {
         Some(trimmed[5..].trim_ascii_start())

@@ -40,7 +40,7 @@ jobs:
       - name: Validate commit messages
         run: |
           git show-ref
-          curl -sSfL https://github.com/convco/convco/releases/latest/download/convco-ubuntu.zip | zcat > convco
+          curl -sSfL https://github.com/convco/convco/releases/latest/download/convco-x86_64-unknown-linux-musl.tar.gz | tar -xz --strip-components=1 convco-x86_64-unknown-linux-musl/convco
           chmod +x convco
           ./convco check refs/remotes/origin/master..HEAD
           rm convco
