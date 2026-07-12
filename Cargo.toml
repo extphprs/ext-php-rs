@@ -29,6 +29,7 @@ ext-php-rs-derive = { version = "=0.11.14", path = "./crates/macros" }
 
 [dev-dependencies]
 skeptic = "0.13"
+serde_json = "1"
 
 [build-dependencies]
 anyhow = "1"
@@ -95,3 +96,8 @@ path = "tests/module.rs"
 [[test]]
 name = "sapi_tests"
 path = "tests/sapi.rs"
+
+[[test]]
+name = "sapi_header_safety"
+path = "tests/sapi_header_safety.rs"
+required-features = ["embed"]

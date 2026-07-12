@@ -6,14 +6,16 @@ use crate::error::Result;
 use crate::ffi::{ext_php_rs_sapi_globals, sapi_header_struct, sapi_headers_struct};
 use crate::types::Zval;
 use std::ffi::{c_char, c_int, c_void};
+use std::ptr::NonNull;
 
 /// Safe wrapper around `sapi_headers_struct` providing access to the HTTP
 /// response code set by PHP.
 ///
-/// This type is only valid for the duration of the [`Sapi::send_headers`]
-/// callback. Do not store it.
+/// ext-php-rs creates this snapshot and passes it to
+/// [`Sapi::send_headers`]. The response code is copied before user code runs,
+/// so the safe API does not borrow the Zend structure.
 pub struct SapiHeaders {
-    raw: *mut sapi_headers_struct,
+    http_response_code: i32,
 }
 
 impl std::fmt::Debug for SapiHeaders {
@@ -25,31 +27,33 @@ impl std::fmt::Debug for SapiHeaders {
 }
 
 impl SapiHeaders {
-    /// Creates a `SapiHeaders` from a raw pointer.
+    /// Copies a `sapi_headers_struct` into an owned snapshot.
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid, non-null pointer to a `sapi_headers_struct`
-    /// that remains valid for the lifetime of the returned `SapiHeaders`.
-    #[must_use]
-    pub fn from_raw(raw: *mut sapi_headers_struct) -> Self {
-        Self { raw }
+    /// `raw` must be valid and readable for the duration of the callback.
+    unsafe fn snapshot(raw: NonNull<sapi_headers_struct>) -> Self {
+        // SAFETY: The caller guarantees that `raw` is readable for this copy.
+        let http_response_code = unsafe { raw.as_ref().http_response_code };
+        Self { http_response_code }
     }
 
     /// Returns the HTTP response code set by PHP (e.g. 200, 404, 500).
     #[must_use]
     pub fn http_response_code(&self) -> i32 {
-        unsafe { (*self.raw).http_response_code }
+        self.http_response_code
     }
 }
 
 /// Safe wrapper around `sapi_header_struct` providing access to a single
 /// HTTP response header sent by PHP.
 ///
-/// This type is only valid for the duration of the [`Sapi::send_header`]
-/// callback. Do not store it.
+/// ext-php-rs creates this snapshot and passes it to [`Sapi::send_header`].
+/// The header bytes are copied before user code runs, so the safe API does not
+/// borrow the Zend structure or its buffer.
 pub struct SapiHeader {
-    raw: *mut sapi_header_struct,
+    header: Option<Box<[u8]>>,
+    header_len: usize,
 }
 
 impl std::fmt::Debug for SapiHeader {
@@ -61,15 +65,28 @@ impl std::fmt::Debug for SapiHeader {
 }
 
 impl SapiHeader {
-    /// Creates a `SapiHeader` from a raw pointer.
+    /// Copies a `sapi_header_struct` into an owned snapshot.
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid, non-null pointer to a `sapi_header_struct`
-    /// that remains valid for the lifetime of the returned `SapiHeader`.
-    #[must_use]
-    pub fn from_raw(raw: *mut sapi_header_struct) -> Self {
-        Self { raw }
+    /// `raw` must be valid and readable for the duration of the callback. If
+    /// its nested header pointer is non-null, it must be readable for exactly
+    /// `header_len` bytes during the copy.
+    unsafe fn snapshot(raw: NonNull<sapi_header_struct>) -> Self {
+        // SAFETY: The caller guarantees that `raw` is readable for this copy.
+        let raw = unsafe { raw.as_ref() };
+        let header_len = raw.header_len;
+        let header = NonNull::new(raw.header.cast::<u8>()).map(|header| {
+            if header_len == 0 {
+                Box::default()
+            } else {
+                // SAFETY: The caller guarantees that a non-null nested header
+                // pointer is readable for `header_len` bytes during this copy.
+                unsafe { std::slice::from_raw_parts(header.as_ptr(), header_len) }.into()
+            }
+        });
+
+        Self { header, header_len }
     }
 
     /// Returns the raw header string (e.g. `"Content-Type: text/html"`).
@@ -77,12 +94,10 @@ impl SapiHeader {
     /// Returns `None` if the header data is not valid UTF-8.
     #[must_use]
     pub fn as_str(&self) -> Option<&str> {
-        let raw = unsafe { &*self.raw };
-        if raw.header.is_null() || raw.header_len == 0 {
+        if self.header_len == 0 {
             return None;
         }
-        let bytes = unsafe { std::slice::from_raw_parts(raw.header.cast::<u8>(), raw.header_len) };
-        std::str::from_utf8(bytes).ok()
+        std::str::from_utf8(self.header.as_deref()?).ok()
     }
 
     /// Returns the header parsed as a `(name, value)` pair, splitting on the
@@ -100,7 +115,7 @@ impl SapiHeader {
     /// Returns the length of the header string in bytes.
     #[must_use]
     pub fn len(&self) -> usize {
-        unsafe { (*self.raw).header_len }
+        self.header_len
     }
 
     /// Returns `true` if the header is empty.
@@ -260,13 +275,14 @@ extern "C" fn trampoline_flush<S: Sapi>(server_context: *mut c_void) {
 }
 
 extern "C" fn trampoline_send_headers<S: Sapi>(sapi_headers: *mut sapi_headers_struct) -> c_int {
-    if sapi_headers.is_null() {
+    let Some(sapi_headers) = NonNull::new(sapi_headers) else {
         return SendHeadersResult::Failed.into_c_int();
-    }
+    };
     let Some(ctx) = get_server_context::<S>() else {
         return SendHeadersResult::Failed.into_c_int();
     };
-    let headers = SapiHeaders::from_raw(sapi_headers);
+    // SAFETY: PHP provides a readable SAPI headers struct for this callback.
+    let headers = unsafe { SapiHeaders::snapshot(sapi_headers) };
     S::send_headers(ctx, &headers).into_c_int()
 }
 
@@ -274,11 +290,13 @@ extern "C" fn trampoline_send_header<S: Sapi>(
     header: *mut sapi_header_struct,
     _server_context: *mut c_void,
 ) {
-    if header.is_null() {
+    let Some(header) = NonNull::new(header) else {
         return;
-    }
+    };
     if let Some(ctx) = get_server_context::<S>() {
-        let header = SapiHeader::from_raw(header);
+        // SAFETY: PHP provides a readable header struct and nested header
+        // buffer for the declared length during this callback.
+        let header = unsafe { SapiHeader::snapshot(header) };
         S::send_header(ctx, &header);
     }
 }
@@ -316,4 +334,240 @@ extern "C" fn trampoline_register_server_variables<S: Sapi>(vars: *mut Zval) {
     };
     let mut registrar = unsafe { ServerVarRegistrar::from_raw(vars) };
     S::register_server_variables(ctx, &mut registrar);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::embed::RequestInfo;
+
+    struct PanicContext;
+
+    impl ServerContext for PanicContext {
+        fn init_request_info(&self, _info: &mut RequestInfo) {
+            panic!("init_request_info callback must not be invoked");
+        }
+
+        fn read_post(&mut self, _buf: &mut [u8]) -> usize {
+            panic!("read_post callback must not be invoked");
+        }
+
+        fn read_cookies(&self) -> Option<&str> {
+            panic!("read_cookies callback must not be invoked");
+        }
+
+        fn finish_request(&mut self) -> bool {
+            panic!("finish_request callback must not be invoked");
+        }
+
+        fn is_request_finished(&self) -> bool {
+            panic!("is_request_finished callback must not be invoked");
+        }
+    }
+
+    struct PanicSapi;
+
+    impl Sapi for PanicSapi {
+        type Context = PanicContext;
+
+        fn name() -> &'static str {
+            "panic-sapi"
+        }
+
+        fn pretty_name() -> &'static str {
+            "Panic SAPI"
+        }
+
+        fn ub_write(_ctx: &mut Self::Context, _buf: &[u8]) -> usize {
+            panic!("ub_write callback must not be invoked");
+        }
+
+        fn log_message(_message: &str, _syslog_type: i32) {
+            panic!("log_message callback must not be invoked");
+        }
+
+        fn send_headers(_ctx: &mut Self::Context, _headers: &SapiHeaders) -> SendHeadersResult {
+            panic!("send_headers callback must not be invoked");
+        }
+
+        fn send_header(_ctx: &mut Self::Context, _header: &SapiHeader) {
+            panic!("send_header callback must not be invoked");
+        }
+    }
+
+    #[test]
+    fn test_sapi_header_valid() {
+        let header_bytes = b"Content-Type: text/html";
+        let mut raw = sapi_header_struct {
+            header: header_bytes.as_ptr().cast_mut().cast::<c_char>(),
+            header_len: header_bytes.len(),
+        };
+        // SAFETY: `raw` and its header buffer are readable for the copy.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.as_str(), Some("Content-Type: text/html"));
+        assert_eq!(wrapper.as_name_value(), Some(("Content-Type", "text/html")));
+        assert_eq!(wrapper.len(), 23);
+        assert!(!wrapper.is_empty());
+    }
+
+    #[test]
+    fn test_sapi_header_null_pointer() {
+        let mut raw = sapi_header_struct {
+            header: std::ptr::null_mut(),
+            header_len: 0,
+        };
+        // SAFETY: `raw` is readable and its nested header pointer is null.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.as_str(), None);
+        assert_eq!(wrapper.as_name_value(), None);
+        assert!(wrapper.is_empty());
+    }
+
+    #[test]
+    fn test_sapi_header_no_colon() {
+        let header_bytes = b"InvalidHeader";
+        let mut raw = sapi_header_struct {
+            header: header_bytes.as_ptr().cast_mut().cast::<c_char>(),
+            header_len: header_bytes.len(),
+        };
+        // SAFETY: `raw` and its header buffer are readable for the copy.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.as_str(), Some("InvalidHeader"));
+        assert_eq!(wrapper.as_name_value(), None);
+    }
+
+    #[test]
+    fn test_sapi_header_debug_format() {
+        let header_bytes = b"X-Custom: value";
+        let mut raw = sapi_header_struct {
+            header: header_bytes.as_ptr().cast_mut().cast::<c_char>(),
+            header_len: header_bytes.len(),
+        };
+        // SAFETY: `raw` and its header buffer are readable for the copy.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+        let debug = format!("{wrapper:?}");
+        assert!(debug.contains("X-Custom: value"));
+    }
+
+    #[test]
+    fn test_sapi_headers_response_code() {
+        // SAFETY: A zeroed C SAPI headers struct has valid null/zero fields.
+        let mut raw: sapi_headers_struct = unsafe { std::mem::zeroed() };
+        raw.http_response_code = 404;
+        // SAFETY: `raw` is readable for the copy.
+        let wrapper = unsafe { SapiHeaders::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.http_response_code(), 404);
+    }
+
+    #[test]
+    fn test_sapi_headers_debug_format() {
+        // SAFETY: A zeroed C SAPI headers struct has valid null/zero fields.
+        let mut raw: sapi_headers_struct = unsafe { std::mem::zeroed() };
+        raw.http_response_code = 200;
+        // SAFETY: `raw` is readable for the copy.
+        let wrapper = unsafe { SapiHeaders::snapshot(NonNull::from(&mut raw)) };
+        let debug = format!("{wrapper:?}");
+        assert!(debug.contains("200"));
+    }
+
+    #[test]
+    fn null_header_buffer_preserves_declared_nonzero_length() {
+        let mut raw = sapi_header_struct {
+            header: std::ptr::null_mut(),
+            header_len: 12,
+        };
+        // SAFETY: `raw` is readable and its nested header pointer is null.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.as_str(), None);
+        assert_eq!(wrapper.as_name_value(), None);
+        assert_eq!(wrapper.len(), 12);
+        assert!(!wrapper.is_empty());
+    }
+
+    #[test]
+    fn nonnull_zero_length_header_is_not_dereferenced() {
+        let mut raw = sapi_header_struct {
+            header: NonNull::<u8>::dangling().as_ptr().cast::<c_char>(),
+            header_len: 0,
+        };
+        // SAFETY: `raw` is readable; a non-null pointer is readable for zero bytes.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.as_str(), None);
+        assert_eq!(wrapper.len(), 0);
+        assert!(wrapper.is_empty());
+    }
+
+    #[test]
+    fn invalid_utf8_header_has_no_string_view() {
+        let header_bytes = [0xff, 0xfe];
+        let mut raw = sapi_header_struct {
+            header: header_bytes.as_ptr().cast_mut().cast::<c_char>(),
+            header_len: header_bytes.len(),
+        };
+        // SAFETY: `raw` and its header buffer are readable for the copy.
+        let wrapper = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw)) };
+
+        assert_eq!(wrapper.as_str(), None);
+        assert_eq!(wrapper.as_name_value(), None);
+        assert_eq!(wrapper.len(), 2);
+    }
+
+    #[test]
+    fn snapshots_own_copied_source_data() {
+        let header = {
+            let mut header_bytes = b"X-Owned: original".to_vec();
+            let mut raw_header = sapi_header_struct {
+                header: header_bytes.as_mut_ptr().cast::<c_char>(),
+                header_len: header_bytes.len(),
+            };
+            // SAFETY: `raw_header` and its header buffer are readable for the copy.
+            let header = unsafe { SapiHeader::snapshot(NonNull::from(&mut raw_header)) };
+
+            header_bytes.fill(b'X');
+            raw_header.header = std::ptr::null_mut();
+            raw_header.header_len = 0;
+            assert!(raw_header.header.is_null());
+            assert_eq!(raw_header.header_len, 0);
+            drop(header_bytes);
+            header
+        };
+
+        assert_eq!(header.as_str(), Some("X-Owned: original"));
+        assert_eq!(header.as_name_value(), Some(("X-Owned", "original")));
+
+        let headers = {
+            // SAFETY: A zeroed C SAPI headers struct has valid null/zero fields.
+            let mut raw_headers: sapi_headers_struct = unsafe { std::mem::zeroed() };
+            raw_headers.http_response_code = 201;
+            // SAFETY: `raw_headers` is readable for the copy.
+            let headers = unsafe { SapiHeaders::snapshot(NonNull::from(&mut raw_headers)) };
+            raw_headers.http_response_code = 500;
+            assert_eq!(raw_headers.http_response_code, 500);
+            headers
+        };
+
+        assert_eq!(headers.http_response_code(), 201);
+    }
+
+    #[test]
+    fn null_trampoline_inputs_take_fast_paths() {
+        assert_eq!(
+            trampoline_send_headers::<PanicSapi>(std::ptr::null_mut()),
+            SendHeadersResult::Failed.into_c_int()
+        );
+        trampoline_send_header::<PanicSapi>(std::ptr::null_mut(), std::ptr::null_mut());
+    }
+
+    #[test]
+    fn send_headers_result_mappings_are_stable() {
+        assert_eq!(SendHeadersResult::SentSuccessfully.into_c_int(), 1);
+        assert_eq!(SendHeadersResult::DoSend.into_c_int(), 2);
+        assert_eq!(SendHeadersResult::Failed.into_c_int(), 3);
+    }
 }
