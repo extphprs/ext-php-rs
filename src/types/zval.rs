@@ -1009,7 +1009,43 @@ impl Zval {
     /// # Parameters
     ///
     /// * `val` - The value to set the zval as.
-    pub fn set_resource(&mut self, val: *mut zend_resource) {
+    ///
+    /// # Safety
+    ///
+    /// `val` must be non-null and point to a valid Zend-managed resource with
+    /// one independent reference that can be transferred into this zval. This
+    /// function does not increment the resource refcount: the caller
+    /// relinquishes the transferred reference, which the zval releases when it
+    /// is overwritten or dropped. The resource must remain valid until Zend
+    /// releases that reference.
+    ///
+    /// Replacing a zval with the same resource also requires an independent
+    /// incoming reference because the old reference is released before `val`
+    /// is stored.
+    ///
+    /// Calling this method requires an unsafe block:
+    ///
+    /// ```compile_fail,E0133
+    /// use ext_php_rs::{ffi::zend_resource, types::Zval};
+    ///
+    /// fn assign_resource(zval: &mut Zval, resource: *mut zend_resource) {
+    ///     zval.set_resource(resource);
+    /// }
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ext_php_rs::{ffi::zend_resource, types::Zval};
+    /// # fn acquire_resource_from_zend() -> *mut zend_resource { unimplemented!() }
+    /// let resource = acquire_resource_from_zend();
+    /// let mut zval = Zval::new();
+    ///
+    /// // SAFETY: `resource` is a valid Zend resource whose owned reference is
+    /// // transferred into `zval`.
+    /// unsafe { zval.set_resource(resource) };
+    /// ```
+    pub unsafe fn set_resource(&mut self, val: *mut zend_resource) {
         self.change_type(ZvalTypeFlags::ResourceEx);
         self.value.res = val;
     }
