@@ -2,11 +2,22 @@ use std::{ffi::c_void, ptr};
 
 use crate::{
     ffi::{
-        _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT, IS_MIXED,
-        MAY_BE_ANY, MAY_BE_BOOL, zend_type,
+        _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT,
+        IS_ITERABLE, IS_MIXED, MAY_BE_ANY, MAY_BE_BOOL, zend_type,
     },
     flags::DataType,
 };
+
+/// Type mask PHP uses for the `iterable` pseudo-type in arginfo.
+///
+/// PHP 8.1 encodes it as `1 << IS_ITERABLE`, which is what `MAY_BE_ITERABLE`
+/// expands to. PHP 8.2 replaced that with a dedicated
+/// `_ZEND_TYPE_ITERABLE_BIT`, so `1 << IS_ITERABLE` no longer describes an
+/// iterable and the engine rejects every argument passed to such a parameter.
+#[cfg(php82)]
+const ITERABLE_MASK: u32 = crate::ffi::_ZEND_TYPE_ITERABLE_BIT;
+#[cfg(not(php82))]
+const ITERABLE_MASK: u32 = 1 << IS_ITERABLE;
 
 /// Internal Zend type.
 pub type ZendType = zend_type;
@@ -163,6 +174,8 @@ impl ZendType {
 
         (if type_ == _IS_BOOL {
             MAY_BE_BOOL
+        } else if type_ == IS_ITERABLE {
+            ITERABLE_MASK
         } else if type_ == IS_MIXED {
             MAY_BE_ANY
         } else {

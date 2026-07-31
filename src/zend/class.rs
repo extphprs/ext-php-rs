@@ -129,16 +129,20 @@ impl ClassEntry {
     /// Returns the iterator for the class for a specific instance
     ///
     /// Returns [`None`] if there is no associated iterator for the class.
-    // TODO: Verify if this is safe to use, as it allows mutating the
-    // hashtable while only having a reference to it. #461
-    #[allow(clippy::mut_from_ref)]
+    ///
+    /// Takes `zval` by mutable reference because the Zend `get_iterator` handler
+    /// may mutate the object it is called on, and the returned iterator aliases
+    /// it for `'a`.
     #[must_use]
-    pub fn get_iterator<'a>(&self, zval: &'a Zval, by_ref: bool) -> Option<&'a mut ZendIterator> {
+    pub fn get_iterator<'a>(
+        &self,
+        zval: &'a mut Zval,
+        by_ref: bool,
+    ) -> Option<&'a mut ZendIterator> {
         let ptr: *const Self = self;
-        let zval_ptr: *const Zval = zval;
+        let zval_ptr: *mut Zval = zval;
 
-        let iterator =
-            unsafe { (*ptr).get_iterator?(ptr.cast_mut(), zval_ptr.cast_mut(), i32::from(by_ref)) };
+        let iterator = unsafe { (*ptr).get_iterator?(ptr.cast_mut(), zval_ptr, i32::from(by_ref)) };
 
         unsafe { iterator.as_mut() }
     }

@@ -144,7 +144,7 @@ impl<T: RegisteredClass> ZendClassObject<T> {
         self.obj.replace(val)
     }
 
-    /// Returns a mutable reference to the [`ZendClassObject`] of a given zend
+    /// Returns a reference to the [`ZendClassObject`] of a given zend
     /// object `obj`. Returns [`None`] if the given object is not of the
     /// type `T`.
     ///
@@ -157,7 +157,9 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// * If the std offset over/underflows `isize`.
     #[must_use]
     pub fn from_zend_obj(std: &zend_object) -> Option<&Self> {
-        Some(Self::internal_from_zend_obj(std, true)?)
+        // SAFETY: `std` is a live `zend_object` for the lifetime of the borrow,
+        // and the resolved pointer is only ever read through a shared reference.
+        unsafe { Self::resolve(ptr::from_ref(std), true)?.as_ref() }
     }
 
     /// Returns a mutable reference to the [`ZendClassObject`] of a given zend
@@ -171,9 +173,11 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// # Panics
     ///
     /// * If the std offset over/underflows `isize`.
-    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn from_zend_obj_mut(std: &mut zend_object) -> Option<&mut Self> {
-        Self::internal_from_zend_obj(std, true)
+        // SAFETY: the pointer is derived from a `&mut zend_object`, so recovering
+        // write permission with `cast_mut` is sound and the returned reference is
+        // the only live mutable borrow of the containing class object.
+        unsafe { Self::resolve(ptr::from_mut(std), true)?.cast_mut().as_mut() }
     }
 
     /// Returns a mutable reference to the [`ZendClassObject`] of a given zend
@@ -195,43 +199,62 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// # Panics
     ///
     /// * If the std offset over/underflows `isize`.
-    #[allow(clippy::needless_pass_by_ref_mut)]
     pub(crate) fn from_zend_obj_mut_uninit(std: &mut zend_object) -> Option<&mut Self> {
-        Self::internal_from_zend_obj(std, false)
+        // SAFETY: the pointer is derived from a `&mut zend_object`, so recovering
+        // write permission with `cast_mut` is sound and the returned reference is
+        // the only live mutable borrow of the containing class object.
+        unsafe {
+            Self::resolve(ptr::from_mut(std), false)?
+                .cast_mut()
+                .as_mut()
+        }
     }
 
-    // TODO: Verify if this is safe to use, as it allows mutating the
-    // hashtable while only having a reference to it. #461
-    #[allow(clippy::mut_from_ref)]
-    fn internal_from_zend_obj(std: &zend_object, require_initialized: bool) -> Option<&mut Self> {
+    /// Resolves the [`ZendClassObject`] containing `std`, validating that the
+    /// object was created by this type's `create_object` handler.
+    ///
+    /// Returns a `*const` so the caller decides whether to form a shared or a
+    /// mutable reference. Callers that need `&mut Self` must pass a pointer
+    /// derived from a `&mut zend_object` and recover write permission with
+    /// [`pointer::cast_mut`], so that the mutable access is never derived from a
+    /// shared reborrow.
+    ///
+    /// # Safety
+    ///
+    /// `std` must be non-null and point to a live `zend_object` for the duration
+    /// of the call.
+    ///
+    /// # Panics
+    ///
+    /// * If the std offset over/underflows `isize`.
+    unsafe fn resolve(std: *const zend_object, require_initialized: bool) -> Option<*const Self> {
         // First, check if this object was created by our create_object handler.
         // We do this by comparing the handlers pointer. Objects created by PHP's
         // mock frameworks or subclasses won't have our custom handlers, and their
         // memory layout won't match ZendClassObject<T>.
         let expected_handlers = T::get_metadata().handlers();
-        if !ptr::eq(std.handlers, expected_handlers) {
+        if !ptr::eq(unsafe { (*std).handlers }, expected_handlers) {
             return None;
         }
 
-        let std = ptr::from_ref(std).cast::<c_char>();
-        let ptr = unsafe {
+        let this = unsafe {
             let offset = isize::try_from(Self::std_offset()).expect("Offset overflow");
-            let ptr = std.offset(0 - offset).cast::<Self>();
-            ptr.cast_mut().as_mut()?
+            std.cast::<c_char>().offset(0 - offset).cast::<Self>()
         };
+        let this_ref = unsafe { this.as_ref()? };
 
-        if !ptr.std.instance_of(T::get_metadata().ce()) {
+        if !this_ref.std.instance_of(T::get_metadata().ce()) {
             return None;
         }
 
         // Check if the Rust object is initialized. Objects created via create_object
         // for subclasses that don't call parent::__construct() will have obj = None.
         // We must reject these to avoid panics when dereferencing.
-        if require_initialized && ptr.obj.is_none() {
+        if require_initialized && this_ref.obj.is_none() {
             return None;
         }
 
-        Some(ptr)
+        Some(this)
     }
 
     /// Returns a mutable reference to the underlying Zend object.

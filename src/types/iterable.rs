@@ -1,11 +1,24 @@
 use super::array::Iter as ZendHashTableIter;
 use super::iterator::Iter as ZendIteratorIter;
-use crate::convert::FromZval;
+use crate::convert::FromZvalMut;
 use crate::flags::DataType;
 use crate::types::{ZendHashTable, ZendIterator, Zval};
 
 /// This type represents a PHP iterable, which can be either an array or an
 /// object implementing the Traversable interface.
+///
+/// An `Iterable` can only be extracted from a mutable [`Zval`], via
+/// [`FromZvalMut`]. Resolving the `Traversable` variant invokes the Zend
+/// `get_iterator` handler, which mutates the object, so a shared borrow is not
+/// enough:
+///
+/// ```compile_fail
+/// use ext_php_rs::{convert::FromZvalMut, types::{Iterable, Zval}};
+///
+/// fn extract(zval: &Zval) -> Option<Iterable<'_>> {
+///     Iterable::from_zval_mut(zval)
+/// }
+/// ```
 #[derive(Debug)]
 pub enum Iterable<'a> {
     /// Iterable is an Array
@@ -38,19 +51,15 @@ impl<'a> IntoIterator for &'a mut Iterable<'a> {
     }
 }
 
-impl<'a> FromZval<'a> for Iterable<'a> {
+impl<'a> FromZvalMut<'a> for Iterable<'a> {
     const TYPE: DataType = DataType::Iterable;
 
-    fn from_zval(zval: &'a Zval) -> Option<Self> {
-        if let Some(array) = zval.array() {
-            return Some(Iterable::Array(array));
+    fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
+        if zval.is_traversable() {
+            return zval.traversable().map(Iterable::Traversable);
         }
 
-        if let Some(traversable) = zval.traversable() {
-            return Some(Iterable::Traversable(traversable));
-        }
-
-        None
+        zval.array().map(Iterable::Array)
     }
 }
 
