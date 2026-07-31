@@ -10,7 +10,7 @@ impl DropLifetimes for syn::Type {
     fn drop_lifetimes(&mut self) {
         match self {
             syn::Type::Array(ty) => ty.drop_lifetimes(),
-            syn::Type::BareFn(ty) => ty.drop_lifetimes(),
+            syn::Type::FnPtr(ty) => ty.drop_lifetimes(),
             syn::Type::Group(ty) => ty.drop_lifetimes(),
             syn::Type::ImplTrait(ty) => ty.drop_lifetimes(),
             syn::Type::Paren(ty) => ty.drop_lifetimes(),
@@ -31,7 +31,7 @@ impl DropLifetimes for syn::TypeArray {
     }
 }
 
-impl DropLifetimes for syn::TypeBareFn {
+impl DropLifetimes for syn::TypeFnPtr {
     fn drop_lifetimes(&mut self) {
         self.lifetimes = None;
         self.inputs
@@ -41,7 +41,7 @@ impl DropLifetimes for syn::TypeBareFn {
     }
 }
 
-impl DropLifetimes for syn::BareFnArg {
+impl DropLifetimes for syn::NamedArg {
     fn drop_lifetimes(&mut self) {
         self.ty.drop_lifetimes();
     }

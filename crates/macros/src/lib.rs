@@ -1,5 +1,4 @@
 //! Macros for the `php-ext` crate.
-#![allow(clippy::needless_continue)] // TODO: Remove this once darling is updated to remove clippy issues
 mod class;
 mod constant;
 mod enum_;

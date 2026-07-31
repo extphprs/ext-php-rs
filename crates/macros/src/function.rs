@@ -71,7 +71,7 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;
-    if let Some(ReceiverArg { span, .. }) = args.receiver {
+    if let Some(ReceiverArg { span }) = args.receiver {
         bail!(span => "Receiver arguments are invalid on PHP functions. See `#[php_impl]`.");
     }
 
@@ -879,7 +879,6 @@ impl<'a> Function<'a> {
 
 #[derive(Debug)]
 pub struct ReceiverArg {
-    pub _mutable: bool,
     pub span: Span,
 }
 
@@ -911,13 +910,13 @@ impl<'a> Args<'a> {
         for arg in args {
             match arg {
                 FnArg::Receiver(receiver) => {
-                    if receiver.reference.is_none() {
+                    let syn::ReceiverKind::Reference(..) = &receiver.kind else {
                         bail!(receiver => "PHP objects are heap-allocated and cannot be passed by value. Try using `&self` or `&mut self`.");
-                    } else if result.receiver.is_some() {
+                    };
+                    if result.receiver.is_some() {
                         bail!(receiver => "Too many receivers specified.")
                     }
                     result.receiver.replace(ReceiverArg {
-                        _mutable: receiver.mutability.is_some(),
                         span: receiver.span(),
                     });
                 }
@@ -1316,6 +1315,19 @@ pub fn type_is_nullable(ty: &Type) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_only_reference_receivers_are_accepted() {
+        let by_ref: FnArg = syn::parse_quote!(&self);
+        let by_mut: FnArg = syn::parse_quote!(&mut self);
+        let by_value: FnArg = syn::parse_quote!(self);
+        let boxed: FnArg = syn::parse_quote!(self: Box<Self>);
+
+        assert!(Args::parse_from_fnargs([&by_ref].into_iter(), HashMap::new()).is_ok());
+        assert!(Args::parse_from_fnargs([&by_mut].into_iter(), HashMap::new()).is_ok());
+        assert!(Args::parse_from_fnargs([&by_value].into_iter(), HashMap::new()).is_err());
+        assert!(Args::parse_from_fnargs([&boxed].into_iter(), HashMap::new()).is_err());
+    }
 
     #[test]
     fn test_expr_to_php_stub_strips_numeric_suffixes() {

@@ -51,7 +51,7 @@ const INTERNAL_INTERFACE_NAME_PREFIX: &str = "PhpInterface";
 pub fn parser(args: PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStream> {
     let change_method_case = args.change_method_case.unwrap_or(RenameRule::Camel);
     // Extract the trait being implemented
-    let Some((_, trait_path, _)) = &input.trait_ else {
+    let Some((trait_path, _)) = &input.trait_ else {
         bail!(input => "`#[php_impl_interface]` can only be used on trait implementations (e.g., `impl SomeTrait for SomeStruct`)");
     };
 

@@ -16,8 +16,8 @@ edition = "2024"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2.0.100", features = ["full", "extra-traits", "printing"] }
-darling = "0.23"
+syn = { version = "3.0.3", features = ["full", "extra-traits", "printing"] }
+darling = "0.24"
 quote = "1.0.9"
 proc-macro2 = "1.0.26"
 convert_case = "0.11.0"
@@ -27,6 +27,16 @@ itertools = "0.15.0"
 missing_docs = "warn"
 
 [dev-dependencies]
+# runtime-macros 1.1.1 declares syn 2 without the `full` and `derive` features it
+# uses, relying on unification with the crate under test. Now that this crate is
+# on syn 3, enable them explicitly.
+syn2 = { package = "syn", version = "2", features = [
+    "full",
+    "derive",
+    "parsing",
+    "visit",
+    "extra-traits",
+] }
 glob = "0.3.2"
 macrotest = "1.1.0"
 runtime-macros = "1.1.1"
