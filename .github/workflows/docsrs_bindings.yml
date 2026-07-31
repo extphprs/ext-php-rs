@@ -2,7 +2,7 @@ name: docsrs bindings
 on:
   pull_request:
     paths:
-      - 'allowed-bindings.rs'
+      - 'allowed_bindings.rs'
       - 'docsrs_bindings.rs'
       - 'Cargo.toml'
       - 'build.rs'

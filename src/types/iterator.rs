@@ -206,7 +206,7 @@ mod tests {
 
             assert!(generator.is_ok());
 
-            let zval = generator.unwrap();
+            let mut zval = generator.unwrap();
 
             assert!(zval.is_traversable());
 
@@ -258,7 +258,7 @@ mod tests {
 
             assert!(generator.is_ok());
 
-            let zval = generator.unwrap();
+            let mut zval = generator.unwrap();
 
             assert!(zval.is_traversable());
 

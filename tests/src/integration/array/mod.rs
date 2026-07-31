@@ -98,6 +98,30 @@ pub fn test_array_mut_empty(arr: &mut ZendHashTable) -> i64 {
     i64::try_from(arr.len()).unwrap_or(i64::MAX)
 }
 
+#[php_function]
+pub fn test_array_get_mut(arr: &mut ZendHashTable) -> i64 {
+    for key in ["width", "height"] {
+        if let Some(zv) = arr.get_mut(key)
+            && let Some(value) = zv.long()
+        {
+            zv.set_long(value * 2);
+        }
+    }
+
+    i64::try_from(arr.len()).unwrap_or(i64::MAX)
+}
+
+#[php_function]
+pub fn test_array_get_index_mut(arr: &mut ZendHashTable) -> i64 {
+    if let Some(zv) = arr.get_index_mut(0)
+        && let Some(value) = zv.long()
+    {
+        zv.set_long(value + 100);
+    }
+
+    i64::try_from(arr.len()).unwrap_or(i64::MAX)
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_array))
@@ -113,6 +137,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(test_empty_vec))
         .function(wrap_function!(test_empty_hashmap))
         .function(wrap_function!(test_array_mut_empty))
+        .function(wrap_function!(test_array_get_mut))
+        .function(wrap_function!(test_array_get_index_mut))
 }
 
 #[cfg(test)]

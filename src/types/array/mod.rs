@@ -211,7 +211,8 @@ impl ZendHashTable {
         }
     }
 
-    /// Attempts to retrieve a value from the hash table with a string key.
+    /// Attempts to retrieve a mutable reference to a value in the hash table
+    /// with a string key.
     ///
     /// # Parameters
     ///
@@ -219,8 +220,8 @@ impl ZendHashTable {
     ///
     /// # Returns
     ///
-    /// * `Some(&Zval)` - A reference to the zval at the position in the hash
-    ///   table.
+    /// * `Some(&mut Zval)` - A mutable reference to the zval at the position in
+    ///   the hash table.
     /// * `None` - No value at the given position was found.
     ///
     /// # Example
@@ -231,13 +232,28 @@ impl ZendHashTable {
     /// let mut ht = ZendHashTable::new();
     ///
     /// ht.insert("test", "hello world");
-    /// assert_eq!(ht.get("test").and_then(|zv| zv.str()), Some("hello world"));
+    /// if let Some(zv) = ht.get_mut("test") {
+    ///     zv.set_long(42);
+    /// }
+    /// assert_eq!(ht.get("test").and_then(|zv| zv.long()), Some(42));
     /// ```
-    // TODO: Verify if this is safe to use, as it allows mutating the
-    // hashtable while only having a reference to it. #461
-    #[allow(clippy::mut_from_ref)]
+    ///
+    /// Holding two mutable references to the same entry is rejected at compile
+    /// time, which is why this takes `&mut self`:
+    ///
+    /// ```compile_fail
+    /// use ext_php_rs::types::ZendHashTable;
+    ///
+    /// let mut ht = ZendHashTable::new();
+    /// let _ = ht.insert("test", 1);
+    ///
+    /// let first = ht.get_mut("test").unwrap();
+    /// let second = ht.get_mut("test").unwrap();
+    ///
+    /// first.set_long(2);
+    /// ```
     #[must_use]
-    pub fn get_mut<'a, K>(&self, key: K) -> Option<&mut Zval>
+    pub fn get_mut<'a, K>(&mut self, key: K) -> Option<&mut Zval>
     where
         K: Into<ArrayKey<'a>>,
     {
@@ -288,7 +304,8 @@ impl ZendHashTable {
         }
     }
 
-    /// Attempts to retrieve a value from the hash table with an index.
+    /// Attempts to retrieve a mutable reference to a value in the hash table
+    /// with an index.
     ///
     /// # Parameters
     ///
@@ -296,8 +313,8 @@ impl ZendHashTable {
     ///
     /// # Returns
     ///
-    /// * `Some(&Zval)` - A reference to the zval at the position in the hash
-    ///   table.
+    /// * `Some(&mut Zval)` - A mutable reference to the zval at the position in
+    ///   the hash table.
     /// * `None` - No value at the given position was found.
     ///
     /// # Example
@@ -308,13 +325,28 @@ impl ZendHashTable {
     /// let mut ht = ZendHashTable::new();
     ///
     /// ht.push(100);
-    /// assert_eq!(ht.get_index(0).and_then(|zv| zv.long()), Some(100));
+    /// if let Some(zv) = ht.get_index_mut(0) {
+    ///     zv.set_long(200);
+    /// }
+    /// assert_eq!(ht.get_index(0).and_then(|zv| zv.long()), Some(200));
     /// ```
-    // TODO: Verify if this is safe to use, as it allows mutating the
-    // hashtable while only having a reference to it. #461
-    #[allow(clippy::mut_from_ref)]
+    ///
+    /// Holding two mutable references to the same index is rejected at compile
+    /// time, which is why this takes `&mut self`:
+    ///
+    /// ```compile_fail
+    /// use ext_php_rs::types::ZendHashTable;
+    ///
+    /// let mut ht = ZendHashTable::new();
+    /// let _ = ht.push(100);
+    ///
+    /// let first = ht.get_index_mut(0).unwrap();
+    /// let second = ht.get_index_mut(0).unwrap();
+    ///
+    /// first.set_long(200);
+    /// ```
     #[must_use]
-    pub fn get_index_mut(&self, key: i64) -> Option<&mut Zval> {
+    pub fn get_index_mut(&mut self, key: i64) -> Option<&mut Zval> {
         unsafe {
             #[allow(clippy::cast_sign_loss)]
             zend_hash_index_find(self, key as zend_ulong).as_mut()

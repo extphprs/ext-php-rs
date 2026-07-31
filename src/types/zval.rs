@@ -375,11 +375,8 @@ impl Zval {
 
     /// Returns a mutable reference to the zval if it is an internal indirect
     /// reference.
-    // TODO: Verify if this is safe to use, as it allows mutating the
-    // hashtable while only having a reference to it. #461
-    #[allow(clippy::mut_from_ref)]
     #[must_use]
-    pub fn indirect_mut(&self) -> Option<&mut Zval> {
+    pub fn indirect_mut(&mut self) -> Option<&mut Zval> {
         if self.is_indirect() {
             Some(unsafe { &mut *(self.value.zv.cast::<Zval>()) })
         } else {
@@ -416,9 +413,10 @@ impl Zval {
 
     /// Returns an iterator over the zval if it is traversable.
     #[must_use]
-    pub fn traversable(&self) -> Option<&mut ZendIterator> {
+    pub fn traversable(&mut self) -> Option<&mut ZendIterator> {
         if self.is_traversable() {
-            self.object()?.get_class_entry().get_iterator(self, false)
+            let ce = self.object()?.get_class_entry();
+            ce.get_iterator(self, false)
         } else {
             None
         }
@@ -427,9 +425,9 @@ impl Zval {
     /// Returns an iterable over the zval if it is an array or traversable. (is
     /// iterable)
     #[must_use]
-    pub fn iterable(&self) -> Option<Iterable<'_>> {
+    pub fn iterable(&mut self) -> Option<Iterable<'_>> {
         if self.is_iterable() {
-            Iterable::from_zval(self)
+            Iterable::from_zval_mut(self)
         } else {
             None
         }
@@ -1215,7 +1213,14 @@ impl Debug for Zval {
         }
 
         match ty {
-            DataType::Undef | DataType::Null | DataType::ConstantExpression | DataType::Void => {
+            // `Iterable` shows no value on purpose: resolving one would invoke the
+            // Zend `get_iterator` handler, which allocates and can run arbitrary
+            // user PHP. Formatting must not have side effects on the engine.
+            DataType::Undef
+            | DataType::Null
+            | DataType::ConstantExpression
+            | DataType::Void
+            | DataType::Iterable => {
                 field!(Option::<()>::None)
             }
             DataType::False => field!(false),
@@ -1229,7 +1234,6 @@ impl Debug for Zval {
             DataType::Reference => field!(self.reference()),
             DataType::Bool => field!(self.bool()),
             DataType::Indirect => field!(self.indirect()),
-            DataType::Iterable => field!(self.iterable()),
             // SAFETY: We are not accessing the pointer.
             DataType::Ptr => field!(unsafe { self.ptr::<c_void>() }),
         };

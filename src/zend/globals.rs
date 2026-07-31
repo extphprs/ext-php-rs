@@ -105,11 +105,8 @@ impl ExecutorGlobals {
     }
 
     /// Attempts to retrieve the global functions hash table as mutable.
-    // TODO: Verify if this is safe to use, as it allows mutating the
-    // hashtable while only having a reference to it. #461
-    #[allow(clippy::mut_from_ref)]
     #[must_use]
-    pub fn function_table_mut(&self) -> Option<&mut ZendHashTable> {
+    pub fn function_table_mut(&mut self) -> Option<&mut ZendHashTable> {
         unsafe { self.function_table.as_mut() }
     }
 

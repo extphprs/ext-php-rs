@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::ptr::{self, NonNull};
 
 use crate::{
@@ -30,25 +31,53 @@ pub type StreamOpener = unsafe extern "C" fn(
 ) -> *mut Stream;
 
 impl StreamWrapper {
-    /// Get wrapped stream by name
+    /// Locates the stream wrapper registered for `name`.
+    ///
+    /// # Safety
+    ///
+    /// The returned wrapper is owned by PHP and lives in the per-request stream
+    /// wrapper table, so the caller must not hold `'a` beyond the current
+    /// request. The lifetime is unconstrained by the arguments and must be
+    /// chosen to reflect that.
     #[inline]
     #[must_use]
-    pub fn get(name: &str) -> Option<&Self> {
-        unsafe {
-            let result = php_stream_locate_url_wrapper(name.as_ptr().cast(), ptr::null_mut(), 0);
-            Some(NonNull::new(result)?.as_ref())
-        }
+    pub unsafe fn get<'a>(name: &str) -> Option<&'a Self> {
+        let ptr = Self::locate(name)?;
+        // SAFETY: `locate` returned a non-null wrapper pointer owned by PHP, and
+        // the caller guarantees `'a` does not outlive the current request.
+        Some(unsafe { ptr.as_ref() })
     }
 
-    /// Get mutable wrapped stream by name
+    /// Locates the stream wrapper registered for `name` for mutation.
+    ///
+    /// # Safety
+    ///
+    /// In addition to the request-scoped validity required by [`Self::get`], the
+    /// caller must ensure no other reference to the same wrapper is live for
+    /// `'a`. The wrapper table is process-wide state shared with PHP and with
+    /// every other extension, so this function cannot check exclusivity.
     #[inline]
     #[must_use]
-    #[allow(clippy::mut_from_ref)]
-    pub fn get_mut(name: &str) -> Option<&mut Self> {
-        unsafe {
-            let result = php_stream_locate_url_wrapper(name.as_ptr().cast(), ptr::null_mut(), 0);
-            Some(NonNull::new(result)?.as_mut())
-        }
+    pub unsafe fn get_mut<'a>(name: &str) -> Option<&'a mut Self> {
+        let mut ptr = Self::locate(name)?;
+        // SAFETY: `locate` returned a non-null wrapper pointer owned by PHP, and
+        // the caller guarantees both request-scoped validity and exclusivity.
+        Some(unsafe { ptr.as_mut() })
+    }
+
+    /// Looks up the wrapper pointer for `name`.
+    ///
+    /// `name` is copied into a NUL-terminated C string because
+    /// `php_stream_locate_url_wrapper` scans the path until it reaches a
+    /// character outside `[A-Za-z0-9+-.]`, which would read past the end of a
+    /// non-terminated Rust string slice.
+    #[inline]
+    fn locate(name: &str) -> Option<NonNull<Self>> {
+        let name = CString::new(name).ok()?;
+        // SAFETY: `name` is a valid NUL-terminated C string that outlives the
+        // call, and a null `path_for_open` is accepted by PHP.
+        let result = unsafe { php_stream_locate_url_wrapper(name.as_ptr(), ptr::null_mut(), 0) };
+        NonNull::new(result)
     }
 
     /// Register stream wrapper for name
@@ -143,5 +172,3 @@ pub type Stream = php_stream;
 
 /// Operations that can be performed with a stream wrapper
 pub type StreamWrapperOps = php_stream_wrapper_ops;
-
-impl StreamWrapperOps {}

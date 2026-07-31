@@ -11,6 +11,7 @@ pub mod enum_;
 pub mod exception;
 pub mod globals;
 pub mod interface;
+pub mod iterable;
 pub mod iterator;
 pub mod magic_method;
 pub mod module_globals;

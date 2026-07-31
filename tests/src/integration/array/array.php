@@ -140,3 +140,24 @@ $empty_for_mut = [];
 assert(test_array_mut_empty($empty_for_mut) === 1, '&mut ZendHashTable should work on empty array without segfault');
 assert(array_key_exists('added', $empty_for_mut), 'Rust should have added a key to the empty array');
 assert($empty_for_mut['added'] === 'value', 'Added value should be correct');
+
+// get_mut mutates entries in place through a &mut ZendHashTable parameter.
+$dims = ['width' => 3, 'height' => 4, 'depth' => 5];
+assert(test_array_get_mut($dims) === 3, 'get_mut should not change the array length');
+assert($dims['width'] === 6, 'get_mut should have doubled width');
+assert($dims['height'] === 8, 'get_mut should have doubled height');
+assert($dims['depth'] === 5, 'get_mut should leave untouched keys alone');
+
+// Missing keys are a None, not a panic.
+$partial = ['width' => 7];
+assert(test_array_get_mut($partial) === 1, 'get_mut should tolerate missing keys');
+assert($partial['width'] === 14, 'get_mut should have doubled the present key');
+
+// get_index_mut mutates by position.
+$list = [1, 2, 3];
+assert(test_array_get_index_mut($list) === 3, 'get_index_mut should not change the array length');
+assert($list[0] === 101, 'get_index_mut should have updated index 0');
+assert($list[1] === 2, 'get_index_mut should leave other indexes alone');
+
+$empty_list = [];
+assert(test_array_get_index_mut($empty_list) === 0, 'get_index_mut should tolerate an empty array');
