@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    ForeignItemFn, ItemForeignMod, ReturnType, Signature, Token, punctuated::Punctuated,
+    ForeignItemFn, ItemForeignMod, ReturnType, Safety, Signature, Token, punctuated::Punctuated,
     spanned::Spanned as _, token::Unsafe,
 };
 
@@ -24,7 +24,7 @@ fn parse_function(mut func: ForeignItemFn) -> Result<TokenStream> {
     let ForeignItemFn {
         attrs, vis, sig, ..
     } = &mut func;
-    sig.unsafety = Some(Unsafe::default()); // Function must be unsafe.
+    sig.safety = Safety::Unsafe(Unsafe::default()); // Function must be unsafe.
 
     let Signature { ident, .. } = &sig;
 
