@@ -525,19 +525,20 @@ unsafe fn check_property_access(flags: PropertyFlags, object_ce: *const zend_cla
 
 /// Throws an error for invalid property access.
 ///
+/// A property name may legally contain NUL bytes, since `zend_string` is length
+/// prefixed. Such a name cannot be interpolated into a C string, so the message
+/// falls back to a generic one rather than panicking inside the `extern "C"` frame
+/// this runs in.
+///
 /// # Safety
 ///
 /// Must only be called during PHP execution.
-///
-/// # Panics
-///
-/// Panics if the error message cannot be converted to a `CString`.
 unsafe fn throw_property_access_error(class_name: &str, prop_name: &str, is_private: bool) {
     let visibility = if is_private { "private" } else { "protected" };
     let message = CString::new(format!(
         "Cannot access {visibility} property {class_name}::${prop_name}"
     ))
-    .expect("Failed to create error message");
+    .unwrap_or_else(|_| c"Cannot access property".to_owned());
 
     unsafe {
         zend_throw_error(ptr::null_mut(), message.as_ptr());

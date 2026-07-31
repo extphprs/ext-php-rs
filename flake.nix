@@ -21,6 +21,19 @@
       php-dev = php.unwrapped.dev;
       php-zts = (pkgs.php.override { ztsSupport = true; }).buildEnv { embedSupport = true; };
       php-zts-dev = php-zts.unwrapped.dev;
+      # ZEND_DEBUG build. Zend assertions such as the non-null handler check in
+      # `zend_call_known_function` are compiled out of a release PHP, so bugs that
+      # segfault in production only assert here.
+      withDebug = phpPkg: phpPkg.override {
+        phpAttrsOverrides = final: prev: {
+          configureFlags = prev.configureFlags ++ [ "--enable-debug" ];
+        };
+      };
+      php-debug = (withDebug pkgs.php).buildEnv { embedSupport = true; };
+      php-debug-dev = php-debug.unwrapped.dev;
+      php-zts-debug =
+        (withDebug (pkgs.php.override { ztsSupport = true; })).buildEnv { embedSupport = true; };
+      php-zts-debug-dev = php-zts-debug.unwrapped.dev;
       # mago is not packaged in nixpkgs; pin the upstream static musl binary so
       # local dev and CI (nhedger/setup-mago) run the exact same version.
       mago = pkgs.stdenvNoCC.mkDerivation rec {
@@ -58,6 +71,8 @@
       devShells.${system} = {
         default = mkShellFor php php-dev;
         zts = mkShellFor php-zts php-zts-dev;
+        debug = mkShellFor php-debug php-debug-dev;
+        zts-debug = mkShellFor php-zts-debug php-zts-debug-dev;
       };
     };
 }
