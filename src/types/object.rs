@@ -773,11 +773,35 @@ impl IntoZval for &mut ZendObject {
 }
 
 impl FromZendObject<'_> for String {
+    /// Converts the object into a string by calling its `__toString()` method.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::InvalidPointer`] - If the object has no class entry.
+    /// * [`Error::NotStringable`] - If the class does not implement `__toString()`.
+    /// * [`Error::Exception`] - If `__toString()` threw an exception.
+    /// * [`Error::ZvalConversion`] - If `__toString()` did not return a string.
     fn from_zend_object(obj: &ZendObject) -> Result<Self> {
+        // SAFETY: every object the engine constructs carries a class entry, but a
+        // `ZendObject` reference can be fabricated, so this is checked not trusted.
+        let ce = unsafe { obj.ce.as_ref() }.ok_or(Error::InvalidPointer)?;
+
+        // `zend_call_known_function` only asserts a non-null handler under
+        // `ZEND_DEBUG`, so passing one from a class without `__toString()` would
+        // segfault in a release build rather than fail.
+        if ce.__tostring.is_null() {
+            return Err(Error::NotStringable(
+                obj.get_class_name()
+                    .unwrap_or_else(|_| "<unknown class>".into()),
+            ));
+        }
+
         let mut ret = Zval::new();
+        // SAFETY: `__tostring` is non-null and belongs to `obj`'s own class entry,
+        // and `ret` is a live zval owned by this frame for the duration of the call.
         unsafe {
             zend_call_known_function(
-                (*obj.ce).__tostring,
+                ce.__tostring,
                 ptr::from_ref(obj).cast_mut(),
                 obj.ce,
                 &raw mut ret,
@@ -788,23 +812,11 @@ impl FromZendObject<'_> for String {
         }
 
         if let Some(err) = ExecutorGlobals::take_exception() {
-            // TODO: become an error
-            let class_name = obj.get_class_name();
-            panic!(
-                "Uncaught exception during call to {}::__toString(): {:?}",
-                class_name.expect("unable to determine class name"),
-                err
-            );
-        } else if let Some(output) = ret.extract() {
-            Ok(output)
-        } else {
-            // TODO: become an error
-            let class_name = obj.get_class_name();
-            panic!(
-                "{}::__toString() must return a string",
-                class_name.expect("unable to determine class name"),
-            );
+            return Err(Error::Exception(err));
         }
+
+        ret.extract()
+            .ok_or_else(|| Error::ZvalConversion(ret.get_type()))
     }
 }
 
@@ -825,4 +837,35 @@ pub enum PropertyQuery {
     NotEmpty = ZEND_ISEMPTY,
     /// Property exists.
     Exists = ZEND_PROPERTY_EXISTS,
+}
+
+#[cfg(all(test, feature = "embed"))]
+mod embed_tests {
+    use super::*;
+    use crate::embed::Embed;
+
+    fn extract_string(class: &str) -> Result<String> {
+        Embed::run_script("src/types/object.test.php").expect("failed to run test script");
+        let zval = Embed::eval(&format!("new {class}();")).expect("failed to instantiate class");
+        zval.object().expect("expected an object").extract()
+    }
+
+    #[test]
+    fn test_to_string_returns_the_string() {
+        let result: String = Embed::run(|| {
+            extract_string("StringableOk").expect("expected __toString to yield a string")
+        });
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_to_string_without_the_method_is_an_error() {
+        // Regression: `zend_call_known_function` only asserts a non-null handler under
+        // `ZEND_DEBUG`, so this used to segfault in release builds.
+        let class: String = Embed::run(|| match extract_string("NotStringableAtAll") {
+            Err(Error::NotStringable(class)) => class,
+            other => panic!("expected NotStringable, got {other:?}"),
+        });
+        assert_eq!(class, "NotStringableAtAll");
+    }
 }

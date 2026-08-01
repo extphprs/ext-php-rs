@@ -113,28 +113,32 @@ impl ExecutorGlobals {
     /// Retrieves the ini values for all ini directives in the current executor
     /// context..
     ///
-    /// # Panics
-    ///
-    /// * If the ini directives are not a valid hash table.
-    /// * If the ini entry is not a string.
+    /// Returns an empty map if the ini directives have not been registered yet,
+    /// which is only the case before engine startup. Values that are not valid
+    /// UTF-8 are decoded lossily, since a `php.ini` directive may hold arbitrary
+    /// bytes; an absent value is reported as `None`.
     #[must_use]
     pub fn ini_values(&self) -> HashMap<String, Option<String>> {
-        let hash_table = unsafe { &*self.ini_directives };
+        // SAFETY: `EG(ini_directives)` is assigned during `zend_ini_startup` and
+        // remains valid for the lifetime of the request, but is null before that.
+        let Some(hash_table) = (unsafe { self.ini_directives.as_ref() }) else {
+            return HashMap::new();
+        };
         let mut ini_hash_map: HashMap<String, Option<String>> = HashMap::new();
-        for (key, value) in hash_table {
-            ini_hash_map.insert(key.to_string(), unsafe {
-                let ini_entry = &*value.ptr::<zend_ini_entry>().expect("Invalid ini entry");
-                if ini_entry.value.is_null() {
-                    None
-                } else {
-                    Some(
-                        (*ini_entry.value)
-                            .as_str()
-                            .expect("Ini value is not a string")
-                            .to_owned(),
-                    )
-                }
-            });
+        for (key, entry) in hash_table {
+            // SAFETY: entries are stored with `zend_hash_add_ptr` and owned by the
+            // hash table, which outlives this loop. A non-pointer zval is not
+            // reachable, but is skipped rather than trusted.
+            let value = unsafe {
+                let Some(entry) = entry.ptr::<zend_ini_entry>().and_then(|e| e.as_ref()) else {
+                    continue;
+                };
+                entry
+                    .value
+                    .as_ref()
+                    .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+            };
+            ini_hash_map.insert(key.to_string(), value);
         }
         ini_hash_map
     }
@@ -384,8 +388,12 @@ impl ProcessGlobals {
         // $_SERVER is lazy-initted, we need to call zend_is_auto_global
         // if it's not already populated.
         if !self.http_globals[TRACK_VARS_SERVER as usize].is_array() {
-            let name = ZendStr::new("_SERVER", false).as_mut_ptr();
-            unsafe { zend_is_auto_global(name) };
+            let mut name = ZendStr::new("_SERVER", false);
+            // SAFETY: `name` is bound to a local so the `ZBox` outlives the call.
+            // Taking the pointer from a temporary would free the `zend_string` at the
+            // end of the statement and leave `zend_is_auto_global` reading freed
+            // Zend memory.
+            unsafe { zend_is_auto_global(name.as_mut_ptr()) };
         }
         if self.http_globals[TRACK_VARS_SERVER as usize].is_array() {
             self.http_globals[TRACK_VARS_SERVER as usize].array()
@@ -443,7 +451,11 @@ impl ProcessGlobals {
                     *zend_known_strings.add(_zend_known_string_id_ZEND_STR_AUTOGLOBAL_REQUEST as usize)
                 };
             } else {
-                let key = _zend_string::new("_REQUEST", false).as_mut_ptr();
+                // The `ZBox` must be bound so it outlives every use of `key` below;
+                // taking the pointer from a temporary would free the `zend_string` at
+                // the end of this statement.
+                let mut owned_key = _zend_string::new("_REQUEST", false);
+                let key = owned_key.as_mut_ptr();
             }
         };
 
@@ -951,5 +963,19 @@ mod embed_tests {
             CompilerGlobals::get_mut().in_compilation = state;
             assert_eq!(changed, !state);
         });
+    }
+
+    #[test]
+    fn test_ini_values_decodes_invalid_utf8_lossily() {
+        // A `php.ini` directive may hold arbitrary bytes, which used to panic.
+        let value: Option<String> = Embed::run(|| {
+            Embed::eval("ini_set('error_append_string', \"\\xFF\\xFE\");")
+                .expect("failed to set the ini value");
+            ExecutorGlobals::get()
+                .ini_values()
+                .remove("error_append_string")
+                .expect("the directive should be present")
+        });
+        assert_eq!(value.as_deref(), Some("\u{FFFD}\u{FFFD}"));
     }
 }

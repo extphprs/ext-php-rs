@@ -2,7 +2,7 @@
 
 use std::{
     error::Error as ErrorTrait,
-    ffi::{CString, NulError},
+    ffi::{CString, NulError, c_int},
     fmt::Display,
     num::TryFromIntError,
 };
@@ -12,7 +12,7 @@ use crate::{
     exception::PhpException,
     ffi::php_error_docref,
     flags::{ClassFlags, DataType, ErrorType, ZvalTypeFlags},
-    types::ZendObject,
+    types::{ZendObject, Zval},
 };
 
 /// The main result type which is passed by the library.
@@ -60,6 +60,11 @@ pub enum Error {
     Callable,
     /// An object was expected.
     Object,
+    /// The object's class does not implement `__toString()`, so it cannot be
+    /// converted into a string.
+    ///
+    /// The enum carries the name of the class.
+    NotStringable(String),
     /// An invalid exception type was thrown.
     InvalidException(ClassFlags),
     /// Converting integer arguments resulted in an overflow.
@@ -101,6 +106,9 @@ impl Display for Error {
             Error::InvalidUtf8 => write!(f, "Invalid Utf8 byte sequence."),
             Error::Callable => write!(f, "Could not call given function."),
             Error::Object => write!(f, "An object was expected."),
+            Error::NotStringable(class) => {
+                write!(f, "{class} does not implement __toString().")
+            }
             Error::InvalidException(flags) => {
                 write!(f, "Invalid exception type was thrown: {flags:?}")
             }
@@ -143,7 +151,19 @@ impl From<TryFromIntError> for Error {
 
 impl From<Error> for PhpException {
     fn from(err: Error) -> Self {
-        Self::default(err.to_string())
+        match err {
+            Error::Exception(mut obj) => {
+                let message = obj.get_class_name().unwrap_or_else(|_| "Exception".into());
+                let mut zv = Zval::new();
+                // `set_object` increments the refcount and the `ZBox` releases its own
+                // when it drops, so the zval ends up owning exactly the one reference
+                // `obj` held. Attaching it keeps the original class, message and stack
+                // trace instead of flattening them into a string.
+                zv.set_object(&mut obj);
+                Self::default(message).with_object(zv)
+            }
+            err => Self::default(err.to_string()),
+        }
     }
 }
 
@@ -151,19 +171,21 @@ impl From<Error> for PhpException {
 ///
 /// See specific error type descriptions at <https://www.php.net/manual/en/errorfunc.constants.php>.
 ///
-/// # Panics
-///
-/// * If the error type bits exceed `i32::MAX`.
+/// Does nothing if `message` contains a NUL byte, or if the error type bits do not
+/// fit in a C `int`.
 pub fn php_error(type_: &ErrorType, message: &str) {
     let Ok(c_string) = CString::new(message) else {
         return;
     };
+    let Ok(bits) = c_int::try_from(type_.bits()) else {
+        return;
+    };
 
+    // SAFETY: `php_error_docref` is declared `PHP_ATTRIBUTE_FORMAT(printf, 3, 4)`, so
+    // `message` must be passed as a `%s` argument and never as the format itself,
+    // which would interpret `%` sequences in it as varargs directives. Both pointers
+    // are NUL-terminated and outlive the call.
     unsafe {
-        php_error_docref(
-            std::ptr::null(),
-            type_.bits().try_into().expect("Error type flags overflown"),
-            c_string.as_ptr(),
-        );
+        php_error_docref(std::ptr::null(), bits, c"%s".as_ptr(), c_string.as_ptr());
     }
 }
