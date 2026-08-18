@@ -966,6 +966,16 @@ mod embed_tests {
     }
 
     #[test]
+    fn test_file_globals_reflect_ini_set() {
+        let timeout = Embed::run(|| {
+            Embed::eval("ini_set('default_socket_timeout', '123');")
+                .expect("failed to set the ini value");
+            FileGlobals::get().default_socket_timeout
+        });
+        assert_eq!(timeout, 123);
+    }
+
+    #[test]
     fn test_ini_values_decodes_invalid_utf8_lossily() {
         // A `php.ini` directive may hold arbitrary bytes, which used to panic.
         let value: Option<String> = Embed::run(|| {
