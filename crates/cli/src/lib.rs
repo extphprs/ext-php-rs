@@ -2,6 +2,7 @@
 
 #[cfg(not(windows))]
 mod ext;
+mod static_glue;
 
 use anyhow::{Context, Result as AResult, bail};
 use cargo_metadata::{CrateType, Target, camino::Utf8PathBuf};
@@ -88,6 +89,7 @@ enum Args {
     /// extension classes, functions and constants.
     #[cfg(not(windows))]
     Stubs(Stubs),
+    StaticGlue(static_glue::StaticGlue),
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -181,6 +183,7 @@ impl Args {
             Args::Remove(remove) => remove.handle(),
             #[cfg(not(windows))]
             Args::Stubs(stubs) => stubs.handle(),
+            Args::StaticGlue(static_glue) => static_glue.handle(),
         }
     }
 }

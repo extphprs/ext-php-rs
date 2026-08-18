@@ -36,6 +36,8 @@ SUBCOMMANDS:
             Installs the extension in the current PHP installation
     remove
             Removes the extension in the current PHP installation
+    static-glue
+            Generates the C glue required to statically link the extension into php-src
     stubs
             Generates stub PHP files for the extension
 
@@ -136,6 +138,41 @@ OPTIONS:
 
         --stdout
             Print stubs to stdout rather than write to file. Cannot be used with `out`
+
+$ cargo php static-glue --help
+cargo-php-static-glue
+
+Generates the C glue required to statically link the extension into php-src.
+
+Writes a `config.m4`, a `php_<name>.h` header and a `<name>_glue.c` shim into an output directory.
+Copy that directory to `php-src/ext/<name>/` together with the prebuilt `lib<name>.a` (built with
+`crate-type = ["staticlib"]`, and `EXT_PHP_RS_STATIC_TSRMLS_CACHE=1` for ZTS builds), then run
+`./buildconf --force && ./configure --enable-<name>`.
+
+Only one ext-php-rs extension can be linked into a single PHP binary: the `get_module` and
+`ext_php_rs_*` symbols are fixed names, and two Rust static libraries collide on the Rust standard
+library symbols. The shim relies on `__attribute__((constructor))`, so gcc or clang is required.
+
+USAGE:
+    cargo-php static-glue [OPTIONS]
+
+OPTIONS:
+        --ext-name <EXT_NAME>
+            Name used for the php-src extension. Defaults to the library target name with dashes
+            replaced by underscores. Must be a valid C identifier
+
+        --force
+            Overwrite existing files in the output directory
+
+    -h, --help
+            Print help information
+
+        --manifest <MANIFEST>
+            Path to the Cargo manifest of the extension. Defaults to the manifest in the directory
+            the command is called
+
+    -o, --out <OUT>
+            Directory to write the glue files to. Defaults to `./<ext-name>/`
 ```
 
 ## License
