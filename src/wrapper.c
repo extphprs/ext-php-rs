@@ -39,7 +39,7 @@ void ext_php_rs_zend_object_release(zend_object *obj) {
 zend_executor_globals *ext_php_rs_executor_globals() {
 #ifdef ZTS
 #ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE
-  return TSRMG_FAST_BULK_STATIC(executor_globals_offset, zend_executor_globals);
+  return TSRMG_FAST_BULK_STATIC(executor_globals_offset, zend_executor_globals *);
 #else
   return TSRMG_FAST_BULK(executor_globals_offset, zend_executor_globals *);
 #endif
@@ -51,7 +51,7 @@ zend_executor_globals *ext_php_rs_executor_globals() {
 zend_compiler_globals *ext_php_rs_compiler_globals() {
 #ifdef ZTS
 #ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE
-  return TSRMG_FAST_BULK_STATIC(compiler_globals_offset, zend_compiler_globals);
+  return TSRMG_FAST_BULK_STATIC(compiler_globals_offset, zend_compiler_globals *);
 #else
   return TSRMG_FAST_BULK(compiler_globals_offset, zend_compiler_globals *);
 #endif
@@ -63,7 +63,7 @@ zend_compiler_globals *ext_php_rs_compiler_globals() {
 php_core_globals *ext_php_rs_process_globals() {
 #ifdef ZTS
 #ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE
-  return TSRMG_FAST_BULK_STATIC(core_globals_offset, php_core_globals);
+  return TSRMG_FAST_BULK_STATIC(core_globals_offset, php_core_globals *);
 #else
   return TSRMG_FAST_BULK(core_globals_offset, php_core_globals *);
 #endif
@@ -75,7 +75,7 @@ php_core_globals *ext_php_rs_process_globals() {
 sapi_globals_struct *ext_php_rs_sapi_globals() {
 #ifdef ZTS
 #ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE
-  return TSRMG_FAST_BULK_STATIC(sapi_globals_offset, sapi_globals_struct);
+  return TSRMG_FAST_BULK_STATIC(sapi_globals_offset, sapi_globals_struct *);
 #else
   return TSRMG_FAST_BULK(sapi_globals_offset, sapi_globals_struct *);
 #endif
@@ -86,7 +86,11 @@ sapi_globals_struct *ext_php_rs_sapi_globals() {
 
 php_file_globals *ext_php_rs_file_globals() {
 #ifdef ZTS
-  return TSRMG_FAST_BULK(file_globals_id, php_file_globals *);
+#ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE
+  return TSRMG_BULK_STATIC(file_globals_id, php_file_globals *);
+#else
+  return TSRMG_BULK(file_globals_id, php_file_globals *);
+#endif
 #else
   return &file_globals;
 #endif
@@ -94,7 +98,11 @@ php_file_globals *ext_php_rs_file_globals() {
 
 #ifdef ZTS
 void *ext_php_rs_tsrmg_bulk(int id) {
+#ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE
+  return TSRMG_BULK_STATIC(id, void *);
+#else
   return TSRMG_BULK(id, void *);
+#endif
 }
 #endif
 

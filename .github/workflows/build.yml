@@ -291,6 +291,16 @@ jobs:
       - name: Test with embed feature
         run: cargo test --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap --no-fail-fast
 
+      - name: Build with static TSRMLS cache
+        if: matrix.phpts == 'ts'
+        # Compile-only coverage of the ZEND_ENABLE_STATIC_TSRMLS_CACHE branches
+        # in wrapper.c. Test executables cannot link in this mode against a
+        # prebuilt libphp: `_tsrm_ls_cache` only resolves when the extension is
+        # statically linked into the PHP binary itself.
+        env:
+          EXT_PHP_RS_STATIC_TSRMLS_CACHE: "1"
+        run: cargo build --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap
+
   build-musl:
     name: musl / ${{ matrix.php }} / ${{ matrix.phpts[1] }}
     runs-on: ubuntu-latest

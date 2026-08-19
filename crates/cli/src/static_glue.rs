@@ -1,0 +1,222 @@
+use anyhow::{Context, Result as AResult, bail};
+use cargo_metadata::CrateType;
+use clap::Parser;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+/// Generates the C glue required to statically link the extension into
+/// php-src.
+///
+/// Writes a `config.m4`, a `php_<name>.h` header and a `<name>_glue.c` shim
+/// into an output directory. Copy that directory to `php-src/ext/<name>/`
+/// together with the prebuilt `lib<name>.a` (built with `crate-type =
+/// ["staticlib"]`, and `EXT_PHP_RS_STATIC_TSRMLS_CACHE=1` for ZTS builds),
+/// then run `./buildconf --force && ./configure --enable-<name>`.
+///
+/// Only one ext-php-rs extension can be linked into a single PHP binary:
+/// the `get_module` and `ext_php_rs_*` symbols are fixed names, and two Rust
+/// static libraries collide on the Rust standard library symbols. The shim
+/// relies on `__attribute__((constructor))`, so gcc or clang is required.
+#[derive(Parser)]
+pub struct StaticGlue {
+    /// Path to the Cargo manifest of the extension. Defaults to the manifest
+    /// in the directory the command is called.
+    #[arg(long)]
+    manifest: Option<PathBuf>,
+    /// Directory to write the glue files to. Defaults to `./<ext-name>/`.
+    #[arg(short, long)]
+    out: Option<PathBuf>,
+    /// Name used for the php-src extension. Defaults to the library target
+    /// name with dashes replaced by underscores. Must be a valid C identifier.
+    #[arg(long)]
+    ext_name: Option<String>,
+    /// Overwrite existing files in the output directory.
+    #[arg(long)]
+    force: bool,
+}
+
+impl StaticGlue {
+    pub fn handle(self) -> AResult<()> {
+        let ext_name = match self.ext_name {
+            Some(name) => name,
+            None => find_staticlib_target(self.manifest.as_deref())?.replace('-', "_"),
+        };
+        validate_ext_name(&ext_name)?;
+
+        let out_dir = self.out.unwrap_or_else(|| PathBuf::from(&ext_name));
+        fs::create_dir_all(&out_dir)
+            .with_context(|| format!("Failed to create output directory {}", out_dir.display()))?;
+
+        let files = [
+            ("config.m4", render_config_m4(&ext_name)),
+            (&format!("php_{ext_name}.h"), render_header(&ext_name)),
+            (&format!("{ext_name}_glue.c"), render_glue_c(&ext_name)),
+        ];
+
+        for (name, content) in &files {
+            let path = out_dir.join(name);
+            if !self.force && path.exists() {
+                bail!(
+                    "{} already exists, pass `--force` to overwrite",
+                    path.display()
+                );
+            }
+            fs::write(&path, content)
+                .with_context(|| format!("Failed to write {}", path.display()))?;
+            println!("Wrote {}", path.display());
+        }
+
+        println!(
+            "\nNext steps:\n\
+             1. Build the static library, using the php-config of a PHP build matching the one you will link into:\n\
+             \x20  PHP_CONFIG=/path/to/php-config EXT_PHP_RS_STATIC_TSRMLS_CACHE=1 cargo build --release\n\
+             \x20  (EXT_PHP_RS_STATIC_TSRMLS_CACHE=1 is required for ZTS targets, harmless otherwise)\n\
+             2. Copy the glue into php-src:\n\
+             \x20  cp -r {out} /path/to/php-src/ext/{name}\n\
+             \x20  cp target/release/lib{name}.a /path/to/php-src/ext/{name}/\n\
+             3. Rebuild the configure script and enable the extension:\n\
+             \x20  cd /path/to/php-src && ./buildconf --force && ./configure --enable-{name} <other flags>",
+            out = out_dir.display(),
+            name = ext_name,
+        );
+
+        Ok(())
+    }
+}
+
+fn find_staticlib_target(manifest: Option<&Path>) -> AResult<String> {
+    let mut cmd = cargo_metadata::MetadataCommand::new();
+    if let Some(manifest) = manifest {
+        cmd.manifest_path(manifest);
+    }
+
+    let meta = cmd
+        .features(cargo_metadata::CargoOpt::AllFeatures)
+        .exec()
+        .context("Failed to call `cargo metadata`")?;
+
+    let package = meta
+        .root_package()
+        .context("Failed to retrieve metadata about crate")?;
+
+    let target = package
+        .targets
+        .iter()
+        .find(|target| target.crate_types.contains(&CrateType::StaticLib))
+        .context(
+            "No `staticlib` library target was found. Add \"staticlib\" to `crate-type` in the [lib] section of Cargo.toml.",
+        )?;
+
+    Ok(target.name.clone())
+}
+
+fn validate_ext_name(name: &str) -> AResult<()> {
+    let mut chars = name.chars();
+    let valid = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if !valid {
+        bail!(
+            "`{name}` is not a valid extension name: use lowercase letters, digits and underscores, not starting with a digit"
+        );
+    }
+    Ok(())
+}
+
+fn render_header(name: &str) -> String {
+    let upper = name.to_uppercase();
+    format!(
+        "/* Generated by `cargo php static-glue`. Do not edit. */\n\
+         #ifndef PHP_{upper}_H\n\
+         #define PHP_{upper}_H\n\
+         \n\
+         #include \"php.h\"\n\
+         \n\
+         extern zend_module_entry {name}_module_entry;\n\
+         #define phpext_{name}_ptr &{name}_module_entry\n\
+         \n\
+         #endif /* PHP_{upper}_H */\n"
+    )
+}
+
+fn render_glue_c(name: &str) -> String {
+    format!(
+        "/* Generated by `cargo php static-glue`. Do not edit. */\n\
+         #include \"php_{name}.h\"\n\
+         \n\
+         /* Exported by the Rust staticlib (#[php_module]). */\n\
+         extern zend_module_entry *get_module(void);\n\
+         \n\
+         zend_module_entry {name}_module_entry;\n\
+         \n\
+         __attribute__((constructor))\n\
+         static void {name}_fill_module_entry(void) {{\n\
+         \t{name}_module_entry = *get_module();\n\
+         }}\n"
+    )
+}
+
+fn render_config_m4(name: &str) -> String {
+    let upper = name.to_uppercase();
+    format!(
+        "dnl Generated by `cargo php static-glue`. Do not edit.\n\
+         PHP_ARG_ENABLE([{name}],\n\
+         \x20 [whether to enable {name}],\n\
+         \x20 [AS_HELP_STRING([--enable-{name}], [Enable the {name} Rust extension])],\n\
+         \x20 [no])\n\
+         \n\
+         if test \"$PHP_{upper}\" != \"no\"; then\n\
+         \x20 if test \"$ext_shared\" = \"yes\"; then\n\
+         \x20   AC_MSG_ERROR([{name} only supports static linking; use --enable-{name} without =shared])\n\
+         \x20 fi\n\
+         \n\
+         \x20 if test -z \"${upper}_RUST_LIB_DIR\"; then\n\
+         \x20   {upper}_RUST_LIB_DIR=\"$abs_srcdir/ext/{name}\"\n\
+         \x20 fi\n\
+         \n\
+         \x20 AC_MSG_CHECKING([for lib{name}.a])\n\
+         \x20 if test ! -f \"${upper}_RUST_LIB_DIR/lib{name}.a\"; then\n\
+         \x20   AC_MSG_ERROR([lib{name}.a not found in ${upper}_RUST_LIB_DIR. Build it first (cargo build --release, with EXT_PHP_RS_STATIC_TSRMLS_CACHE=1 for ZTS) and copy it there, or set {upper}_RUST_LIB_DIR.])\n\
+         \x20 fi\n\
+         \x20 AC_MSG_RESULT([${upper}_RUST_LIB_DIR/lib{name}.a])\n\
+         \n\
+         \x20 PHP_ADD_LIBRARY_WITH_PATH([{name}], [${upper}_RUST_LIB_DIR])\n\
+         \x20 EXTRA_LIBS=\"$EXTRA_LIBS -lpthread -ldl -lm\"\n\
+         \n\
+         \x20 PHP_NEW_EXTENSION([{name}], [{name}_glue.c], [no])\n\
+         fi\n"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn header_declares_module_entry_and_phpext_ptr() {
+        insta::assert_snapshot!(render_header("my_ext"));
+    }
+
+    #[test]
+    fn glue_copies_get_module_into_static_entry_before_main() {
+        insta::assert_snapshot!(render_glue_c("my_ext"));
+    }
+
+    #[test]
+    fn config_m4_links_prebuilt_staticlib_and_registers_static_extension() {
+        insta::assert_snapshot!(render_config_m4("my_ext"));
+    }
+
+    #[test]
+    fn ext_name_rejects_invalid_c_identifiers() {
+        assert!(validate_ext_name("my_ext2").is_ok());
+        assert!(validate_ext_name("_ext").is_ok());
+        assert!(validate_ext_name("2ext").is_err());
+        assert!(validate_ext_name("my-ext").is_err());
+        assert!(validate_ext_name("MyExt").is_err());
+        assert!(validate_ext_name("").is_err());
+    }
+}

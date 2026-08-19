@@ -48,6 +48,7 @@
 - [Observer API](./advanced/observer.md)
 - [Embedded PHP](./advanced/embedded_php.md)
 - [Custom SAPI](./advanced/custom_sapi.md)
+- [Static Linking into php-src](./advanced/static_linking.md)
 - [Module Globals](./advanced/module_globals.md)
 - [Worker Mode](./advanced/worker_mode.md)
 - [Allowed Bindings](./advanced/allowed_bindings.md)
