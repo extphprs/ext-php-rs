@@ -146,12 +146,12 @@ Generates the C glue required to statically link the extension into php-src.
 
 Writes a `config.m4`, a `php_<name>.h` header and a `<name>_glue.c` shim into an output directory.
 Copy that directory to `php-src/ext/<name>/` together with the prebuilt `lib<name>.a` (built with
-`crate-type = ["staticlib"]`, and `EXT_PHP_RS_STATIC_TSRMLS_CACHE=1` for ZTS builds), then run
+`crate-type = ["staticlib"]` and `EXT_PHP_RS_STATIC_EXT=1`), then run
 `./buildconf --force && ./configure --enable-<name>`.
 
-Only one ext-php-rs extension can be linked into a single PHP binary: the `get_module` and
-`ext_php_rs_*` symbols are fixed names, and two Rust static libraries collide on the Rust standard
-library symbols. The shim relies on `__attribute__((constructor))`, so gcc or clang is required.
+Only one ext-php-rs extension can be linked into a single PHP binary: the `ext_php_rs_*` symbols
+are fixed names, and two Rust static libraries collide on the Rust standard library symbols. The
+shim relies on `__attribute__((constructor))`, so gcc or clang is required.
 
 USAGE:
     cargo-php static-glue [OPTIONS]
@@ -159,7 +159,8 @@ USAGE:
 OPTIONS:
         --ext-name <EXT_NAME>
             Name used for the php-src extension. Defaults to the library target name with dashes
-            replaced by underscores. Must be a valid C identifier
+            replaced by underscores. Must be a valid C identifier. Only affects file and configure
+            naming; the Rust symbols always come from the library target name
 
         --force
             Overwrite existing files in the output directory

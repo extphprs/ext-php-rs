@@ -1,6 +1,6 @@
 use darling::FromAttributes;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{ItemFn, Signature};
 
 use crate::prelude::*;
@@ -12,6 +12,46 @@ pub(crate) struct PhpModuleAttribute {
 }
 
 pub fn parser(input: ItemFn) -> Result<TokenStream> {
+    let crate_name = std::env::var("CARGO_CRATE_NAME").ok();
+    let static_ext = std::env::var("EXT_PHP_RS_STATIC_EXT").is_ok_and(|v| v == "1");
+    parser_impl(input, crate_name.as_deref(), static_ext)
+}
+
+fn get_module_delegate(
+    input: &ItemFn,
+    crate_name: Option<&str>,
+    static_ext: bool,
+) -> Result<TokenStream> {
+    Ok(match crate_name {
+        Some(name) => {
+            let ident = format_ident!("{}_get_module", name);
+            quote! {
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                #[unsafe(no_mangle)]
+                extern "C" fn #ident() -> *mut ::ext_php_rs::zend::ModuleEntry {
+                    get_module()
+                }
+            }
+        }
+        None if static_ext => bail!(
+            input => "EXT_PHP_RS_STATIC_EXT=1 requires the CARGO_CRATE_NAME environment variable (set by cargo) to derive the exported symbol name"
+        ),
+        None => quote! {},
+    })
+}
+
+fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Result<TokenStream> {
+    let delegate = get_module_delegate(&input, crate_name, static_ext)?;
+
+    // An unmangled `get_module` collides with any other extension exporting the
+    // same symbol when statically linked into one PHP binary, so
+    // EXT_PHP_RS_STATIC_EXT=1 drops the export and the crate-prefixed delegate
+    // above becomes the entry point. Toggling the variable re-expands this
+    // macro because ext-php-rs's build.rs declares rerun-if-env-changed for it,
+    // which cascades a rebuild of dependent crates.
+    let get_module_no_mangle = (!static_ext).then(|| quote! { #[unsafe(no_mangle)] });
+
     let ItemFn { sig, block, .. } = input;
     let Signature { output, inputs, .. } = sig;
     let stmts = &block.stmts;
@@ -25,7 +65,7 @@ pub fn parser(input: ItemFn) -> Result<TokenStream> {
 
     Ok(quote! {
         #[doc(hidden)]
-        #[unsafe(no_mangle)]
+        #get_module_no_mangle
         extern "C" fn get_module() -> *mut ::ext_php_rs::zend::ModuleEntry {
             static __EXT_PHP_RS_MODULE_ENTRY: ::ext_php_rs::zend::StaticModuleEntry =
                 ::ext_php_rs::zend::StaticModuleEntry::new();
@@ -100,6 +140,8 @@ pub fn parser(input: ItemFn) -> Result<TokenStream> {
             })
         }
 
+        #delegate
+
         #[cfg(debug_assertions)]
         #[unsafe(no_mangle)]
         pub extern "C" fn ext_php_rs_describe_module() -> ::ext_php_rs::describe::Description {
@@ -118,4 +160,46 @@ pub fn parser(input: ItemFn) -> Result<TokenStream> {
             Description::new(builder.into())
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parser_impl;
+    use syn::parse_quote;
+
+    fn expand(crate_name: Option<&str>, static_ext: bool) -> String {
+        let input: syn::ItemFn =
+            parse_quote! { fn module(module: ModuleBuilder) -> ModuleBuilder { module } };
+        parser_impl(input, crate_name, static_ext)
+            .unwrap()
+            .to_string()
+            .replace(' ', "")
+    }
+
+    #[test]
+    fn dynamic_build_exports_get_module_and_prefixed_delegate() {
+        let out = expand(Some("my_ext"), false);
+        assert!(out.contains(r#"#[unsafe(no_mangle)]extern"C"fnget_module("#));
+        assert!(out.contains(r#"#[unsafe(no_mangle)]extern"C"fnmy_ext_get_module("#));
+    }
+
+    #[test]
+    fn static_ext_suppresses_get_module_export_but_keeps_the_fn() {
+        let out = expand(Some("my_ext"), true);
+        assert!(!out.contains(r#"no_mangle)]extern"C"fnget_module("#));
+        assert!(out.contains(r#"extern"C"fnget_module("#));
+        assert!(out.contains(r#"#[unsafe(no_mangle)]extern"C"fnmy_ext_get_module("#));
+    }
+
+    #[test]
+    fn missing_crate_name_skips_delegate_in_dynamic_build() {
+        assert!(!expand(None, false).contains("_get_module"));
+    }
+
+    #[test]
+    fn missing_crate_name_errors_in_static_build() {
+        let input: syn::ItemFn =
+            parse_quote! { fn module(module: ModuleBuilder) -> ModuleBuilder { module } };
+        assert!(parser_impl(input, None, true).is_err());
+    }
 }
