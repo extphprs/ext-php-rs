@@ -24,8 +24,8 @@ The array needs a link-time-constant address, conventionally
 `&<name>_module_entry`. An `ext-php-rs` extension builds its
 `zend_module_entry` at runtime inside `get_module()`, so a small C shim
 bridges the two: it defines the `<name>_module_entry` symbol and fills it
-from `get_module()` in a constructor, which runs before
-`php_module_startup()`.
+from the crate-prefixed `<crate_name>_get_module()` export in a constructor,
+which runs before `php_module_startup()`.
 
 ## Crate setup
 
@@ -36,17 +36,22 @@ Add `staticlib` to your crate type, keeping `cdylib` for regular builds:
 crate-type = ["staticlib", "cdylib"]
 ```
 
-For thread-safe (ZTS) targets, the extension must be compiled with
-`EXT_PHP_RS_STATIC_TSRMLS_CACHE=1`:
+Static builds must be compiled with `EXT_PHP_RS_STATIC_EXT=1`:
 
 ```sh
-EXT_PHP_RS_STATIC_TSRMLS_CACHE=1 cargo build --release
+EXT_PHP_RS_STATIC_EXT=1 cargo build --release
 ```
 
-This defines `ZEND_ENABLE_STATIC_TSRMLS_CACHE`, which makes the extension
-read the main binary's `_tsrm_ls_cache` thread-local directly instead of
-calling `tsrm_get_ls_cache()` on every globals access. php-src compiles all
-builtin extensions this way. The variable is harmless on non-ZTS targets.
+The variable does two things. It removes the unmangled `get_module` export
+(the crate-prefixed `<crate_name>_get_module` remains), so the binary can also
+contain C extensions that export `get_module`, for example ones missing the
+`#ifdef COMPILE_DL_<EXT>` guard around `ZEND_GET_MODULE`. It also defines
+`ZEND_ENABLE_STATIC_TSRMLS_CACHE`, which makes the extension read the main
+binary's `_tsrm_ls_cache` thread-local directly instead of calling
+`tsrm_get_ls_cache()` on every globals access; php-src compiles all builtin
+extensions this way. The TSRMLS part only matters on ZTS targets and is
+harmless on NTS. Dynamic builds (`extension=` / `dl()`) must not set the
+variable, since PHP resolves the unprefixed `get_module` symbol.
 
 Note that a static library built in this mode can only be linked into a PHP
 binary. It cannot be loaded with `extension=` or linked against a prebuilt
@@ -67,11 +72,13 @@ This writes a directory named after your extension containing:
   prebuilt `lib<name>.a`.
 - `php_<name>.h`: declares `<name>_module_entry` and the
   `phpext_<name>_ptr` define that php-src scans for.
-- `<name>_glue.c`: the constructor shim copying `*get_module()` into
-  `<name>_module_entry`.
+- `<name>_glue.c`: the constructor shim copying `*<crate_name>_get_module()`
+  into `<name>_module_entry`.
 
 The extension name defaults to the library target name with dashes replaced
-by underscores; override it with `--ext-name`.
+by underscores; override it with `--ext-name`. The override only affects file
+and configure naming; the Rust symbols always come from the library target
+name.
 
 ## The two-pass build
 
@@ -93,7 +100,7 @@ solution is two passes:
 
    ```sh
    PHP_CONFIG=$HOME/php-pass1/bin/php-config \
-   EXT_PHP_RS_STATIC_TSRMLS_CACHE=1 \
+   EXT_PHP_RS_STATIC_EXT=1 \
    cargo build --release
    ```
 
@@ -130,15 +137,16 @@ differ from the C extension name when the package name contains dashes.
 
 For FrankenPHP and static-php-cli the integration point is identical: drop
 the glue directory and the `.a` into the php-src tree those tools build from
-and add `--enable-<name>` to the configure flags. ZTS is mandatory there, so
-`EXT_PHP_RS_STATIC_TSRMLS_CACHE=1` is required.
+and add `--enable-<name>` to the configure flags.
 
 ## Caveats
 
-- **One Rust extension per PHP binary.** The `get_module` and `ext_php_rs_*`
-  symbols have fixed names, and two Rust static libraries collide on the Rust
-  standard library symbols. Bundle all your Rust functionality into a single
-  extension crate.
+- **One Rust extension per PHP binary.** The `ext_php_rs_*` symbols have
+  fixed names, and two Rust static libraries collide on the Rust standard
+  library symbols. Bundle all your Rust functionality into a single extension
+  crate. Co-linking with C extensions is fine, including ones that export an
+  unguarded `get_module`, as long as the Rust library is built with
+  `EXT_PHP_RS_STATIC_EXT=1`.
 - **gcc/clang only.** The shim relies on `__attribute__((constructor))`.
   Statically linking into a Windows PHP build is not supported.
 - **Keep the `.a` in sync.** The static library embeds bindings generated

@@ -7,8 +7,15 @@ use this macro, your extension requires a `extern "C" fn get_module()` so that
 PHP can get this information.
 
 The function is renamed to `get_module` if you have used another name. The
-function is passed an instance of `ModuleBuilder` which allows you to register
-the following (if required):
+macro also exports a crate-prefixed `<crate_name>_get_module` alias, used when
+[statically linking the extension into php-src](../advanced/static_linking.md).
+Building with `EXT_PHP_RS_STATIC_EXT=1` removes the unmangled `get_module`
+export (the function itself stays callable from Rust) so a statically linked
+extension cannot collide with another extension exporting `get_module`.
+Dynamic builds (`extension=` / `dl()`) must not set the variable.
+
+The function is passed an instance of `ModuleBuilder` which allows you to
+register the following (if required):
 
 - Functions, classes, and constants
 - Extension and request startup and shutdown functions.
