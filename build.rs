@@ -229,7 +229,7 @@ fn main() -> Result<()> {
         "PHP_CONFIG",
         "PATH",
         "EXT_PHP_RS_ALLOWED_BINDINGS",
-        "EXT_PHP_RS_STATIC_TSRMLS_CACHE",
+        "EXT_PHP_RS_STATIC_EXT",
     ] {
         println!("cargo:rerun-if-env-changed={env_var}");
     }
@@ -261,7 +261,7 @@ fn main() -> Result<()> {
     #[cfg(feature = "observer")]
     defines.push(("EXT_PHP_RS_OBSERVER", "1"));
 
-    if env::var("EXT_PHP_RS_STATIC_TSRMLS_CACHE").is_ok_and(|v| v == "1") {
+    if env::var("EXT_PHP_RS_STATIC_EXT").is_ok_and(|v| v == "1") {
         defines.push(("ZEND_ENABLE_STATIC_TSRMLS_CACHE", "1"));
     }
 

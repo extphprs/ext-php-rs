@@ -298,7 +298,7 @@ jobs:
         # prebuilt libphp: `_tsrm_ls_cache` only resolves when the extension is
         # statically linked into the PHP binary itself.
         env:
-          EXT_PHP_RS_STATIC_TSRMLS_CACHE: "1"
+          EXT_PHP_RS_STATIC_EXT: "1"
         run: cargo build --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap
 
   build-musl:
