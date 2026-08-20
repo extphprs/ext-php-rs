@@ -291,15 +291,27 @@ jobs:
       - name: Test with embed feature
         run: cargo test --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap --no-fail-fast
 
-      - name: Build with static TSRMLS cache
+      - name: Assert dynamic get_module exports
+        if: matrix.phpts == 'ts'
+        run: |
+          cargo build --release --example hello_world
+          nm -D --defined-only target/release/examples/libhello_world.so | grep -q ' T get_module$'
+          nm -D --defined-only target/release/examples/libhello_world.so | grep -q ' T hello_world_get_module$'
+
+      - name: Build in static extension mode
         if: matrix.phpts == 'ts'
         # Compile-only coverage of the ZEND_ENABLE_STATIC_TSRMLS_CACHE branches
-        # in wrapper.c. Test executables cannot link in this mode against a
+        # in wrapper.c and of the EXT_PHP_RS_STATIC_EXT symbol gating in
+        # #[php_module]. Test executables cannot link in this mode against a
         # prebuilt libphp: `_tsrm_ls_cache` only resolves when the extension is
         # statically linked into the PHP binary itself.
         env:
           EXT_PHP_RS_STATIC_EXT: "1"
-        run: cargo build --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap
+        run: |
+          cargo build --workspace --release --features closure,embed,anyhow,smartstring,observer,indexmap
+          cargo build --release --example hello_world
+          nm -D --defined-only target/release/examples/libhello_world.so | grep -q ' T hello_world_get_module$'
+          ! nm -D --defined-only target/release/examples/libhello_world.so | grep -q ' T get_module$'
 
   build-musl:
     name: musl / ${{ matrix.php }} / ${{ matrix.phpts[1] }}
