@@ -157,10 +157,15 @@ USAGE:
     cargo-php static-glue [OPTIONS]
 
 OPTIONS:
-        --ext-name <EXT_NAME>
+        --lib-name <LIB_NAME>
             Name used for the php-src extension. Defaults to the library target name with dashes
-            replaced by underscores. Must be a valid C identifier. Only affects file and configure
-            naming; the Rust symbols always come from the library target name
+            replaced by underscores. Must be a valid library name
+
+        --ext-name <EXT_NAME>
+            Name used for the target library. Defaults to `<lib-name>` if provided, or the library
+            target name with dashes replaced by underscores. Must be a valid C identifier. Only
+            affects file and configure naming; the Rust symbols always come from the library target
+            name
 
         --force
             Overwrite existing files in the output directory

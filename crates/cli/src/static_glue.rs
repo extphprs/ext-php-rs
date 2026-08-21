@@ -25,13 +25,19 @@ pub struct StaticGlue {
     /// in the directory the command is called.
     #[arg(long)]
     manifest: Option<PathBuf>,
+    /// Name used for the target library. Defaults to the library target name
+    /// with dashes replaced by underscores. Must be a valid library name. Only
+    /// affects the Rust symbols. Only use to skip `cargo metadata` call.
+    #[arg(long)]
+    lib_name: Option<String>,
     /// Directory to write the glue files to. Defaults to `./<ext-name>/`.
     #[arg(short, long)]
     out: Option<PathBuf>,
-    /// Name used for the php-src extension. Defaults to the library target
-    /// name with dashes replaced by underscores. Must be a valid C identifier.
-    /// Only affects file and configure naming; the Rust symbols always come
-    /// from the library target name.
+    /// Name used for the php-src extension. Defaults to `<lib-name>` if
+    /// provided, or the library target name with dashes replaced by
+    /// underscores. Must be a valid C identifier. Only affects file and
+    /// configure naming; the Rust symbols always come from the library target
+    /// name.
     #[arg(long)]
     ext_name: Option<String>,
     /// Overwrite existing files in the output directory.
@@ -41,7 +47,11 @@ pub struct StaticGlue {
 
 impl StaticGlue {
     pub fn handle(self) -> AResult<()> {
-        let lib_name = find_staticlib_target(self.manifest.as_deref())?.replace('-', "_");
+        let lib_name = self
+            .lib_name
+            .map_or_else(|| find_staticlib_target(self.manifest.as_deref()), Ok)?
+            .replace('-', "_");
+        validate_ext_name(&lib_name)?;
         let ext_name = self.ext_name.unwrap_or_else(|| lib_name.clone());
         validate_ext_name(&ext_name)?;
 

@@ -77,8 +77,8 @@ This writes a directory named after your extension containing:
 
 The extension name defaults to the library target name with dashes replaced
 by underscores; override it with `--ext-name`. The override only affects file
-and configure naming; the Rust symbols always come from the library target
-name.
+and configure naming; the Rust symbols come from the library target name;
+override it with `--lib-name` if `cargo metadata` is not available.
 
 ## The two-pass build
 
