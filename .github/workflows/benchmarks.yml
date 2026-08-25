@@ -1,8 +1,9 @@
-name: Master Benchmarks
+name: Benchmarks
 
 on:
   push:
     branches: master
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -14,9 +15,12 @@ env:
   php_version: "8.4"
 
 jobs:
-  run_benchmarks:
-    name: Run Master Benchmarks
+  benchmarks:
+    name: Run Benchmarks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - name: Setup PHP
@@ -31,6 +35,10 @@ jobs:
           toolchain: stable
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            benches
+            benches/ext
       - name: Cache LLVM and Clang
         id: cache-llvm
         uses: actions/cache@v6
@@ -46,29 +54,18 @@ jobs:
       - name: Configure Clang
         run: |
           echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
-      - name: Install Valgrind
-        run: sudo apt-get update && sudo apt-get install -y valgrind
       - uses: taiki-e/install-action@cargo-binstall
-      - name: Install gungraun-runner
+      - name: Install cargo-codspeed
+        run: cargo binstall --no-confirm cargo-codspeed
+      - name: Build extension and benchmarks
+        working-directory: benches
         run: |
-          version=$(cargo metadata --manifest-path ./benches/Cargo.toml --format-version=1 |\
-            jq '.packages[] | select(.name == "gungraun").version' |\
-            tr -d '"'
-          )
-          cargo binstall --no-confirm --force gungraun-runner --version $version
-          echo "GUNGRAUN_RUNNER=$(which gungraun-runner)" >> $GITHUB_ENV
+          cargo build --manifest-path ext/Cargo.toml --release
+          cargo codspeed build
       - name: Run Benchmarks
-        run: cargo bench --manifest-path ./benches/Cargo.toml > benchmark_results.txt
-        env:
-          NO_COLOR: "1"
-      - uses: bencherdev/bencher@main
-      - name: Track Benchmarks with Bencher
-        run: |
-          bencher run \
-          --project ext-php-rs \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch master \
-          --testbed "$(php --version | head -n 1)" \
-          --err \
-          --adapter rust_gungraun \
-          --file "./benchmark_results.txt"
+        uses: CodSpeedHQ/action@v5
+        with:
+          mode: simulation
+          simulation-track-subprocess: true
+          working-directory: benches
+          run: cargo codspeed run

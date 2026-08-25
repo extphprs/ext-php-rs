@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-gungraun = "0.17.2"
+divan = { package = "codspeed-divan-compat", version = "5.0.1" }
 
 [features]
 default = ["enum", "runtime", "closure"]
