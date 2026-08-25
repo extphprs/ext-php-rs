@@ -55,7 +55,7 @@
           phpDevPkg
           libclang.lib
           clang
-          valgrind
+          cargo-codspeed
           mago
         ];
 
