@@ -1,12 +1,7 @@
 use std::{
     path::PathBuf,
-    process::Command,
+    process::{Command, ExitStatus},
     sync::{LazyLock, Once},
-};
-
-use gungraun::{
-    binary_benchmark, binary_benchmark_group, main, BinaryBenchmarkConfig, Callgrind,
-    FlamegraphConfig,
 };
 
 static BUILD: Once = Once::new();
@@ -25,9 +20,11 @@ fn bench_script(name: &str) -> String {
     BENCH_ROOT.join("benches").join(name).display().to_string()
 }
 
-const CACHE_SIM: [&str; 3] = ["--I1=32768,8,64", "--D1=32768,8,64", "--LL=67108864,16,64"];
-
 fn setup() {
+    if std::env::var_os("CODSPEED_ENV").is_some() {
+        return;
+    }
+
     BUILD.call_once(|| {
         let manifest = BENCH_ROOT.join("ext/Cargo.toml");
 
@@ -67,239 +64,65 @@ fn setup() {
     });
 }
 
-#[binary_benchmark]
-#[bench::single_function_call(args = ("function_call.php", 1))]
-#[bench::multiple_function_calls(args = ("function_call.php", 10))]
-#[bench::lots_of_function_calls(args = ("function_call.php", 100_000))]
-fn function_calls(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
+fn run_php(script: &str, cnt: usize) -> ExitStatus {
+    let status = Command::new("php")
         .arg(format!("-dextension={}", *EXT_LIB))
         .arg(bench_script(script))
         .arg(cnt.to_string())
-        .build()
+        .status()
+        .expect("failed to execute php");
+
+    assert!(status.success(), "{script} exited with {status}");
+
+    status
 }
 
-#[binary_benchmark]
-#[bench::single_callback_call(args = ("callback_call.php", 1))]
-#[bench::multiple_callback_calls(args = ("callback_call.php", 10))]
-#[bench::lots_of_callback_calls(args = ("callback_call.php", 100_000))]
-fn callback_calls(script: &str, cnt: usize) -> gungraun::Command {
+#[divan::bench(args = [1, 10, 100_000])]
+fn function_calls(cnt: usize) -> ExitStatus {
+    run_php("function_call.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn callback_calls(cnt: usize) -> ExitStatus {
+    run_php("callback_call.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn method_calls(cnt: usize) -> ExitStatus {
+    run_php("method_call.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn static_method_calls(cnt: usize) -> ExitStatus {
+    run_php("static_method_call.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn property_reads(cnt: usize) -> ExitStatus {
+    run_php("property_read.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn property_writes(cnt: usize) -> ExitStatus {
+    run_php("property_write.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn property_dumps(cnt: usize) -> ExitStatus {
+    run_php("property_dump.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn array_str_ref_keys(cnt: usize) -> ExitStatus {
+    run_php("array_str_ref_keys.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn array_interned_keys(cnt: usize) -> ExitStatus {
+    run_php("array_interned_keys.php", cnt)
+}
+
+fn main() {
     setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
+    divan::main();
 }
-
-binary_benchmark_group!(
-    name = function;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*_internal_bench_function*handler*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = function_calls
-);
-
-binary_benchmark_group!(
-    name = callback;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*_internal_bench_callback_function*handler*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = callback_calls
-);
-
-#[binary_benchmark]
-#[bench::single_method_call(args = ("method_call.php", 1))]
-#[bench::multiple_method_calls(args = ("method_call.php", 10))]
-#[bench::lots_of_method_calls(args = ("method_call.php", 100_000))]
-fn method_calls(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-#[binary_benchmark]
-#[bench::single_static_call(args = ("static_method_call.php", 1))]
-#[bench::multiple_static_calls(args = ("static_method_call.php", 10))]
-#[bench::lots_of_static_calls(args = ("static_method_call.php", 100_000))]
-fn static_method_calls(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-binary_benchmark_group!(
-    name = method;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*PhpClassImplCollector*BenchClass*handler*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = method_calls
-);
-
-binary_benchmark_group!(
-    name = static_method;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*PhpClassImplCollector*BenchClass*handler*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = static_method_calls
-);
-
-#[binary_benchmark]
-#[bench::single_property_read(args = ("property_read.php", 1))]
-#[bench::multiple_property_reads(args = ("property_read.php", 10))]
-#[bench::lots_of_property_reads(args = ("property_read.php", 100_000))]
-fn property_reads(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-#[binary_benchmark]
-#[bench::single_property_write(args = ("property_write.php", 1))]
-#[bench::multiple_property_writes(args = ("property_write.php", 10))]
-#[bench::lots_of_property_writes(args = ("property_write.php", 100_000))]
-fn property_writes(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-binary_benchmark_group!(
-    name = property_read;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*read_property*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = property_reads
-);
-
-binary_benchmark_group!(
-    name = property_write;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*write_property*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = property_writes
-);
-
-#[binary_benchmark]
-#[bench::single_property_dump(args = ("property_dump.php", 1))]
-#[bench::multiple_property_dumps(args = ("property_dump.php", 10))]
-#[bench::lots_of_property_dumps(args = ("property_dump.php", 100_000))]
-fn property_dumps(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-binary_benchmark_group!(
-    name = property_dump;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*get_properties*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = property_dumps
-);
-
-#[binary_benchmark]
-#[bench::single_iteration(args = ("array_str_ref_keys.php", 1))]
-#[bench::multiple_iterations(args = ("array_str_ref_keys.php", 10))]
-#[bench::lots_of_iterations(args = ("array_str_ref_keys.php", 100_000))]
-fn array_str_ref_keys(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-binary_benchmark_group!(
-    name = array_str_ref_key;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*_internal_bench_array_with_str_ref_keys*handler*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = array_str_ref_keys
-);
-
-#[binary_benchmark]
-#[bench::single_iteration(args = ("array_interned_keys.php", 1))]
-#[bench::multiple_iterations(args = ("array_interned_keys.php", 10))]
-#[bench::lots_of_iterations(args = ("array_interned_keys.php", 100_000))]
-fn array_interned_keys(script: &str, cnt: usize) -> gungraun::Command {
-    setup();
-
-    gungraun::Command::new("php")
-        .arg(format!("-dextension={}", *EXT_LIB))
-        .arg(bench_script(script))
-        .arg(cnt.to_string())
-        .build()
-}
-
-binary_benchmark_group!(
-    name = array_interned_key;
-    config = BinaryBenchmarkConfig::default()
-        .tool(Callgrind::with_args([
-            CACHE_SIM[0], CACHE_SIM[1], CACHE_SIM[2],
-            "--collect-atstart=no",
-            "--toggle-collect=*_internal_bench_array_with_interned_keys*handler*",
-        ]).flamegraph(FlamegraphConfig::default()));
-    benchmarks = array_interned_keys
-);
-
-main!(
-    binary_benchmark_groups = function,
-    callback,
-    method,
-    static_method,
-    property_read,
-    property_write,
-    property_dump,
-    array_str_ref_key,
-    array_interned_key
-);
