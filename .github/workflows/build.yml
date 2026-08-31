@@ -313,6 +313,85 @@ jobs:
           nm -D --defined-only target/release/examples/libhello_world.so | grep -q ' T hello_world_get_module$'
           ! nm -D --defined-only target/release/examples/libhello_world.so | grep -q ' T get_module$'
 
+  test-asan:
+    name: Test with ASan
+    runs-on: ubuntu-latest
+    env:
+      clang: "17"
+      php_version: "8.5"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php_version }}
+        env:
+          debug: true
+
+      - name: Install libphp-embed
+        # The GitHub runner image no longer ships the ondrej PPA, and setup-php
+        # uses its cached PHP build. Add the PPA and its "main/debug" component
+        # (where libphp*-embed-dbgsym lives) so the embed library resolves.
+        run: |
+          sudo add-apt-repository -y ppa:ondrej/php
+          src=$(grep -rlE 'ondrej' /etc/apt/sources.list.d/ | head -n1)
+          if [ -n "$src" ] && ! grep -q 'main/debug' "$src"; then
+            if [ "${src##*.}" = "sources" ]; then
+              sudo sed -i -E '/^Components:/ s#$# main/debug#' "$src"
+            else
+              sudo sed -i -E 's#(^deb .* )main([[:space:]]*$)#\1main main/debug\2#' "$src"
+            fi
+          fi
+          sudo apt-get update -y
+          sudo apt-get install -y libphp${{ env.php_version }}-embed-dbgsym
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/llvm-${{ env.clang }}
+          key: ubuntu-latest-llvm-${{ env.clang }}
+
+      - name: Setup LLVM & Clang
+        id: clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ env.clang }}
+          directory: ${{ runner.temp }}/llvm-${{ env.clang }}
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+
+      - name: Configure Clang
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
+          echo "LLVM_VERSION=${{ steps.clang.outputs.version }}" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-config" >> $GITHUB_ENV
+
+      - name: Test with ASan
+        # libphp here is not ASan-instrumented (the nix .#asan shell is the
+        # fully instrumented setup); the executable's ASan runtime still
+        # intercepts every allocation once USE_ZEND_ALLOC routes ZendMM
+        # through malloc. Doctests cannot build with -Zbuild-std, hence --lib.
+        env:
+          RUSTFLAGS: "-Zsanitizer=address -Clink-arg=-Wl,-undefined,dynamic_lookup"
+          USE_ZEND_ALLOC: "0"
+          USE_TRACKED_ALLOC: "1"
+          ASAN_SYMBOLIZER_PATH: ${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-symbolizer
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/.lsan-suppressions.txt
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p ext-php-rs --lib --features embed,closure,anyhow,observer
+
   build-musl:
     name: musl / ${{ matrix.php }} / ${{ matrix.phpts[1] }}
     runs-on: ubuntu-latest
