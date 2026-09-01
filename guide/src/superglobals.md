@@ -23,6 +23,12 @@ The `ProcessGlobals` type provides access to the common HTTP superglobals:
 | `http_files_vars()`   | `$_FILES`      |
 | `http_request_vars()` | `$_REQUEST`    |
 
+Every accessor returns `Option<&ZendHashTable>`: `None` means the global has
+not been populated as an array (yet), for example before request startup or in
+a SAPI that does not provide it. The exception is `http_request_vars()`, which
+returns `Result<Option<&ZendHashTable>>` because building `$_REQUEST` involves
+the engine: `Err` reports an engine failure, `Ok(None)` means not populated.
+
 ### Basic Example
 
 ```rust,no_run
@@ -34,7 +40,7 @@ use ext_php_rs::zend::ProcessGlobals;
 #[php_function]
 pub fn get_cookie(name: String) -> Option<String> {
     ProcessGlobals::get()
-        .http_cookie_vars()
+        .http_cookie_vars()?
         .get(name.as_str())
         .and_then(|zval| zval.string())
 }
@@ -42,7 +48,7 @@ pub fn get_cookie(name: String) -> Option<String> {
 #[php_function]
 pub fn get_query_param(name: String) -> Option<String> {
     ProcessGlobals::get()
-        .http_get_vars()
+        .http_get_vars()?
         .get(name.as_str())
         .and_then(|zval| zval.string())
 }
@@ -50,7 +56,7 @@ pub fn get_query_param(name: String) -> Option<String> {
 #[php_function]
 pub fn get_post_param(name: String) -> Option<String> {
     ProcessGlobals::get()
-        .http_post_vars()
+        .http_post_vars()?
         .get(name.as_str())
         .and_then(|zval| zval.string())
 }
@@ -59,8 +65,8 @@ pub fn get_post_param(name: String) -> Option<String> {
 
 ### Accessing `$_SERVER`
 
-The `$_SERVER` superglobal is lazy-initialized in PHP, so `http_server_vars()`
-returns an `Option`:
+The `$_SERVER` superglobal is lazy-initialized in PHP; `http_server_vars()`
+triggers that initialization before reading it:
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -105,7 +111,7 @@ use ext_php_rs::zend::ProcessGlobals;
 #[php_function]
 pub fn get_uploaded_file_name(field: String) -> Option<String> {
     let globals = ProcessGlobals::get();
-    let files = globals.http_files_vars();
+    let files = globals.http_files_vars()?;
 
     // $_FILES structure: $_FILES['field']['name'], ['tmp_name'], ['size'], etc.
     files
@@ -118,7 +124,7 @@ pub fn get_uploaded_file_name(field: String) -> Option<String> {
 #[php_function]
 pub fn get_uploaded_file_tmp_path(field: String) -> Option<String> {
     let globals = ProcessGlobals::get();
-    let files = globals.http_files_vars();
+    let files = globals.http_files_vars()?;
 
     files
         .get(field.as_str())?
@@ -142,13 +148,13 @@ use ext_php_rs::types::ZendHashTable;
 use ext_php_rs::zend::ProcessGlobals;
 
 #[php_function]
-pub fn get_all_cookies() -> ZBox<ZendHashTable> {
-    ProcessGlobals::get().http_cookie_vars().to_owned()
+pub fn get_all_cookies() -> Option<ZBox<ZendHashTable>> {
+    Some(ProcessGlobals::get().http_cookie_vars()?.to_owned())
 }
 
 #[php_function]
-pub fn get_all_get_params() -> ZBox<ZendHashTable> {
-    ProcessGlobals::get().http_get_vars().to_owned()
+pub fn get_all_get_params() -> Option<ZBox<ZendHashTable>> {
+    Some(ProcessGlobals::get().http_get_vars()?.to_owned())
 }
 
 #[php_function]

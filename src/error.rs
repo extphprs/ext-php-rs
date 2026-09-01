@@ -79,6 +79,10 @@ pub enum Error {
     SapiWriteUnavailable,
     /// Failed to make an object lazy (PHP 8.4+)
     LazyObjectFailed,
+    /// The engine failed to load an auto-global.
+    ///
+    /// The enum carries the name of the auto-global.
+    AutoGlobalLoadFailed(&'static str),
 }
 
 impl Display for Error {
@@ -130,6 +134,9 @@ impl Display for Error {
             }
             Error::LazyObjectFailed => {
                 write!(f, "Failed to make the object lazy")
+            }
+            Error::AutoGlobalLoadFailed(name) => {
+                write!(f, "The engine failed to load the `{name}` auto-global.")
             }
         }
     }

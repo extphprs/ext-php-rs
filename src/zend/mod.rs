@@ -178,12 +178,12 @@ pub fn output_write(data: &[u8]) -> usize {
 
 /// Get the name of the SAPI module.
 ///
-/// # Panics
-///
-/// * If the module name is not a valid [`CStr`]
-///
-/// [`CStr`]: std::ffi::CStr
-pub fn php_sapi_name() -> String {
+/// Returns `None` if the module name is null or not valid UTF-8.
+#[must_use]
+pub fn php_sapi_name() -> Option<String> {
+    if unsafe { sapi_module.name }.is_null() {
+        return None;
+    }
     let c_str = unsafe { std::ffi::CStr::from_ptr(sapi_module.name) };
-    c_str.to_str().expect("Unable to parse CStr").to_string()
+    c_str.to_str().ok().map(ToString::to_string)
 }

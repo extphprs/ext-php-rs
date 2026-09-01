@@ -9,6 +9,7 @@ use std::str;
 use std::sync::{Arc, LazyLock};
 
 use crate::boxed::ZBox;
+use crate::error::{Error, Result};
 use crate::exception::PhpResult;
 #[cfg(php82)]
 use crate::ffi::zend_atomic_bool_store;
@@ -404,47 +405,38 @@ impl ProcessGlobals {
 
     /// Get the HTTP POST variables. Equivalent of $_POST.
     ///
-    /// # Panics
-    ///
-    /// * If the post global is not found or fails to be populated.
+    /// Returns `None` if the global has not been populated as an array (yet).
     #[must_use]
-    pub fn http_post_vars(&self) -> &ZendHashTable {
-        self.http_globals[TRACK_VARS_POST as usize]
-            .array()
-            .expect("Type is not a ZendArray")
+    pub fn http_post_vars(&self) -> Option<&ZendHashTable> {
+        self.http_globals[TRACK_VARS_POST as usize].array()
     }
 
     /// Get the HTTP GET variables. Equivalent of $_GET.
     ///
-    /// # Panics
-    ///
-    /// * If the get global is not found or fails to be populated.
+    /// Returns `None` if the global has not been populated as an array (yet).
     #[must_use]
-    pub fn http_get_vars(&self) -> &ZendHashTable {
-        self.http_globals[TRACK_VARS_GET as usize]
-            .array()
-            .expect("Type is not a ZendArray")
+    pub fn http_get_vars(&self) -> Option<&ZendHashTable> {
+        self.http_globals[TRACK_VARS_GET as usize].array()
     }
 
     /// Get the HTTP Cookie variables. Equivalent of $_COOKIE.
     ///
-    /// # Panics
-    ///
-    /// * If the cookie global is not found or fails to be populated.
+    /// Returns `None` if the global has not been populated as an array (yet).
     #[must_use]
-    pub fn http_cookie_vars(&self) -> &ZendHashTable {
-        self.http_globals[TRACK_VARS_COOKIE as usize]
-            .array()
-            .expect("Type is not a ZendArray")
+    pub fn http_cookie_vars(&self) -> Option<&ZendHashTable> {
+        self.http_globals[TRACK_VARS_COOKIE as usize].array()
     }
 
     /// Get the HTTP Request variables. Equivalent of $_REQUEST.
     ///
-    /// # Panics
+    /// Returns `Ok(None)` if the global has not been populated (yet).
     ///
-    /// * If the request global is not found or fails to be populated.
-    /// * If the request global is not a [`ZendHashTable`].
-    pub fn http_request_vars(&self) -> Option<&ZendHashTable> {
+    /// # Errors
+    ///
+    /// * [`Error::AutoGlobalLoadFailed`] - If the engine failed to load the
+    ///   `_REQUEST` auto-global.
+    /// * [`Error::ZvalConversion`] - If the global is not an array.
+    pub fn http_request_vars(&self) -> Result<Option<&ZendHashTable>> {
         cfg_if::cfg_if! {
             if #[cfg(php81)] {
                 let key = unsafe {
@@ -461,10 +453,9 @@ impl ProcessGlobals {
 
         // `$_REQUEST` is lazy-initted, we need to call `zend_is_auto_global` to make
         // sure it's populated.
-        assert!(
-            unsafe { zend_is_auto_global(key) },
-            "Failed to get request global"
-        );
+        if !unsafe { zend_is_auto_global(key) } {
+            return Err(Error::AutoGlobalLoadFailed("_REQUEST"));
+        }
 
         let symbol_table = &ExecutorGlobals::get().symbol_table;
         cfg_if::cfg_if! {
@@ -475,35 +466,30 @@ impl ProcessGlobals {
             }
         };
 
-        if request.is_null() {
-            return None;
-        }
+        let Some(request) = (unsafe { request.as_ref() }) else {
+            return Ok(None);
+        };
 
-        Some(unsafe { (*request).array() }.expect("Type is not a ZendArray"))
+        request
+            .array()
+            .map(Some)
+            .ok_or_else(|| Error::ZvalConversion(request.get_type()))
     }
 
     /// Get the HTTP Environment variables. Equivalent of $_ENV.
     ///
-    /// # Panics
-    ///
-    /// * If the environment global is not found or fails to be populated.
+    /// Returns `None` if the global has not been populated as an array (yet).
     #[must_use]
-    pub fn http_env_vars(&self) -> &ZendHashTable {
-        self.http_globals[TRACK_VARS_ENV as usize]
-            .array()
-            .expect("Type is not a ZendArray")
+    pub fn http_env_vars(&self) -> Option<&ZendHashTable> {
+        self.http_globals[TRACK_VARS_ENV as usize].array()
     }
 
     /// Get the HTTP Files variables. Equivalent of $_FILES.
     ///
-    /// # Panics
-    ///
-    /// * If the files global is not found or fails to be populated.
+    /// Returns `None` if the global has not been populated as an array (yet).
     #[must_use]
-    pub fn http_files_vars(&self) -> &ZendHashTable {
-        self.http_globals[TRACK_VARS_FILES as usize]
-            .array()
-            .expect("Type is not a ZendArray")
+    pub fn http_files_vars(&self) -> Option<&ZendHashTable> {
+        self.http_globals[TRACK_VARS_FILES as usize].array()
     }
 }
 
@@ -587,27 +573,35 @@ pub type SapiHeader = sapi_header_struct;
 impl<'a> SapiHeader {
     /// Get the header as a string.
     ///
-    /// # Panics
-    ///
-    /// * If the header is not a valid UTF-8 string.
+    /// Returns `None` if the header is null, empty or not valid UTF-8.
     #[must_use]
-    pub fn as_str(&'a self) -> &'a str {
+    pub fn as_str(&'a self) -> Option<&'a str> {
+        if self.header.is_null() || self.header_len == 0 {
+            return None;
+        }
         unsafe {
             let slice = slice::from_raw_parts(self.header as *const u8, self.header_len);
-            str::from_utf8(slice).expect("Invalid header string")
+            str::from_utf8(slice).ok()
         }
     }
 
     /// Returns the header name (key).
+    ///
+    /// Returns `None` if the header is null, empty or not valid UTF-8.
     #[must_use]
-    pub fn name(&'a self) -> &'a str {
-        self.as_str().split(':').next().unwrap_or("").trim()
+    pub fn name(&'a self) -> Option<&'a str> {
+        Some(self.as_str()?.split(':').next().unwrap_or("").trim())
     }
 
     /// Returns the header value.
+    ///
+    /// Returns `None` if the header is null, empty, not valid UTF-8 or has no
+    /// value.
     #[must_use]
     pub fn value(&'a self) -> Option<&'a str> {
-        self.as_str().split_once(':').map(|(_, value)| value.trim())
+        self.as_str()?
+            .split_once(':')
+            .map(|(_, value)| value.trim())
     }
 }
 
@@ -912,36 +906,73 @@ impl<T> DerefMut for GlobalWriteGuard<T> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::raw::c_char;
+
+    #[test]
+    fn sapi_header_parses_name_and_value() {
+        let headers = [
+            ("Content-Type: text/html", "Content-Type", "text/html"),
+            ("X: Custom:Header", "X", "Custom:Header"),
+        ];
+
+        for (header_text, name, value) in headers {
+            let header = SapiHeader {
+                header: header_text.as_bytes().as_ptr() as *mut c_char,
+                header_len: header_text.len(),
+            };
+            assert_eq!(header.name(), Some(name), "Header name mismatch");
+            assert_eq!(header.value(), Some(value), "Header value mismatch");
+            assert_eq!(
+                header.as_str(),
+                Some(format!("{name}: {value}").as_str()),
+                "Header string mismatch"
+            );
+        }
+    }
+
+    #[test]
+    fn sapi_header_with_invalid_utf8_returns_none() {
+        let bytes: &[u8] = b"X: \xFF\xFE";
+        let header = SapiHeader {
+            header: bytes.as_ptr() as *mut c_char,
+            header_len: bytes.len(),
+        };
+        assert_eq!(header.as_str(), None);
+        assert_eq!(header.name(), None);
+        assert_eq!(header.value(), None);
+    }
+
+    #[test]
+    fn sapi_header_with_null_pointer_returns_none() {
+        let header = SapiHeader {
+            header: std::ptr::null_mut(),
+            header_len: 0,
+        };
+        assert_eq!(header.as_str(), None);
+        assert_eq!(header.name(), None);
+        assert_eq!(header.value(), None);
+    }
+
+    #[test]
+    fn sapi_header_with_zero_length_returns_none() {
+        let header = SapiHeader {
+            header: c"".as_ptr().cast_mut(),
+            header_len: 0,
+        };
+        assert_eq!(header.as_str(), None);
+        assert_eq!(header.name(), None);
+        assert_eq!(header.value(), None);
+    }
+}
+
 #[cfg(feature = "embed")]
 #[cfg(test)]
 mod embed_tests {
     use super::*;
     use crate::embed::Embed;
-    use std::os::raw::c_char;
-
-    #[test]
-    fn test_sapi_header() {
-        Embed::run(|| {
-            let headers = [
-                ("Content-Type: text/html", "Content-Type", "text/html"),
-                ("X: Custom:Header", "X", "Custom:Header"),
-            ];
-
-            for (header_text, name, value) in headers {
-                let header = SapiHeader {
-                    header: header_text.as_bytes().as_ptr() as *mut c_char,
-                    header_len: header_text.len(),
-                };
-                assert_eq!(header.name(), name, "Header name mismatch");
-                assert_eq!(header.value(), Some(value), "Header value mismatch");
-                assert_eq!(
-                    header.as_str(),
-                    format!("{name}: {value}"),
-                    "Header string mismatch"
-                );
-            }
-        });
-    }
 
     #[test]
     fn test_executor_globals() {
