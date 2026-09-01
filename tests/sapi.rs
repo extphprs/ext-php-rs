@@ -11,8 +11,9 @@ extern crate ext_php_rs;
 use ext_php_rs::builders::SapiBuilder;
 use ext_php_rs::embed::{
     Embed, RequestInfo, Sapi, SapiHeader, SapiHeaders, SendHeadersResult, ServerContext,
-    ServerVarRegistrar, ext_php_rs_sapi_shutdown, ext_php_rs_sapi_startup, worker_request_shutdown,
-    worker_request_startup, worker_reset_superglobals,
+    ServerVarRegistrar, cleanup_sapi_allocations, ext_php_rs_sapi_shutdown,
+    ext_php_rs_sapi_startup, worker_request_shutdown, worker_request_startup,
+    worker_reset_superglobals,
 };
 use ext_php_rs::ffi::{
     ZEND_RESULT_CODE_SUCCESS, php_module_shutdown, php_module_startup, php_request_shutdown,
@@ -112,6 +113,8 @@ fn test_sapi() {
 
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -220,6 +223,8 @@ fn test_sapi_multithread() {
 
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -364,6 +369,8 @@ fn test_php_thread_guard_drop() {
     }
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -416,6 +423,8 @@ fn test_server_var_registrar() {
     }
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -458,6 +467,8 @@ fn test_sapi_trait_lifecycle() {
     }
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -508,6 +519,8 @@ fn test_worker_request_cycle() {
     }
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -579,6 +592,8 @@ fn test_full_sapi_worker_flow() {
     }
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }
 
@@ -645,5 +660,7 @@ fn test_sapi_trait_captures_headers() {
     }
     unsafe {
         ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+        drop(Box::from_raw(sapi));
     }
 }

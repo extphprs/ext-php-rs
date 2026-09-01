@@ -1,13 +1,6 @@
 # PHP leaks persistent allocations at embed shutdown by design; php-src's own
 # run-tests gave up on detect_leaks there (run-tests.php:2685).
 leak:libphp
-# Pre-existing library leaks, tracked in
-# docs/plans/2026-07-31-v0.16-breaking-backlog.md (into_raw constructors and
-# bailout-skipped destructors). Remove each entry when its fix lands.
-leak:SapiBuilder
-leak:PhpException>::throw
-leak:ext_php_rs::exception::throw
-leak:as_arg_info
 # Intentional: these tests trigger a PHP bailout on purpose, so their own
 # locals are never dropped.
 leak:test_memory_leak

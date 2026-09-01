@@ -1,6 +1,6 @@
 //! Types and functions used for throwing exceptions from Rust to PHP.
 
-use std::{ffi::CString, fmt::Debug, ptr};
+use std::{ffi::CString, fmt::Debug, panic::AssertUnwindSafe, ptr};
 
 use crate::{
     class::RegisteredClass,
@@ -9,7 +9,7 @@ use crate::{
     ffi::zend_throw_exception_object,
     flags::ClassFlags,
     types::Zval,
-    zend::{ClassEntry, ce},
+    zend::{ClassEntry, bailout, ce, try_catch},
 };
 
 /// Result type with the error variant as a [`PhpException`].
@@ -165,6 +165,10 @@ pub fn throw(ex: &ClassEntry, message: &str) -> Result<()> {
 /// Returns a result containing nothing if the exception was successfully
 /// thrown.
 ///
+/// If the throw triggers a PHP bailout (e.g. thrown without an active stack
+/// frame), this function never returns: the bailout is caught, the message
+/// allocation is released, and the bailout is re-raised.
+///
 /// # Parameters
 ///
 /// * `ex` - The exception type to throw.
@@ -192,16 +196,20 @@ pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> 
         return Err(Error::InvalidException(flags));
     }
 
-    // SAFETY: We are given a reference to a `ClassEntry` therefore when we cast it
-    // to a pointer it will be valid.
-    unsafe {
-        zend_throw_exception_ex(
-            ptr::from_ref(ex).cast_mut(),
-            code.into(),
-            CString::new("%s")?.as_ptr(),
-            CString::new(message)?.as_ptr(),
-        )
-    };
+    let message = CString::new(message)?;
+    let ex_ptr = ptr::from_ref(ex).cast_mut();
+
+    let result = try_catch(AssertUnwindSafe(|| {
+        // SAFETY: We are given a reference to a `ClassEntry` therefore when we
+        // cast it to a pointer it will be valid.
+        unsafe { zend_throw_exception_ex(ex_ptr, code.into(), c"%s".as_ptr(), message.as_ptr()) };
+    }));
+    drop(message);
+    if result.is_err() {
+        // SAFETY: Re-raises the bailout interrupted above; every local in this
+        // frame has been dropped.
+        unsafe { bailout() };
+    }
     Ok(())
 }
 

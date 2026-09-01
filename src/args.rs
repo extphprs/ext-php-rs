@@ -452,6 +452,8 @@ mod tests {
 
         let r#type = arg_info.type_;
         assert_eq!(r#type.type_mask, 16);
+
+        unsafe { drop(CString::from_raw(arg_info.name.cast_mut())) };
     }
 
     #[test]
@@ -466,6 +468,11 @@ mod tests {
 
         let r#type = arg_info.type_;
         assert_eq!(r#type.type_mask, 16);
+
+        unsafe {
+            drop(CString::from_raw(arg_info.name.cast_mut()));
+            drop(CString::from_raw(arg_info.default_value.cast_mut()));
+        }
     }
 
     #[test]
