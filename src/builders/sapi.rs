@@ -308,9 +308,14 @@ impl SapiBuilder {
 
     /// Set the `ini_entries` for this SAPI
     ///
+    /// `sapi_startup` clears `ini_entries` before copying the module, so entries
+    /// set here only survive on a module that is never started. To hand INI
+    /// entries to PHP, assign `ini_entries` on the module after `sapi_startup`
+    /// and before `php_module_startup`, as php-src's own SAPIs do.
+    ///
     /// # Parameters
     ///
-    /// * `entries` - A pointer to the ini entries.
+    /// * `entries` - The ini entries.
     pub fn ini_entries<E: Into<String>>(mut self, entries: E) -> Self {
         self.ini_entries = Some(entries.into());
         self
@@ -865,6 +870,12 @@ mod test {
             unsafe { CStr::from_ptr(sapi.ini_entries) },
             c"foo=bar\nmemory_limit=\"128M\"\n"
         );
+
+        #[cfg(php83)]
+        let ini_entries = sapi.ini_entries.cast_mut();
+        #[cfg(not(php83))]
+        let ini_entries = sapi.ini_entries;
+        unsafe { drop(CString::from_raw(ini_entries)) };
     }
 
     #[test]

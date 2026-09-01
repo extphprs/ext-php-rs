@@ -21,10 +21,15 @@ impl SapiModule {
     }
 }
 
-/// Frees every string allocation that
+/// Frees the string allocations that
 /// [`SapiBuilder`](crate::builders::SapiBuilder) placed inside a
-/// [`SapiModule`]: `name`, `pretty_name`, `executable_location`, `ini_entries`
-/// and `php_ini_path_override`.
+/// [`SapiModule`]: `name`, `pretty_name`, `executable_location` and
+/// `php_ini_path_override`. PHP only reads these and never frees them.
+///
+/// `ini_entries` is left untouched: `sapi_startup` clears it before copying
+/// the module, so after startup it holds whatever the embedder assigned
+/// (typically an [`IniBuilder`](crate::builders::IniBuilder) buffer) and stays
+/// theirs to free.
 ///
 /// # Safety
 ///
@@ -46,16 +51,6 @@ pub unsafe fn cleanup_sapi_allocations(module: *mut SapiModule) {
     if !module.executable_location.is_null() {
         unsafe { drop(CString::from_raw(module.executable_location)) };
         module.executable_location = ptr::null_mut();
-    }
-    if !module.ini_entries.is_null() {
-        // Safety report from Clippy: `ini_entries` is `*mut c_char` on PHP
-        // 8.1/8.2 and `*const c_char` on 8.3+, so an `as` cast is the only
-        // spelling that compiles on every supported version.
-        #[allow(clippy::ptr_cast_constness)]
-        unsafe {
-            drop(CString::from_raw(module.ini_entries as *mut _));
-        }
-        module.ini_entries = ptr::null_mut();
     }
     if !module.php_ini_path_override.is_null() {
         unsafe { drop(CString::from_raw(module.php_ini_path_override)) };

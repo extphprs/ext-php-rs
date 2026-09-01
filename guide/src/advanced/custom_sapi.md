@@ -120,10 +120,12 @@ let module = MySapi::build_module().expect("failed to build SAPI module");
 The returned `SapiModule` can then be passed to `sapi_startup()` and
 `php_module_startup()` just like a manually-built one.
 
-The builder places the SAPI's `name`, `pretty_name` and related strings on the
-heap. PHP never frees them, so after `sapi_shutdown()` reclaim them with
-`ext_php_rs::embed::cleanup_sapi_allocations` (call it at most once, and only
-on a module built by `SapiBuilder`/`Sapi::build_module`).
+The builder places the SAPI's `name`, `pretty_name`, `executable_location` and
+`php_ini_path_override` strings on the heap. PHP never frees them, so after
+`sapi_shutdown()` reclaim them with `ext_php_rs::embed::cleanup_sapi_allocations`
+(call it at most once, and only on a module built by
+`SapiBuilder`/`Sapi::build_module`). `ini_entries` is not touched: see the
+[INI builder](../ini-builder.md) chapter for who owns it.
 
 ## Registering `$_SERVER` variables
 
