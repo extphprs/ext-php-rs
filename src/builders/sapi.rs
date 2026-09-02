@@ -308,9 +308,14 @@ impl SapiBuilder {
 
     /// Set the `ini_entries` for this SAPI
     ///
+    /// `sapi_startup` clears `ini_entries` before copying the module, so entries
+    /// set here only survive on a module that is never started. To hand INI
+    /// entries to PHP, assign `ini_entries` on the module after `sapi_startup`
+    /// and before `php_module_startup`, as php-src's own SAPIs do.
+    ///
     /// # Parameters
     ///
-    /// * `entries` - A pointer to the ini entries.
+    /// * `entries` - The ini entries.
     pub fn ini_entries<E: Into<String>>(mut self, entries: E) -> Self {
         self.ini_entries = Some(entries.into());
         self
@@ -468,7 +473,27 @@ extern "C" fn dummy_send_header(_header: *mut sapi_header_struct, _server_contex
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::embed::cleanup_sapi_allocations;
     use std::ffi::CStr;
+    use std::ops::Deref;
+
+    struct CleanupGuard(SapiModule);
+
+    impl Drop for CleanupGuard {
+        fn drop(&mut self) {
+            // SAFETY: The module was built by `SapiBuilder` and was never
+            // passed to `sapi_startup`, so this frees each pointer once.
+            unsafe { cleanup_sapi_allocations(&raw mut self.0) };
+        }
+    }
+
+    impl Deref for CleanupGuard {
+        type Target = SapiModule;
+
+        fn deref(&self) -> &SapiModule {
+            &self.0
+        }
+    }
 
     extern "C" fn test_startup(_sapi: *mut SapiModule) -> c_int {
         0
@@ -524,6 +549,7 @@ mod test {
     fn test_basic_sapi_builder() {
         let sapi = SapiBuilder::new("test_sapi", "Test SAPI")
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert_eq!(
@@ -545,6 +571,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .startup_function(test_startup)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.startup.is_some());
@@ -559,6 +586,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .shutdown_function(test_shutdown)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.shutdown.is_some());
@@ -573,6 +601,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .activate_function(test_activate)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.activate.is_some());
@@ -587,6 +616,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .deactivate_function(test_deactivate)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.deactivate.is_some());
@@ -601,6 +631,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .ub_write_function(test_ub_write)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.ub_write.is_some());
@@ -615,6 +646,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .flush_function(test_flush)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.flush.is_some());
@@ -629,6 +661,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .getenv_function(test_getenv)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.getenv.is_some());
@@ -648,6 +681,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .send_header_function(test_send_header)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.send_header.is_some());
@@ -662,6 +696,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .send_headers_function(test_send_headers)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.send_headers.is_some());
@@ -677,6 +712,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .read_post_function(test_read_post)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.read_post.is_some());
@@ -691,6 +727,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .read_cookies_function(test_read_cookies)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.read_cookies.is_some());
@@ -706,6 +743,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .register_server_variables_function(test_register_server_variables)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.register_server_variables.is_some());
@@ -722,6 +760,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .log_message_function(test_log_message)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.log_message.is_some());
@@ -736,6 +775,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .get_request_time_function(test_get_request_time)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.get_request_time.is_some());
@@ -751,6 +791,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .terminate_process_function(test_terminate_process)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.terminate_process.is_some());
@@ -766,6 +807,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .get_target_uid_function(test_get_target_uid)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.get_target_uid.is_some());
@@ -781,6 +823,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .get_target_gid_function(test_get_target_gid)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.get_target_gid.is_some());
@@ -797,6 +840,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .pre_request_init_function(test_pre_request_init)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(sapi.pre_request_init.is_some());
@@ -818,6 +862,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .ini_entries(ini)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(!sapi.ini_entries.is_null());
@@ -825,6 +870,12 @@ mod test {
             unsafe { CStr::from_ptr(sapi.ini_entries) },
             c"foo=bar\nmemory_limit=\"128M\"\n"
         );
+
+        #[cfg(php83)]
+        let ini_entries = sapi.ini_entries.cast_mut();
+        #[cfg(not(php83))]
+        let ini_entries = sapi.ini_entries;
+        unsafe { drop(CString::from_raw(ini_entries)) };
     }
 
     #[test]
@@ -832,6 +883,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .php_ini_path_override("/custom/path/php.ini")
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(!sapi.php_ini_path_override.is_null());
@@ -846,6 +898,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .php_ini_ignore(1)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert_eq!(sapi.php_ini_ignore, 1);
@@ -856,6 +909,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .php_ini_ignore_cwd(1)
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert_eq!(sapi.php_ini_ignore_cwd, 1);
@@ -866,6 +920,7 @@ mod test {
         let sapi = SapiBuilder::new("test", "Test")
             .executable_location("/usr/bin/php")
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert!(!sapi.executable_location.is_null());
@@ -879,6 +934,7 @@ mod test {
     fn test_default_functions_set() {
         let sapi = SapiBuilder::new("test", "Test")
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         // Test that default functions are set
@@ -902,6 +958,7 @@ mod test {
             .php_ini_ignore(1)
             .executable_location("/test/php")
             .build()
+            .map(CleanupGuard)
             .expect("should build sapi module");
 
         assert_eq!(unsafe { CStr::from_ptr(sapi.name) }, c"chained");

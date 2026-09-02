@@ -28,7 +28,7 @@ use std::ptr::null_mut;
 
 pub use context::{RequestInfo, ServerContext};
 pub use ffi::*;
-pub use sapi::SapiModule;
+pub use sapi::{SapiModule, cleanup_sapi_allocations};
 pub use sapi_trait::{Sapi, SapiHeader, SapiHeaders, SendHeadersResult};
 pub use server_vars::ServerVarRegistrar;
 pub use thread::PhpThreadGuard;

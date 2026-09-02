@@ -1,6 +1,6 @@
 //! Types and functions used for throwing exceptions from Rust to PHP.
 
-use std::{ffi::CString, fmt::Debug, ptr};
+use std::{fmt::Debug, ptr};
 
 use crate::{
     class::RegisteredClass,
@@ -8,7 +8,7 @@ use crate::{
     ffi::zend_throw_exception_ex,
     ffi::zend_throw_exception_object,
     flags::ClassFlags,
-    types::Zval,
+    types::{ZendStr, Zval},
     zend::{ClassEntry, ce},
 };
 
@@ -192,14 +192,19 @@ pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> 
         return Err(Error::InvalidException(flags));
     }
 
+    let message = ZendStr::new(message, false);
+    let message_ptr = message.as_c_str()?.as_ptr();
+
     // SAFETY: We are given a reference to a `ClassEntry` therefore when we cast it
-    // to a pointer it will be valid.
+    // to a pointer it will be valid. `message` is NUL-terminated and outlives the
+    // call; if the engine bails out here the Zend allocator reclaims it at request
+    // shutdown, as php-src does for its own copy of the message.
     unsafe {
         zend_throw_exception_ex(
             ptr::from_ref(ex).cast_mut(),
             code.into(),
-            CString::new("%s")?.as_ptr(),
-            CString::new(message)?.as_ptr(),
+            c"%s".as_ptr(),
+            message_ptr,
         )
     };
     Ok(())
