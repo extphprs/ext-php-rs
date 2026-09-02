@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## [0.16.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.15...ext-php-rs-v0.16.0) - 2026-09-02
+
+### BREAKING CHANGES
+
+- *(zend)* [**breaking**] Return Option from engine-input accessors ([#770](https://github.com/extphprs/ext-php-rs/pull/770)) (by @ptondereau) [[#770](https://github.com/extphprs/ext-php-rs/issues/770)] 
+- *(types)* [**breaking**] Stop deriving mutable references from shared borrows ([#757](https://github.com/extphprs/ext-php-rs/pull/757)) (by @ptondereau) [[#757](https://github.com/extphprs/ext-php-rs/issues/757)] 
+- *(embed)* [**breaking**] Own SAPI header callback data ([#753](https://github.com/extphprs/ext-php-rs/pull/753)) (by @ptondereau) [[#753](https://github.com/extphprs/ext-php-rs/issues/753)] 
+- *(types)* [**breaking**] Make raw Zend resource assignment unsafe ([#752](https://github.com/extphprs/ext-php-rs/pull/752)) (by @ptondereau) [[#752](https://github.com/extphprs/ext-php-rs/issues/752)] 
+
+### Added
+- Introduce --lib-name on static-glue to skip `cargo metadata` call ([#765](https://github.com/extphprs/ext-php-rs/pull/765)) (by @okhoshi) [[#765](https://github.com/extphprs/ext-php-rs/issues/765)] [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+- Guard get_module export for statically linked extensions ([#764](https://github.com/extphprs/ext-php-rs/pull/764)) (by @ptondereau) [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+- Support statically linking extensions into php-src ([#762](https://github.com/extphprs/ext-php-rs/pull/762)) (by @ptondereau) [[#762](https://github.com/extphprs/ext-php-rs/issues/762)] 
+
+### Fixed
+- Reclaim SAPI, exception and arg-info allocations flagged by LSan ([#772](https://github.com/extphprs/ext-php-rs/pull/772)) (by @ptondereau) [[#772](https://github.com/extphprs/ext-php-rs/issues/772)] 
+- Return errors instead of panicking on engine and user input ([#758](https://github.com/extphprs/ext-php-rs/pull/758)) (by @ptondereau) [[#758](https://github.com/extphprs/ext-php-rs/issues/758)] 
+
+### Other
+- *(deps)* Update convert_case requirement from 0.11.0 to 0.12.0 ([#768](https://github.com/extphprs/ext-php-rs/pull/768)) (by @dependabot[bot]) [[#768](https://github.com/extphprs/ext-php-rs/issues/768)] 
+- *(deps)* Bump JamesIves/github-pages-deploy-action from 4.8.0 to 4.9.0 ([#761](https://github.com/extphprs/ext-php-rs/pull/761)) (by @dependabot[bot]) [[#761](https://github.com/extphprs/ext-php-rs/issues/761)] 
+- *(deps)* Bump actions/cache from 5 to 6 ([#751](https://github.com/extphprs/ext-php-rs/pull/751)) (by @dependabot[bot]) [[#751](https://github.com/extphprs/ext-php-rs/issues/751)] 
+- *(deps)* Bump actions/stale from 10 to 11 ([#760](https://github.com/extphprs/ext-php-rs/pull/760)) (by @dependabot[bot]) [[#760](https://github.com/extphprs/ext-php-rs/issues/760)] 
+- *(deps)* Update syn to 3 and darling to 0.24 ([#756](https://github.com/extphprs/ext-php-rs/pull/756)) (by @ptondereau) [[#756](https://github.com/extphprs/ext-php-rs/issues/756)] 
+- Add asan dev shell and CI job ([#769](https://github.com/extphprs/ext-php-rs/pull/769)) (by @ptondereau) [[#769](https://github.com/extphprs/ext-php-rs/issues/769)] 
+- Migrate benchmarks to CodSpeed ([#767](https://github.com/extphprs/ext-php-rs/pull/767)) (by @ptondereau) [[#767](https://github.com/extphprs/ext-php-rs/issues/767)] 
 ## [0.15.15](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.14...ext-php-rs-v0.15.15) - 2026-06-02
 
 ### Added

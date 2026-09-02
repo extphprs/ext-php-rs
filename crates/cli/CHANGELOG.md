@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.22](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.21...cargo-php-v0.1.22) - 2026-09-02
+
+### Added
+- Introduce --lib-name on static-glue to skip `cargo metadata` call ([#765](https://github.com/extphprs/ext-php-rs/pull/765)) (by @okhoshi) [[#765](https://github.com/extphprs/ext-php-rs/issues/765)] [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+- Guard get_module export for statically linked extensions ([#764](https://github.com/extphprs/ext-php-rs/pull/764)) (by @ptondereau) [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+- Support statically linking extensions into php-src ([#762](https://github.com/extphprs/ext-php-rs/pull/762)) (by @ptondereau) [[#762](https://github.com/extphprs/ext-php-rs/issues/762)] 
 ## [0.1.21](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.20...cargo-php-v0.1.21) - 2026-04-20
 
 ### Fixed

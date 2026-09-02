@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.15](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.14...ext-php-rs-derive-v0.11.15) - 2026-09-02
+
+### Added
+- Guard get_module export for statically linked extensions ([#764](https://github.com/extphprs/ext-php-rs/pull/764)) (by @ptondereau) [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+
+### Other
+- *(deps)* Update convert_case requirement from 0.11.0 to 0.12.0 ([#768](https://github.com/extphprs/ext-php-rs/pull/768)) (by @dependabot[bot]) [[#768](https://github.com/extphprs/ext-php-rs/issues/768)] 
+- *(deps)* Update syn to 3 and darling to 0.24 ([#756](https://github.com/extphprs/ext-php-rs/pull/756)) (by @ptondereau) [[#756](https://github.com/extphprs/ext-php-rs/issues/756)] 
+- *(deps)* Update itertools requirement from 0.14.0 to 0.15.0 ([#748](https://github.com/extphprs/ext-php-rs/pull/748)) (by @dependabot[bot]) [[#748](https://github.com/extphprs/ext-php-rs/issues/748)] 
+- Migrate benchmarks to CodSpeed ([#767](https://github.com/extphprs/ext-php-rs/pull/767)) (by @ptondereau) [[#767](https://github.com/extphprs/ext-php-rs/issues/767)] 
 ## [0.11.14](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.13...ext-php-rs-derive-v0.11.14) - 2026-06-02
 
 ### Added
