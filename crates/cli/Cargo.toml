@@ -5,7 +5,7 @@ repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
 keywords = ["php", "ffi", "zend"]
-version = "0.1.21"
+version = "0.1.22"
 authors = [
     "Xenira <xenira@php.rs>",
     "David Cole <david.cole1340@gmail.com>",
@@ -15,7 +15,7 @@ edition = "2024"
 categories = ["api-bindings", "command-line-interface"]
 
 [dependencies]
-ext-php-rs = { version = "0.15", default-features = false, features = ["runtime"], path = "../../" }
+ext-php-rs = { version = "0.16", default-features = false, features = ["runtime"], path = "../../" }
 
 clap = { version = "4.0", features = ["derive"] }
 anyhow = "1"
