@@ -36,7 +36,7 @@ impl Ext {
             Err(err) => {
                 if unsafe { ext_lib.get::<*const ()>(b"ext_php_rs_describe_module") }.is_ok() {
                     bail!(
-                        "Extension was built with ext-php-rs 0.15 or older, whose describe entry point is incompatible with this `cargo-php`. Rebuild the extension against ext-php-rs 0.16 or use `cargo install cargo-php --version 0.1`."
+                        "Extension was built with ext-php-rs 0.15 or older, whose describe entry point is incompatible with this `cargo-php`. Rebuild the extension against ext-php-rs 0.16 or use `cargo install cargo-php --version 0.1.21`, the last release that reads it."
                     );
                 }
                 return Err(err)
