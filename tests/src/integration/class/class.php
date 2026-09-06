@@ -16,7 +16,10 @@ $class->selfMultiRef('bar');
 assert($class->string === 'Changed to bar');
 
 gc_collect_cycles();
-assert($class->string === 'Changed to bar', 'GC scan of an object returned through &mut Self must not trip HT_ASSERT_RC1');
+assert(
+    $class->string === 'Changed to bar',
+    'GC scan of an object returned through &mut Self must not trip HT_ASSERT_RC1'
+);
 
 // Test method returning Self (new instance)
 $newClass = $class->withString('new string');
@@ -181,13 +184,15 @@ assert(preg_match('/refcount\((\d+)\)\{/', $dump, $m) === 1);
 assert(
     (int) $m[1] === 2,
     "\$builder3 refcount should be 2 (\$builder3 + debug_zval_dump's copy); a leak in "
-        . '&mut ZendClassObject<T>::set_zval pushes it higher. Got: ' . $m[1]
+    . '&mut ZendClassObject<T>::set_zval pushes it higher. Got: '
+    . $m[1]
 );
 
 class SelfLinked extends TestClassExtendsWithProp
 {
     public $self;
 }
+
 $linked = new SelfLinked();
 $linked->self = $linked;
 ob_start();
