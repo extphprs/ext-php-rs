@@ -439,7 +439,7 @@ impl Remove {
 impl Stubs {
     pub fn handle(self) -> CrateResult {
         use ext_php_rs_introspection::ToStub;
-        use std::{borrow::Cow, str::FromStr};
+        use std::{borrow::Cow, mem::ManuallyDrop, str::FromStr};
 
         let ext_path = if let Some(ext_path) = self.ext {
             ext_path
@@ -460,7 +460,11 @@ impl Stubs {
         }
 
         let ext = self::ext::Ext::load(ext_path)?;
-        let result = ext.describe();
+        // Dropping a `Description` walks its nested vectors with the CLI's
+        // layout. Until the version check passes, the layout is unverified
+        // and a drop could free arbitrary pointers, so the value is only
+        // released once it is known to match.
+        let result = ManuallyDrop::new(ext.describe());
 
         let cli_version = semver::Version::from_str(ext_php_rs_introspection::VERSION)
             .with_context(|| {
@@ -476,6 +480,7 @@ impl Stubs {
             );
         }
 
+        let result = ManuallyDrop::into_inner(result);
         let stubs = result
             .module
             .to_stub()

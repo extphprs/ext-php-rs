@@ -27,12 +27,16 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub type DocComments = &'static [&'static str];
 
 /// Representation of the extension used to generate PHP stubs.
+///
+/// `version` stays the first field forever: `cargo-php` reads it before
+/// trusting the rest of the layout, so it has to sit at an offset that never
+/// moves.
 #[repr(C)]
 pub struct Description {
-    /// Extension description.
-    pub module: Module,
     /// Version of `ext-php-rs-introspection` the extension was built with.
     pub version: Str,
+    /// Extension description.
+    pub module: Module,
 }
 
 impl Description {
@@ -44,8 +48,8 @@ impl Description {
     #[must_use]
     pub fn new(module: Module) -> Self {
         Self {
-            module,
             version: VERSION.into(),
+            module,
         }
     }
 }

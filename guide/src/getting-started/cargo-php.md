@@ -60,8 +60,9 @@ Options:
 ```
 
 `cargo php --version` prints the `ext-php-rs-introspection` version the CLI was
-built with. Stub generation refuses an extension built against a different
-minor of that crate, since the `#[repr(C)]` layout it reads may have changed.
+built with. Stub generation refuses an extension whose version of that crate
+is not semver compatible, since the `#[repr(C)]` layout it reads may have
+changed.
 
 The command should always be executed from within your extensions manifest
 directory (the directory with your `Cargo.toml`).
