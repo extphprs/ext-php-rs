@@ -1,6 +1,7 @@
 pub mod array;
 pub mod bailout;
 pub mod binary;
+pub mod binary_slice;
 pub mod bool;
 pub mod callable;
 pub mod class;

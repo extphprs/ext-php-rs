@@ -199,8 +199,6 @@ impl Zval {
     /// behavior (silent truncation of trailing bytes) hid off-by-one input
     /// errors and was a correctness hazard.
     ///
-    /// # Safety
-    ///
     /// There is no way to tell if the data stored in the string is actually of
     /// the given type. The results of this function can also differ from
     /// platform-to-platform due to the different representation of some
@@ -226,10 +224,11 @@ impl Zval {
     /// returned instead of a vector, meaning the contents of the string is
     /// not copied.
     ///
-    /// Returns `None` if the zval is not a string, or if the byte length of
-    /// the string is not a whole multiple of `size_of::<T>()`.
-    ///
-    /// # Safety
+    /// Returns `None` if the zval is not a string, if the byte length of the
+    /// string is not a whole multiple of `size_of::<T>()`, or if the string
+    /// bytes are not aligned for `T`. Zend allocates strings on 8-byte
+    /// boundaries, so the alignment check only fails for types wider than
+    /// `ZEND_MM_ALIGNMENT` or for strings from a foreign allocator.
     ///
     /// There is no way to tell if the data stored in the string is actually of
     /// the given type. The results of this function can also differ from
@@ -242,10 +241,14 @@ impl Zval {
     #[must_use]
     pub fn binary_slice<T: PackSlice>(&self) -> Option<&[T]> {
         let s = self.zend_str()?;
-        if !s.len.is_multiple_of(std::mem::size_of::<T>()) {
+        if !s.len.is_multiple_of(std::mem::size_of::<T>())
+            || s.val.as_ptr().align_offset(std::mem::align_of::<T>()) != 0
+        {
             return None;
         }
-        Some(T::unpack_into(s))
+        // SAFETY: length and alignment were checked above, which is the whole
+        // `PackSlice::unpack_into` contract.
+        Some(unsafe { T::unpack_into(s) })
     }
 
     /// Returns the value of the zval if it is a resource.
@@ -1047,12 +1050,17 @@ impl Zval {
 
     /// Sets the value of the zval as a reference to an object.
     ///
+    /// This is `ZVAL_OBJ_COPY`: the object refcount is incremented because the
+    /// zval now holds its own reference, which Zend releases when the zval is
+    /// destroyed. Callers that already own a reference (e.g. a
+    /// `ZBox<ZendObject>`) must `dec_count()` before handing the object over.
+    ///
     /// # Parameters
     ///
     /// * `val` - The value to set the zval as.
     pub fn set_object(&mut self, val: &mut ZendObject) {
         self.change_type(ZvalTypeFlags::ObjectEx);
-        val.inc_count(); // TODO(david): not sure if this is needed :/
+        val.inc_count();
         self.value.obj = ptr::from_ref(val).cast_mut();
     }
 
@@ -1092,13 +1100,47 @@ impl Zval {
         self.value.arr = val.into_raw();
     }
 
-    /// Sets the value of the zval as a pointer.
+    /// Sets the value of the zval as a raw pointer (`IS_PTR`).
+    ///
+    /// The previous value of the zval is released first.
     ///
     /// # Parameters
     ///
     /// * `ptr` - The pointer to set the zval as.
-    pub fn set_ptr<T>(&mut self, ptr: *mut T) {
-        self.u1.type_info = ZvalTypeFlags::Ptr.bits();
+    ///
+    /// # Safety
+    ///
+    /// `IS_PTR` zvals are opaque to refcounting, so Zend never frees `ptr`, but
+    /// several engine tables dereference `IS_PTR` entries with a fixed type:
+    /// property tables read them as `zend_property_info *`, constant tables as
+    /// `zend_class_constant *`, `EG(ini_directives)` as `zend_ini_entry *`. The
+    /// caller must not insert this zval into any table the engine reads unless
+    /// `ptr` points to the type that table expects, and `ptr` must stay valid
+    /// for as long as the zval (or any copy of it) is alive.
+    ///
+    /// Calling this method requires an unsafe block:
+    ///
+    /// ```compile_fail,E0133
+    /// use ext_php_rs::types::Zval;
+    ///
+    /// fn assign_ptr(zval: &mut Zval, ptr: *mut u32) {
+    ///     zval.set_ptr(ptr);
+    /// }
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ext_php_rs::types::Zval;
+    /// let mut slot = 42u32;
+    /// let mut zval = Zval::new();
+    ///
+    /// // SAFETY: `slot` outlives `zval` and the zval never reaches an engine
+    /// // table.
+    /// unsafe { zval.set_ptr(&raw mut slot) };
+    /// ```
+    pub unsafe fn set_ptr<T>(&mut self, ptr: *mut T) {
+        self.change_type(ZvalTypeFlags::Ptr);
         self.value.ptr = ptr.cast::<c_void>();
     }
 
@@ -1454,6 +1496,26 @@ mod tests {
         Embed::run(|| {
             let zval = Zval::null();
             assert!(zval.is_null());
+        });
+    }
+
+    #[test]
+    fn binary_slice_should_reject_partial_element() {
+        Embed::run(|| {
+            let mut zval = Zval::new();
+            zval.set_string("1234567", false).unwrap();
+            assert!(zval.binary_slice::<u64>().is_none());
+            assert_eq!(zval.binary_slice::<u8>().map(<[u8]>::len), Some(7));
+        });
+    }
+
+    #[test]
+    fn binary_slice_should_view_packed_u64() {
+        Embed::run(|| {
+            let mut zval = Zval::new();
+            zval.set_binary(vec![1u64, 2, 3]);
+            assert_eq!(zval.binary_slice::<u64>(), Some(&[1u64, 2, 3][..]));
+            assert_eq!(zval.binary::<u64>(), Some(vec![1, 2, 3]));
         });
     }
 

@@ -23,16 +23,6 @@ fn zend_type_has_name(type_mask: u32) -> bool {
 /// A Zend module entry, also known as an extension.
 pub type ModuleEntry = zend_module_entry;
 
-impl ModuleEntry {
-    /// Allocates the module entry on the heap, returning a pointer to the
-    /// memory location. The caller is responsible for the memory pointed to.
-    #[deprecated(note = "use StaticModuleEntry to avoid leaking the allocation")]
-    #[must_use]
-    pub fn into_raw(self) -> *mut Self {
-        Box::into_raw(Box::new(self))
-    }
-}
-
 /// Static storage for a [`ModuleEntry`] that avoids heap allocation.
 ///
 /// Mimics how C extensions declare a `static zend_module_entry`. The entry

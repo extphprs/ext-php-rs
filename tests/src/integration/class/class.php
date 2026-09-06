@@ -15,6 +15,12 @@ assert($class->string === 'Changed to foo');
 $class->selfMultiRef('bar');
 assert($class->string === 'Changed to bar');
 
+gc_collect_cycles();
+assert(
+    $class->string === 'Changed to bar',
+    'GC scan of an object returned through &mut Self must not trip HT_ASSERT_RC1'
+);
+
 // Test method returning Self (new instance)
 $newClass = $class->withString('new string');
 assert($newClass instanceof TestClass, 'withString should return TestClass instance');
@@ -168,6 +174,34 @@ assert($builder2->getName() === 'test');
 // Test returning &Self (immutable reference)
 $selfRef = $builder2->getSelf();
 assert($selfRef === $builder2, 'getSelf should return $this');
+
+$builder3 = new FluentBuilder();
+$builder3->setValue(7)->setName('seven');
+ob_start();
+debug_zval_dump($builder3);
+$dump = ob_get_clean();
+assert(preg_match('/refcount\((\d+)\)\{/', $dump, $m) === 1);
+assert(
+    (int) $m[1] === 2,
+    "\$builder3 refcount should be 2 (\$builder3 + debug_zval_dump's copy); a leak in "
+    . '&mut ZendClassObject<T>::set_zval pushes it higher. Got: '
+    . $m[1]
+);
+
+class SelfLinked extends TestClassExtendsWithProp
+{
+    public $self;
+}
+
+$linked = new SelfLinked();
+$linked->self = $linked;
+ob_start();
+var_dump($linked);
+$dump = ob_get_clean();
+assert(str_contains($dump, '*RECURSION*'));
+assert(substr_count($dump, '["payload"]') === 1);
+unset($linked);
+assert(gc_collect_cycles() >= 1, 'a cycle through a Rust-backed object must be collected via get_gc');
 
 // Test readonly class (PHP 8.2+)
 if (PHP_VERSION_ID >= 80_200) {

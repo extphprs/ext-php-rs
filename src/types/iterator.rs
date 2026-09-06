@@ -91,11 +91,17 @@ impl ZendIterator {
 
     /// Get the current data of the iterator.
     ///
+    /// The reference borrows the iterator: Zend owns the returned zval and
+    /// releases it on the next [`move_forward`](Self::move_forward),
+    /// [`rewind`](Self::rewind) or when the iterator is destroyed
+    /// (`zend_user_it_invalidate_current` calls `zval_ptr_dtor` on it). Use
+    /// [`Zval::shallow_clone`] to keep the value across iterations.
+    ///
     /// # Returns
     ///
     /// Returns a reference to the current data of the iterator if available
     /// , [`None`] otherwise.
-    pub fn get_current_data<'a>(&mut self) -> Option<&'a Zval> {
+    pub fn get_current_data(&mut self) -> Option<&Zval> {
         let get_current_data = unsafe { (*self.funcs).get_current_data }?;
         let value = unsafe { &*get_current_data(&raw mut *self) };
 
@@ -131,7 +137,7 @@ impl ZendIterator {
 // TODO: Implement `iter_mut`
 #[allow(clippy::into_iter_without_iter)]
 impl<'a> IntoIterator for &'a mut ZendIterator {
-    type Item = (Zval, &'a Zval);
+    type Item = (Zval, Zval);
     type IntoIter = Iter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -146,12 +152,16 @@ impl Debug for ZendIterator {
 }
 
 /// Immutable iterator upon a reference to a PHP iterator.
+///
+/// Values are shallow clones of the zval Zend hands out, the same copy
+/// `foreach` performs (`ZVAL_COPY` in `ZEND_FE_FETCH_R`), because the engine
+/// releases its own copy on the next `move_forward`.
 pub struct Iter<'a> {
     zi: &'a mut ZendIterator,
 }
 
-impl<'a> Iterator for Iter<'a> {
-    type Item = (Zval, &'a Zval);
+impl Iterator for Iter<'_> {
+    type Item = (Zval, Zval);
 
     fn next(&mut self) -> Option<Self::Item> {
         // Call next when index > 0, so next is really called at the start of each
@@ -177,7 +187,9 @@ impl<'a> Iterator for Iter<'a> {
             Some(key) => key,
         };
 
-        self.zi.get_current_data().map(|value| (key, value))
+        self.zi
+            .get_current_data()
+            .map(|value| (key, value.shallow_clone()))
     }
 }
 

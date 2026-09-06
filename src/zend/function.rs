@@ -45,13 +45,6 @@ impl FunctionEntry {
             frameless_function_infos: ptr::null(),
         }
     }
-
-    /// Converts the function entry into a raw and pointer, releasing it to the
-    /// C world.
-    #[must_use]
-    pub fn into_raw(self) -> *mut Self {
-        Box::into_raw(Box::new(self))
-    }
 }
 
 /// PHP function.

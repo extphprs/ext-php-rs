@@ -13,6 +13,10 @@ used but also a the result of a `query` call with `PDO`.
 
 If you want a more universal `iterable` type that also supports arrays, see [Iterable](./iterable.md).
 
+Each iteration yields an owned `(Zval, Zval)` pair. The value is a shallow clone
+of the zval Zend hands out, because the engine releases its own copy on the
+next `move_forward`; this is the same copy `foreach` performs.
+
 ## Rust example
 
 ```rust,no_run

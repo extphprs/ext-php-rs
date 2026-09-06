@@ -43,7 +43,7 @@ impl Iterable<'_> {
 // TODO: Implement `iter_mut`
 #[allow(clippy::into_iter_without_iter)]
 impl<'a> IntoIterator for &'a mut Iterable<'a> {
-    type Item = (Zval, &'a Zval);
+    type Item = (Zval, Zval);
     type IntoIter = Iter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -64,17 +64,22 @@ impl<'a> FromZvalMut<'a> for Iterable<'a> {
 }
 
 /// Rust iterator over a PHP iterable.
+///
+/// Values are owned shallow clones so that both variants share one item type;
+/// see [`super::iterator::Iter`] for why the `Traversable` side cannot lend.
 pub enum Iter<'a> {
     Array(ZendHashTableIter<'a>),
     Traversable(ZendIteratorIter<'a>),
 }
 
-impl<'a> Iterator for Iter<'a> {
-    type Item = (Zval, &'a Zval);
+impl Iterator for Iter<'_> {
+    type Item = (Zval, Zval);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Iter::Array(array) => array.next_zval(),
+            Iter::Array(array) => array
+                .next_zval()
+                .map(|(key, value)| (key, value.shallow_clone())),
             Iter::Traversable(traversable) => traversable.next(),
         }
     }

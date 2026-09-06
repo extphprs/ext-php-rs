@@ -229,14 +229,17 @@ impl ClassBuilder {
             // Without default initialization, accessing properties on uninitialized
             // objects would panic.
             if let Some(instance) = T::default_init() {
-                let obj = ZendClassObject::<T>::new(instance);
-                return obj.into_raw().get_mut_zend_obj();
+                let obj = ZendClassObject::<T>::new(instance).into_raw();
+                // SAFETY: `into_raw` yields a valid, exclusively owned object that
+                // the engine takes over.
+                return unsafe { (*obj).get_mut_zend_obj() };
             }
 
             // SAFETY: After calling this function, PHP will always call the constructor
             // defined below, which assumes that the object is uninitialized.
-            let obj = unsafe { ZendClassObject::<T>::new_uninit(ce.as_ref()) };
-            obj.into_raw().get_mut_zend_obj()
+            let obj = unsafe { ZendClassObject::<T>::new_uninit(ce.as_ref()) }.into_raw();
+            // SAFETY: same ownership transfer as above.
+            unsafe { (*obj).get_mut_zend_obj() }
         }
 
         zend_fastcall! {

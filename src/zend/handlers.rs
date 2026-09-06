@@ -56,7 +56,43 @@ impl ZendObjectHandlers {
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
+        unsafe { (*ptr).get_gc = Some(Self::get_gc) };
         unsafe { (*ptr).has_property = Some(Self::has_property::<T>) };
+    }
+
+    /// `zend_std_get_gc` routes objects with a custom `get_properties` through
+    /// that handler, and the collector calls it repeatedly while holding an
+    /// extra reference on the returned table (`GC_ADDREF(ht)` in
+    /// `gc_mark_grey`, restored in `gc_scan`). Merging Rust properties into a
+    /// table in that state trips `HT_ASSERT_RC1` and, once `gc_collect_white`
+    /// has dropped the children's counts, destroys zvals the collector still
+    /// walks. Rust-backed properties are produced by getters and own no zvals
+    /// of their own, so the collector only needs the engine-owned storage:
+    /// this is the standard-object branch of `zend_std_get_gc`.
+    ///
+    /// Not reported, as before this handler existed: zvals held inside the Rust
+    /// struct itself, and the initializer or proxy instance of a lazy object
+    /// (`zend_lazy_object_get_gc` is not exported). Cycles through those leak
+    /// instead of being collected.
+    unsafe extern "C" fn get_gc(
+        object: *mut ZendObject,
+        table: *mut *mut Zval,
+        n: *mut c_int,
+    ) -> *mut ZendHashTable {
+        let obj = unsafe { &mut *object };
+        if obj.properties.is_null() {
+            unsafe {
+                *table = obj.properties_table.as_mut_ptr();
+                *n = (*obj.ce).default_properties_count;
+            }
+            ptr::null_mut()
+        } else {
+            unsafe {
+                *table = ptr::null_mut();
+                *n = 0;
+            }
+            obj.properties
+        }
     }
 
     unsafe extern "C" fn free_obj<T: RegisteredClass>(object: *mut ZendObject) {
@@ -92,7 +128,8 @@ impl ZendObjectHandlers {
             let mut new = ZendClassObject::<T>::new(val);
             unsafe { zend_objects_clone_members(&raw mut new.std, object) };
             let raw = new.into_raw();
-            &raw mut raw.std
+            // SAFETY: `into_raw` yields a valid object the engine takes over.
+            unsafe { &raw mut (*raw).std }
         } else {
             let msg = CString::new(format!(
                 "Trying to clone an uncloneable object of class {}",
@@ -104,7 +141,8 @@ impl ZendObjectHandlers {
             // free_obj handles uninitialized (None) objects gracefully.
             let empty = unsafe { ZendClassObject::<T>::new_uninit(None) };
             let raw = empty.into_raw();
-            &raw mut raw.std
+            // SAFETY: `into_raw` yields a valid object the engine takes over.
+            unsafe { &raw mut (*raw).std }
         }
     }
 
@@ -254,13 +292,18 @@ impl ZendObjectHandlers {
     unsafe extern "C" fn get_properties<T: RegisteredClass>(
         object: *mut ZendObject,
     ) -> *mut ZendHashTable {
-        // Get the standard properties first (this works for all objects)
-        let props = unsafe {
-            zend_std_get_properties(object)
-                .as_mut()
-                .or_else(|| Some(ZendHashTable::new().into_raw()))
-                .expect("Failed to get property hashtable")
-        };
+        let props = unsafe { zend_std_get_properties(object) };
+        if props.is_null() {
+            return props;
+        }
+        // SAFETY: non-null, and owned by the object with a single reference: the
+        // engine only shares a property table for objects without declared
+        // properties on standard handlers (`zend_proptable_to_symtable` fast
+        // paths), and the collector no longer reaches this handler since `get_gc`
+        // is installed. Separating here with `zend_array_dup` would be wrong: it
+        // resolves the `IS_INDIRECT` slots of declared properties into a detached
+        // snapshot.
+        let props = unsafe { &mut *props };
 
         // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
         // that didn't call the parent constructor), just return standard properties

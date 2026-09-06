@@ -19,7 +19,7 @@
 //!
 //! [memory arenas]: https://en.wikipedia.org/wiki/Region-based_memory_management
 //! [`ZendStr`]: crate::types::ZendStr
-//! [`emalloc`]: super::alloc::efree
+//! [`emalloc`]: super::alloc::emalloc
 
 use std::{
     borrow::Borrow,
@@ -55,16 +55,12 @@ impl<T: ZBoxable> ZBox<T> {
     /// process. The data pointed to by the returned pointer is not
     /// released.
     ///
-    /// # Safety
-    ///
-    /// The caller is responsible for managing the memory pointed to by the
-    /// returned pointer, including freeing the memory.
+    /// Mirrors [`Box::into_raw`]: the pointer is non-null and well-aligned, and
+    /// the caller becomes responsible for releasing it, typically by passing it
+    /// back to [`ZBox::from_raw`] or to the engine.
     #[must_use]
-    pub fn into_raw(self) -> &'static mut T {
-        let mut this = ManuallyDrop::new(self);
-        // SAFETY: All constructors ensure the contained pointer is well-aligned and
-        // dereferenceable.
-        unsafe { this.0.as_mut() }
+    pub fn into_raw(self) -> *mut T {
+        ManuallyDrop::new(self).0.as_ptr()
     }
 }
 

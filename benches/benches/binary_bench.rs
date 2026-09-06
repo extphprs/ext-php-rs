@@ -122,6 +122,11 @@ fn array_interned_keys(cnt: usize) -> ExitStatus {
     run_php("array_interned_keys.php", cnt)
 }
 
+#[divan::bench(args = [1, 10, 100_000])]
+fn binary_slice_reads(cnt: usize) -> ExitStatus {
+    run_php("binary_slice.php", cnt)
+}
+
 fn main() {
     setup();
     divan::main();

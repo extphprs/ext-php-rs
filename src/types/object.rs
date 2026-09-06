@@ -147,8 +147,9 @@ impl ZendObject {
     #[must_use]
     pub fn from_class_object<T: RegisteredClass>(obj: ZBox<ZendClassObject<T>>) -> ZBox<Self> {
         let this = obj.into_raw();
-        // SAFETY: Consumed box must produce a well-aligned non-null pointer.
-        unsafe { ZBox::from_raw(this.get_mut_zend_obj()) }
+        // SAFETY: Consumed box yields a well-aligned non-null pointer to a live
+        // class object, whose `std` header is the `ZendObject` we re-box.
+        unsafe { ZBox::from_raw((*this).get_mut_zend_obj()) }
     }
 
     /// Returns the [`ClassEntry`] associated with this object.
@@ -752,11 +753,13 @@ impl IntoZval for ZBox<ZendObject> {
 
     #[inline]
     fn set_zval(mut self, zv: &mut Zval, _: bool) -> Result<()> {
-        // We must decrement the refcounter on the object before inserting into the
-        // zval, as the reference counter will be incremented on add.
-        // NOTE(david): again is this needed, we increment in `set_object`.
+        // `set_object` is `ZVAL_OBJ_COPY` and increments the refcount; the box
+        // already owns one reference, so drop it first to keep the net count at 1.
         self.dec_count();
-        zv.set_object(self.into_raw());
+        let obj = self.into_raw();
+        // SAFETY: `into_raw` yields a valid, exclusively owned object whose
+        // reference is transferred to the zval.
+        zv.set_object(unsafe { &mut *obj });
         Ok(())
     }
 }

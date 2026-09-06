@@ -32,7 +32,7 @@ jobs:
       - name: Setup Mago
         uses: nhedger/setup-mago@v2
         with:
-          version: 1.45.0
+          version: 1.47.6
       - name: Check PHP formatting
         run: mago format --check
       - name: Lint PHP

@@ -118,7 +118,9 @@ let module = MySapi::build_module().expect("failed to build SAPI module");
 ```
 
 The returned `SapiModule` can then be passed to `sapi_startup()` and
-`php_module_startup()` just like a manually-built one.
+`php_module_startup()` just like a manually-built one. Both copy the struct by
+value (`sapi_module = *sf`), so a local variable is enough: keep it alive until
+`sapi_shutdown()` has returned and pass `&raw mut module`.
 
 The builder places the SAPI's `name`, `pretty_name`, `executable_location` and
 `php_ini_path_override` strings on the heap. PHP never frees them, so after

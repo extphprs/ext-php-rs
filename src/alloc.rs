@@ -3,7 +3,7 @@
 
 use cfg_if::cfg_if;
 
-use crate::ffi::{_efree, _emalloc, _estrdup};
+use crate::ffi::{_efree, _emalloc, _estrdup, ZEND_MM_ALIGNMENT};
 use std::{
     alloc::Layout,
     ffi::{CString, c_char, c_void},
@@ -11,16 +11,23 @@ use std::{
 
 /// Uses the PHP memory allocator to allocate request-bound memory.
 ///
+/// The Zend allocator only guarantees `ZEND_MM_ALIGNMENT` (8 bytes) and has
+/// no aligned-allocation entry point, so a `layout` requesting a stricter
+/// alignment cannot be honoured and yields a null pointer.
+///
 /// # Parameters
 ///
 /// * `layout` - The layout of the requested memory.
 ///
 /// # Returns
 ///
-/// A pointer to the memory allocated.
+/// A pointer to the memory allocated, or null if `layout.align()` exceeds
+/// `ZEND_MM_ALIGNMENT`.
 #[must_use]
 pub fn emalloc(layout: Layout) -> *mut u8 {
-    // TODO account for alignment
+    if layout.align() > ZEND_MM_ALIGNMENT.unsigned_abs() {
+        return std::ptr::null_mut();
+    }
     let size = layout.size();
 
     (unsafe {

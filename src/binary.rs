@@ -123,7 +123,8 @@ pub unsafe trait Pack: Clone {
     /// format. Note that the data *must* be all one type, as this
     /// implementation only unpacks one type.
     ///
-    /// # Safety
+    /// Trailing bytes that do not fill a whole `Self` are ignored. The bytes
+    /// are read unaligned, so any valid `zend_string` is accepted.
     ///
     /// There is no way to tell if the data stored in the string is actually of
     /// the given type. The results of this function can also differ from
@@ -154,25 +155,18 @@ macro_rules! pack_impl {
             }
 
             fn unpack_into(s: &zend_string) -> Vec<Self> {
-                #[allow(clippy::cast_lossless)]
-                let bytes = ($d / 8) as u64;
-                let len = (s.len as u64) / bytes;
-                let mut result =
-                    Vec::with_capacity(len.try_into().expect("Capacity integer overflow"));
-                // TODO: Check alignment
+                let len = s.len / ($d as usize / 8);
+                // Only `read_unaligned` dereferences this pointer, so the alignment
+                // the cast would normally promise is never relied on.
                 #[allow(clippy::cast_ptr_alignment)]
                 let ptr = s.val.as_ptr().cast::<$t>();
 
-                // SAFETY: We calculate the length of memory that we can legally read based on
-                // the side of the type, therefore we never read outside the memory we
-                // should.
-                for i in 0..len {
-                    result.push(unsafe {
-                        *ptr.offset(i.try_into().expect("Offset integer overflow"))
-                    });
-                }
-
-                result
+                // SAFETY: a valid `zend_string` has `len` readable bytes at `val`, and
+                // `len * size_of::<Self>() <= s.len`. `read_unaligned` has no alignment
+                // requirement, so a 1-byte-aligned `val` is fine.
+                (0..len)
+                    .map(|i| unsafe { ptr.add(i).read_unaligned() })
+                    .collect()
             }
         }
     };
