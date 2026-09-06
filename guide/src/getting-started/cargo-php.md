@@ -27,44 +27,41 @@ Uninstalling the extension and then reinstalling generally fixes this problem.
 
 ## Installation
 
-The subcommand is installed through composer like any other Rust CLI
-application:
+The subcommand is installed with Cargo like any other Rust CLI application:
 
 ```text
 $ cargo install cargo-php --locked
 ```
+
+Installing does not require PHP: `cargo-php` only depends on
+`ext-php-rs-introspection`, the crate that describes an extension for stub
+generation. PHP and `php-config` are needed at runtime by the `install` and
+`remove` subcommands, which copy the extension into your PHP installation.
 
 You can then call the application via `cargo php` (assuming the cargo
 installation directory is in your PATH):
 
 ```text
 $ cargo php --help
-cargo-php 0.1.0
-
-David Cole <david.cole1340@gmail.com>
-
 Installs extensions and generates stub files for PHP extensions generated with `ext-php-rs`.
 
-USAGE:
-    cargo-php <SUBCOMMAND>
+Usage: cargo-php <COMMAND>
 
-OPTIONS:
-    -h, --help
-            Print help information
+Commands:
+  install      Installs the extension in the current PHP installation
+  remove       Removes the extension in the current PHP installation
+  stubs        Generates stub PHP files for the extension
+  static-glue  Generates the C glue required to statically link the extension into php-src
+  help         Print this message or the help of the given subcommand(s)
 
-    -V, --version
-            Print version information
-
-SUBCOMMANDS:
-    help
-            Print this message or the help of the given subcommand(s)
-    install
-            Installs the extension in the current PHP installation
-    remove
-            Removes the extension in the current PHP installation
-    stubs
-            Generates stub PHP files for the extension
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
 ```
+
+`cargo php --version` prints the `ext-php-rs-introspection` version the CLI was
+built with. Stub generation refuses an extension built against a different
+minor of that crate, since the `#[repr(C)]` layout it reads may have changed.
 
 The command should always be executed from within your extensions manifest
 directory (the directory with your `Cargo.toml`).
