@@ -1,6 +1,6 @@
 //! ABI-stable description of an `ext-php-rs` extension.
 //!
-//! An extension built with `ext-php-rs` exports `ext_php_rs_describe_module`,
+//! An extension built with `ext-php-rs` exports `ext_php_rs_describe_module_v2`,
 //! returning a heap-allocated [`Description`] as `*mut Description`. The
 //! `cargo-php` CLI loads the extension with `dlopen`, calls that function and
 //! renders PHP stubs through [`ToStub`].

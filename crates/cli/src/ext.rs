@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use ext_php_rs_introspection::Description;
 use libloading::os::unix::{Library, RTLD_LAZY, RTLD_LOCAL, Symbol};
 
@@ -28,10 +28,20 @@ impl Ext {
         let ext_lib = unsafe { Library::open(Some(ext_path), RTLD_LAZY | RTLD_LOCAL) }
             .with_context(|| "Failed to load extension library")?;
 
-        let describe_fn = unsafe {
-            ext_lib
-                .get(b"ext_php_rs_describe_module")
-                .with_context(|| "Failed to load describe function symbol from extension library")?
+        // The v1 symbol returned `Description` by value, a different calling
+        // convention. Calling it through the v2 signature would corrupt
+        // memory, so an extension that only exports v1 is rejected up front.
+        let describe_fn = match unsafe { ext_lib.get(b"ext_php_rs_describe_module_v2") } {
+            Ok(describe_fn) => describe_fn,
+            Err(err) => {
+                if unsafe { ext_lib.get::<*const ()>(b"ext_php_rs_describe_module") }.is_ok() {
+                    bail!(
+                        "Extension was built with ext-php-rs 0.15 or older, whose describe entry point is incompatible with this `cargo-php`. Rebuild the extension against ext-php-rs 0.16 or use `cargo install cargo-php --version 0.1`."
+                    );
+                }
+                return Err(err)
+                    .context("Failed to load describe function symbol from extension library");
+            }
         };
 
         Ok(Self {

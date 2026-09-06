@@ -3,7 +3,7 @@
 ABI-stable description of an [`ext-php-rs`](https://github.com/extphprs/ext-php-rs)
 extension, and the PHP stub rendering built on top of it.
 
-An extension exports `ext_php_rs_describe_module`, which returns a pointer to
+An extension exports `ext_php_rs_describe_module_v2`, which returns a pointer to
 a heap-allocated `Description`: the module name, its functions, classes, enums
 and constants as `#[repr(C)]` types. `cargo php stubs` loads the extension with
 `dlopen`, calls that function, checks `version` (always the first field) and

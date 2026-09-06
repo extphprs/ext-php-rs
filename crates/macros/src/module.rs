@@ -144,7 +144,7 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
 
         #[cfg(debug_assertions)]
         #[unsafe(no_mangle)]
-        pub extern "C" fn ext_php_rs_describe_module() -> *mut ::ext_php_rs::describe::Description {
+        pub extern "C" fn ext_php_rs_describe_module_v2() -> *mut ::ext_php_rs::describe::Description {
             use ::ext_php_rs::describe::*;
 
             #[inline]
