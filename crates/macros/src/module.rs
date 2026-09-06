@@ -144,7 +144,7 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
 
         #[cfg(debug_assertions)]
         #[unsafe(no_mangle)]
-        pub extern "C" fn ext_php_rs_describe_module() -> ::ext_php_rs::describe::Description {
+        pub extern "C" fn ext_php_rs_describe_module() -> *mut ::ext_php_rs::describe::Description {
             use ::ext_php_rs::describe::*;
 
             #[inline]
@@ -157,7 +157,7 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 env!("CARGO_PKG_VERSION")
             ));
 
-            Description::new(builder.into())
+            ::std::boxed::Box::into_raw(::std::boxed::Box::new(Description::new(builder.into())))
         }
     })
 }

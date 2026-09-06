@@ -1,8 +1,9 @@
 //! ABI-stable description of an `ext-php-rs` extension.
 //!
 //! An extension built with `ext-php-rs` exports `ext_php_rs_describe_module`,
-//! returning a [`Description`]. The `cargo-php` CLI loads the extension with
-//! `dlopen`, calls that function and renders PHP stubs through [`ToStub`].
+//! returning a heap-allocated [`Description`] as `*mut Description`. The
+//! `cargo-php` CLI loads the extension with `dlopen`, calls that function and
+//! renders PHP stubs through [`ToStub`].
 //! Both sides depend on this crate and nothing else from the Zend engine, so
 //! the CLI builds without PHP and the layout of every `#[repr(C)]` type below
 //! is the whole contract between them.
@@ -28,9 +29,11 @@ pub type DocComments = &'static [&'static str];
 
 /// Representation of the extension used to generate PHP stubs.
 ///
-/// `version` stays the first field forever: `cargo-php` reads it before
-/// trusting the rest of the layout, so it has to sit at an offset that never
-/// moves.
+/// `version` stays the first field forever: `cargo-php` reads it through the
+/// pointer before trusting the rest of the layout, so it has to sit at an
+/// offset that never moves. The value is returned by pointer rather than by
+/// value so a larger layout on the extension side cannot overrun a buffer
+/// sized by the CLI.
 #[repr(C)]
 pub struct Description {
     /// Version of `ext-php-rs-introspection` the extension was built with.

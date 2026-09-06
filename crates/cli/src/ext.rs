@@ -10,7 +10,7 @@ pub struct Ext {
     // Module>` where `ext_lib: 'a`.
     #[allow(dead_code)]
     ext_lib: Library,
-    describe_fn: Symbol<extern "C" fn() -> Description>,
+    describe_fn: Symbol<extern "C" fn() -> *mut Description>,
 }
 
 impl Ext {
@@ -40,8 +40,14 @@ impl Ext {
         })
     }
 
-    /// Describes the extension.
-    pub fn describe(&self) -> Description {
+    /// Calls the extension's describe entry point.
+    ///
+    /// The extension allocates the [`Description`] on its heap and returns a
+    /// pointer, so the CLI's stack never holds a value whose size the
+    /// extension decided. Only `Description::version`, the first field, may
+    /// be read before the version check passes; the caller frees the value
+    /// with [`Box::from_raw`] once the layout is known to match.
+    pub fn describe(&self) -> *mut Description {
         (self.describe_fn)()
     }
 }

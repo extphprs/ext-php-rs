@@ -3,10 +3,11 @@
 ABI-stable description of an [`ext-php-rs`](https://github.com/extphprs/ext-php-rs)
 extension, and the PHP stub rendering built on top of it.
 
-An extension exports `ext_php_rs_describe_module`, which returns a
-`Description`: the module name, its functions, classes, enums and constants as
-`#[repr(C)]` types. `cargo php stubs` loads the extension with `dlopen`, calls
-that function and renders the result with `ToStub`.
+An extension exports `ext_php_rs_describe_module`, which returns a pointer to
+a heap-allocated `Description`: the module name, its functions, classes, enums
+and constants as `#[repr(C)]` types. `cargo php stubs` loads the extension with
+`dlopen`, calls that function, checks `version` (always the first field) and
+renders the result with `ToStub`.
 
 This crate has no dependency on the Zend engine. `ext-php-rs` re-exports it as
 `ext_php_rs::describe` and fills the types from its builders; `cargo-php`

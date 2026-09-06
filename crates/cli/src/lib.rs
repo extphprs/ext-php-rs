@@ -439,7 +439,7 @@ impl Remove {
 impl Stubs {
     pub fn handle(self) -> CrateResult {
         use ext_php_rs_introspection::ToStub;
-        use std::{borrow::Cow, mem::ManuallyDrop, str::FromStr};
+        use std::{borrow::Cow, str::FromStr};
 
         let ext_path = if let Some(ext_path) = self.ext {
             ext_path
@@ -460,17 +460,22 @@ impl Stubs {
         }
 
         let ext = self::ext::Ext::load(ext_path)?;
-        // Dropping a `Description` walks its nested vectors with the CLI's
-        // layout. Until the version check passes, the layout is unverified
-        // and a drop could free arbitrary pointers, so the value is only
-        // released once it is known to match.
-        let result = ManuallyDrop::new(ext.describe());
+        let description = ext.describe();
+        if description.is_null() {
+            bail!("Extension returned no description.");
+        }
 
         let cli_version = semver::Version::from_str(ext_php_rs_introspection::VERSION)
             .with_context(|| {
                 "Failed to parse `ext-php-rs-introspection` version that `cargo php` was compiled with"
             })?;
-        let ext_version = semver::Version::from_str(result.version.str()).with_context(|| {
+        // SAFETY: `description` is a non-null pointer the extension just
+        // allocated. `version` is the first field of `Description` and an
+        // `abi::Str`, whose layout never changes, so it is readable before
+        // the rest of the layout has been verified. Nothing else is touched
+        // and the value is not dropped until the check below passes.
+        let ext_version_str = unsafe { (*description).version.str() };
+        let ext_version = semver::Version::from_str(ext_version_str).with_context(|| {
             "Failed to parse `ext-php-rs-introspection` version that your extension was compiled with"
         })?;
 
@@ -480,7 +485,10 @@ impl Stubs {
             );
         }
 
-        let result = ManuallyDrop::into_inner(result);
+        // SAFETY: the versions are compatible, so both sides agree on the
+        // layout of `Description`. The extension handed over ownership of a
+        // `Box<Description>` through `Box::into_raw`.
+        let result = unsafe { Box::from_raw(description) };
         let stubs = result
             .module
             .to_stub()
