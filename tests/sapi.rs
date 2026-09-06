@@ -62,7 +62,8 @@ fn test_sapi() {
     let mut builder = SapiBuilder::new("test", "Test");
     builder = builder.ub_write_function(output_tester);
 
-    let sapi = builder.build().unwrap().into_raw();
+    let mut sapi = builder.build().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -114,7 +115,6 @@ fn test_sapi() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -141,7 +141,8 @@ fn test_sapi_multithread() {
     let mut builder = SapiBuilder::new("test-mt", "Test Multi-threaded");
     builder = builder.ub_write_function(output_tester);
 
-    let sapi = builder.build().unwrap().into_raw();
+    let mut sapi = builder.build().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -224,7 +225,6 @@ fn test_sapi_multithread() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -327,7 +327,8 @@ fn test_php_thread_guard_drop() {
 
     let mut builder = SapiBuilder::new("test-guard", "Test Guard");
     builder = builder.ub_write_function(output_tester);
-    let sapi = builder.build().unwrap().into_raw();
+    let mut sapi = builder.build().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -370,7 +371,6 @@ fn test_php_thread_guard_drop() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -382,7 +382,8 @@ fn test_server_var_registrar() {
         .ub_write_function(output_tester)
         .register_server_variables_function(register_vars);
 
-    let sapi = builder.build().unwrap().into_raw();
+    let mut sapi = builder.build().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -424,7 +425,6 @@ fn test_server_var_registrar() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -432,7 +432,8 @@ fn test_server_var_registrar() {
 fn test_sapi_trait_lifecycle() {
     let _guard = SAPI_TEST_MUTEX.lock().unwrap();
 
-    let sapi = TestSapi::build_module().unwrap().into_raw();
+    let mut sapi = TestSapi::build_module().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -468,7 +469,6 @@ fn test_sapi_trait_lifecycle() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -478,7 +478,8 @@ fn test_worker_request_cycle() {
 
     let mut builder = SapiBuilder::new("test-worker", "Test Worker");
     builder = builder.ub_write_function(output_tester);
-    let sapi = builder.build().unwrap().into_raw();
+    let mut sapi = builder.build().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -520,7 +521,6 @@ fn test_worker_request_cycle() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -529,7 +529,8 @@ fn test_worker_request_cycle() {
 fn test_full_sapi_worker_flow() {
     let _guard = SAPI_TEST_MUTEX.lock().unwrap();
 
-    let sapi = TestSapi::build_module().unwrap().into_raw();
+    let mut sapi = TestSapi::build_module().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -593,7 +594,6 @@ fn test_full_sapi_worker_flow() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }
 
@@ -602,7 +602,8 @@ fn test_full_sapi_worker_flow() {
 fn test_sapi_trait_captures_headers() {
     let _guard = SAPI_TEST_MUTEX.lock().unwrap();
 
-    let sapi = TestSapi::build_module().unwrap().into_raw();
+    let mut sapi = TestSapi::build_module().unwrap();
+    let sapi = &raw mut sapi;
     let module = get_module();
 
     unsafe {
@@ -661,6 +662,5 @@ fn test_sapi_trait_captures_headers() {
     unsafe {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
-        drop(Box::from_raw(sapi));
     }
 }

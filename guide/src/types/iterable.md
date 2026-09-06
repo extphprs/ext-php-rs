@@ -10,6 +10,9 @@ Converting from a zval to a `Iterable` is valid when the value is either an arra
 that implements the `Traversable` interface. This means that any value that can be used in a
 `foreach` loop can be converted into a `Iterable`.
 
+Both variants yield owned `(Zval, Zval)` pairs; see [`ZendIterator`](./iterator.md)
+for why the `Traversable` side cannot lend references.
+
 ## Rust example
 
 ```rust,no_run

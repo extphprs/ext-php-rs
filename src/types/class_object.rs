@@ -360,7 +360,9 @@ impl<T: RegisteredClass> IntoZval for ZBox<ZendClassObject<T>> {
         // net refcount at 1. Matches `ZBox<ZendObject>::set_zval` in object.rs.
         self.std.dec_count();
         let obj = self.into_raw();
-        zv.set_object(&mut obj.std);
+        // SAFETY: `into_raw` yields a valid, exclusively owned object whose
+        // reference is transferred to the zval.
+        zv.set_object(unsafe { &mut (*obj).std });
         Ok(())
     }
 }

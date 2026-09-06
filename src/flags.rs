@@ -7,7 +7,7 @@ use crate::ffi::ZEND_ACC_ENUM;
 #[cfg(not(php82))]
 use crate::ffi::ZEND_ACC_REUSE_GET_ITERATOR;
 use crate::ffi::{
-    _IS_BOOL, CONST_CS, CONST_DEPRECATED, CONST_NO_FILE_CACHE, CONST_PERSISTENT, E_COMPILE_ERROR,
+    _IS_BOOL, CONST_DEPRECATED, CONST_NO_FILE_CACHE, CONST_PERSISTENT, E_COMPILE_ERROR,
     E_COMPILE_WARNING, E_CORE_ERROR, E_CORE_WARNING, E_DEPRECATED, E_ERROR, E_NOTICE, E_PARSE,
     E_RECOVERABLE_ERROR, E_STRICT, E_USER_DEPRECATED, E_USER_ERROR, E_USER_NOTICE, E_USER_WARNING,
     E_WARNING, GC_IMMUTABLE, IS_ARRAY, IS_CALLABLE, IS_CONSTANT_AST, IS_DOUBLE, IS_FALSE,
@@ -264,9 +264,6 @@ bitflags! {
     /// Flags for building module global constants.
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     pub struct GlobalConstantFlags: u32 {
-        /// No longer used -- always case-sensitive
-        #[deprecated(note = "No longer used -- always case-sensitive")]
-        const CaseSensitive = CONST_CS;
         /// Persistent
         const Persistent = CONST_PERSISTENT;
         /// Can't be saved in file cache

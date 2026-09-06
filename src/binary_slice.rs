@@ -88,20 +88,32 @@ pub unsafe trait PackSlice: Clone {
     /// format. Note that the data *must* be all one type, as this
     /// implementation only unpacks one type.
     ///
-    /// # Safety
-    ///
     /// There is no way to tell if the data stored in the string is actually of
     /// the given type. The results of this function can also differ from
     /// platform-to-platform due to the different representation of some
     /// types on different platforms. Consult the [`pack`] function
     /// documentation for more details.
     ///
+    /// # Safety
+    ///
+    /// The returned slice aliases the string's bytes, so the caller must
+    /// guarantee:
+    ///
+    /// * `s.len` is a whole multiple of `size_of::<Self>()`.
+    /// * `s.val` is aligned to `align_of::<Self>()`. Zend allocates strings on
+    ///   `ZEND_MM_ALIGNMENT` (8 bytes) boundaries and `val` sits at an 8-byte
+    ///   offset, but the `zend_string` type itself only promises 1-byte
+    ///   alignment for `val`.
+    ///
+    /// [`Zval::binary_slice`](crate::types::Zval::binary_slice) performs both
+    /// checks and is the safe entry point.
+    ///
     /// # Parameters
     ///
     /// * `s` - The Zend string containing the binary data.
     ///
     /// [`pack`]: https://www.php.net/manual/en/function.pack.php
-    fn unpack_into(s: &zend_string) -> &[Self];
+    unsafe fn unpack_into(s: &zend_string) -> &[Self];
 }
 
 /// Implements the [`PackSlice`] trait for a given type.
@@ -112,12 +124,13 @@ macro_rules! pack_slice_impl {
 
     ($t: ty, $d: expr) => {
         unsafe impl PackSlice for $t {
-            fn unpack_into(s: &zend_string) -> &[Self] {
-                let bytes = ($d / 8) as usize;
-                let len = (s.len as usize) / bytes;
-                // TODO: alignment needs fixing?
+            unsafe fn unpack_into(s: &zend_string) -> &[Self] {
+                let len = s.len / ($d as usize / 8);
+                // The caller guarantees `val` is aligned for `Self`, see `PackSlice`.
                 #[allow(clippy::cast_ptr_alignment)]
                 let ptr = s.val.as_ptr().cast::<$t>();
+                // SAFETY: the caller guarantees alignment and that `len` whole elements
+                // fit in the string's `s.len` readable bytes.
                 unsafe { from_raw_parts(ptr, len) }
             }
         }

@@ -66,13 +66,6 @@ impl IniEntryDef {
         }
     }
 
-    /// Converts the ini entry into a raw and pointer, releasing it to the
-    /// C world.
-    #[must_use]
-    pub fn into_raw(self) -> *mut Self {
-        Box::into_raw(Box::new(self))
-    }
-
     /// Registers a list of ini entries.
     pub fn register(mut entries: Vec<Self>, module_number: i32) {
         entries.push(Self::end());

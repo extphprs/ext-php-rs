@@ -16,6 +16,12 @@ string pointer, with the length of the array being the length of the string.
 implemented on most primitive numbers (i8, i16, i32, i64, u8, u16, u32, u64,
 isize, usize, f32, f64).
 
+The conversion fails (the argument is rejected) when the string length is not a
+whole multiple of `size_of::<T>()` or when the string bytes are not aligned for
+`T`. Zend allocates strings on 8-byte boundaries, so the alignment check only
+fails for exotic allocators. `PackSlice::unpack_into` itself is `unsafe`; use
+`Zval::binary_slice`, which performs both checks.
+
 [`pack`]: https://www.php.net/manual/en/function.pack.php
 [`unpack`]: https://www.php.net/manual/en/function.unpack.php
 

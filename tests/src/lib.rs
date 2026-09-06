@@ -14,6 +14,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     let mut module = integration::array::build_module(module);
     module = integration::bailout::build_module(module);
     module = integration::binary::build_module(module);
+    module = integration::binary_slice::build_module(module);
     module = integration::bool::build_module(module);
     module = integration::callable::build_module(module);
     module = integration::class::build_module(module);

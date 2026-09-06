@@ -95,7 +95,10 @@ where
         // `ZBox<ZendObject>::set_zval` in `object.rs`.
         let mut obj = self.into_zend_object()?;
         obj.dec_count();
-        zv.set_object(obj.into_raw());
+        let obj = obj.into_raw();
+        // SAFETY: `into_raw` yields a valid, exclusively owned object whose
+        // reference is transferred to the zval.
+        zv.set_object(unsafe { &mut *obj });
         Ok(())
     }
 }

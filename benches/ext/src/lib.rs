@@ -7,10 +7,16 @@
 )]
 
 use ext_php_rs::{
+    binary_slice::BinarySlice,
     boxed::ZBox,
     prelude::*,
     types::{ZendHashTable, ZendStr},
 };
+
+#[php_function]
+pub fn bench_binary_slice_sum(values: BinarySlice<u64>) -> u64 {
+    values.iter().sum()
+}
 
 #[php_function]
 pub fn bench_function(n: u64) -> u64 {
@@ -137,6 +143,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(bench_callback_function))
         .function(wrap_function!(bench_array_with_str_ref_keys))
         .function(wrap_function!(bench_array_with_interned_keys))
+        .function(wrap_function!(bench_binary_slice_sum))
         .class::<BenchClass>()
         .class::<BenchProps>()
         .globals(&INTERNED_KEYS)
