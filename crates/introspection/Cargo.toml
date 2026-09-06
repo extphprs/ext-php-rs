@@ -4,6 +4,7 @@ description = "ABI-stable description of an ext-php-rs extension and PHP stub re
 repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 keywords = ["php", "ffi", "zend", "stubs"]
 version = "0.1.0"
 authors = [
