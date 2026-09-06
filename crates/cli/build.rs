@@ -12,4 +12,7 @@ fn main() {
     // to remain unresolved.
     #[cfg(target_os = "linux")]
     println!("cargo:rustc-link-arg-bins=-Wl,--unresolved-symbols=ignore-in-object-files");
+
+    #[cfg(target_os = "macos")]
+    println!("cargo:rustc-link-arg-bins=-Wl,-undefined,dynamic_lookup");
 }
