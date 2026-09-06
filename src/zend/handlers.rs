@@ -4,7 +4,7 @@ use crate::{
     class::RegisteredClass,
     exception::PhpResult,
     ffi::{
-        ext_php_rs_executor_globals, instanceof_function_slow, std_object_handlers, zend_array_dup,
+        ext_php_rs_executor_globals, instanceof_function_slow, std_object_handlers,
         zend_class_entry, zend_is_true, zend_object_handlers, zend_object_std_dtor,
         zend_objects_clone_members, zend_std_get_properties, zend_std_has_property,
         zend_std_read_property, zend_std_write_property, zend_throw_error,
@@ -69,6 +69,11 @@ impl ZendObjectHandlers {
     /// walks. Rust-backed properties are produced by getters and own no zvals
     /// of their own, so the collector only needs the engine-owned storage:
     /// this is the standard-object branch of `zend_std_get_gc`.
+    ///
+    /// Not reported, as before this handler existed: zvals held inside the Rust
+    /// struct itself, and the initializer or proxy instance of a lazy object
+    /// (`zend_lazy_object_get_gc` is not exported). Cycles through those leak
+    /// instead of being collected.
     unsafe extern "C" fn get_gc(
         object: *mut ZendObject,
         table: *mut *mut Zval,
@@ -287,25 +292,17 @@ impl ZendObjectHandlers {
     unsafe extern "C" fn get_properties<T: RegisteredClass>(
         object: *mut ZendObject,
     ) -> *mut ZendHashTable {
-        // SAFETY: `zend_std_get_properties` builds `obj->properties` on demand
-        // and never returns null for a live object. Rust properties are merged
-        // into that table below, so it is separated first exactly like
-        // `zend_std_write_property` does: the engine hands the table out with an
-        // extra reference (`GC_TRY_ADDREF` in `zend_std_get_properties_for`) and
-        // writing through a shared table is a copy-on-write violation
-        // (`HT_ASSERT_RC1`).
-        let mut props = unsafe { zend_std_get_properties(object) };
-        unsafe {
-            let ht = &*props;
-            if ht.is_immutable() {
-                props = zend_array_dup(props);
-                (*object).properties = props;
-            } else if ht.gc.refcount > 1 {
-                (*props).gc.refcount -= 1;
-                props = zend_array_dup(props);
-                (*object).properties = props;
-            }
+        let props = unsafe { zend_std_get_properties(object) };
+        if props.is_null() {
+            return props;
         }
+        // SAFETY: non-null, and owned by the object with a single reference: the
+        // engine only shares a property table for objects without declared
+        // properties on standard handlers (`zend_proptable_to_symtable` fast
+        // paths), and the collector no longer reaches this handler since `get_gc`
+        // is installed. Separating here with `zend_array_dup` would be wrong: it
+        // resolves the `IS_INDIRECT` slots of declared properties into a detached
+        // snapshot.
         let props = unsafe { &mut *props };
 
         // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
