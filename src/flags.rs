@@ -28,7 +28,7 @@ use crate::ffi::{
     ZEND_HAS_STATIC_IN_METHODS, ZEND_INTERNAL_FUNCTION, ZEND_USER_FUNCTION,
 };
 
-use std::{convert::TryFrom, fmt::Display};
+use std::convert::TryFrom;
 
 use crate::error::{Error, Result};
 
@@ -361,55 +361,22 @@ impl From<u8> for FunctionType {
     }
 }
 
-/// Valid data types for PHP.
-#[repr(C, u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub enum DataType {
-    /// Undefined
-    Undef,
-    /// `null`
-    Null,
-    /// `false`
-    False,
-    /// `true`
-    True,
-    /// Integer (the irony)
-    Long,
-    /// Floating point number
-    Double,
-    /// String
-    String,
-    /// Array
-    Array,
-    /// Iterable
-    Iterable,
-    /// Object
-    Object(Option<&'static str>),
-    /// Resource
-    Resource,
-    /// Reference
-    Reference,
-    /// Callable
-    Callable,
-    /// Constant expression
-    ConstantExpression,
-    /// Void
-    #[default]
-    Void,
-    /// Mixed
-    Mixed,
-    /// Boolean
-    Bool,
-    /// Pointer
-    Ptr,
-    /// Indirect (internal)
-    Indirect,
+pub use ext_php_rs_introspection::DataType;
+
+/// Conversions between [`DataType`] and the Zend `IS_*` type constants.
+///
+/// The constants depend on the PHP version and come from bindgen, so they
+/// cannot live next to `DataType` in `ext-php-rs-introspection`.
+pub trait DataTypeExt {
+    /// Returns the integer representation of the data type.
+    fn as_u32(&self) -> u32;
+
+    /// Builds the data type from a Zend type info word.
+    fn from_u32(value: u32) -> Self;
 }
 
-impl DataType {
-    /// Returns the integer representation of the data type.
-    #[must_use]
-    pub const fn as_u32(&self) -> u32 {
+impl DataTypeExt for DataType {
+    fn as_u32(&self) -> u32 {
         match self {
             DataType::Undef => IS_UNDEF,
             DataType::Null => IS_NULL,
@@ -430,6 +397,40 @@ impl DataType {
             DataType::Ptr => IS_PTR,
             DataType::Iterable => IS_ITERABLE,
         }
+    }
+
+    #[allow(clippy::bad_bit_mask)]
+    fn from_u32(value: u32) -> Self {
+        macro_rules! contains {
+            ($c: ident, $t: ident) => {
+                if (value & $c) == $c {
+                    return DataType::$t;
+                }
+            };
+        }
+
+        contains!(IS_VOID, Void);
+        contains!(IS_PTR, Ptr);
+        contains!(IS_INDIRECT, Indirect);
+        contains!(IS_CALLABLE, Callable);
+        contains!(IS_CONSTANT_AST, ConstantExpression);
+        contains!(IS_REFERENCE, Reference);
+        contains!(IS_RESOURCE, Resource);
+        contains!(IS_ARRAY, Array);
+        contains!(IS_STRING, String);
+        contains!(IS_DOUBLE, Double);
+        contains!(IS_LONG, Long);
+        contains!(IS_TRUE, True);
+        contains!(IS_FALSE, False);
+        contains!(IS_NULL, Null);
+
+        if (value & IS_OBJECT) == IS_OBJECT {
+            return DataType::Object(None);
+        }
+
+        contains!(IS_UNDEF, Undef);
+
+        DataType::Mixed
     }
 }
 
@@ -478,85 +479,20 @@ impl TryFrom<ZvalTypeFlags> for DataType {
     }
 }
 
-impl From<u32> for DataType {
-    #[allow(clippy::bad_bit_mask)]
-    fn from(value: u32) -> Self {
-        macro_rules! contains {
-            ($c: ident, $t: ident) => {
-                if (value & $c) == $c {
-                    return DataType::$t;
-                }
-            };
-        }
-
-        contains!(IS_VOID, Void);
-        contains!(IS_PTR, Ptr);
-        contains!(IS_INDIRECT, Indirect);
-        contains!(IS_CALLABLE, Callable);
-        contains!(IS_CONSTANT_AST, ConstantExpression);
-        contains!(IS_REFERENCE, Reference);
-        contains!(IS_RESOURCE, Resource);
-        contains!(IS_ARRAY, Array);
-        contains!(IS_STRING, String);
-        contains!(IS_DOUBLE, Double);
-        contains!(IS_LONG, Long);
-        contains!(IS_TRUE, True);
-        contains!(IS_FALSE, False);
-        contains!(IS_NULL, Null);
-
-        if (value & IS_OBJECT) == IS_OBJECT {
-            return DataType::Object(None);
-        }
-
-        contains!(IS_UNDEF, Undef);
-
-        DataType::Mixed
-    }
-}
-
-impl Display for DataType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DataType::Undef => write!(f, "Undefined"),
-            DataType::Null => write!(f, "Null"),
-            DataType::False => write!(f, "False"),
-            DataType::True => write!(f, "True"),
-            DataType::Long => write!(f, "Long"),
-            DataType::Double => write!(f, "Double"),
-            DataType::String => write!(f, "String"),
-            DataType::Array => write!(f, "Array"),
-            DataType::Object(obj) => write!(f, "{}", obj.as_deref().unwrap_or("Object")),
-            DataType::Resource => write!(f, "Resource"),
-            DataType::Reference => write!(f, "Reference"),
-            DataType::Callable => write!(f, "Callable"),
-            DataType::ConstantExpression => write!(f, "Constant Expression"),
-            DataType::Void => write!(f, "Void"),
-            DataType::Bool => write!(f, "Bool"),
-            DataType::Mixed => write!(f, "Mixed"),
-            DataType::Ptr => write!(f, "Pointer"),
-            DataType::Indirect => write!(f, "Indirect"),
-            DataType::Iterable => write!(f, "Iterable"),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unnecessary_fallible_conversions)]
-    use super::DataType;
+    use super::{DataType, DataTypeExt};
     use crate::ffi::{
         IS_ARRAY, IS_ARRAY_EX, IS_CONSTANT_AST, IS_CONSTANT_AST_EX, IS_DOUBLE, IS_FALSE,
         IS_INDIRECT, IS_INTERNED_STRING_EX, IS_LONG, IS_NULL, IS_OBJECT, IS_OBJECT_EX, IS_PTR,
         IS_REFERENCE, IS_REFERENCE_EX, IS_RESOURCE, IS_RESOURCE_EX, IS_STRING, IS_STRING_EX,
         IS_TRUE, IS_UNDEF, IS_VOID,
     };
-    use std::convert::TryFrom;
-
     #[test]
     fn test_datatype() {
         macro_rules! test {
             ($c: ident, $t: ident) => {
-                assert_eq!(DataType::try_from($c), Ok(DataType::$t));
+                assert_eq!(DataType::from_u32($c), DataType::$t);
             };
         }
 
@@ -568,7 +504,7 @@ mod tests {
         test!(IS_DOUBLE, Double);
         test!(IS_STRING, String);
         test!(IS_ARRAY, Array);
-        assert_eq!(DataType::try_from(IS_OBJECT), Ok(DataType::Object(None)));
+        assert_eq!(DataType::from_u32(IS_OBJECT), DataType::Object(None));
         test!(IS_RESOURCE, Resource);
         test!(IS_REFERENCE, Reference);
         test!(IS_CONSTANT_AST, ConstantExpression);
@@ -579,7 +515,7 @@ mod tests {
         test!(IS_INTERNED_STRING_EX, String);
         test!(IS_STRING_EX, String);
         test!(IS_ARRAY_EX, Array);
-        assert_eq!(DataType::try_from(IS_OBJECT_EX), Ok(DataType::Object(None)));
+        assert_eq!(DataType::from_u32(IS_OBJECT_EX), DataType::Object(None));
         test!(IS_RESOURCE_EX, Resource);
         test!(IS_REFERENCE_EX, Reference);
         test!(IS_CONSTANT_AST_EX, ConstantExpression);

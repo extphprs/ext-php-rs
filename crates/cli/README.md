@@ -7,7 +7,8 @@ Installs extensions and generates stub files for PHP extensions generated with
 
 ## Installation
 
-Install with Cargo: `cargo install cargo-php --locked`.
+Install with Cargo: `cargo install cargo-php --locked`. No PHP installation is
+needed to build the CLI; `install` and `remove` call `php-config` at runtime.
 
 ## Usage
 

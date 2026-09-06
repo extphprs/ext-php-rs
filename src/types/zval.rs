@@ -15,12 +15,11 @@ use crate::{
     convert::{FromZval, FromZvalMut, IntoZval, IntoZvalDyn},
     error::{Error, Result},
     ffi::{
-        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, GC_IMMUTABLE,
+        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, GC_IMMUTABLE, IS_NULL,
         ext_php_rs_zend_string_release, zend_array_dup, zend_is_callable, zend_is_identical,
         zend_is_iterable, zend_is_true, zend_resource, zend_value, zval, zval_ptr_dtor,
     },
-    flags::DataType,
-    flags::ZvalTypeFlags,
+    flags::{DataType, DataTypeExt, ZvalTypeFlags},
     rc::PhpRc,
     types::{ZendCallable, ZendHashTable, ZendLong, ZendObject, ZendStr},
 };
@@ -49,9 +48,7 @@ impl Zval {
                 ptr: ptr::null_mut(),
             },
             #[allow(clippy::used_underscore_items)]
-            u1: _zval_struct__bindgen_ty_1 {
-                type_info: DataType::Null.as_u32(),
-            },
+            u1: _zval_struct__bindgen_ty_1 { type_info: IS_NULL },
             #[allow(clippy::used_underscore_items)]
             u2: _zval_struct__bindgen_ty_2 { next: 0 },
         }
@@ -475,7 +472,7 @@ impl Zval {
     /// Returns the type of the Zval.
     #[must_use]
     pub fn get_type(&self) -> DataType {
-        DataType::from(u32::from(unsafe { self.u1.v.type_ }))
+        DataType::from_u32(u32::from(unsafe { self.u1.v.type_ }))
     }
 
     /// Returns true if the zval is a long, false otherwise.

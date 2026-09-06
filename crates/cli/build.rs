@@ -4,15 +4,9 @@
 //! time.
 
 fn main() {
+    // `main.rs` defines a null stub for every Zend symbol listed in
+    // `allowed_bindings.rs`. An extension loaded with `dlopen` resolves its
+    // `zend_*` data relocations eagerly, so the stubs must be visible in the
+    // binary's dynamic symbol table.
     println!("cargo:rustc-link-arg-bins=-rdynamic");
-
-    // ext-php-rs wrapper.c includes functions that call Zend engine symbols
-    // only available inside a running PHP process. cargo-php never calls
-    // these functions, but the linker still sees the references. Allow them
-    // to remain unresolved.
-    #[cfg(target_os = "linux")]
-    println!("cargo:rustc-link-arg-bins=-Wl,--unresolved-symbols=ignore-in-object-files");
-
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-link-arg-bins=-Wl,-undefined,dynamic_lookup");
 }

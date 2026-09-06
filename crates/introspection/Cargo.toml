@@ -1,0 +1,21 @@
+[package]
+name = "ext-php-rs-introspection"
+description = "ABI-stable description of an ext-php-rs extension and PHP stub rendering, shared by ext-php-rs and cargo-php."
+repository = "https://github.com/extphprs/ext-php-rs"
+homepage = "https://ext-php.rs"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["php", "ffi", "zend", "stubs"]
+version = "0.1.0"
+authors = [
+    "Pierre Tondereau <pierre.tondereau@protonmail.com>",
+    "Xenira <xenira@php.rs>",
+    "David Cole <david.cole1340@gmail.com>",
+]
+edition = "2024"
+categories = ["development-tools"]
+
+[dependencies]
+
+[lints.rust]
+missing_docs = "warn"
