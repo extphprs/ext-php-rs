@@ -1,5 +1,9 @@
 //! Types used to describe downstream extensions. Used by the `cargo-php`
 //! CLI application to generate PHP stub files used by IDEs.
+//!
+//! The types live in `ext-php-rs-introspection` so `cargo-php` can read a
+//! [`Description`] without linking the Zend engine. This module re-exports
+//! them and converts the builders into them.
 use std::vec::Vec as StdVec;
 
 #[cfg(feature = "enum")]
@@ -7,74 +11,12 @@ use crate::builders::EnumBuilder;
 use crate::{
     builders::{ClassBuilder, FunctionBuilder},
     constant::IntoConst,
-    flags::{DataType, MethodFlags, PropertyFlags},
+    flags::{ClassFlags, MethodFlags, PropertyFlags},
     prelude::ModuleBuilder,
 };
-use abi::{Option, RString, Str, Vec};
 
-pub mod abi;
-mod stub;
-
-pub use stub::ToStub;
-
-/// A slice of strings containing documentation comments.
-pub type DocComments = &'static [&'static str];
-
-/// Representation of the extension used to generate PHP stubs.
-#[repr(C)]
-pub struct Description {
-    /// Extension description.
-    pub module: Module,
-    /// ext-php-rs version.
-    pub version: &'static str,
-}
-
-impl Description {
-    /// Creates a new description.
-    ///
-    /// # Parameters
-    ///
-    /// * `module` - The extension module representation.
-    #[must_use]
-    pub fn new(module: Module) -> Self {
-        Self {
-            module,
-            version: crate::VERSION,
-        }
-    }
-}
-
-/// Represents a set of comments on an export.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct DocBlock(pub Vec<Str>);
-
-impl From<&'static [&'static str]> for DocBlock {
-    fn from(val: &'static [&'static str]) -> Self {
-        Self(
-            val.iter()
-                .map(|s| (*s).into())
-                .collect::<StdVec<_>>()
-                .into(),
-        )
-    }
-}
-
-/// Represents an extension containing a set of exports.
-#[repr(C)]
-pub struct Module {
-    /// Name of the extension.
-    pub name: RString,
-    /// Functions exported by the extension.
-    pub functions: Vec<Function>,
-    /// Classes exported by the extension.
-    pub classes: Vec<Class>,
-    #[cfg(feature = "enum")]
-    /// Enums exported by the extension.
-    pub enums: Vec<Enum>,
-    /// Constants exported by the extension.
-    pub constants: Vec<Constant>,
-}
+use ext_php_rs_introspection::abi::{Option, RString};
+pub use ext_php_rs_introspection::*;
 
 /// Builds a [`Module`] from a [`ModuleBuilder`].
 /// This is used to generate the PHP stubs for the module.
@@ -83,7 +25,7 @@ impl From<ModuleBuilder<'_>> for Module {
         let functions = builder.functions;
 
         // Include both classes and interfaces in the classes list.
-        // Interfaces are distinguished by ClassFlags::Interface.
+        // Interfaces are distinguished by `Class::is_interface`.
         #[allow(unused_mut)]
         let mut classes = builder
             .interfaces
@@ -95,6 +37,15 @@ impl From<ModuleBuilder<'_>> for Module {
         #[cfg(feature = "closure")]
         classes.push(Class::closure());
 
+        #[cfg(feature = "enum")]
+        let enums = builder
+            .enums
+            .into_iter()
+            .map(|e| e().into())
+            .collect::<StdVec<_>>();
+        #[cfg(not(feature = "enum"))]
+        let enums = StdVec::new();
+
         Self {
             name: builder.name.into(),
             functions: functions
@@ -103,34 +54,15 @@ impl From<ModuleBuilder<'_>> for Module {
                 .collect::<StdVec<_>>()
                 .into(),
             classes: classes.into(),
+            enums: enums.into(),
             constants: builder
                 .constants
                 .into_iter()
-                .map(Constant::from)
-                .collect::<StdVec<_>>()
-                .into(),
-            #[cfg(feature = "enum")]
-            enums: builder
-                .enums
-                .into_iter()
-                .map(|e| e().into())
+                .map(|(name, value, docs)| constant_from(name, &*value, docs))
                 .collect::<StdVec<_>>()
                 .into(),
         }
     }
-}
-
-/// Represents an exported function.
-#[repr(C)]
-pub struct Function {
-    /// Name of the function.
-    pub name: RString,
-    /// Documentation comments for the function.
-    pub docs: DocBlock,
-    /// Return value of the function.
-    pub ret: Option<Retval>,
-    /// Parameters of the function.
-    pub params: Vec<Parameter>,
 }
 
 impl From<FunctionBuilder<'_>> for Function {
@@ -162,86 +94,10 @@ impl From<FunctionBuilder<'_>> for Function {
     }
 }
 
-/// Represents a parameter attached to an exported function or method.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct Parameter {
-    /// Name of the parameter.
-    pub name: RString,
-    /// Type of the parameter.
-    pub ty: Option<DataType>,
-    /// Whether the parameter is nullable.
-    pub nullable: bool,
-    /// Whether the parameter is variadic.
-    pub variadic: bool,
-    /// Default value of the parameter.
-    pub default: Option<RString>,
-}
-
-/// Represents an exported class.
-#[repr(C)]
-pub struct Class {
-    /// Name of the class.
-    pub name: RString,
-    /// Documentation comments for the class.
-    pub docs: DocBlock,
-    /// Name of the class the exported class extends. (Not implemented #326)
-    pub extends: Option<RString>,
-    /// Names of the interfaces the exported class implements. (Not implemented
-    /// #326)
-    pub implements: Vec<RString>,
-    /// Properties of the class.
-    pub properties: Vec<Property>,
-    /// Methods of the class.
-    pub methods: Vec<Method>,
-    /// Constants of the class.
-    pub constants: Vec<Constant>,
-    /// Class flags
-    pub flags: u32,
-}
-
-#[cfg(feature = "closure")]
-impl Class {
-    /// Creates a new class representing a Rust closure used for generating
-    /// the stubs if the `closure` feature is enabled.
-    #[must_use]
-    pub fn closure() -> Self {
-        Self {
-            name: "RustClosure".into(),
-            docs: DocBlock(StdVec::new().into()),
-            extends: Option::None,
-            implements: StdVec::new().into(),
-            properties: StdVec::new().into(),
-            methods: vec![Method {
-                name: "__invoke".into(),
-                docs: DocBlock(StdVec::new().into()),
-                ty: MethodType::Member,
-                params: vec![Parameter {
-                    name: "args".into(),
-                    ty: Option::Some(DataType::Mixed),
-                    nullable: false,
-                    variadic: true,
-                    default: Option::None,
-                }]
-                .into(),
-                retval: Option::Some(Retval {
-                    ty: DataType::Mixed,
-                    nullable: false,
-                }),
-                r#static: false,
-                visibility: Visibility::Public,
-                r#abstract: false,
-            }]
-            .into(),
-            constants: StdVec::new().into(),
-            flags: 0,
-        }
-    }
-}
-
 impl From<ClassBuilder> for Class {
     fn from(val: ClassBuilder) -> Self {
-        let flags = val.get_flags();
+        let is_interface =
+            ClassFlags::from_bits_retain(val.get_flags()).contains(ClassFlags::Interface);
         Self {
             name: val.name.into(),
             docs: DocBlock(
@@ -267,7 +123,7 @@ impl From<ClassBuilder> for Class {
             methods: val
                 .methods
                 .into_iter()
-                .map(Method::from)
+                .map(|(builder, flags)| method_from(builder, flags))
                 .collect::<StdVec<_>>()
                 .into(),
             constants: val
@@ -280,24 +136,9 @@ impl From<ClassBuilder> for Class {
                 })
                 .collect::<StdVec<_>>()
                 .into(),
-            flags,
+            is_interface,
         }
     }
-}
-
-#[cfg(feature = "enum")]
-/// Represents an exported enum.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct Enum {
-    /// Name of the enum.
-    pub name: RString,
-    /// Documentation comments for the enum.
-    pub docs: DocBlock,
-    /// Cases of the enum.
-    pub cases: Vec<EnumCase>,
-    /// Backing type of the enum.
-    pub backing_type: Option<RString>,
 }
 
 #[cfg(feature = "enum")]
@@ -329,19 +170,6 @@ impl From<EnumBuilder> for Enum {
 }
 
 #[cfg(feature = "enum")]
-/// Represents a case in an exported enum.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct EnumCase {
-    /// Name of the enum case.
-    pub name: RString,
-    /// Documentation comments for the enum case.
-    pub docs: DocBlock,
-    /// Value of the enum case.
-    pub value: Option<RString>,
-}
-
-#[cfg(feature = "enum")]
 impl From<&'static crate::enum_::EnumCase> for EnumCase {
     fn from(val: &'static crate::enum_::EnumCase) -> Self {
         Self {
@@ -365,28 +193,6 @@ impl From<&'static crate::enum_::EnumCase> for EnumCase {
     }
 }
 
-/// Represents a property attached to an exported class.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct Property {
-    /// Name of the property.
-    pub name: RString,
-    /// Documentation comments for the property.
-    pub docs: DocBlock,
-    /// Type of the property.
-    pub ty: Option<DataType>,
-    /// Visibility of the property.
-    pub vis: Visibility,
-    /// Whether the property is static.
-    pub static_: bool,
-    /// Whether the property is nullable.
-    pub nullable: bool,
-    /// Whether the property is readonly.
-    pub readonly: bool,
-    /// Default value of the property as a PHP stub string.
-    pub default: Option<RString>,
-}
-
 impl From<crate::builders::ClassProperty> for Property {
     fn from(val: crate::builders::ClassProperty) -> Self {
         let static_ = val.flags.contains(PropertyFlags::Static);
@@ -406,83 +212,36 @@ impl From<crate::builders::ClassProperty> for Property {
     }
 }
 
-/// Represents a method attached to an exported class.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct Method {
-    /// Name of the method.
-    pub name: RString,
-    /// Documentation comments for the method.
-    pub docs: DocBlock,
-    /// Type of the method.
-    pub ty: MethodType,
-    /// Parameters of the method.
-    pub params: Vec<Parameter>,
-    /// Return value of the method.
-    pub retval: Option<Retval>,
-    /// Whether the method is static.
-    pub r#static: bool,
-    /// Visibility of the method.
-    pub visibility: Visibility,
-    /// Not describe method body, if is abstract.
-    pub r#abstract: bool,
-}
-
-impl From<(FunctionBuilder<'_>, MethodFlags)> for Method {
-    fn from(val: (FunctionBuilder<'_>, MethodFlags)) -> Self {
-        let (builder, flags) = val;
-        let ret_allow_null = builder.ret_as_null;
-        Method {
-            name: builder.name.into(),
-            docs: DocBlock(
-                builder
-                    .docs
-                    .iter()
-                    .map(|d| (*d).into())
-                    .collect::<StdVec<_>>()
-                    .into(),
-            ),
-            retval: builder
-                .retval
-                .map(|r| Retval {
-                    ty: r,
-                    nullable: r != DataType::Mixed && ret_allow_null,
-                })
-                .into(),
-            params: builder
-                .args
-                .into_iter()
-                .map(Into::into)
+fn method_from(builder: FunctionBuilder<'_>, flags: MethodFlags) -> Method {
+    let ret_allow_null = builder.ret_as_null;
+    Method {
+        name: builder.name.into(),
+        docs: DocBlock(
+            builder
+                .docs
+                .iter()
+                .map(|d| (*d).into())
                 .collect::<StdVec<_>>()
                 .into(),
-            ty: flags.into(),
-            r#static: flags.contains(MethodFlags::Static),
-            visibility: flags.into(),
-            r#abstract: flags.contains(MethodFlags::Abstract),
-        }
+        ),
+        retval: builder
+            .retval
+            .map(|r| Retval {
+                ty: r,
+                nullable: r != DataType::Mixed && ret_allow_null,
+            })
+            .into(),
+        params: builder
+            .args
+            .into_iter()
+            .map(Into::into)
+            .collect::<StdVec<_>>()
+            .into(),
+        ty: flags.into(),
+        r#static: flags.contains(MethodFlags::Static),
+        visibility: flags.into(),
+        r#abstract: flags.contains(MethodFlags::Abstract),
     }
-}
-
-/// Represents a value returned from a function or method.
-#[repr(C)]
-#[derive(Debug, PartialEq)]
-pub struct Retval {
-    /// Type of the return value.
-    pub ty: DataType,
-    /// Whether the return value is nullable.
-    pub nullable: bool,
-}
-
-/// Enumerator used to differentiate between methods.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum MethodType {
-    /// A member method.
-    Member,
-    /// A static method.
-    Static,
-    /// A constructor.
-    Constructor,
 }
 
 impl From<MethodFlags> for MethodType {
@@ -496,19 +255,6 @@ impl From<MethodFlags> for MethodType {
 
         Self::Member
     }
-}
-
-/// Enumerator used to differentiate between different method and property
-/// visibilties.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Visibility {
-    /// Private visibility.
-    Private,
-    /// Protected visibility.
-    Protected,
-    /// Public visibility.
-    Public,
 }
 
 impl From<PropertyFlags> for Visibility {
@@ -538,36 +284,11 @@ impl From<MethodFlags> for Visibility {
     }
 }
 
-/// Represents an exported constant, stand alone or attached to a class.
-#[repr(C)]
-pub struct Constant {
-    /// Name of the constant.
-    pub name: RString,
-    /// Documentation comments for the constant.
-    pub docs: DocBlock,
-    /// Value of the constant.
-    pub value: Option<RString>,
-}
-
-impl From<(String, DocComments)> for Constant {
-    fn from(val: (String, DocComments)) -> Self {
-        let (name, docs) = val;
-        Constant {
-            name: name.into(),
-            value: Option::None,
-            docs: docs.into(),
-        }
-    }
-}
-
-impl From<(String, Box<dyn IntoConst + Send>, DocComments)> for Constant {
-    fn from(val: (String, Box<dyn IntoConst + Send + 'static>, DocComments)) -> Self {
-        let (name, value, docs) = val;
-        Constant {
-            name: name.into(),
-            value: Option::Some(value.stub_value().into()),
-            docs: docs.into(),
-        }
+fn constant_from(name: String, value: &dyn IntoConst, docs: DocComments) -> Constant {
+    Constant {
+        name: name.into(),
+        value: Option::Some(value.stub_value().into()),
+        docs: docs.into(),
     }
 }
 
@@ -579,31 +300,6 @@ mod tests {
     use super::*;
 
     use crate::{args::Arg, test::test_function};
-
-    #[test]
-    fn test_new_description() {
-        let module = Module {
-            name: "test".into(),
-            functions: vec![].into(),
-            classes: vec![].into(),
-            constants: vec![].into(),
-            #[cfg(feature = "enum")]
-            enums: vec![].into(),
-        };
-
-        let description = Description::new(module);
-        assert_eq!(description.version, crate::VERSION);
-        assert_eq!(description.module.name, "test".into());
-    }
-
-    #[test]
-    fn test_doc_block_from() {
-        let docs: &'static [&'static str] = &["doc1", "doc2"];
-        let docs: DocBlock = docs.into();
-        assert_eq!(docs.0.len(), 2);
-        assert_eq!(docs.0[0], "doc1".into());
-        assert_eq!(docs.0[1], "doc2".into());
-    }
 
     #[test]
     fn test_module_from() {
@@ -619,6 +315,7 @@ mod tests {
                 assert_eq!(module.classes.len(), 0);
             }
         }
+        assert_eq!(module.enums.len(), 0);
         assert_eq!(module.constants.len(), 0);
     }
 
@@ -675,6 +372,7 @@ mod tests {
         let class: Class = builder.into();
 
         assert_eq!(class.name, "TestClass".into());
+        assert!(!class.is_interface);
         assert_eq!(class.docs.0.len(), 2);
         assert_eq!(class.extends, Option::Some("BaseClass".into()));
         assert_eq!(
@@ -712,6 +410,14 @@ mod tests {
     }
 
     #[test]
+    fn test_interface_from() {
+        let class: Class = ClassBuilder::new("TestInterface")
+            .flags(ClassFlags::Interface)
+            .into();
+        assert!(class.is_interface);
+    }
+
+    #[test]
     fn test_property_from() {
         let property: Property = crate::builders::ClassProperty {
             name: "test_property".into(),
@@ -739,7 +445,7 @@ mod tests {
             .docs(&["doc1", "doc2"])
             .arg(Arg::new("foo", DataType::Long))
             .returns(DataType::Bool, true, true);
-        let method: Method = (builder, MethodFlags::Static | MethodFlags::Protected).into();
+        let method = method_from(builder, MethodFlags::Static | MethodFlags::Protected);
         assert_eq!(method.name, "test_method".into());
         assert_eq!(method.docs.0.len(), 2);
         assert_eq!(

@@ -63,6 +63,7 @@ pub mod prelude {
     #[cfg_attr(docs, doc(cfg(feature = "closure")))]
     pub use crate::closure::Closure;
     pub use crate::exception::{PhpException, PhpResult};
+    pub use crate::flags::DataTypeExt;
     #[cfg(feature = "enum")]
     pub use crate::php_enum;
     pub use crate::php_print;

@@ -14,9 +14,7 @@ use super::{
     abi::{Option, RString, Str},
 };
 
-#[cfg(feature = "enum")]
-use crate::describe::{Enum, EnumCase};
-use crate::flags::{ClassFlags, DataType};
+use crate::{DataType, Enum, EnumCase};
 
 /// Parsed rustdoc sections for conversion to `PHPDoc`.
 #[derive(Default)]
@@ -414,7 +412,6 @@ impl ToStub for Module {
             insert(ns, name.to_string(), class.to_stub()?);
         }
 
-        #[cfg(feature = "enum")]
         for r#enum in &*self.enums {
             let (ns, name) = split_namespace(r#enum.name.as_ref());
             insert(ns, name.to_string(), r#enum.to_stub()?);
@@ -605,10 +602,7 @@ impl ToStub for Class {
         self.docs.fmt_stub(buf)?;
 
         let (_, name) = split_namespace(self.name.as_ref());
-        let flags = ClassFlags::from_bits(self.flags).unwrap_or(ClassFlags::empty());
-        let is_interface = flags.contains(ClassFlags::Interface);
-
-        if is_interface {
+        if self.is_interface {
             write!(buf, "interface {name} ")?;
         } else {
             write!(buf, "class {name} ")?;
@@ -618,7 +612,7 @@ impl ToStub for Class {
             write!(buf, "extends {extends} ")?;
         }
 
-        if !self.implements.is_empty() && !is_interface {
+        if !self.implements.is_empty() && !self.is_interface {
             write!(
                 buf,
                 "implements {} ",
@@ -630,7 +624,7 @@ impl ToStub for Class {
             )?;
         }
 
-        if !self.implements.is_empty() && is_interface {
+        if !self.implements.is_empty() && self.is_interface {
             write!(
                 buf,
                 "extends {} ",
@@ -689,7 +683,6 @@ impl ToStub for Class {
     }
 }
 
-#[cfg(feature = "enum")]
 impl ToStub for Enum {
     fn fmt_stub(&self, buf: &mut String) -> FmtResult {
         self.docs.fmt_stub(buf)?;
@@ -711,7 +704,6 @@ impl ToStub for Enum {
     }
 }
 
-#[cfg(feature = "enum")]
 impl ToStub for EnumCase {
     fn fmt_stub(&self, buf: &mut String) -> FmtResult {
         self.docs.fmt_stub(buf)?;
@@ -895,7 +887,7 @@ fn indent(s: &str, depth: usize) -> String {
 #[cfg(test)]
 mod test {
     use super::{ToStub, split_namespace};
-    use crate::flags::DataType;
+    use crate::DataType;
 
     #[test]
     pub fn test_split_ns() {
@@ -908,8 +900,8 @@ mod test {
     #[cfg(not(windows))]
     #[allow(clippy::uninlined_format_args)]
     pub fn test_indent() {
+        use super::NEW_LINE_SEPARATOR;
         use super::indent;
-        use crate::describe::stub::NEW_LINE_SEPARATOR;
 
         assert_eq!(indent("hello", 4), "    hello");
         assert_eq!(
@@ -950,7 +942,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_typed_no_docs() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "foo".into(),
@@ -971,7 +963,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_nullable_with_default() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "bar".into(),
@@ -993,7 +985,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_static_with_default() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "limit".into(),
@@ -1015,7 +1007,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_static_string_default() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "label".into(),
@@ -1037,7 +1029,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_with_docs_includes_var() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "bar".into(),
@@ -1064,7 +1056,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_with_docs_no_type() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "x".into(),
@@ -1085,7 +1077,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_readonly() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "baz".into(),
@@ -1104,7 +1096,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_untyped_no_docblock() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "x".into(),
@@ -1127,7 +1119,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_static_typed() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "count".into(),
@@ -1149,7 +1141,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_nullable_mixed_stays_mixed() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "val".into(),
@@ -1169,7 +1161,7 @@ mod test {
     #[test]
     #[allow(clippy::unwrap_used)]
     fn test_property_stub_nullable_object_with_docs() {
-        use crate::describe::{Property, Visibility, abi::Option};
+        use crate::{Property, Visibility, abi::Option};
 
         let prop = Property {
             name: "ref_".into(),
@@ -1261,8 +1253,8 @@ mod test {
     #[test]
     fn test_format_phpdoc() {
         use super::{DocBlock, Parameter, Retval, Str, format_phpdoc};
-        use crate::describe::abi::Option;
-        use crate::flags::DataType;
+        use crate::DataType;
+        use crate::abi::Option;
 
         // Create a DocBlock with rustdoc content
         let docs = DocBlock(

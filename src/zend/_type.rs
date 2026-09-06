@@ -5,7 +5,7 @@ use crate::{
         _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT,
         IS_ITERABLE, IS_MIXED, MAY_BE_ANY, MAY_BE_BOOL, zend_type,
     },
-    flags::DataType,
+    flags::{DataType, DataTypeExt},
 };
 
 /// Type mask PHP uses for the `iterable` pseudo-type in arginfo.

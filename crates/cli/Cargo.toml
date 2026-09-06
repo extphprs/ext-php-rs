@@ -15,7 +15,7 @@ edition = "2024"
 categories = ["api-bindings", "command-line-interface"]
 
 [dependencies]
-ext-php-rs = { version = "0.15", default-features = false, features = ["runtime"], path = "../../" }
+ext-php-rs-introspection = { version = "0.1.0", path = "../introspection" }
 
 clap = { version = "4.0", features = ["derive"] }
 anyhow = "1"
@@ -27,12 +27,6 @@ libc = "0.2"
 
 [lints.rust]
 missing_docs = "warn"
-
-[features]
-default = ["enum"]
-enum = ["ext-php-rs/enum"]
-runtime = ["ext-php-rs/runtime"]
-static = ["ext-php-rs/static"]
 
 [dev-dependencies]
 insta = "1"

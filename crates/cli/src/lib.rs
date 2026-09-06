@@ -14,7 +14,16 @@ use std::{
     io::{BufRead, BufReader, Seek, Write},
     path::PathBuf,
     process::{Command, Stdio},
+    sync::LazyLock,
 };
+
+static VERSION: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        "{} (introspection ABI {})",
+        env!("CARGO_PKG_VERSION"),
+        ext_php_rs_introspection::VERSION
+    )
+});
 
 /// Generates mock symbols required to generate stub files from a downstream
 /// crates CLI application.
@@ -58,7 +67,7 @@ pub fn run() -> CrateResult {
 #[clap(
     about = "Installs extensions and generates stub files for PHP extensions generated with `ext-php-rs`.",
     author = "David Cole <david.cole1340@gmail.com>",
-    version = env!("CARGO_PKG_VERSION")
+    version = VERSION.as_str()
 )]
 enum Args {
     /// Installs the extension in the current PHP installation.
@@ -429,7 +438,7 @@ impl Remove {
 #[cfg(not(windows))]
 impl Stubs {
     pub fn handle(self) -> CrateResult {
-        use ext_php_rs::describe::ToStub;
+        use ext_php_rs_introspection::ToStub;
         use std::{borrow::Cow, str::FromStr};
 
         let ext_path = if let Some(ext_path) = self.ext {
@@ -453,17 +462,17 @@ impl Stubs {
         let ext = self::ext::Ext::load(ext_path)?;
         let result = ext.describe();
 
-        // Ensure extension and CLI `ext-php-rs` versions are compatible.
-        let cli_version = semver::VersionReq::from_str(ext_php_rs::VERSION).with_context(
-            || "Failed to parse `ext-php-rs` version that `cargo php` was compiled with",
-        )?;
-        let ext_version = semver::Version::from_str(result.version).with_context(
-            || "Failed to parse `ext-php-rs` version that your extension was compiled with",
-        )?;
+        let cli_version = semver::Version::from_str(ext_php_rs_introspection::VERSION)
+            .with_context(|| {
+                "Failed to parse `ext-php-rs-introspection` version that `cargo php` was compiled with"
+            })?;
+        let ext_version = semver::Version::from_str(result.version.str()).with_context(|| {
+            "Failed to parse `ext-php-rs-introspection` version that your extension was compiled with"
+        })?;
 
-        if !cli_version.matches(&ext_version) {
+        if !is_compatible(&cli_version, &ext_version) {
             bail!(
-                "Extension was compiled with an incompatible version of `ext-php-rs` - Extension: {ext_version}, CLI: {cli_version}"
+                "Extension was compiled with an incompatible version of `ext-php-rs-introspection` - Extension: {ext_version}, CLI: {cli_version}. Rebuild `cargo-php` or the extension so both use the same minor."
             );
         }
 
@@ -613,4 +622,33 @@ fn build_ext(
     }
 
     bail!("Failed to retrieve extension path from artifact")
+}
+
+/// A `repr(C)` change in `ext-php-rs-introspection` is a breaking release, so
+/// two versions share a layout when they are semver compatible.
+fn is_compatible(cli: &semver::Version, ext: &semver::Version) -> bool {
+    cli.major == ext.major && (cli.major != 0 || cli.minor == ext.minor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_compatible;
+    use semver::Version;
+
+    fn v(s: &str) -> Version {
+        Version::parse(s).unwrap()
+    }
+
+    #[test]
+    fn zero_major_needs_same_minor() {
+        assert!(is_compatible(&v("0.1.3"), &v("0.1.0")));
+        assert!(is_compatible(&v("0.1.0"), &v("0.1.3")));
+        assert!(!is_compatible(&v("0.2.0"), &v("0.1.9")));
+    }
+
+    #[test]
+    fn stable_major_ignores_minor() {
+        assert!(is_compatible(&v("1.2.0"), &v("1.0.5")));
+        assert!(!is_compatible(&v("2.0.0"), &v("1.9.9")));
+    }
 }

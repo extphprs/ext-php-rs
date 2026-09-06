@@ -7,7 +7,7 @@ use crate::{
     enum_::{Discriminant, EnumCase},
     error::Result,
     ffi::{zend_enum_add_case, zend_register_internal_enum},
-    flags::{DataType, MethodFlags},
+    flags::{DataType, DataTypeExt, MethodFlags},
     types::{ZendStr, Zval},
     zend::{ClassEntry, FunctionEntry},
 };
