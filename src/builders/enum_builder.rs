@@ -103,12 +103,12 @@ impl EnumBuilder {
             .collect::<Result<Vec<_>>>()?;
         methods.push(FunctionEntry::end());
 
+        let name = CString::new(self.name)?;
+        let backing_type = self.datatype.as_u32().try_into()?;
+        let entries = Box::into_raw(methods.into_boxed_slice());
+
         let class = unsafe {
-            zend_register_internal_enum(
-                CString::new(self.name)?.as_ptr(),
-                self.datatype.as_u32().try_into()?,
-                methods.into_boxed_slice().as_ptr(),
-            )
+            zend_register_internal_enum(name.as_ptr(), backing_type, entries.cast::<FunctionEntry>())
         };
 
         for case in self.cases {
