@@ -115,7 +115,11 @@ impl EnumBuilder {
         let entries = Box::into_raw(methods.into_boxed_slice());
 
         let class = unsafe {
-            zend_register_internal_enum(name.as_ptr(), backing_type, entries.cast::<FunctionEntry>())
+            zend_register_internal_enum(
+                name.as_ptr(),
+                backing_type,
+                entries.cast::<FunctionEntry>(),
+            )
         };
 
         // SAFETY: `zend_register_internal_enum` funnels through

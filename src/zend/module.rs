@@ -48,4 +48,3 @@ impl StaticModuleEntry {
         unsafe { (*self.inner.get()).as_mut_ptr() }
     }
 }
-
