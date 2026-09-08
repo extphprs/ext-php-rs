@@ -36,9 +36,13 @@ Everything the engine keeps a pointer into:
   `zend_ini_entry.def` and the CLI SAPI reads `def->value` for
   `php --ini=diff`.
 
-ext-php-rs keeps these reachable from a crate-level list rather than orphaning
-them. That costs one lock per table at MINIT, nothing per request, and it is
-what makes a leak detector report them as still-reachable instead of lost.
+Each of these is owned by a per-extension `static`, never by a crate-wide one:
+the module's tables live in `StaticModuleEntry`, a class's argument info lives in
+that class's `ClassMetadata<T>`, and an INI table is a `static` you pass to
+`IniEntryDef::register`. That is the same shape a C extension gets from its own
+data segment, and it is what makes a leak detector report them as
+still-reachable instead of lost. ext-php-rs holds no global mutable state for
+registration.
 
 ## What this means for extension authors
 

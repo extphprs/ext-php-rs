@@ -11,18 +11,20 @@ All PHP INI definitions must be registered with PHP to get / set their values vi
 # #![cfg_attr(windows, feature(abi_vectorcall))]
 # extern crate ext_php_rs;
 # use ext_php_rs::prelude::*;
-# use ext_php_rs::zend::IniEntryDef;
+# use ext_php_rs::zend::{IniEntryDef, IniEntryDefs};
 # use ext_php_rs::flags::IniEntryPermission;
 
+static INI_ENTRIES: IniEntryDefs<2> = IniEntryDefs::new([
+    IniEntryDef::new(
+        c"my_extension.display_emoji",
+        c"yes",
+        IniEntryPermission::All,
+    ),
+    IniEntryDef::end(),
+]);
+
 pub fn startup(ty: i32, mod_num: i32) -> i32 {
-    let ini_entries: Vec<IniEntryDef> = vec![
-        IniEntryDef::new(
-            "my_extension.display_emoji".to_owned(),
-            "yes".to_owned(),
-            &IniEntryPermission::All,
-        ),
-    ];
-    IniEntryDef::register(ini_entries, mod_num);
+    IniEntryDef::register(INI_ENTRIES.as_slice(), mod_num);
 
     0
 }
@@ -65,8 +67,23 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 
 ## Memory
 
-`IniEntryDef::register` keeps its definition table for the life of the process.
+`IniEntryDef::register` takes a `&'static [IniEntryDef]` terminated by
+`IniEntryDef::end()`. The engine borrows the table for the life of the process:
 PHP 8.5 stores it as `zend_ini_entry.def` and the CLI SAPI dereferences
-`def->value` when printing `php --ini=diff`, so the table cannot be freed after
-registration. This is the same lifetime a C extension gets for free by putting
-its `zend_ini_entry_def[]` in `.rodata`.
+`def->value` when printing `php --ini`. `IniEntryDef::new` is a `const fn`, so
+the table is a plain `static` — the same thing a C extension writes as
+`zend_ini_entry_def[]` in `.rodata`.
+
+```rust,ignore
+use ext_php_rs::{flags::IniEntryPermission, zend::{IniEntryDef, IniEntryDefs}};
+
+static INI: IniEntryDefs<2> = IniEntryDefs::new([
+    IniEntryDef::new(c"my_extension.display_emoji", c"1", IniEntryPermission::All),
+    IniEntryDef::end(),
+]);
+
+pub fn startup(_ty: i32, mod_num: i32) -> i32 {
+    IniEntryDef::register(INI.as_slice(), mod_num);
+    0
+}
+```

@@ -226,7 +226,8 @@ impl<'a> FunctionBuilder<'a> {
 /// The `arg_info` arrays are deliberately left alone. The engine's copy of them
 /// is shallow, so `arg_info[i].name` and `.default_value` stay live for
 /// `ReflectionParameter`, and a function with no parameters and no return type
-/// keeps the array itself. They are owned by [`crate::util::retain`] instead.
+/// keeps the array itself. They are owned by `ClassMetadata` or
+/// [`ModuleAllocations`](crate::zend::ModuleAllocations) instead.
 ///
 /// # Safety
 ///
