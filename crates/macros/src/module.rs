@@ -103,9 +103,9 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 .startup_function(ext_php_rs_startup);
 
                 match builder.try_into() {
-                    Ok((entry, startup)) => {
+                    Ok((entry, startup, owned)) => {
                         __EXT_PHP_RS_MODULE_STARTUP.lock().replace(startup);
-                        entry
+                        (entry, owned)
                     },
                     Err(e) => panic!("Failed to build PHP module: {:?}", e),
                 }

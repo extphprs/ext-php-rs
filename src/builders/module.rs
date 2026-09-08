@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     ffi::{ZEND_MODULE_API_NO, ext_php_rs_php_build_id},
     flags::ClassFlags,
-    zend::{FunctionEntry, ModuleEntry, ModuleGlobal, ModuleGlobals},
+    zend::{FunctionEntry, ModuleAllocations, ModuleEntry, ModuleGlobal, ModuleGlobals},
 };
 #[cfg(feature = "enum")]
 use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
@@ -690,28 +690,30 @@ pub type InfoFunc = unsafe extern "C" fn(zend_module: *mut ModuleEntry);
 
 /// Builds a [`ModuleEntry`] and [`ModuleStartup`] from a [`ModuleBuilder`].
 /// This is the entry point for the module to be registered with PHP.
-impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
+impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocations) {
     type Error = crate::error::Error;
 
     fn try_from(builder: ModuleBuilder) -> Result<Self, Self::Error> {
-        let mut functions = Vec::with_capacity(builder.functions.len() + 1);
+        let mut arg_info = Vec::with_capacity(builder.functions.len());
+        let mut function_table = Vec::with_capacity(builder.functions.len() + 1);
         for function in builder.functions {
-            let (entry, arg_info) = function.build()?;
-            functions.push(entry);
-            crate::util::retain::retain(arg_info);
+            let (entry, args) = function.build()?;
+            function_table.push(entry);
+            arg_info.push(args);
         }
-        functions.push(FunctionEntry::end());
-        let functions = crate::util::retain::retain(functions.into_boxed_slice())
-            .cast::<FunctionEntry>()
-            .cast_const();
+        function_table.push(FunctionEntry::end());
+        let function_table = function_table.into_boxed_slice();
+        let functions = function_table.as_ptr();
 
         #[cfg(feature = "observer")]
         let ext_name = builder.name.clone();
         #[cfg(feature = "observer")]
         let ext_version = builder.version.clone();
 
-        let name = crate::util::retain::cstring(CString::new(builder.name)?);
-        let version = crate::util::retain::cstring(CString::new(builder.version)?);
+        let owned_name = CString::new(builder.name)?;
+        let owned_version = CString::new(builder.version)?;
+        let name = owned_name.as_ptr();
+        let version = owned_version.as_ptr();
 
         let startup = ModuleStartup {
             #[cfg(feature = "observer")]
@@ -785,7 +787,16 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
             build_id: unsafe { ext_php_rs_php_build_id() },
         };
 
-        Ok((module_entry, startup))
+        Ok((
+            module_entry,
+            startup,
+            ModuleAllocations {
+                functions: function_table,
+                arg_info: arg_info.into_boxed_slice(),
+                name: owned_name,
+                version: owned_version,
+            },
+        ))
     }
 }
 

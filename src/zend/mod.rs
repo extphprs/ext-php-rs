@@ -51,7 +51,7 @@ pub use globals::SapiModule;
 pub use handlers::ZendObjectHandlers;
 pub use ini_entry_def::IniEntryDef;
 pub use linked_list::ZendLinkedList;
-pub use module::{ModuleEntry, StaticModuleEntry};
+pub use module::{ModuleAllocations, ModuleEntry, StaticModuleEntry};
 pub use module_globals::{ModuleGlobal, ModuleGlobals};
 #[cfg(feature = "observer")]
 pub use observer::{FcallInfo, FcallObserver};
