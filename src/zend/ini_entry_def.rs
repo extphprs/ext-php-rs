@@ -69,7 +69,9 @@ impl IniEntryDef {
     /// Registers a list of ini entries.
     pub fn register(mut entries: Vec<Self>, module_number: i32) {
         entries.push(Self::end());
-        let entries = Box::into_raw(entries.into_boxed_slice()) as *const Self;
+        let entries = crate::util::retain::retain(entries.into_boxed_slice())
+            .cast::<Self>()
+            .cast_const();
 
         unsafe { zend_register_ini_entries(entries, module_number) };
     }

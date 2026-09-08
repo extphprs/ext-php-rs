@@ -201,7 +201,9 @@ impl<'a> FunctionBuilder<'a> {
 
         self.function.fname = CString::new(self.name)?.into_raw();
         self.function.num_args = (args.len() - 1).try_into()?;
-        self.function.arg_info = Box::into_raw(args.into_boxed_slice()) as *const ArgInfo;
+        self.function.arg_info = crate::util::retain::retain(args.into_boxed_slice())
+            .cast::<ArgInfo>()
+            .cast_const();
 
         Ok(self.function)
     }

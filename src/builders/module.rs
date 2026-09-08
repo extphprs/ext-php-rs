@@ -691,15 +691,17 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
             .map(FunctionBuilder::build)
             .collect::<Result<Vec<_>>>()?;
         functions.push(FunctionEntry::end());
-        let functions = Box::into_raw(functions.into_boxed_slice()) as *const FunctionEntry;
+        let functions = crate::util::retain::retain(functions.into_boxed_slice())
+            .cast::<FunctionEntry>()
+            .cast_const();
 
         #[cfg(feature = "observer")]
         let ext_name = builder.name.clone();
         #[cfg(feature = "observer")]
         let ext_version = builder.version.clone();
 
-        let name = CString::new(builder.name)?.into_raw();
-        let version = CString::new(builder.version)?.into_raw();
+        let name = crate::util::retain::cstring(CString::new(builder.name)?);
+        let version = crate::util::retain::cstring(CString::new(builder.version)?);
 
         let startup = ModuleStartup {
             #[cfg(feature = "observer")]
