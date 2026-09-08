@@ -277,7 +277,7 @@ impl TestClassVariadicConstruct {
     fn __construct(first: String, rest: &[&Zval]) -> Self {
         let _ = first;
         Self {
-            count: rest.len() as i64,
+            count: i64::try_from(rest.len()).unwrap_or(i64::MAX),
         }
     }
 }
