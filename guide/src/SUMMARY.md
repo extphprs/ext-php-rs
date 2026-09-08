@@ -51,6 +51,7 @@
 - [Static Linking into php-src](./advanced/static_linking.md)
 - [Module Globals](./advanced/module_globals.md)
 - [Worker Mode](./advanced/worker_mode.md)
+- [Memory Model at MINIT](./advanced/minit_memory.md)
 - [Allowed Bindings](./advanced/allowed_bindings.md)
 
 # Migration Guides

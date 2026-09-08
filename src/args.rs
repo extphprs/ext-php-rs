@@ -6,17 +6,17 @@ use crate::{
     convert::{FromZvalMut, IntoZvalDyn},
     describe::{Parameter, abi},
     error::{Error, Result},
-    ffi::{
-        _zend_expected_type, _zend_expected_type_Z_EXPECTED_ARRAY,
-        _zend_expected_type_Z_EXPECTED_BOOL, _zend_expected_type_Z_EXPECTED_DOUBLE,
-        _zend_expected_type_Z_EXPECTED_LONG, _zend_expected_type_Z_EXPECTED_OBJECT,
-        _zend_expected_type_Z_EXPECTED_RESOURCE, _zend_expected_type_Z_EXPECTED_STRING,
-        zend_internal_arg_info, zend_wrong_parameters_count_error,
-    },
+    ffi::{zend_internal_arg_info, zend_wrong_parameters_count_error},
     flags::DataType,
     types::Zval,
     zend::ZendType,
 };
+
+/// Argument info tables of a class's or enum's methods, one per method.
+///
+/// The Zend engine borrows these for the life of the process, so they must be
+/// parked in something that lives that long.
+pub type ArgInfoTables = Box<[Box<[ArgInfo]>]>;
 
 /// Represents an argument to a function.
 #[must_use]
@@ -173,23 +173,6 @@ impl<'a> Arg<'a> {
                 None => ptr::null(),
             },
         })
-    }
-}
-
-impl From<Arg<'_>> for _zend_expected_type {
-    fn from(arg: Arg) -> Self {
-        let type_id = match arg.r#type {
-            DataType::False | DataType::True => _zend_expected_type_Z_EXPECTED_BOOL,
-            DataType::Long => _zend_expected_type_Z_EXPECTED_LONG,
-            DataType::Double => _zend_expected_type_Z_EXPECTED_DOUBLE,
-            DataType::String => _zend_expected_type_Z_EXPECTED_STRING,
-            DataType::Array => _zend_expected_type_Z_EXPECTED_ARRAY,
-            DataType::Object(_) => _zend_expected_type_Z_EXPECTED_OBJECT,
-            DataType::Resource => _zend_expected_type_Z_EXPECTED_RESOURCE,
-            _ => unreachable!(),
-        };
-
-        if arg.allow_null { type_id + 1 } else { type_id }
     }
 }
 
@@ -473,73 +456,6 @@ mod tests {
             drop(CString::from_raw(arg_info.name.cast_mut()));
             drop(CString::from_raw(arg_info.default_value.cast_mut()));
         }
-    }
-
-    #[test]
-    fn test_type_from_arg() {
-        let arg = Arg::new("test", DataType::Long);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 0);
-
-        let arg = Arg::new("test", DataType::Long).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 1);
-
-        let arg = Arg::new("test", DataType::False);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 2);
-
-        let arg = Arg::new("test", DataType::False).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 3);
-
-        let arg = Arg::new("test", DataType::True);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 2);
-
-        let arg = Arg::new("test", DataType::True).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 3);
-
-        let arg = Arg::new("test", DataType::String);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 4);
-
-        let arg = Arg::new("test", DataType::String).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 5);
-
-        let arg = Arg::new("test", DataType::Array);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 6);
-
-        let arg = Arg::new("test", DataType::Array).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 7);
-
-        let arg = Arg::new("test", DataType::Resource);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 14);
-
-        let arg = Arg::new("test", DataType::Resource).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 15);
-
-        let arg = Arg::new("test", DataType::Object(None));
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 18);
-
-        let arg = Arg::new("test", DataType::Object(None)).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 19);
-
-        let arg = Arg::new("test", DataType::Double);
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 20);
-
-        let arg = Arg::new("test", DataType::Double).allow_null();
-        let actual: _zend_expected_type = arg.into();
-        assert_eq!(actual, 21);
     }
 
     #[test]

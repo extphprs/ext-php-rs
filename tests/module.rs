@@ -46,6 +46,24 @@ fn test_module() {
         let string = zval.string().unwrap();
 
         assert_eq!(string.clone(), "Hello, foo!");
+
+        // The engine keeps `arg_info[i].name` and `.default_value` by pointer for
+        // the life of the process, so reflecting over a registered function reads
+        // the tables `util::retain` owns. Under LSan this is what proves they are
+        // still reachable rather than lost.
+        let reflected = Embed::eval(
+            "$out = (function () {
+                 $r = new ReflectionFunction('greet');
+                 $p = $r->getParameters()[0];
+                 return $p->getName() . '|' . $p->getDefaultValue() . '|' . $r->getReturnType();
+             })();",
+        );
+
+        assert!(reflected.is_ok());
+        assert_eq!(
+            reflected.unwrap().string().unwrap().clone(),
+            "name|world|string"
+        );
     });
 }
 
@@ -59,7 +77,18 @@ pub fn hello_world(name: String) -> String {
     format!("Hello, {name}!")
 }
 
+/// Registers an argument carrying a name, a default value and a declared type,
+/// plus a declared return type, so the retained `arg_info` table has something
+/// to hold.
+#[php_function]
+#[php(defaults(name = "world".to_string()))]
+pub fn greet(name: String) -> String {
+    format!("Hello, {name}!")
+}
+
 #[php_module]
 pub fn module(module: ModuleBuilder) -> ModuleBuilder {
-    module.function(wrap_function!(hello_world))
+    module
+        .function(wrap_function!(hello_world))
+        .function(wrap_function!(greet))
 }

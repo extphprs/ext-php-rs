@@ -1,7 +1,13 @@
-use std::{ffi::CString, mem::MaybeUninit, ptr, rc::Rc};
+use std::{
+    ffi::CString,
+    mem::{ManuallyDrop, MaybeUninit},
+    ptr,
+    rc::Rc,
+};
 
 use crate::{
-    builders::FunctionBuilder,
+    args::ArgInfoTables,
+    builders::{FunctionBuilder, function::free_registered_entries},
     class::{ClassEntryInfo, ConstructorMeta, ConstructorResult, RegisteredClass},
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
@@ -13,7 +19,7 @@ use crate::{
     },
     flags::{ClassFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
-    zend::{ClassEntry, ExecuteData, FunctionEntry},
+    zend::{ClassEntry, ExecuteData, ExecutorGlobals, FunctionEntry},
     zend_fastcall,
 };
 
@@ -57,7 +63,7 @@ pub struct ClassBuilder {
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
     pub(crate) properties: Vec<ClassProperty>,
     pub(crate) constants: Vec<ConstantEntry>,
-    register: Option<fn(&'static mut ClassEntry)>,
+    register: Option<fn(&'static mut ClassEntry, ArgInfoTables)>,
     pub(crate) docs: DocComments,
 }
 
@@ -314,13 +320,25 @@ impl ClassBuilder {
         }
     }
 
-    /// Function to register the class with PHP. This function is called after
-    /// the class is built.
+    /// Function to register the class with PHP, called once the class is built.
+    ///
+    /// It receives the registered class entry and the argument info tables of
+    /// the class's methods. `zend_register_functions` borrows those tables for
+    /// the life of the process, so the function must park them somewhere that
+    /// lives that long — normally the class's own
+    /// [`ClassMetadata`](crate::class::ClassMetadata) static:
+    ///
+    /// ```rust,ignore
+    /// .registration(|ce, arg_info| {
+    ///     META.set_ce(ce);
+    ///     META.set_arg_info(arg_info);
+    /// })
+    /// ```
     ///
     /// # Parameters
     ///
     /// * `register` - The function to call to register the class.
-    pub fn registration(mut self, register: fn(&'static mut ClassEntry)) -> Self {
+    pub fn registration(mut self, register: fn(&'static mut ClassEntry, ArgInfoTables)) -> Self {
         self.register = Some(register);
         self
     }
@@ -346,44 +364,52 @@ impl ClassBuilder {
     ///
     /// # Panics
     ///
-    /// If no registration function was provided.
+    /// * If called outside a module startup (MINIT) function.
+    /// * If no registration function was provided.
     pub fn register(mut self) -> Result<()> {
+        assert!(
+            !ExecutorGlobals::get().current_module.is_null(),
+            "Classes can only be registered from a module startup (MINIT) function: \
+             `do_register_internal_class` dereferences `EG(current_module)`."
+        );
+
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
 
-        let mut methods = self
-            .methods
-            .into_iter()
-            .map(|(method, flags)| {
-                method.build().map(|mut method| {
-                    method.flags |= flags.bits();
-                    method
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut arg_info = Vec::with_capacity(self.methods.len());
+        let mut methods = Vec::with_capacity(self.methods.len() + 1);
+        for (method, flags) in self.methods {
+            let (mut entry, args) = method.build()?;
+            entry.flags |= flags.bits();
+            methods.push(entry);
+            arg_info.push(args);
+        }
+
+        // The engine keeps `zend_internal_function.arg_info` pointing into these
+        // for the life of the process, so `register` parks them. Holding them in
+        // a `ManuallyDrop` keeps them alive across registration, which reads
+        // them, without a second owner.
+        let arg_info = ManuallyDrop::new(arg_info.into_boxed_slice());
 
         methods.push(FunctionEntry::end());
-        let func = Box::into_raw(methods.into_boxed_slice()) as *const FunctionEntry;
-        self.ce.info.internal.builtin_functions = func;
+        let entries = Box::into_raw(methods.into_boxed_slice());
+        self.ce.info.internal.builtin_functions = entries.cast::<FunctionEntry>().cast_const();
 
-        let class = if self.ce.flags().contains(ClassFlags::Interface) {
-            unsafe {
-                zend_register_internal_interface(&raw mut self.ce)
-                    .as_mut()
-                    .ok_or(Error::InvalidPointer)?
-            }
-        } else {
-            unsafe {
-                zend_register_internal_class_ex(
-                    &raw mut self.ce,
-                    match self.extends {
-                        Some((ptr, _)) => ptr::from_ref(ptr()).cast_mut(),
-                        None => std::ptr::null_mut(),
-                    },
-                )
-                .as_mut()
-                .ok_or(Error::InvalidPointer)?
-            }
+        let parent = match self.extends {
+            Some((ptr, _)) => ptr::from_ref(ptr()).cast_mut(),
+            None => std::ptr::null_mut(),
         };
+        let class = if self.ce.flags().contains(ClassFlags::Interface) {
+            unsafe { zend_register_internal_interface(&raw mut self.ce) }
+        } else {
+            unsafe { zend_register_internal_class_ex(&raw mut self.ce, parent) }
+        };
+
+        // SAFETY: `do_register_internal_class` has interned every `fname` and read
+        // `builtin_functions` for the last time, so the table is dead.
+        unsafe { free_registered_entries(entries) };
+
+        let class = unsafe { class.as_mut() }.ok_or(Error::InvalidPointer)?;
+        class.info.internal.builtin_functions = ptr::null();
 
         // disable serialization if the class has an associated object
         if self.object_override.is_some() {
@@ -424,13 +450,18 @@ impl ClassBuilder {
         }
 
         for (name, value, _, _) in self.constants {
-            let value = Box::into_raw(Box::new(value()?));
+            let name = CString::new(name.as_str())?;
+            // `zend_declare_typed_class_constant` takes the payload with
+            // `ZVAL_COPY_VALUE` and no incref and, unlike
+            // `zend_declare_typed_property`, does not reject refcounted values, so
+            // the constants table owns it and the `Zval` must not run its destructor.
+            let mut value = ManuallyDrop::new(value()?);
             unsafe {
                 zend_declare_class_constant(
                     class,
-                    CString::new(name.as_str())?.as_ptr(),
-                    name.len(),
-                    value,
+                    name.as_ptr(),
+                    name.as_bytes().len(),
+                    &raw mut *value,
                 );
             };
         }
@@ -440,7 +471,7 @@ impl ClassBuilder {
         }
 
         if let Some(register) = self.register {
-            register(class);
+            register(class, ManuallyDrop::into_inner(arg_info));
         } else {
             panic!("Class {} was not registered.", self.name);
         }
@@ -541,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_registration() {
-        let class = ClassBuilder::new("Foo").registration(|_| {});
+        let class = ClassBuilder::new("Foo").registration(|_, _| {});
         assert!(class.register.is_some());
     }
 
@@ -549,7 +580,7 @@ mod tests {
     fn test_registration_interface() {
         let class = ClassBuilder::new("Foo")
             .flags(ClassFlags::Interface)
-            .registration(|_| {});
+            .registration(|_, _| {});
         assert!(class.register.is_some());
     }
 

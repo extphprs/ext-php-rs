@@ -8,6 +8,7 @@ use std::{
 use once_cell::sync::OnceCell;
 
 use crate::{
+    args::ArgInfoTables as OwnedArgInfo,
     builders::{ClassBuilder, FunctionBuilder},
     convert::IntoZvalDyn,
     describe::DocComments,
@@ -173,6 +174,19 @@ impl<T> From<T> for ConstructorResult<T> {
     }
 }
 
+/// Owns the `zend_internal_arg_info` tables of a class's methods.
+struct ArgInfoTables(
+    #[expect(dead_code, reason = "held for the engine, never read back")] OwnedArgInfo,
+);
+
+// SAFETY: the tables are filled once during MINIT, before PHP spawns any request
+// thread, and are never read back through this handle. The engine only ever
+// `memcpy`s out of them (`zend_register_functions`, Zend/zend_API.c on 8.1
+// through 8.5) and never writes through the pointers they contain.
+unsafe impl Send for ArgInfoTables {}
+// SAFETY: see above.
+unsafe impl Sync for ArgInfoTables {}
+
 /// Stores the class entry, handlers, and property descriptors for a Rust type
 /// which has been exported to PHP. Usually allocated statically.
 pub struct ClassMetadata<T: 'static> {
@@ -180,6 +194,11 @@ pub struct ClassMetadata<T: 'static> {
     field_properties: &'static [PropertyDescriptor<T>],
     method_properties: OnceCell<&'static [PropertyDescriptor<T>]>,
     method_mangled_names: OnceCell<Box<[Box<str>]>>,
+    /// Argument info tables of this class's methods. `zend_register_functions`
+    /// borrows them for the life of the process, so they are owned here rather
+    /// than orphaned: this static is the class's equivalent of a C extension's
+    /// `static zend_internal_arg_info[]`.
+    arg_info: OnceCell<ArgInfoTables>,
     ce: AtomicPtr<ClassEntry>,
 
     // `AtomicPtr` is used here because it is `Send + Sync`.
@@ -197,6 +216,7 @@ impl<T: 'static> ClassMetadata<T> {
             field_properties,
             method_properties: OnceCell::new(),
             method_mangled_names: OnceCell::new(),
+            arg_info: OnceCell::new(),
             ce: AtomicPtr::new(std::ptr::null_mut()),
             phantom: PhantomData,
         }
@@ -249,6 +269,22 @@ impl<T: RegisteredClass> ClassMetadata<T> {
                 Ordering::Relaxed,
             )
             .expect("Class entry has already been set");
+    }
+
+    /// Takes ownership of the argument info tables of this class's methods.
+    ///
+    /// `zend_register_functions` keeps `zend_internal_function.arg_info`
+    /// pointing into these for the life of the process, so they must outlive
+    /// registration. Called once, from `ClassBuilder::register`.
+    ///
+    /// # Panics
+    ///
+    /// If the argument info has already been set.
+    pub fn set_arg_info(&self, arg_info: OwnedArgInfo) {
+        self.arg_info
+            .set(ArgInfoTables(arg_info))
+            .map_err(|_| ())
+            .expect("Argument info has already been set");
     }
 
     /// Finds a property descriptor by name.

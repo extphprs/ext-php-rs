@@ -817,11 +817,6 @@ impl<'a> Function<'a> {
                 |e| quote! { return ::ext_php_rs::class::ConstructorResult::Exception(#e); },
             )
         });
-        let variadic = self.args.typed.iter().any(|arg| arg.variadic).then(|| {
-            quote! {
-                .variadic()
-            }
-        });
         let docs = &self.docs;
         let flags = visibility.option_tokens();
 
@@ -840,7 +835,6 @@ impl<'a> Function<'a> {
                                 #(.arg(&mut #required_arg_names))*
                                 .not_required()
                                 #(.arg(&mut #not_required_arg_names))*
-                                #variadic
                                 .parse();
                             if parse.is_err() {
                                 return ::ext_php_rs::class::ConstructorResult::ArgError;
@@ -867,7 +861,6 @@ impl<'a> Function<'a> {
                             #(.arg(#required_args))*
                             .not_required()
                             #(.arg(#not_required_args))*
-                            #variadic
                     }
                     inner
                 },

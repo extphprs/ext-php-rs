@@ -164,7 +164,14 @@ impl<'a> FunctionBuilder<'a> {
     /// * `Error::IntegerOverflow` - If the number of arguments is too large.
     /// * If arg info for an argument could not be created.
     /// * If the function name contains NUL bytes.
-    pub fn build(mut self) -> Result<FunctionEntry> {
+    ///
+    /// # Ownership
+    ///
+    /// The returned `Box<[ArgInfo]>` is what `FunctionEntry::arg_info` points at.
+    /// The Zend engine borrows it for the life of the process, so the caller must
+    /// park it somewhere that lives that long — see `ClassMetadata::arg_info` and
+    /// `StaticModuleEntry`. Dropping it dangles the registered function.
+    pub fn build(mut self) -> Result<(FunctionEntry, Box<[ArgInfo]>)> {
         let mut args = Vec::with_capacity(self.args.len() + 1);
         let mut n_req = self.n_req.unwrap_or(self.args.len());
         let variadic = self.args.last().is_some_and(|arg| arg.variadic);
@@ -201,8 +208,44 @@ impl<'a> FunctionBuilder<'a> {
 
         self.function.fname = CString::new(self.name)?.into_raw();
         self.function.num_args = (args.len() - 1).try_into()?;
-        self.function.arg_info = Box::into_raw(args.into_boxed_slice()) as *const ArgInfo;
 
-        Ok(self.function)
+        let args = args.into_boxed_slice();
+        self.function.arg_info = args.as_ptr();
+
+        Ok((self.function, args))
+    }
+}
+
+/// Frees a [`FunctionEntry`] table once the Zend engine has consumed it.
+///
+/// `zend_register_functions` interns every `fname`, and
+/// `do_register_internal_class` reads `zend_class_entry.info.internal.builtin_functions`
+/// exactly once and never frees it, so a class or enum method table is dead as
+/// soon as registration returns.
+///
+/// The `arg_info` arrays are deliberately left alone. The engine's copy of them
+/// is shallow, so `arg_info[i].name` and `.default_value` stay live for
+/// `ReflectionParameter`, and a function with no parameters and no return type
+/// keeps the array itself. They are owned by `ClassMetadata` or
+/// [`ModuleAllocations`](crate::zend::ModuleAllocations) instead.
+///
+/// # Safety
+///
+/// * `entries` must come from `Box::into_raw` on a NUL-terminated
+///   `Box<[FunctionEntry]>` whose entries were built by
+///   [`FunctionBuilder::build`].
+/// * Must be called exactly once, after the `zend_register_*` call that
+///   consumed the table.
+/// * Must never be called on a [`ModuleEntry::functions`] table: PHP re-reads
+///   that one from `module_destructor` after MSHUTDOWN and from
+///   `get_extension_funcs()` during a request.
+///
+/// [`ModuleEntry::functions`]: crate::zend::ModuleEntry
+pub(crate) unsafe fn free_registered_entries(entries: *mut [FunctionEntry]) {
+    let entries = unsafe { Box::from_raw(entries) };
+    for entry in &*entries {
+        if !entry.fname.is_null() {
+            drop(unsafe { CString::from_raw(entry.fname.cast_mut()) });
+        }
     }
 }

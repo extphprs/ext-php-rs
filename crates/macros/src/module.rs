@@ -90,30 +90,6 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 a | b
             }
 
-            // Stores the user's original shutdown callback so we can chain it.
-            static __EXT_PHP_RS_USER_SHUTDOWN: ::std::sync::OnceLock<
-                Option<unsafe extern "C" fn(i32, i32) -> i32>,
-            > = ::std::sync::OnceLock::new();
-
-            extern "C" fn ext_php_rs_shutdown(ty: i32, mod_num: i32) -> i32 {
-                let user_result = __EXT_PHP_RS_USER_SHUTDOWN
-                    .get()
-                    .and_then(|opt| *opt)
-                    .map_or(0, |f| unsafe { f(ty, mod_num) });
-
-                let entry = __EXT_PHP_RS_MODULE_ENTRY.get_or_init(|| unreachable!());
-                // Only free when loaded as a shared extension (handle != NULL).
-                // Statically linked modules (embed SAPI) have no DL_UNLOAD, and
-                // PHP may still reference the pointers during later shutdown phases.
-                if !unsafe { (*entry).handle }.is_null() {
-                    unsafe {
-                        ::ext_php_rs::zend::cleanup_module_allocations(entry);
-                    }
-                }
-
-                user_result
-            }
-
             __EXT_PHP_RS_MODULE_ENTRY.get_or_init(|| {
                 #[inline]
                 fn internal(#inputs) #output {
@@ -127,13 +103,9 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 .startup_function(ext_php_rs_startup);
 
                 match builder.try_into() {
-                    Ok((mut entry, startup)) => {
+                    Ok((entry, startup, owned)) => {
                         __EXT_PHP_RS_MODULE_STARTUP.lock().replace(startup);
-                        // Chain our cleanup into MSHUTDOWN, preserving the
-                        // user's shutdown callback (if any).
-                        let _ = __EXT_PHP_RS_USER_SHUTDOWN.set(entry.module_shutdown_func);
-                        entry.module_shutdown_func = Some(ext_php_rs_shutdown);
-                        entry
+                        (entry, owned)
                     },
                     Err(e) => panic!("Failed to build PHP module: {:?}", e),
                 }
@@ -194,6 +166,13 @@ mod tests {
     #[test]
     fn missing_crate_name_skips_delegate_in_dynamic_build() {
         assert!(!expand(None, false).contains("_get_module"));
+    }
+
+    #[test]
+    fn shutdown_function_is_left_to_the_user() {
+        let out = expand(Some("my_ext"), false);
+        assert!(!out.contains("module_shutdown_func"));
+        assert!(!out.contains("cleanup_module_allocations"));
     }
 
     #[test]
