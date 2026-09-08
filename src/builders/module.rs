@@ -36,11 +36,11 @@ use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
 /// pub extern "C" fn get_module() -> *mut ModuleEntry {
 ///     static MODULE: StaticModuleEntry = StaticModuleEntry::new();
 ///     MODULE.get_or_init(|| {
-///         let (entry, _) = ModuleBuilder::new("ext-name", "ext-version")
+///         let (entry, _startup, owned) = ModuleBuilder::new("ext-name", "ext-version")
 ///             .info_function(php_module_info)
 ///             .try_into()
 ///             .unwrap();
-///         entry
+///         (entry, owned)
 ///     })
 /// }
 /// ```
