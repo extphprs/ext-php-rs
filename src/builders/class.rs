@@ -387,20 +387,25 @@ impl ClassBuilder {
         // The engine keeps `zend_internal_function.arg_info` pointing into these
         // for the life of the process, so `register` parks them. Holding them in
         // a `ManuallyDrop` keeps them alive across registration, which reads
-        // them, without a second owner.
+        // them, without a second owner. Every fallible step below runs after the
+        // class entry is in `CG(class_table)`, so an error must leak the tables
+        // rather than dangle the functions the engine already holds.
         let arg_info = ManuallyDrop::new(arg_info.into_boxed_slice());
 
         methods.push(FunctionEntry::end());
         let entries = Box::into_raw(methods.into_boxed_slice());
         self.ce.info.internal.builtin_functions = entries.cast::<FunctionEntry>().cast_const();
 
-        let parent = match self.extends {
-            Some((ptr, _)) => ptr::from_ref(ptr()).cast_mut(),
-            None => std::ptr::null_mut(),
-        };
         let class = if self.ce.flags().contains(ClassFlags::Interface) {
             unsafe { zend_register_internal_interface(&raw mut self.ce) }
         } else {
+            // Resolved here and not before the branch: the getter is usually
+            // `T::get_metadata().ce()`, which panics when the parent has not been
+            // registered, and `zend_register_internal_interface` takes no parent.
+            let parent = match self.extends {
+                Some((ptr, _)) => ptr::from_ref(ptr()).cast_mut(),
+                None => std::ptr::null_mut(),
+            };
             unsafe { zend_register_internal_class_ex(&raw mut self.ce, parent) }
         };
 

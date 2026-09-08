@@ -385,7 +385,7 @@ jobs:
         # intercepts every allocation once USE_ZEND_ALLOC routes ZendMM
         # through malloc. Doctests cannot build with -Zbuild-std, hence --lib.
         # module_tests adds a registered module, so the argument info tables
-        # owned by util::retain are exercised and must report as reachable.
+        # owned by `StaticModuleEntry` are exercised and must report as reachable.
         # Class, enum and INI registration are not covered here: MINIT cannot
         # run inside Embed's request. See CONTEXT.md for the cdylib recipe.
         env:
