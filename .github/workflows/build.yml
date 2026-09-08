@@ -384,13 +384,17 @@ jobs:
         # fully instrumented setup); the executable's ASan runtime still
         # intercepts every allocation once USE_ZEND_ALLOC routes ZendMM
         # through malloc. Doctests cannot build with -Zbuild-std, hence --lib.
+        # module_tests adds a registered module, so the argument info tables
+        # owned by util::retain are exercised and must report as reachable.
+        # Class, enum and INI registration are not covered here: MINIT cannot
+        # run inside Embed's request. See CONTEXT.md for the cdylib recipe.
         env:
           RUSTFLAGS: "-Zsanitizer=address -Clink-arg=-Wl,-undefined,dynamic_lookup"
           USE_ZEND_ALLOC: "0"
           USE_TRACKED_ALLOC: "1"
           ASAN_SYMBOLIZER_PATH: ${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-symbolizer
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.lsan-suppressions.txt
-        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p ext-php-rs --lib --features embed,closure,anyhow,observer
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -p ext-php-rs --lib --test module_tests --features embed,closure,anyhow,observer
 
   build-musl:
     name: musl / ${{ matrix.php }} / ${{ matrix.phpts[1] }}

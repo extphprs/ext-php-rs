@@ -62,3 +62,11 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 }
 # fn main() {}
 ```
+
+## Memory
+
+`IniEntryDef::register` keeps its definition table for the life of the process.
+PHP 8.5 stores it as `zend_ini_entry.def` and the CLI SAPI dereferences
+`def->value` when printing `php --ini=diff`, so the table cannot be freed after
+registration. This is the same lifetime a C extension gets for free by putting
+its `zend_ini_entry_def[]` in `.rodata`.
