@@ -18,7 +18,7 @@ use crate::{
     },
     flags::{ClassFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
-    zend::{ClassEntry, ExecuteData, FunctionEntry},
+    zend::{ClassEntry, ExecuteData, ExecutorGlobals, FunctionEntry},
     zend_fastcall,
 };
 
@@ -351,8 +351,15 @@ impl ClassBuilder {
     ///
     /// # Panics
     ///
-    /// If no registration function was provided.
+    /// * If called outside a module startup (MINIT) function.
+    /// * If no registration function was provided.
     pub fn register(mut self) -> Result<()> {
+        assert!(
+            !ExecutorGlobals::get().current_module.is_null(),
+            "Classes can only be registered from a module startup (MINIT) function: \
+             `do_register_internal_class` dereferences `EG(current_module)`."
+        );
+
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
 
         let mut methods = self

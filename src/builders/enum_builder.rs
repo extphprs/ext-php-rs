@@ -9,7 +9,7 @@ use crate::{
     ffi::{zend_enum_add_case, zend_register_internal_enum},
     flags::{DataType, DataTypeExt, MethodFlags},
     types::{ZendStr, Zval},
-    zend::{ClassEntry, FunctionEntry},
+    zend::{ClassEntry, ExecutorGlobals, FunctionEntry},
 };
 
 /// A builder for PHP enums.
@@ -83,14 +83,21 @@ impl EnumBuilder {
     ///
     /// # Panics
     ///
-    /// If the registration function was not set prior to calling this
-    /// method.
+    /// * If called outside a module startup (MINIT) function.
+    /// * If the registration function was not set prior to calling this
+    ///   method.
     ///
     /// # Errors
     ///
     /// If the enum could not be registered, e.g. due to an invalid name or
     /// data type.
     pub fn register(self) -> Result<()> {
+        assert!(
+            !ExecutorGlobals::get().current_module.is_null(),
+            "Enums can only be registered from a module startup (MINIT) function: \
+             `do_register_internal_class` dereferences `EG(current_module)`."
+        );
+
         let mut methods = self
             .methods
             .into_iter()
