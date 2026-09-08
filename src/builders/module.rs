@@ -462,6 +462,9 @@ impl ModuleBuilder<'_> {
                 .registration(|ce| {
                     T::get_metadata().set_ce(ce);
                 })
+                .arg_info_sink(|arg_info| {
+                    T::get_metadata().set_arg_info(arg_info);
+                })
                 .docs(T::DOC_COMMENTS)
         });
         self
@@ -544,6 +547,9 @@ impl ModuleBuilder<'_> {
                 .registration(|ce| {
                     T::get_metadata().set_ce(ce);
                 })
+                .arg_info_sink(|arg_info| {
+                    T::get_metadata().set_arg_info(arg_info);
+                })
                 .docs(T::DOC_COMMENTS)
         });
         self
@@ -567,6 +573,9 @@ impl ModuleBuilder<'_> {
             builder
                 .registration(|ce| {
                     T::get_metadata().set_ce(ce);
+                })
+                .arg_info_sink(|arg_info| {
+                    T::get_metadata().set_arg_info(arg_info);
                 })
                 .docs(T::DOC_COMMENTS)
         });
@@ -685,11 +694,12 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup) {
     type Error = crate::error::Error;
 
     fn try_from(builder: ModuleBuilder) -> Result<Self, Self::Error> {
-        let mut functions = builder
-            .functions
-            .into_iter()
-            .map(FunctionBuilder::build)
-            .collect::<Result<Vec<_>>>()?;
+        let mut functions = Vec::with_capacity(builder.functions.len() + 1);
+        for function in builder.functions {
+            let (entry, arg_info) = function.build()?;
+            functions.push(entry);
+            crate::util::retain::retain(arg_info);
+        }
         functions.push(FunctionEntry::end());
         let functions = crate::util::retain::retain(functions.into_boxed_slice())
             .cast::<FunctionEntry>()

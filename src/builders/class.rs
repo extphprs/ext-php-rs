@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    args::ArgInfoTables,
     builders::{FunctionBuilder, function::free_registered_entries},
     class::{ClassEntryInfo, ConstructorMeta, ConstructorResult, RegisteredClass},
     convert::{IntoZval, IntoZvalDyn},
@@ -63,6 +64,7 @@ pub struct ClassBuilder {
     pub(crate) properties: Vec<ClassProperty>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry)>,
+    arg_info_sink: Option<fn(ArgInfoTables)>,
     pub(crate) docs: DocComments,
 }
 
@@ -86,6 +88,7 @@ impl ClassBuilder {
             properties: vec![],
             constants: vec![],
             register: None,
+            arg_info_sink: None,
             docs: &[],
         }
     }
@@ -330,6 +333,20 @@ impl ClassBuilder {
         self
     }
 
+    /// Sets where the argument info tables of this class's methods are parked.
+    ///
+    /// `zend_register_functions` borrows them for the life of the process. The
+    /// sink is normally `ClassMetadata::set_arg_info`, wired by
+    /// [`ModuleBuilder::class`](crate::builders::ModuleBuilder::class).
+    ///
+    /// # Parameters
+    ///
+    /// * `sink` - The function that takes ownership of the tables.
+    pub fn arg_info_sink(mut self, sink: fn(ArgInfoTables)) -> Self {
+        self.arg_info_sink = Some(sink);
+        self
+    }
+
     /// Sets the documentation for the class.
     ///
     /// # Parameters
@@ -362,16 +379,24 @@ impl ClassBuilder {
 
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
 
-        let mut methods = self
-            .methods
-            .into_iter()
-            .map(|(method, flags)| {
-                method.build().map(|mut method| {
-                    method.flags |= flags.bits();
-                    method
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut arg_info = Vec::with_capacity(self.methods.len());
+        let mut methods = Vec::with_capacity(self.methods.len() + 1);
+        for (method, flags) in self.methods {
+            let (mut entry, args) = method.build()?;
+            entry.flags |= flags.bits();
+            methods.push(entry);
+            arg_info.push(args);
+        }
+
+        // The engine keeps `zend_internal_function.arg_info` pointing into these
+        // for the life of the process, so they must be parked somewhere that
+        // lives that long. Dropping them here would dangle every method.
+        if !arg_info.is_empty() {
+            let sink = self
+                .arg_info_sink
+                .expect("A class with methods needs an argument info sink");
+            sink(arg_info.into_boxed_slice());
+        }
 
         methods.push(FunctionEntry::end());
         let entries = Box::into_raw(methods.into_boxed_slice());

@@ -1,6 +1,7 @@
 use std::{ffi::CString, mem::ManuallyDrop, ptr};
 
 use crate::{
+    args::ArgInfoTables,
     builders::{FunctionBuilder, function::free_registered_entries},
     convert::IntoZval,
     describe::DocComments,
@@ -20,6 +21,7 @@ pub struct EnumBuilder {
     pub(crate) cases: Vec<&'static EnumCase>,
     pub(crate) datatype: DataType,
     register: Option<fn(&'static mut ClassEntry)>,
+    arg_info_sink: Option<fn(ArgInfoTables)>,
     pub(crate) docs: DocComments,
 }
 
@@ -32,6 +34,7 @@ impl EnumBuilder {
             cases: Vec::default(),
             datatype: DataType::Undef,
             register: None,
+            arg_info_sink: None,
             docs: DocComments::default(),
         }
     }
@@ -73,6 +76,18 @@ impl EnumBuilder {
         self
     }
 
+    /// Sets where the argument info tables of this enum's methods are parked.
+    ///
+    /// See [`ClassBuilder::arg_info_sink`](crate::builders::ClassBuilder::arg_info_sink).
+    ///
+    /// # Parameters
+    ///
+    /// * `sink` - The function that takes ownership of the tables.
+    pub fn arg_info_sink(mut self, sink: fn(ArgInfoTables)) -> Self {
+        self.arg_info_sink = Some(sink);
+        self
+    }
+
     /// Add documentation comments to the enum.
     pub fn docs(mut self, docs: DocComments) -> Self {
         self.docs = docs;
@@ -98,16 +113,25 @@ impl EnumBuilder {
              `do_register_internal_class` dereferences `EG(current_module)`."
         );
 
-        let mut methods = self
-            .methods
-            .into_iter()
-            .map(|(method, flags)| {
-                method.build().map(|mut method| {
-                    method.flags |= flags.bits();
-                    method
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let mut arg_info = Vec::with_capacity(self.methods.len());
+        let mut methods = Vec::with_capacity(self.methods.len() + 1);
+        for (method, flags) in self.methods {
+            let (mut entry, args) = method.build()?;
+            entry.flags |= flags.bits();
+            methods.push(entry);
+            arg_info.push(args);
+        }
+
+        // The engine keeps `zend_internal_function.arg_info` pointing into these
+        // for the life of the process, so they must be parked somewhere that
+        // lives that long. Dropping them here would dangle every method.
+        if !arg_info.is_empty() {
+            let sink = self
+                .arg_info_sink
+                .expect("An enum with methods needs an argument info sink");
+            sink(arg_info.into_boxed_slice());
+        }
+
         methods.push(FunctionEntry::end());
 
         let name = CString::new(self.name)?;

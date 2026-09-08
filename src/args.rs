@@ -12,6 +12,12 @@ use crate::{
     zend::ZendType,
 };
 
+/// Argument info tables of a class's or enum's methods, one per method.
+///
+/// The Zend engine borrows these for the life of the process, so they must be
+/// parked in something that lives that long.
+pub type ArgInfoTables = Box<[Box<[ArgInfo]>]>;
+
 /// Represents an argument to a function.
 #[must_use]
 #[derive(Debug)]

@@ -134,6 +134,7 @@ impl Closure {
             )
             .object_override::<Self>()
             .registration(|ce| CLOSURE_META.set_ce(ce))
+            .arg_info_sink(|arg_info| CLOSURE_META.set_arg_info(arg_info))
             .register()
             .expect("Failed to build `RustClosure` PHP class.");
     }
