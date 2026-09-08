@@ -1,4 +1,4 @@
-use std::{ffi::CString, ptr};
+use std::{ffi::CString, mem::ManuallyDrop, ptr};
 
 use crate::{
     builders::FunctionBuilder,
@@ -113,10 +113,16 @@ impl EnumBuilder {
 
         for case in self.cases {
             let name = ZendStr::new_interned(case.name, true);
-            let value = match &case.discriminant {
-                Some(value) => Self::create_enum_value(value)?,
-                None => ptr::null_mut(),
+            // `zend_enum_add_case` interns a string discriminant in place and
+            // `create_enum_case_ast` takes the payload with `ZVAL_COPY_VALUE`, so the
+            // case AST owns it and the `Zval` must not run its destructor.
+            let mut value = match &case.discriminant {
+                Some(value) => Some(ManuallyDrop::new(Self::create_enum_value(value)?)),
+                None => None,
             };
+            let value = value
+                .as_mut()
+                .map_or(ptr::null_mut(), |value| &raw mut **value);
             unsafe {
                 zend_enum_add_case(class, name.into_raw(), value);
             }
@@ -131,14 +137,11 @@ impl EnumBuilder {
         Ok(())
     }
 
-    fn create_enum_value(discriminant: &Discriminant) -> Result<*mut Zval> {
-        let value: Zval = match discriminant {
+    fn create_enum_value(discriminant: &Discriminant) -> Result<Zval> {
+        Ok(match discriminant {
             Discriminant::Int(i) => i.into_zval(false)?,
             Discriminant::String(s) => s.into_zval(true)?,
-        };
-
-        let boxed_value = Box::new(value);
-        Ok(Box::into_raw(boxed_value).cast())
+        })
     }
 }
 

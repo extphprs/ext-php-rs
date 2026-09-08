@@ -1,4 +1,9 @@
-use std::{ffi::CString, mem::MaybeUninit, ptr, rc::Rc};
+use std::{
+    ffi::CString,
+    mem::{ManuallyDrop, MaybeUninit},
+    ptr,
+    rc::Rc,
+};
 
 use crate::{
     builders::FunctionBuilder,
@@ -424,13 +429,18 @@ impl ClassBuilder {
         }
 
         for (name, value, _, _) in self.constants {
-            let value = Box::into_raw(Box::new(value()?));
+            let name = CString::new(name.as_str())?;
+            // `zend_declare_typed_class_constant` takes the payload with
+            // `ZVAL_COPY_VALUE` and no incref and, unlike
+            // `zend_declare_typed_property`, does not reject refcounted values, so
+            // the constants table owns it and the `Zval` must not run its destructor.
+            let mut value = ManuallyDrop::new(value()?);
             unsafe {
                 zend_declare_class_constant(
                     class,
-                    CString::new(name.as_str())?.as_ptr(),
-                    name.len(),
-                    value,
+                    name.as_ptr(),
+                    name.as_bytes().len(),
+                    &raw mut *value,
                 );
             };
         }
