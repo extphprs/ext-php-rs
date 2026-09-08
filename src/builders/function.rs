@@ -208,3 +208,36 @@ impl<'a> FunctionBuilder<'a> {
         Ok(self.function)
     }
 }
+
+/// Frees a [`FunctionEntry`] table once the Zend engine has consumed it.
+///
+/// `zend_register_functions` interns every `fname`, and
+/// `do_register_internal_class` reads `zend_class_entry.info.internal.builtin_functions`
+/// exactly once and never frees it, so a class or enum method table is dead as
+/// soon as registration returns.
+///
+/// The `arg_info` arrays are deliberately left alone. The engine's copy of them
+/// is shallow, so `arg_info[i].name` and `.default_value` stay live for
+/// `ReflectionParameter`, and a function with no parameters and no return type
+/// keeps the array itself. They are owned by [`crate::util::retain`] instead.
+///
+/// # Safety
+///
+/// * `entries` must come from `Box::into_raw` on a NUL-terminated
+///   `Box<[FunctionEntry]>` whose entries were built by
+///   [`FunctionBuilder::build`].
+/// * Must be called exactly once, after the `zend_register_*` call that
+///   consumed the table.
+/// * Must never be called on a [`ModuleEntry::functions`] table: PHP re-reads
+///   that one from `module_destructor` after MSHUTDOWN and from
+///   `get_extension_funcs()` during a request.
+///
+/// [`ModuleEntry::functions`]: crate::zend::ModuleEntry
+pub(crate) unsafe fn free_registered_entries(entries: *mut [FunctionEntry]) {
+    let entries = unsafe { Box::from_raw(entries) };
+    for entry in &*entries {
+        if !entry.fname.is_null() {
+            drop(unsafe { CString::from_raw(entry.fname.cast_mut()) });
+        }
+    }
+}

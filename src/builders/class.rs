@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    builders::FunctionBuilder,
+    builders::{FunctionBuilder, function::free_registered_entries},
     class::{ClassEntryInfo, ConstructorMeta, ConstructorResult, RegisteredClass},
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
@@ -367,28 +367,25 @@ impl ClassBuilder {
             .collect::<Result<Vec<_>>>()?;
 
         methods.push(FunctionEntry::end());
-        let func = Box::into_raw(methods.into_boxed_slice()) as *const FunctionEntry;
-        self.ce.info.internal.builtin_functions = func;
+        let entries = Box::into_raw(methods.into_boxed_slice());
+        self.ce.info.internal.builtin_functions = entries.cast::<FunctionEntry>().cast_const();
 
-        let class = if self.ce.flags().contains(ClassFlags::Interface) {
-            unsafe {
-                zend_register_internal_interface(&raw mut self.ce)
-                    .as_mut()
-                    .ok_or(Error::InvalidPointer)?
-            }
-        } else {
-            unsafe {
-                zend_register_internal_class_ex(
-                    &raw mut self.ce,
-                    match self.extends {
-                        Some((ptr, _)) => ptr::from_ref(ptr()).cast_mut(),
-                        None => std::ptr::null_mut(),
-                    },
-                )
-                .as_mut()
-                .ok_or(Error::InvalidPointer)?
-            }
+        let parent = match self.extends {
+            Some((ptr, _)) => ptr::from_ref(ptr()).cast_mut(),
+            None => std::ptr::null_mut(),
         };
+        let class = if self.ce.flags().contains(ClassFlags::Interface) {
+            unsafe { zend_register_internal_interface(&raw mut self.ce) }
+        } else {
+            unsafe { zend_register_internal_class_ex(&raw mut self.ce, parent) }
+        };
+
+        // SAFETY: `do_register_internal_class` has interned every `fname` and read
+        // `builtin_functions` for the last time, so the table is dead.
+        unsafe { free_registered_entries(entries) };
+
+        let class = unsafe { class.as_mut() }.ok_or(Error::InvalidPointer)?;
+        class.info.internal.builtin_functions = ptr::null();
 
         // disable serialization if the class has an associated object
         if self.object_override.is_some() {

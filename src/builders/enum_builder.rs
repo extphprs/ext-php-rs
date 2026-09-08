@@ -1,7 +1,7 @@
 use std::{ffi::CString, mem::ManuallyDrop, ptr};
 
 use crate::{
-    builders::FunctionBuilder,
+    builders::{FunctionBuilder, function::free_registered_entries},
     convert::IntoZval,
     describe::DocComments,
     enum_::{Discriminant, EnumCase},
@@ -110,6 +110,12 @@ impl EnumBuilder {
         let class = unsafe {
             zend_register_internal_enum(name.as_ptr(), backing_type, entries.cast::<FunctionEntry>())
         };
+
+        // SAFETY: `zend_register_internal_enum` funnels through
+        // `do_register_internal_class`, which has interned every `fname` and read
+        // `builtin_functions` for the last time.
+        unsafe { free_registered_entries(entries) };
+        unsafe { (*class).info.internal.builtin_functions = ptr::null() };
 
         for case in self.cases {
             let name = ZendStr::new_interned(case.name, true);
