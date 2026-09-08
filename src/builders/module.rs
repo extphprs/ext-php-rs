@@ -459,10 +459,8 @@ impl ModuleBuilder<'_> {
             // Note: interfaces should NOT have object_override because they cannot be
             // instantiated
             builder
-                .registration(|ce| {
+                .registration(|ce, arg_info| {
                     T::get_metadata().set_ce(ce);
-                })
-                .arg_info_sink(|arg_info| {
                     T::get_metadata().set_arg_info(arg_info);
                 })
                 .docs(T::DOC_COMMENTS)
@@ -544,10 +542,8 @@ impl ModuleBuilder<'_> {
             builder
                 .flags(T::FLAGS)
                 .object_override::<T>()
-                .registration(|ce| {
+                .registration(|ce, arg_info| {
                     T::get_metadata().set_ce(ce);
-                })
-                .arg_info_sink(|arg_info| {
                     T::get_metadata().set_arg_info(arg_info);
                 })
                 .docs(T::DOC_COMMENTS)
@@ -571,10 +567,8 @@ impl ModuleBuilder<'_> {
             }
 
             builder
-                .registration(|ce| {
+                .registration(|ce, arg_info| {
                     T::get_metadata().set_ce(ce);
-                })
-                .arg_info_sink(|arg_info| {
                     T::get_metadata().set_arg_info(arg_info);
                 })
                 .docs(T::DOC_COMMENTS)

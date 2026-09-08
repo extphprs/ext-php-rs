@@ -63,8 +63,7 @@ pub struct ClassBuilder {
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
     pub(crate) properties: Vec<ClassProperty>,
     pub(crate) constants: Vec<ConstantEntry>,
-    register: Option<fn(&'static mut ClassEntry)>,
-    arg_info_sink: Option<fn(ArgInfoTables)>,
+    register: Option<fn(&'static mut ClassEntry, ArgInfoTables)>,
     pub(crate) docs: DocComments,
 }
 
@@ -88,7 +87,6 @@ impl ClassBuilder {
             properties: vec![],
             constants: vec![],
             register: None,
-            arg_info_sink: None,
             docs: &[],
         }
     }
@@ -322,28 +320,26 @@ impl ClassBuilder {
         }
     }
 
-    /// Function to register the class with PHP. This function is called after
-    /// the class is built.
+    /// Function to register the class with PHP, called once the class is built.
+    ///
+    /// It receives the registered class entry and the argument info tables of
+    /// the class's methods. `zend_register_functions` borrows those tables for
+    /// the life of the process, so the function must park them somewhere that
+    /// lives that long — normally the class's own
+    /// [`ClassMetadata`](crate::class::ClassMetadata) static:
+    ///
+    /// ```rust,ignore
+    /// .registration(|ce, arg_info| {
+    ///     META.set_ce(ce);
+    ///     META.set_arg_info(arg_info);
+    /// })
+    /// ```
     ///
     /// # Parameters
     ///
     /// * `register` - The function to call to register the class.
-    pub fn registration(mut self, register: fn(&'static mut ClassEntry)) -> Self {
+    pub fn registration(mut self, register: fn(&'static mut ClassEntry, ArgInfoTables)) -> Self {
         self.register = Some(register);
-        self
-    }
-
-    /// Sets where the argument info tables of this class's methods are parked.
-    ///
-    /// `zend_register_functions` borrows them for the life of the process. The
-    /// sink is normally `ClassMetadata::set_arg_info`, wired by
-    /// [`ModuleBuilder::class`](crate::builders::ModuleBuilder::class).
-    ///
-    /// # Parameters
-    ///
-    /// * `sink` - The function that takes ownership of the tables.
-    pub fn arg_info_sink(mut self, sink: fn(ArgInfoTables)) -> Self {
-        self.arg_info_sink = Some(sink);
         self
     }
 
@@ -389,14 +385,10 @@ impl ClassBuilder {
         }
 
         // The engine keeps `zend_internal_function.arg_info` pointing into these
-        // for the life of the process, so they must be parked somewhere that
-        // lives that long. Dropping them here would dangle every method.
-        if !arg_info.is_empty() {
-            let sink = self
-                .arg_info_sink
-                .expect("A class with methods needs an argument info sink");
-            sink(arg_info.into_boxed_slice());
-        }
+        // for the life of the process, so `register` parks them. Holding them in
+        // a `ManuallyDrop` keeps them alive across registration, which reads
+        // them, without a second owner.
+        let arg_info = ManuallyDrop::new(arg_info.into_boxed_slice());
 
         methods.push(FunctionEntry::end());
         let entries = Box::into_raw(methods.into_boxed_slice());
@@ -479,7 +471,7 @@ impl ClassBuilder {
         }
 
         if let Some(register) = self.register {
-            register(class);
+            register(class, ManuallyDrop::into_inner(arg_info));
         } else {
             panic!("Class {} was not registered.", self.name);
         }
@@ -580,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_registration() {
-        let class = ClassBuilder::new("Foo").registration(|_| {});
+        let class = ClassBuilder::new("Foo").registration(|_, _| {});
         assert!(class.register.is_some());
     }
 
@@ -588,7 +580,7 @@ mod tests {
     fn test_registration_interface() {
         let class = ClassBuilder::new("Foo")
             .flags(ClassFlags::Interface)
-            .registration(|_| {});
+            .registration(|_, _| {});
         assert!(class.register.is_some());
     }
 

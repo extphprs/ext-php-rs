@@ -20,8 +20,7 @@ pub struct EnumBuilder {
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     pub(crate) cases: Vec<&'static EnumCase>,
     pub(crate) datatype: DataType,
-    register: Option<fn(&'static mut ClassEntry)>,
-    arg_info_sink: Option<fn(ArgInfoTables)>,
+    register: Option<fn(&'static mut ClassEntry, ArgInfoTables)>,
     pub(crate) docs: DocComments,
 }
 
@@ -34,7 +33,6 @@ impl EnumBuilder {
             cases: Vec::default(),
             datatype: DataType::Undef,
             register: None,
-            arg_info_sink: None,
             docs: DocComments::default(),
         }
     }
@@ -65,26 +63,18 @@ impl EnumBuilder {
         self
     }
 
-    /// Function to register the class with PHP. This function is called after
-    /// the class is built.
+    /// Function to register the enum with PHP, called once it is built.
+    ///
+    /// See [`ClassBuilder::registration`] for the ownership contract of the
+    /// argument info tables.
     ///
     /// # Parameters
     ///
-    /// * `register` - The function to call to register the class.
-    pub fn registration(mut self, register: fn(&'static mut ClassEntry)) -> Self {
+    /// * `register` - The function to call to register the enum.
+    ///
+    /// [`ClassBuilder::registration`]: crate::builders::ClassBuilder::registration
+    pub fn registration(mut self, register: fn(&'static mut ClassEntry, ArgInfoTables)) -> Self {
         self.register = Some(register);
-        self
-    }
-
-    /// Sets where the argument info tables of this enum's methods are parked.
-    ///
-    /// See [`ClassBuilder::arg_info_sink`](crate::builders::ClassBuilder::arg_info_sink).
-    ///
-    /// # Parameters
-    ///
-    /// * `sink` - The function that takes ownership of the tables.
-    pub fn arg_info_sink(mut self, sink: fn(ArgInfoTables)) -> Self {
-        self.arg_info_sink = Some(sink);
         self
     }
 
@@ -123,14 +113,8 @@ impl EnumBuilder {
         }
 
         // The engine keeps `zend_internal_function.arg_info` pointing into these
-        // for the life of the process, so they must be parked somewhere that
-        // lives that long. Dropping them here would dangle every method.
-        if !arg_info.is_empty() {
-            let sink = self
-                .arg_info_sink
-                .expect("An enum with methods needs an argument info sink");
-            sink(arg_info.into_boxed_slice());
-        }
+        // for the life of the process, so `register` parks them.
+        let arg_info = ManuallyDrop::new(arg_info.into_boxed_slice());
 
         methods.push(FunctionEntry::end());
 
@@ -170,7 +154,7 @@ impl EnumBuilder {
         }
 
         if let Some(register) = self.register {
-            register(unsafe { &mut *class });
+            register(unsafe { &mut *class }, ManuallyDrop::into_inner(arg_info));
         } else {
             panic!("Enum was not registered with a registration function");
         }
