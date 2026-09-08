@@ -262,6 +262,26 @@ impl TestClassProtectedConstruct {
     }
 }
 
+/// Regression: a constructor with a variadic parameter used to emit a
+/// `.variadic()` call that exists on neither `ArgParser` nor `FunctionBuilder`,
+/// so the extension did not compile.
+#[php_class]
+pub struct TestClassVariadicConstruct {
+    /// Number of arguments the constructor received.
+    #[php(prop)]
+    pub count: i64,
+}
+
+#[php_impl]
+impl TestClassVariadicConstruct {
+    fn __construct(first: String, rest: &[&Zval]) -> Self {
+        let _ = first;
+        Self {
+            count: rest.len() as i64,
+        }
+    }
+}
+
 /// Test class with static properties (Issue #252)
 #[php_class]
 pub struct TestStaticProps {
@@ -684,6 +704,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestClassExtendsImpl>()
         .class::<TestClassMethodVisibility>()
         .class::<TestClassProtectedConstruct>()
+        .class::<TestClassVariadicConstruct>()
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
         .class::<TestPropertyVisibility>()
