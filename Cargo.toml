@@ -59,8 +59,12 @@ smartstring = ["dep:smartstring"]
 indexmap = ["dep:indexmap"]
 enum = []
 observer = []
+# How bindgen links libclang. clang-sys refuses to build the two together, so
+# they are the one non-additive pair in this manifest and `--all-features` cannot
+# resolve. The underscore keeps cargo-semver-checks, which release-plz runs to
+# infer the bump, from selecting `_static` on its own.
 runtime = ["ext-php-rs-bindgen/runtime"]
-static = ["ext-php-rs-bindgen/static"]
+_static = ["ext-php-rs-bindgen/static"]
 
 [workspace]
 members = [
@@ -73,6 +77,10 @@ members = [
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docs"]
+# `embed` is left out on purpose: docs.rs has no PHP, so `build.rs` falls back to
+# the checked-in `docsrs_bindings.rs`, which carries none of the symbols the embed
+# module imports.
+features = ["enum", "closure", "anyhow", "observer", "smartstring", "indexmap"]
 
 [lints.rust]
 missing_docs = "warn"

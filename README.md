@@ -128,7 +128,7 @@ best resource at the moment. This can be viewed at [docs.rs].
 
 ### Alpine Linux (musl)
 
-Building on Alpine Linux (musl libc) is supported thanks to the `runtime` feature flag.
+Building on Alpine Linux (musl libc) is supported through the `runtime` feature flag, which is on by default.
 
 ```sh
 # Install dependencies and cargo-php
@@ -143,7 +143,15 @@ When building your own extensions, add to your project's `.cargo/config.toml`:
 rustflags = ["-C", "target-feature=-crt-static"]
 ```
 
-For static linking, see: <https://github.com/KyleMayes/clang-sys#static>
+To link libclang statically instead, swap `runtime` for `_static` and install
+`clang16-static` rather than `clang16-libclang`:
+
+```toml
+ext-php-rs = { version = "0.16", default-features = false, features = ["enum", "_static"] }
+```
+
+The two are mutually exclusive, so `default-features = false` is required. See
+<https://github.com/KyleMayes/clang-sys#static>.
 
 ### Windows Requirements
 

@@ -13,7 +13,7 @@ enum = ["ext-php-rs/enum"]
 anyhow = ["ext-php-rs/anyhow"]
 runtime = ["ext-php-rs/runtime"]
 closure = ["ext-php-rs/closure"]
-static = ["ext-php-rs/static"]
+static = ["ext-php-rs/_static"]
 
 [lib]
 name = "benches"
