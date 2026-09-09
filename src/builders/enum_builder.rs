@@ -112,15 +112,16 @@ impl EnumBuilder {
             arg_info.push(args);
         }
 
-        // The engine keeps `zend_internal_function.arg_info` pointing into these
-        // for the life of the process, so `register` parks them.
-        let arg_info = ManuallyDrop::new(arg_info.into_boxed_slice());
-
         methods.push(FunctionEntry::end());
 
         let name = CString::new(self.name)?;
         let backing_type = self.datatype.as_u32().try_into()?;
         let entries = Box::into_raw(methods.into_boxed_slice());
+
+        // The engine keeps `zend_internal_function.arg_info` pointing into these
+        // for the life of the process, so `register` parks them. Wrapped only once
+        // the fallible steps are done, so an early return still drops them.
+        let arg_info = ManuallyDrop::new(arg_info.into_boxed_slice());
 
         let class = unsafe {
             zend_register_internal_enum(
