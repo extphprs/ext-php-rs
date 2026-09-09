@@ -14,6 +14,14 @@ git_release_body = """
 name = "ext-php-rs"
 publish_features = ["enum", "runtime", "closure", "embed", "anyhow"]
 
+# `cargo-php` is a CLI: its lib target is an implementation detail, not a public
+# API. The check is also unrunnable, since it builds the published baseline with
+# all features and 0.1.21 still forwards `runtime` and `static` to `ext-php-rs`,
+# which clang-sys refuses to combine.
+[[package]]
+name = "cargo-php"
+semver_check = false
+
 [changelog]
 header = "# Changelog"
 body = """
