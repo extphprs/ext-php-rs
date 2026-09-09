@@ -14,7 +14,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use bindgen::RustTarget;
+use bindgen::{Abi, RustTarget};
 use ext_php_rs_build::{ApiVersion, PHPInfo, find_php};
 use impl_::Provider;
 
@@ -134,6 +134,7 @@ fn generate_bindings(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<S
         .no_copy("_zend_array")
         .no_debug("_zend_function_entry") // On Windows when the handler uses vectorcall, Debug cannot be derived so we do it in code.
         .layout_tests(env::var("EXT_PHP_RS_TEST").is_ok())
+        .override_abi(Abi::C, "zend_vm_opcode_handler_t")
         .rust_target(RustTarget::nightly());
 
     for binding in ALLOWED_BINDINGS {
