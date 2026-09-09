@@ -216,7 +216,7 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// Returns a `*const` so the caller decides whether to form a shared or a
     /// mutable reference. Callers that need `&mut Self` must pass a pointer
     /// derived from a `&mut zend_object` and recover write permission with
-    /// [`pointer::cast_mut`], so that the mutable access is never derived from a
+    /// `<*const T>::cast_mut`, so that the mutable access is never derived from a
     /// shared reborrow.
     ///
     /// # Safety
