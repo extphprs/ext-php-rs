@@ -13,11 +13,17 @@ git_release_body = """
 [[package]]
 name = "ext-php-rs"
 publish_features = ["enum", "runtime", "closure", "embed", "anyhow"]
+# Off until 0.16.0 is the published baseline. cargo-semver-checks builds the
+# baseline from its own manifest, and 0.15.15 names the feature `static`, which
+# clang-sys refuses to combine with `runtime`. 0.16.0 renames it `_static`, a
+# name cargo-semver-checks skips, so this can go back to the default then.
+semver_check = false
 
-# `cargo-php` is a CLI: its lib target is an implementation detail, not a public
-# API. The check is also unrunnable, since it builds the published baseline with
-# all features and 0.1.21 still forwards `runtime` and `static` to `ext-php-rs`,
-# which clang-sys refuses to combine.
+# Off until 0.2.0 is the published baseline. cargo-semver-checks builds the
+# baseline from its own manifest, and 0.1.21 forwards `runtime` and `static` to
+# `ext-php-rs`, a pair clang-sys refuses to combine. `crates/cli` declares no
+# feature at all since it stopped depending on `ext-php-rs`, so this can go back
+# to the default once 0.2.0 is out.
 [[package]]
 name = "cargo-php"
 semver_check = false
