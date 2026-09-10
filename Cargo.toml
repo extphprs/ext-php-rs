@@ -34,10 +34,7 @@ serde_json = "1"
 
 [build-dependencies]
 anyhow = "1"
-ext-php-rs-bindgen = { version = "0.72.1-extphprs.2", default-features = false, features = [
-    "logging",
-    "prettyplease",
-] }
+bindgen = { version = "0.73.2", default-features = false, features = ["logging"] }
 cc = "1.2"
 skeptic = "0.13"
 ext-php-rs-build = { version = "0.1.1", path = "./crates/php-build" }
@@ -63,8 +60,8 @@ observer = []
 # they are the one non-additive pair in this manifest and `--all-features` cannot
 # resolve. The underscore keeps cargo-semver-checks, which release-plz runs to
 # infer the bump, from selecting `_static` on its own.
-runtime = ["ext-php-rs-bindgen/runtime"]
-_static = ["ext-php-rs-bindgen/static"]
+runtime = ["bindgen/runtime"]
+_static = ["bindgen/static"]
 
 [workspace]
 members = [
