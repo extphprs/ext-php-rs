@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.21...cargo-php-v0.2.0) - 2026-09-11
+
+### BREAKING CHANGES
+
+- *(describe)* [**breaking**] Extract ext-php-rs-introspection crate ([#775](https://github.com/extphprs/ext-php-rs/pull/775)) (by @ptondereau) [[#775](https://github.com/extphprs/ext-php-rs/issues/775)] 
+
+### Added
+- Introduce --lib-name on static-glue to skip `cargo metadata` call ([#765](https://github.com/extphprs/ext-php-rs/pull/765)) (by @okhoshi) [[#765](https://github.com/extphprs/ext-php-rs/issues/765)] [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+- Guard get_module export for statically linked extensions ([#764](https://github.com/extphprs/ext-php-rs/pull/764)) (by @ptondereau) [[#764](https://github.com/extphprs/ext-php-rs/issues/764)] 
+- Support statically linking extensions into php-src ([#762](https://github.com/extphprs/ext-php-rs/pull/762)) (by @ptondereau) [[#762](https://github.com/extphprs/ext-php-rs/issues/762)] 
+
+### Fixed
+- *(cargo-php)* Allow unresolved Zend symbols when linking on macOS ([#774](https://github.com/extphprs/ext-php-rs/pull/774)) (by @Goopil) [[#774](https://github.com/extphprs/ext-php-rs/issues/774)] 
 ## [0.1.21](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.20...cargo-php-v0.1.21) - 2026-04-20
 
 ### Fixed
