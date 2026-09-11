@@ -322,7 +322,7 @@ mod tests {
 
             let vec2: crate::error::Result<Vec<(i64, String)>> = ht2.as_ref().try_into();
             assert!(vec2.is_err());
-            assert!(matches!(vec2.unwrap_err(), Error::InvalidProperty));
+            assert!(matches!(vec2.unwrap_err(), Error::ZvalConversion(_)));
         });
     }
 

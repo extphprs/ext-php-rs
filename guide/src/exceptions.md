@@ -9,7 +9,7 @@ in Rust) is currently being worked on.
 message contained in the exception, the type of exception and a status code to
 go along with the exception.
 
-You can create a new exception with the `new()`, `default()`, or
+You can create a new exception with the `new()`, `from_message()`, or
 `from_class::<T>()` methods. `Into<PhpException>` is implemented for `String`
 and `&str`, which creates an exception of the type `Exception` with a code of 0.
 It may be useful to implement `Into<PhpException>` for your error type.
@@ -18,6 +18,26 @@ Calling the `throw()` method on a `PhpException` attempts to throw the exception
 in PHP. This function can fail if the type of exception is invalid (i.e. does
 not implement `Exception` or `Throwable`). Upon success, nothing will be
 returned.
+
+`throw()` does nothing when an exception is already pending in the engine: that
+one keeps propagating with its own class and stack trace. This is what lets a
+PHP exception caught by `ZendCallable::try_call` reach the caller unchanged even
+though the Rust side reports it as `Error::ExceptionPending`.
+
+To look at the pending exception from Rust, read its class with
+`ExecutorGlobals::pending_exception_class()`, or borrow the object through the
+globals guard, which must outlive the borrow:
+
+```rust,ignore
+let globals = ExecutorGlobals::get();
+if let Some(exception) = globals.exception() {
+    // inspect it; it stays owned by the engine
+}
+```
+
+To handle it yourself, take ownership with `ExecutorGlobals::take_exception()`:
+the engine then stops propagating it and rethrowing becomes your
+responsibility.
 
 `IntoZval` is also implemented for `Result<T, E>`, where `T: IntoZval` and
 `E: Into<PhpException>`. If the result contains the error variant, the exception

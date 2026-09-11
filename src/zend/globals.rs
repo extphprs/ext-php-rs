@@ -10,7 +10,7 @@ use std::sync::{Arc, LazyLock};
 
 use crate::boxed::ZBox;
 use crate::error::{Error, Result};
-use crate::exception::PhpResult;
+use crate::exception::{PhpException, PhpResult};
 #[cfg(php82)]
 use crate::ffi::zend_atomic_bool_store;
 use crate::ffi::{
@@ -29,9 +29,15 @@ use crate::ffi::{
     zend_known_strings,
 };
 
-use crate::types::{ZendHashTable, ZendObject, ZendStr};
+use crate::types::{ZendHashTable, ZendObject, ZendStr, Zval};
 
 use super::linked_list::ZendLinkedListIterator;
+
+/// Names the class of an exception object, falling back to `Exception` when the
+/// engine cannot report one.
+fn class_name_or_fallback(obj: &ZendObject) -> String {
+    obj.get_class_name().unwrap_or_else(|_| "Exception".into())
+}
 
 /// Stores global variables used in the PHP executor.
 pub type ExecutorGlobals = _zend_executor_globals;
@@ -48,6 +54,10 @@ impl ExecutorGlobals {
     /// # Panics
     ///
     /// * If static executor globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get() -> GlobalReadGuard<Self> {
         // SAFETY: PHP executor globals are statically declared therefore should never
         // return an invalid pointer.
@@ -76,6 +86,10 @@ impl ExecutorGlobals {
     /// # Panics
     ///
     /// * If static executor globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get_mut() -> GlobalWriteGuard<Self> {
         // SAFETY: PHP executor globals are statically declared therefore should never
         // return an invalid pointer.
@@ -180,6 +194,28 @@ impl ExecutorGlobals {
         !Self::get().exception.is_null()
     }
 
+    /// Borrows the pending exception without taking ownership of it.
+    ///
+    /// The exception stays in the executor globals, so it keeps propagating on
+    /// its own once control returns to PHP. Use
+    /// [`take_exception`](Self::take_exception) to handle it from Rust instead.
+    #[must_use]
+    pub fn exception(&self) -> Option<&ZendObject> {
+        // SAFETY: the pointer is either null or a valid object owned by the engine,
+        // borrowed for no longer than the globals guard this method is called on.
+        unsafe { self.exception.as_ref() }
+    }
+
+    /// Returns the class name of the pending exception, leaving the exception
+    /// where it is.
+    ///
+    /// Returns [`None`] when no exception is pending. A class the engine cannot
+    /// name is reported as `Exception`.
+    #[must_use]
+    pub fn pending_exception_class() -> Option<String> {
+        Some(class_name_or_fallback(Self::get().exception()?))
+    }
+
     /// Attempts to extract the last PHP exception captured by the interpreter.
     /// Returned inside a [`PhpResult`].
     ///
@@ -192,11 +228,14 @@ impl ExecutorGlobals {
     /// If an exception is present, it will be returned as `Err` value inside a
     /// [`PhpResult`].
     pub fn throw_if_exception() -> PhpResult<()> {
-        if let Some(e) = Self::take_exception() {
-            Err(crate::error::Error::Exception(e).into())
-        } else {
-            Ok(())
-        }
+        let Some(mut obj) = Self::take_exception() else {
+            return Ok(());
+        };
+
+        let class = class_name_or_fallback(&obj);
+        let mut zv = Zval::new();
+        zv.set_object(&mut obj);
+        Err(PhpException::from_message(class).with_object(zv))
     }
 
     /// Request an interrupt of the PHP VM. This will call the registered
@@ -242,6 +281,10 @@ impl CompilerGlobals {
     /// # Panics
     ///
     /// * If static executor globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get() -> GlobalReadGuard<Self> {
         // SAFETY: PHP compiler globals are statically declared therefore should never
         // return an invalid pointer.
@@ -270,6 +313,10 @@ impl CompilerGlobals {
     /// # Panics
     ///
     /// * If static compiler globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get_mut() -> GlobalWriteGuard<Self> {
         // SAFETY: PHP compiler globals are statically declared therefore should never
         // return an invalid pointer.
@@ -303,6 +350,10 @@ impl SapiModule {
     /// # Panics
     ///
     /// * If static executor globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get() -> GlobalReadGuard<Self> {
         // SAFETY: PHP executor globals are statically declared therefore should never
         // return an invalid pointer.
@@ -323,6 +374,10 @@ impl SapiModule {
     /// # Panics
     ///
     /// * If static executor globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get_mut() -> GlobalWriteGuard<Self> {
         // SAFETY: PHP executor globals are statically declared therefore should never
         // return an invalid pointer.
@@ -778,6 +833,10 @@ impl FileGlobals {
     /// # Panics
     ///
     /// * If static file globals are not set
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine declares these globals statically, so the pointer is valid for the life of the process"
+    )]
     pub fn get() -> GlobalReadGuard<Self> {
         // SAFETY: PHP executor globals are statically declared therefore should never
         // return an invalid pointer.

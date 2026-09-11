@@ -23,39 +23,26 @@
 use crate::ffi;
 use crate::types::ZendStr;
 use crate::zend::try_catch;
-use std::fmt;
 use std::mem;
 use std::panic::AssertUnwindSafe;
 
 /// Errors that can occur when executing embedded PHP code.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PhpEvalError {
     /// The code does not start with a `<?php` open tag.
+    #[error("PHP code must start with a <?php open tag")]
     MissingOpenTag,
     /// PHP failed to compile the code (syntax error).
+    #[error("PHP compilation failed (syntax error)")]
     CompilationFailed,
     /// The code executed but threw an unhandled exception.
+    #[error("PHP execution threw an unhandled exception")]
     ExecutionFailed,
     /// A PHP fatal error (bailout) occurred during execution.
+    #[error("PHP fatal error (bailout) during execution")]
     Bailout,
 }
-
-impl fmt::Display for PhpEvalError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PhpEvalError::MissingOpenTag => {
-                write!(f, "PHP code must start with a <?php open tag")
-            }
-            PhpEvalError::CompilationFailed => write!(f, "PHP compilation failed (syntax error)"),
-            PhpEvalError::ExecutionFailed => {
-                write!(f, "PHP execution threw an unhandled exception")
-            }
-            PhpEvalError::Bailout => write!(f, "PHP fatal error (bailout) during execution"),
-        }
-    }
-}
-
-impl std::error::Error for PhpEvalError {}
 
 /// Execute embedded PHP code within the running PHP engine.
 ///

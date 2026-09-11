@@ -346,14 +346,16 @@ pub enum FunctionType {
     Eval,
 }
 
-impl From<u8> for FunctionType {
+impl TryFrom<u8> for FunctionType {
+    type Error = Error;
+
     #[allow(clippy::bad_bit_mask)]
-    fn from(value: u8) -> Self {
+    fn try_from(value: u8) -> Result<Self> {
         match value.into() {
-            ZEND_INTERNAL_FUNCTION => Self::Internal,
-            ZEND_USER_FUNCTION => Self::User,
-            ZEND_EVAL_CODE => Self::Eval,
-            _ => panic!("Unknown function type: {value}"),
+            ZEND_INTERNAL_FUNCTION => Ok(Self::Internal),
+            ZEND_USER_FUNCTION => Ok(Self::User),
+            ZEND_EVAL_CODE => Ok(Self::Eval),
+            _ => Err(Error::UnknownFunctionType(value)),
         }
     }
 }
@@ -472,19 +474,21 @@ impl TryFrom<ZvalTypeFlags> for DataType {
             return Ok(DataType::Object(None));
         }
 
-        Err(Error::UnknownDatatype(0))
+        Err(Error::InvalidTypeToDatatype(value))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{DataType, DataTypeExt};
+    use super::{DataType, DataTypeExt, FunctionType};
+    use crate::error::Error;
     use crate::ffi::{
         IS_ARRAY, IS_ARRAY_EX, IS_CONSTANT_AST, IS_CONSTANT_AST_EX, IS_DOUBLE, IS_FALSE,
         IS_INDIRECT, IS_INTERNED_STRING_EX, IS_LONG, IS_NULL, IS_OBJECT, IS_OBJECT_EX, IS_PTR,
         IS_REFERENCE, IS_REFERENCE_EX, IS_RESOURCE, IS_RESOURCE_EX, IS_STRING, IS_STRING_EX,
         IS_TRUE, IS_UNDEF, IS_VOID,
     };
+    use crate::ffi::{ZEND_EVAL_CODE, ZEND_INTERNAL_FUNCTION, ZEND_USER_FUNCTION};
     #[test]
     fn test_datatype() {
         macro_rules! test {
@@ -516,5 +520,27 @@ mod tests {
         test!(IS_RESOURCE_EX, Resource);
         test!(IS_REFERENCE_EX, Reference);
         test!(IS_CONSTANT_AST_EX, ConstantExpression);
+    }
+
+    #[test]
+    fn function_type_maps_the_engine_constants() {
+        let cases = [
+            (ZEND_INTERNAL_FUNCTION, FunctionType::Internal),
+            (ZEND_USER_FUNCTION, FunctionType::User),
+            (ZEND_EVAL_CODE, FunctionType::Eval),
+        ];
+
+        for (raw, expected) in cases {
+            let ty = FunctionType::try_from(u8::try_from(raw).expect("fits in u8"));
+
+            assert_eq!(ty.ok(), Some(expected));
+        }
+    }
+
+    #[test]
+    fn function_type_rejects_an_unknown_value() {
+        let err = FunctionType::try_from(u8::MAX);
+
+        assert!(matches!(err, Err(Error::UnknownFunctionType(u8::MAX))));
     }
 }

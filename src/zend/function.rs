@@ -52,9 +52,15 @@ pub type Function = zend_function;
 
 impl Function {
     /// Returns the function type.
-    #[must_use]
-    pub fn function_type(&self) -> FunctionType {
-        FunctionType::from(unsafe { self.type_ })
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::UnknownFunctionType`] - If the engine reports a function type
+    ///   this crate does not model.
+    ///
+    /// [`Error::UnknownFunctionType`]: crate::error::Error::UnknownFunctionType
+    pub fn function_type(&self) -> Result<FunctionType> {
+        FunctionType::try_from(unsafe { self.type_ })
     }
 
     /// Attempts to fetch a [`Function`] from the function name.

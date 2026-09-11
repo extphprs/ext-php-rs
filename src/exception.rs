@@ -9,7 +9,7 @@ use crate::{
     ffi::zend_throw_exception_object,
     flags::ClassFlags,
     types::{ZendStr, Zval},
-    zend::{ClassEntry, ce},
+    zend::{ClassEntry, ExecutorGlobals, ce},
 };
 
 /// Result type with the error variant as a [`PhpException`].
@@ -19,9 +19,9 @@ pub type PhpResult<T = ()> = std::result::Result<T, PhpException>;
 /// Primarily used to return from a [`Result<T, PhpException>`] which can
 /// immediately be thrown by the `ext-php-rs` macro API.
 ///
-/// There are default [`From`] implementations for any type that implements
-/// [`ToString`], so these can also be returned from these functions. You can
-/// also implement [`From<T>`] for your custom error type.
+/// [`From`] is implemented for [`String`], [`&str`], [`crate::error::Error`]
+/// and, behind the `anyhow` feature, `anyhow::Error`. Implement [`From<T>`]
+/// for your own error type to return it from these functions.
 #[derive(Debug)]
 pub struct PhpException {
     message: String,
@@ -48,7 +48,7 @@ impl PhpException {
         }
     }
 
-    /// Creates a new default exception instance, using the default PHP
+    /// Creates a new exception instance from a message, using the default PHP
     /// `Exception` type as the exception type, with an integer code of
     /// zero.
     ///
@@ -56,7 +56,7 @@ impl PhpException {
     ///
     /// * `message` - Message to contain in the exception.
     #[must_use]
-    pub fn default(message: String) -> Self {
+    pub fn from_message(message: String) -> Self {
         Self::new(message, 0, ce::exception())
     }
 
@@ -99,12 +99,19 @@ impl PhpException {
     /// Throws the exception, returning nothing inside a result if successful
     /// and an error otherwise.
     ///
+    /// Does nothing if an exception is already pending: the engine propagates
+    /// that one, and throwing over it would discard its class and stack trace.
+    ///
     /// # Errors
     ///
     /// * [`Error::InvalidException`] - If the exception type is an interface or
     ///   abstract class.
     /// * If the message contains NUL bytes.
     pub fn throw(self) -> Result<()> {
+        if ExecutorGlobals::has_exception() {
+            return Ok(());
+        }
+
         match self.object {
             Some(object) => throw_object(object),
             None => throw_with_code(self.ex, self.code, &self.message),
@@ -114,13 +121,13 @@ impl PhpException {
 
 impl From<String> for PhpException {
     fn from(str: String) -> Self {
-        Self::default(str)
+        Self::from_message(str)
     }
 }
 
 impl From<&str> for PhpException {
     fn from(str: &str) -> Self {
-        Self::default(str.into())
+        Self::from_message(str.into())
     }
 }
 
@@ -221,8 +228,7 @@ pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> 
 ///
 /// # Errors
 ///
-/// *shrug*
-/// TODO: does this error?
+/// * [`Error::Object`] - If the zval does not hold an object.
 ///
 /// # Examples
 ///
@@ -251,6 +257,10 @@ pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> 
 /// throw_object( error.into_zval(true).unwrap() );
 /// ```
 pub fn throw_object(zval: Zval) -> Result<()> {
+    if !zval.is_object() {
+        return Err(Error::Object);
+    }
+
     let mut zv = core::mem::ManuallyDrop::new(zval);
     unsafe { zend_throw_exception_object(core::ptr::addr_of_mut!(zv).cast()) };
     Ok(())
@@ -277,7 +287,7 @@ mod tests {
     #[test]
     fn test_default() {
         Embed::run(|| {
-            let ex = PhpException::default("Test".into());
+            let ex = PhpException::from_message("Test".into());
             assert_eq!(ex.message, "Test");
             assert_eq!(ex.code, 0);
             assert_eq!(ex.ex, ce::exception());
@@ -288,7 +298,7 @@ mod tests {
     #[test]
     fn test_set_object() {
         Embed::run(|| {
-            let mut ex = PhpException::default("Test".into());
+            let mut ex = PhpException::from_message("Test".into());
             assert!(ex.object.is_none());
             let obj = Zval::new();
             ex.set_object(Some(obj));
@@ -300,7 +310,7 @@ mod tests {
     fn test_with_object() {
         Embed::run(|| {
             let obj = Zval::new();
-            let ex = PhpException::default("Test".into()).with_object(obj);
+            let ex = PhpException::from_message("Test".into()).with_object(obj);
             assert!(ex.object.is_some());
         });
     }
@@ -308,7 +318,7 @@ mod tests {
     #[test]
     fn test_throw_code() {
         Embed::run(|| {
-            let ex = PhpException::default("Test".into());
+            let ex = PhpException::from_message("Test".into());
             assert!(ex.throw().is_ok());
 
             assert!(false, "Should not reach here");
@@ -316,12 +326,11 @@ mod tests {
     }
 
     #[test]
-    fn test_throw_object() {
+    fn test_throw_object_rejects_a_non_object() {
         Embed::run(|| {
-            let ex = PhpException::default("Test".into()).with_object(Zval::new());
-            assert!(ex.throw().is_ok());
+            let ex = PhpException::from_message("Test".into()).with_object(Zval::new());
 
-            assert!(false, "Should not reach here");
+            assert!(matches!(ex.throw(), Err(Error::Object)));
         });
     }
 
@@ -386,12 +395,9 @@ mod tests {
     }
 
     #[test]
-    fn test_static_throw_object() {
+    fn test_static_throw_object_rejects_a_non_object() {
         Embed::run(|| {
-            let obj = Zval::new();
-            assert!(throw_object(obj).is_ok());
-
-            assert!(false, "Should not reach here");
+            assert!(matches!(throw_object(Zval::new()), Err(Error::Object)));
         });
     }
 }

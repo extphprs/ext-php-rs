@@ -61,7 +61,7 @@ use crate::{
     flags::DataType,
     rc::PhpRc,
     types::{ZendClassObject, ZendStr, Zval},
-    zend::{ClassEntry, ExecutorGlobals, ZendObjectHandlers, ce},
+    zend::{ClassEntry, ZendObjectHandlers, ce},
 };
 
 #[cfg(php84)]
@@ -111,10 +111,7 @@ impl ZendObject {
                 Some(v) => v(ptr::from_ref(ce).cast_mut()),
             };
 
-            ZBox::from_raw(
-                ptr.as_mut()
-                    .expect("Failed to allocate memory for Zend object"),
-            )
+            ZBox::from_zend_alloc(ptr)
         }
     }
 
@@ -158,6 +155,10 @@ impl ZendObject {
     ///
     /// Panics if the class entry is invalid.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "every object the engine hands out carries a class entry"
+    )]
     pub fn get_class_entry(&self) -> &'static ClassEntry {
         // SAFETY: it is OK to panic here since PHP would segfault anyway
         // when encountering an object with no class entry.
@@ -279,7 +280,9 @@ impl ZendObject {
         T: FromZval<'a>,
     {
         if !self.has_property(name, PropertyQuery::Exists)? {
-            return Err(Error::InvalidProperty);
+            return Err(Error::InvalidProperty {
+                property: name.to_string(),
+            });
         }
 
         let mut name = ZendStr::new(name, false);
@@ -782,7 +785,7 @@ impl FromZendObject<'_> for String {
     ///
     /// * [`Error::InvalidPointer`] - If the object has no class entry.
     /// * [`Error::NotStringable`] - If the class does not implement `__toString()`.
-    /// * [`Error::Exception`] - If `__toString()` threw an exception.
+    /// * [`Error::ExceptionPending`] - If `__toString()` threw an exception.
     /// * [`Error::ZvalConversion`] - If `__toString()` did not return a string.
     fn from_zend_object(obj: &ZendObject) -> Result<Self> {
         // SAFETY: every object the engine constructs carries a class entry, but a
@@ -814,8 +817,8 @@ impl FromZendObject<'_> for String {
             );
         }
 
-        if let Some(err) = ExecutorGlobals::take_exception() {
-            return Err(Error::Exception(err));
+        if let Some(err) = Error::pending_exception() {
+            return Err(err);
         }
 
         ret.extract()

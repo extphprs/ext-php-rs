@@ -122,9 +122,21 @@ pub fn test_array_get_index_mut(arr: &mut ZendHashTable) -> i64 {
     i64::try_from(arr.len()).unwrap_or(i64::MAX)
 }
 
+#[php_function]
+pub fn test_array_remove(a: &mut ZendHashTable, key: String) -> Option<Zval> {
+    a.remove(key.as_str())
+}
+
+#[php_function]
+pub fn test_array_remove_index(a: &mut ZendHashTable, index: i64) -> Option<Zval> {
+    a.remove_index(index)
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_array))
+        .function(wrap_function!(test_array_remove))
+        .function(wrap_function!(test_array_remove_index))
         .function(wrap_function!(test_array_assoc))
         .function(wrap_function!(test_array_assoc_array_keys))
         .function(wrap_function!(test_btree_map))

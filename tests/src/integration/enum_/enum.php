@@ -18,3 +18,12 @@ assert(StringBackedEnum::tryFrom('foo') === StringBackedEnum::Variant1);
 assert(StringBackedEnum::tryFrom('baz') === null);
 
 assert(test_enum(TestEnum::Variant1) === StringBackedEnum::Variant2);
+
+assert(test_enum_from_name('Variant1') === StringBackedEnum::Variant1);
+
+try {
+    test_enum_from_name('Nope');
+    assert(false, 'an unknown case should have failed');
+} catch (\Throwable $e) {
+    assert('enum has no case matching `Nope`' === $e->getMessage(), $e->getMessage());
+}

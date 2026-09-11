@@ -5,9 +5,17 @@ use std::ffi::c_void;
 use std::panic::{UnwindSafe, catch_unwind, resume_unwind};
 use std::ptr::null_mut;
 
-/// Error returned when a bailout occurs
-#[derive(Debug)]
-pub struct CatchError;
+/// Error returned when the engine did not run the closure to completion.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum CatchError {
+    /// The engine bailed out, unwinding past the closure.
+    #[error("the engine bailed out")]
+    Bailout,
+    /// The closure result was never written back.
+    #[error("the closure result pointer was null")]
+    NullPanicPtr,
+}
 
 pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnOnce() -> R + UnwindSafe>(
     ctx: *const c_void,
@@ -84,9 +92,12 @@ fn do_try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F, first: bool) -> Resul
 
     let panic = panic_ptr.cast::<std::thread::Result<R>>();
 
-    // can be null if there is a bailout
-    if panic.is_null() || has_bailout {
-        return Err(CatchError);
+    if has_bailout {
+        return Err(CatchError::Bailout);
+    }
+
+    if panic.is_null() {
+        return Err(CatchError::NullPanicPtr);
     }
 
     match unsafe { *Box::from_raw(panic.cast::<std::thread::Result<R>>()) } {

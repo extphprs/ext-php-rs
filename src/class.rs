@@ -246,6 +246,10 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     /// # Panics
     ///
     /// Panics if there is no class entry stored inside the class metadata.
+    #[expect(
+        clippy::expect_used,
+        reason = "the class entry is written once during MINIT, before any Rust code can reach the metadata"
+    )]
     pub fn ce(&self) -> &'static ClassEntry {
         // SAFETY: There are only two values that can be stored in the atomic
         // ptr: null or a static reference to a class entry. On the null case,
@@ -260,6 +264,10 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     ///
     /// Panics if the class entry has already been set in the class metadata.
     /// This function should only be called once.
+    #[expect(
+        clippy::expect_used,
+        reason = "the class entry is written once during MINIT, before any concurrent access"
+    )]
     pub fn set_ce(&self, ce: &'static mut ClassEntry) {
         self.ce
             .compare_exchange(
@@ -280,6 +288,10 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     /// # Panics
     ///
     /// If the argument info has already been set.
+    #[expect(
+        clippy::expect_used,
+        reason = "the arg info is written once during MINIT, before any concurrent access"
+    )]
     pub fn set_arg_info(&self, arg_info: OwnedArgInfo) {
         self.arg_info
             .set(ArgInfoTables(arg_info))

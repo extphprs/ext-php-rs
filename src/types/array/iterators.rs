@@ -39,6 +39,10 @@ impl<'a> Iter<'a> {
     ///
     /// Panics if the hashtable length exceeds `i64::MAX`.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "a hash table cannot hold more than i64::MAX elements"
+    )]
     pub fn new(ht: &'a ZendHashTable) -> Self {
         let end_num: i64 = ht
             .len()
@@ -150,6 +154,10 @@ impl<'a> IntoIterator for &'a ZendHashTable {
 impl<'a> Iterator for Iter<'a> {
     type Item = (ArrayKey<'a>, &'a Zval);
 
+    #[expect(
+        clippy::expect_used,
+        reason = "a key read back from the engine is always a valid array key"
+    )]
     fn next(&mut self) -> Option<Self::Item> {
         self.next_zval()
             .map(|(k, v)| (ArrayKey::from_zval(&k).expect("Invalid array key!"), v))

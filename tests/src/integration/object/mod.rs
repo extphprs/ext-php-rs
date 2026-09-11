@@ -10,10 +10,16 @@ pub fn test_object_to_string(a: &mut ZendObject) -> PhpResult<String> {
     a.extract::<String>().map_err(PhpException::from)
 }
 
+#[php_function]
+pub fn test_object_read_property(a: &ZendObject, name: String) -> PhpResult<String> {
+    a.get_property::<String>(&name).map_err(PhpException::from)
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .function(wrap_function!(test_object))
         .function(wrap_function!(test_object_to_string))
+        .function(wrap_function!(test_object_read_property))
 }
 
 #[cfg(test)]

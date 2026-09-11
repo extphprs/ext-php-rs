@@ -46,6 +46,10 @@ impl<'a> IntoIterator for &'a mut Iterable<'a> {
     type Item = (Zval, Zval);
     type IntoIter = Iter<'a>;
 
+    #[expect(
+        clippy::expect_used,
+        reason = "IntoIterator has no error channel, and a fresh iterator can always be rewound"
+    )]
     fn into_iter(self) -> Self::IntoIter {
         self.iter().expect("Could not rewind iterator!")
     }

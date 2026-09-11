@@ -107,6 +107,10 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// # Panics
     ///
     /// Panics if memory was unable to be allocated for the new object.
+    #[expect(
+        clippy::expect_used,
+        reason = "the Zend allocator aborts the process on OOM, so the pointer is never null"
+    )]
     unsafe fn internal_new(val: Option<T>, ce: Option<&'static ClassEntry>) -> ZBox<Self> {
         let size = mem::size_of::<ZendClassObject<T>>();
         let meta = T::get_metadata();
@@ -227,6 +231,10 @@ impl<T: RegisteredClass> ZendClassObject<T> {
     /// # Panics
     ///
     /// * If the std offset over/underflows `isize`.
+    #[expect(
+        clippy::expect_used,
+        reason = "the offset is a compile-time struct offset and fits in isize"
+    )]
     unsafe fn resolve(std: *const zend_object, require_initialized: bool) -> Option<*const Self> {
         // First, check if this object was created by our create_object handler.
         // We do this by comparing the handlers pointer. Objects created by PHP's
@@ -315,6 +323,10 @@ unsafe impl<T: RegisteredClass> ZBoxable for ZendClassObject<T> {
 impl<T> Deref for ZendClassObject<T> {
     type Target = T;
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the user data is inlined in the allocation this pointer came from"
+    )]
     fn deref(&self) -> &Self::Target {
         self.obj
             .as_ref()
@@ -323,6 +335,10 @@ impl<T> Deref for ZendClassObject<T> {
 }
 
 impl<T> DerefMut for ZendClassObject<T> {
+    #[expect(
+        clippy::expect_used,
+        reason = "the user data is inlined in the allocation this pointer came from"
+    )]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.obj
             .as_mut()

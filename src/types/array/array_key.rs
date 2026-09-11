@@ -52,16 +52,15 @@ impl TryFrom<ArrayKey<'_>> for i64 {
     type Error = Error;
 
     fn try_from(value: ArrayKey<'_>) -> Result<Self, Self::Error> {
-        match value {
-            ArrayKey::Long(i) => Ok(i),
-            ArrayKey::String(s) => s.parse::<i64>().map_err(|_| Error::InvalidProperty),
-            ArrayKey::Str(s) => s.parse::<i64>().map_err(|_| Error::InvalidProperty),
-            ArrayKey::ZendString(s) => s
-                .as_str()
-                .map_err(|_| Error::InvalidProperty)?
-                .parse::<i64>()
-                .map_err(|_| Error::InvalidProperty),
-        }
+        let key = match &value {
+            ArrayKey::Long(i) => return Ok(*i),
+            ArrayKey::String(s) => s.as_str(),
+            ArrayKey::Str(s) => s,
+            ArrayKey::ZendString(s) => s.as_str().map_err(|_| Error::InvalidUtf8)?,
+        };
+
+        key.parse::<i64>()
+            .map_err(|_| Error::ZvalConversion(DataType::String))
     }
 }
 
@@ -226,7 +225,7 @@ mod tests {
         let key = ArrayKey::String("not a number".to_string());
         let result: crate::error::Result<i64, _> = key.try_into();
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidProperty));
+        assert!(matches!(result.unwrap_err(), Error::ZvalConversion(_)));
     }
 
     #[test]

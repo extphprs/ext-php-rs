@@ -258,7 +258,7 @@ mod tests {
 
             let map_err: crate::error::Result<BTreeMap<i64, String>> = ht2.as_ref().try_into();
             assert!(map_err.is_err());
-            assert!(matches!(map_err.unwrap_err(), Error::InvalidProperty));
+            assert!(matches!(map_err.unwrap_err(), Error::ZvalConversion(_)));
         });
     }
 

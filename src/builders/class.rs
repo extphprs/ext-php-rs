@@ -257,7 +257,7 @@ impl ClassBuilder {
                 // are called if a bailout occurs (issue #537)
                 let catch_result = try_catch(AssertUnwindSafe(|| {
                     let Some(ConstructorMeta { constructor, .. }) = T::constructor() else {
-                        let _ = PhpException::default("You cannot instantiate this class from PHP.".into())
+                        let _ = PhpException::from_message("You cannot instantiate this class from PHP.".into())
                             .throw();
                         return;
                     };
@@ -274,7 +274,7 @@ impl ClassBuilder {
                     // Use get_object_uninit because the Rust backing is not yet initialized.
                     // We need access to the ZendClassObject to call initialize() on it.
                     let Some(this_obj) = ex.get_object_uninit::<T>() else {
-                        let _ = PhpException::default("Failed to retrieve reference to `this` object.".into())
+                        let _ = PhpException::from_message("Failed to retrieve reference to `this` object.".into())
                             .throw();
                         return;
                     };

@@ -8,7 +8,7 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     convert::TryFrom,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, FromBytesWithNulError},
     fmt::Debug,
     hash::{Hash, Hasher},
     ptr, slice,
@@ -83,10 +83,11 @@ impl ZendStr {
     pub fn new(str: impl AsRef<[u8]>, persistent: bool) -> ZBox<Self> {
         let s = str.as_ref();
         unsafe {
-            let ptr = ext_php_rs_zend_string_init(s.as_ptr().cast(), s.len(), persistent)
-                .as_mut()
-                .expect("Failed to allocate memory for new Zend string");
-            ZBox::from_raw(ptr)
+            ZBox::from_zend_alloc(ext_php_rs_zend_string_init(
+                s.as_ptr().cast(),
+                s.len(),
+                persistent,
+            ))
         }
     }
 
@@ -123,13 +124,11 @@ impl ZendStr {
     #[must_use]
     pub fn from_c_str(str: &CStr, persistent: bool) -> ZBox<Self> {
         unsafe {
-            let ptr =
-                ext_php_rs_zend_string_init(str.as_ptr(), str.to_bytes().len() as _, persistent);
-
-            ZBox::from_raw(
-                ptr.as_mut()
-                    .expect("Failed to allocate memory for new Zend string"),
-            )
+            ZBox::from_zend_alloc(ext_php_rs_zend_string_init(
+                str.as_ptr(),
+                str.to_bytes().len() as _,
+                persistent,
+            ))
         }
     }
 
@@ -174,6 +173,10 @@ impl ZendStr {
     ///
     /// let s = ZendStr::new_interned("PHP", true);
     /// ```
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine installs zend_string_init_interned before MINIT runs"
+    )]
     pub fn new_interned(str: impl AsRef<[u8]>, persistent: bool) -> ZBox<Self> {
         let _lock = INTERNED_LOCK.lock();
         let s = str.as_ref();
@@ -229,6 +232,10 @@ impl ZendStr {
     /// let c_s = CString::new("PHP").unwrap();
     /// let s = ZendStr::interned_from_c_str(&c_s, true);
     /// ```
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine installs zend_string_init_interned before MINIT runs"
+    )]
     pub fn interned_from_c_str(str: &CStr, persistent: bool) -> ZBox<Self> {
         let _lock = INTERNED_LOCK.lock();
 
@@ -278,12 +285,17 @@ impl ZendStr {
     ///
     /// # Errors
     ///
-    /// Returns an [`Error::InvalidCString`] variant if the string contains null
-    /// bytes.
+    /// * [`Error::InvalidCString`] - If the string contains an interior NUL
+    ///   byte.
+    /// * [`Error::InvalidPointer`] - If the engine handed out a string without
+    ///   its NUL terminator.
     pub fn as_c_str(&self) -> Result<&CStr> {
         let bytes_with_null =
             unsafe { slice::from_raw_parts(self.val.as_ptr().cast(), self.len() + 1) };
-        CStr::from_bytes_with_nul(bytes_with_null).map_err(|_| Error::InvalidCString)
+        CStr::from_bytes_with_nul(bytes_with_null).map_err(|err| match err {
+            FromBytesWithNulError::InteriorNul { position } => Error::InvalidCString { position },
+            FromBytesWithNulError::NotNulTerminated => Error::InvalidPointer,
+        })
     }
 
     /// Attempts to return a reference to the underlying bytes inside the Zend

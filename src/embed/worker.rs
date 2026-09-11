@@ -3,25 +3,15 @@ use super::ffi::{
     ext_php_rs_worker_reset_superglobals,
 };
 use crate::ffi::ZEND_RESULT_CODE_SUCCESS;
-use std::fmt;
 
 /// Errors from the worker request lifecycle.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum WorkerError {
     /// `worker_request_startup` returned a non-SUCCESS code.
+    #[error("worker request startup failed")]
     StartupFailed,
 }
-
-impl fmt::Display for WorkerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::StartupFailed => write!(f, "Worker request startup failed"),
-        }
-    }
-}
-
-impl std::error::Error for WorkerError {}
 
 /// Run the lightweight request shutdown sequence (output + SAPI teardown).
 ///

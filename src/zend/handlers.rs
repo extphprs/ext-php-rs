@@ -47,6 +47,10 @@ impl ZendObjectHandlers {
     /// # Panics
     ///
     /// * If the offset of the `T` type is not a valid `i32` value.
+    #[expect(
+        clippy::expect_used,
+        reason = "the property offset is computed from a struct layout and fits in the engine's offset type"
+    )]
     pub unsafe fn init<T: RegisteredClass>(ptr: *mut ZendObjectHandlers) {
         unsafe { ptr::copy_nonoverlapping(&raw const std_object_handlers, ptr, 1) };
         let offset = ZendClassObject::<T>::std_offset();
@@ -112,6 +116,10 @@ impl ZendObjectHandlers {
         unsafe { zend_object_std_dtor(object) };
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the formatted message is built from a class name and contains no NUL byte"
+    )]
     unsafe extern "C" fn clone_obj<T: RegisteredClass>(object: *mut ZendObject) -> *mut ZendObject {
         // PHP will call OBJ_RELEASE on the returned pointer if an exception
         // is thrown, so we must NEVER return the original object. Always

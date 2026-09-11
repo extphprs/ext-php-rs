@@ -96,6 +96,10 @@ impl ClassEntry {
     ///
     /// Panics if the number of interfaces exceeds `isize::MAX`.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "the interface count comes from the engine and fits in isize"
+    )]
     pub fn interfaces(&self) -> Option<impl Iterator<Item = &ClassEntry>> {
         self.flags()
             .contains(ClassFlags::ResolvedInterfaces)
@@ -223,7 +227,9 @@ impl ClassEntry {
         if result == ZEND_RESULT_CODE_SUCCESS {
             Ok(())
         } else {
-            Err(Error::InvalidProperty)
+            Err(Error::InvalidProperty {
+                property: name.to_string_lossy().into_owned(),
+            })
         }
     }
 }

@@ -1,4 +1,11 @@
-use ext_php_rs::{error::Result, php_enum, php_function, prelude::ModuleBuilder, wrap_function};
+use ext_php_rs::{
+    enum_::RegisteredEnum,
+    error::Result,
+    exception::PhpException,
+    php_enum, php_function,
+    prelude::{ModuleBuilder, PhpResult},
+    wrap_function,
+};
 
 #[php_enum]
 #[php(allow_native_discriminants)]
@@ -38,12 +45,18 @@ pub fn test_enum(a: TestEnum) -> Result<StringBackedEnum> {
     }
 }
 
+#[php_function]
+pub fn test_enum_from_name(name: String) -> PhpResult<StringBackedEnum> {
+    StringBackedEnum::from_name(&name).map_err(PhpException::from)
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .enumeration::<TestEnum>()
         .enumeration::<IntBackedEnum>()
         .enumeration::<StringBackedEnum>()
         .function(wrap_function!(test_enum))
+        .function(wrap_function!(test_enum_from_name))
 }
 
 #[cfg(test)]

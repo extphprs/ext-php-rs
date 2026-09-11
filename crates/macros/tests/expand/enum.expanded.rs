@@ -80,7 +80,11 @@ impl ::ext_php_rs::enum_::RegisteredEnum for MyEnum {
             "Variant1" => Ok(Self::Variant1),
             "Variant_2" => Ok(Self::Variant2),
             "VARIANT_3" => Ok(Self::Variant3),
-            _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+            _ => {
+                Err(::ext_php_rs::error::Error::InvalidEnumCase {
+                    case: name.to_string(),
+                })
+            }
         }
     }
     fn to_name(&self) -> &'static str {
@@ -156,7 +160,11 @@ impl ::ext_php_rs::enum_::RegisteredEnum for MyEnumWithIntValues {
         match name {
             "Variant1" => Ok(Self::Variant1),
             "Variant2" => Ok(Self::Variant2),
-            _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+            _ => {
+                Err(::ext_php_rs::error::Error::InvalidEnumCase {
+                    case: name.to_string(),
+                })
+            }
         }
     }
     fn to_name(&self) -> &'static str {
@@ -172,7 +180,11 @@ impl TryFrom<i64> for MyEnumWithIntValues {
         match value {
             1i64 => Ok(Self::Variant1),
             42i64 => Ok(Self::Variant2),
-            _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+            _ => {
+                Err(::ext_php_rs::error::Error::InvalidEnumCase {
+                    case: value.to_string(),
+                })
+            }
         }
     }
 }
@@ -249,7 +261,11 @@ impl ::ext_php_rs::enum_::RegisteredEnum for MyEnumWithStringValues {
         match name {
             "Variant1" => Ok(Self::Variant1),
             "Variant2" => Ok(Self::Variant2),
-            _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+            _ => {
+                Err(::ext_php_rs::error::Error::InvalidEnumCase {
+                    case: name.to_string(),
+                })
+            }
         }
     }
     fn to_name(&self) -> &'static str {
@@ -265,7 +281,11 @@ impl TryFrom<&str> for MyEnumWithStringValues {
         match value {
             "foo" => Ok(Self::Variant1),
             "bar" => Ok(Self::Variant2),
-            _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+            _ => {
+                Err(::ext_php_rs::error::Error::InvalidEnumCase {
+                    case: value.to_string(),
+                })
+            }
         }
     }
 }

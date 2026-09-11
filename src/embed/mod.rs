@@ -19,7 +19,7 @@ use crate::ffi::{
     zend_destroy_file_handle, zend_eval_string, zend_file_handle, zend_stream_init_filename,
 };
 use crate::types::{ZendObject, Zval};
-use crate::zend::{ExecutorGlobals, panic_wrapper, try_catch};
+use crate::zend::{CatchError, ExecutorGlobals, panic_wrapper, try_catch};
 use parking_lot::{RwLock, const_rwlock};
 use std::ffi::{CString, NulError, c_char, c_void};
 use std::panic::{AssertUnwindSafe, UnwindSafe, resume_unwind};
@@ -40,27 +40,35 @@ pub use worker::{
 pub struct Embed;
 
 /// Error type for the embed module
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum EmbedError {
-    /// Failed to initialize
-    InitError,
-    /// The script exited with a non-zero code
+    /// The script threw an exception, carried here when the engine still had
+    /// it to give.
+    #[error("the script threw an exception")]
     ExecuteError(Option<ZBox<ZendObject>>),
     /// The script exited with a non-zero code
+    #[error("the script exited with a non-zero code")]
     ExecuteScriptError,
     /// The script is not a valid [`CString`]
-    InvalidEvalString(NulError),
+    #[error("the script is not a valid C string")]
+    InvalidEvalString(#[from] NulError),
     /// Failed to open the script file at the given path
+    #[error("failed to open the script file")]
     InvalidPath,
-    /// The script was executed but an exception was thrown
-    CatchError,
+    /// The engine did not run the script to completion
+    #[error(transparent)]
+    CatchError(#[from] CatchError),
 }
 
 impl EmbedError {
-    /// Check if the error is a bailout
+    /// Check if the engine aborted the run instead of returning from it.
+    ///
+    /// Covers both an explicit bailout and a run whose result never came back,
+    /// since either leaves the interpreter in a state callers must recover from.
     #[must_use]
     pub fn is_bailout(&self) -> bool {
-        matches!(self, EmbedError::CatchError)
+        matches!(self, EmbedError::CatchError(_))
     }
 }
 
@@ -124,7 +132,7 @@ impl Embed {
         unsafe { zend_destroy_file_handle(&raw mut file_handle) }
 
         match exec_result {
-            Err(_) => Err(EmbedError::CatchError),
+            Err(err) => Err(EmbedError::CatchError(err)),
             Ok(true) => Ok(()),
             Ok(false) => Err(EmbedError::ExecuteScriptError),
         }
@@ -232,7 +240,7 @@ impl Embed {
         }));
 
         match exec_result {
-            Err(_) => Err(EmbedError::CatchError),
+            Err(err) => Err(EmbedError::CatchError(err)),
             Ok(ZEND_RESULT_CODE_SUCCESS) => Ok(result),
             Ok(_) => Err(EmbedError::ExecuteError(ExecutorGlobals::take_exception())),
         }

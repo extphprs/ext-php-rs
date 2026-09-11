@@ -436,6 +436,10 @@ impl ModuleBuilder<'_> {
     /// # Panics
     ///
     /// * Panics if a constant could not be registered.
+    #[expect(
+        clippy::expect_used,
+        reason = "registration runs in MINIT, where a failure is an extension bug the engine cannot recover from"
+    )]
     pub fn interface<T: RegisteredClass>(mut self) -> Self {
         self.interfaces.push(|| {
             let mut builder = ClassBuilder::new(T::CLASS_NAME);
@@ -473,6 +477,10 @@ impl ModuleBuilder<'_> {
     /// # Panics
     ///
     /// * Panics if a constant could not be registered.
+    #[expect(
+        clippy::expect_used,
+        reason = "registration runs in MINIT, where a failure is an extension bug the engine cannot recover from"
+    )]
     pub fn class<T: RegisteredClass>(mut self) -> Self {
         self.classes.push(|| {
             let mut builder = ClassBuilder::new(T::CLASS_NAME);
@@ -640,6 +648,10 @@ impl ModuleStartup {
     /// # Panics
     ///
     /// * Panics if a class could not be registered.
+    #[expect(
+        clippy::expect_used,
+        reason = "registration runs in MINIT, where a failure is an extension bug the engine cannot recover from"
+    )]
     pub fn startup(self, _ty: i32, mod_num: i32) -> Result<()> {
         for (name, val) in self.constants {
             val.register_constant(&name, mod_num)?;
