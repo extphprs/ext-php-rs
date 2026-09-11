@@ -233,6 +233,10 @@ impl ExecuteData {
     /// lifetime isn't exceeded.
     #[doc(hidden)]
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "argument counts are bounded by the engine's own u32 limit"
+    )]
     pub unsafe fn zend_call_arg<'a>(&self, n: usize) -> Option<&'a mut Zval> {
         let n = isize::try_from(n).expect("n is too large");
         let ptr = unsafe { self.zend_call_var_num(n) };
@@ -258,6 +262,10 @@ impl ExecuteData {
     /// Translation of macro `ZEND_MM_ALIGNED_SIZE(size)`
     /// zend_alloc.h:41
     #[doc(hidden)]
+    #[expect(
+        clippy::expect_used,
+        reason = "the size of a type the engine can allocate fits in isize"
+    )]
     fn zend_mm_aligned_size<T>() -> isize {
         let size = isize::try_from(std::mem::size_of::<T>()).expect("size of T is too large");
         (size + ZEND_MM_ALIGNMENT - 1) & ZEND_MM_ALIGNMENT_MASK

@@ -231,7 +231,7 @@ fn generate_method_builder(
                         Some(v) => v,
                         None => {
                             let msg = format!("Invalid value for argument `{}`", #php_name);
-                            ::ext_php_rs::exception::PhpException::default(msg.into())
+                            ::ext_php_rs::exception::PhpException::from_message(msg.into())
                                 .throw()
                                 .expect("Failed to throw PHP exception.");
                             return;
@@ -353,7 +353,7 @@ fn generate_method_builder(
             let this = match this {
                 Some(this) => this,
                 None => {
-                    ::ext_php_rs::exception::PhpException::default("Failed to get $this".into())
+                    ::ext_php_rs::exception::PhpException::from_message("Failed to get $this".into())
                         .throw()
                         .expect("Failed to throw PHP exception.");
                     return;
@@ -379,7 +379,7 @@ fn generate_method_builder(
             let this = match this {
                 Some(this) => this,
                 None => {
-                    ::ext_php_rs::exception::PhpException::default("Failed to get $this".into())
+                    ::ext_php_rs::exception::PhpException::from_message("Failed to get $this".into())
                         .throw()
                         .expect("Failed to throw PHP exception.");
                     return;

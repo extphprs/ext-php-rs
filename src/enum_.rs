@@ -38,7 +38,7 @@ where
     fn from_zend_object(obj: &ZendObject) -> Result<Self> {
         if !ClassFlags::from_bits_truncate(unsafe { (*obj.ce).ce_flags }).contains(ClassFlags::Enum)
         {
-            return Err(Error::InvalidProperty);
+            return Err(Error::ZvalConversion(DataType::Object(None)));
         }
 
         let name = obj
@@ -46,7 +46,9 @@ where
             .get("name")
             .and_then(Zval::indirect)
             .and_then(Zval::str)
-            .ok_or(Error::InvalidProperty)?;
+            .ok_or_else(|| Error::InvalidProperty {
+                property: "name".to_string(),
+            })?;
 
         T::from_name(name)
     }

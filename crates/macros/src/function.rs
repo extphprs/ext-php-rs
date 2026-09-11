@@ -434,7 +434,7 @@ impl<'a> Function<'a> {
                         let this = match this {
                             Some(this) => this,
                             None => {
-                                ::ext_php_rs::exception::PhpException::default("Failed to retrieve reference to `$this`".into())
+                                ::ext_php_rs::exception::PhpException::from_message("Failed to retrieve reference to `$this`".into())
                                     .throw()
                                     .unwrap();
                                 return;
@@ -560,7 +560,7 @@ impl<'a> Function<'a> {
                 match #from_zval {
                     Some(val) => val,
                     None => {
-                        ::ext_php_rs::exception::PhpException::default(
+                        ::ext_php_rs::exception::PhpException::from_message(
                             concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
                         ).throw().expect("Failed to throw PHP exception.");
                         return;
@@ -570,7 +570,7 @@ impl<'a> Function<'a> {
         };
 
         let throw_invalid = quote! {
-            ::ext_php_rs::exception::PhpException::default(
+            ::ext_php_rs::exception::PhpException::from_message(
                 concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
             ).throw().expect("Failed to throw PHP exception.");
             return;
@@ -670,7 +670,7 @@ impl<'a> Function<'a> {
         let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
 
         let this_error = quote! {
-            ::ext_php_rs::exception::PhpException::default(
+            ::ext_php_rs::exception::PhpException::from_message(
                 "Failed to retrieve reference to `$this`".into()
             ).throw().unwrap();
             return;
@@ -1116,7 +1116,7 @@ impl TypedArg<'_> {
                     )
                 });
                 let bail_invalid = bail_fn(quote! {
-                    ::ext_php_rs::exception::PhpException::default(
+                    ::ext_php_rs::exception::PhpException::from_message(
                         concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
                     )
                 });
@@ -1156,7 +1156,7 @@ impl TypedArg<'_> {
             }
         } else {
             let bail = bail_fn(quote! {
-                ::ext_php_rs::exception::PhpException::default(
+                ::ext_php_rs::exception::PhpException::from_message(
                     concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
                 )
             });

@@ -56,6 +56,15 @@ pub type ZendHashTable = crate::ffi::HashTable;
 // Clippy complains about there being no `is_empty` function when implementing
 // on the alias `ZendStr` :( <https://github.com/rust-lang/rust-clippy/issues/7702>
 #[allow(clippy::len_without_is_empty)]
+/// Copies the value a bucket holds, so it survives the bucket's removal.
+///
+/// A symbol table stores `IS_INDIRECT` zvals pointing at compiled-variable slots;
+/// those are engine-internal and never valid as a returned value, so the copy
+/// is taken from the slot they point to.
+fn removed_value(bucket: &Zval) -> Zval {
+    bucket.indirect().unwrap_or(bucket).shallow_clone()
+}
+
 impl ZendHashTable {
     /// Creates a new, empty, PHP hashtable, returned inside a [`ZBox`].
     ///
@@ -100,11 +109,7 @@ impl ZendHashTable {
             #[allow(clippy::used_underscore_items)]
             let ptr = _zend_new_array(size);
 
-            // SAFETY: `as_mut()` checks if the pointer is null, and panics if it is not.
-            ZBox::from_raw(
-                ptr.as_mut()
-                    .expect("Failed to allocate memory for hashtable"),
-            )
+            ZBox::from_zend_alloc(ptr)
         }
     }
 
@@ -361,7 +366,7 @@ impl ZendHashTable {
     ///
     /// # Returns
     ///
-    /// * `Some(())` - Key was successfully removed.
+    /// * `Some(value)` - The value that was removed.
     /// * `None` - No key was removed, did not exist.
     ///
     /// # Example
@@ -374,14 +379,16 @@ impl ZendHashTable {
     /// ht.insert("test", "hello world");
     /// assert_eq!(ht.len(), 1);
     ///
-    /// ht.remove("test");
+    /// assert_eq!(ht.remove("test").and_then(|v| v.string()), Some("hello world".to_string()));
     /// assert_eq!(ht.len(), 0);
     /// ```
-    pub fn remove<'a, K>(&mut self, key: K) -> Option<()>
+    pub fn remove<'a, K>(&mut self, key: K) -> Option<Zval>
     where
         K: Into<ArrayKey<'a>>,
     {
-        let result = match key.into() {
+        let key = key.into();
+        let removed = self.get(key.clone()).map(removed_value);
+        let result = match key {
             ArrayKey::Long(index) => unsafe {
                 #[allow(clippy::cast_sign_loss)]
                 zend_hash_index_del(self, index as zend_ulong)
@@ -395,7 +402,7 @@ impl ZendHashTable {
             ArrayKey::ZendString(key) => unsafe { zend_hash_del(self, key.as_ptr().cast_mut()) },
         };
 
-        if result < 0 { None } else { Some(()) }
+        if result < 0 { None } else { removed }
     }
 
     /// Attempts to remove a value from the hash table with a string key.
@@ -406,7 +413,7 @@ impl ZendHashTable {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - Key was successfully removed.
+    /// * `Some(value)` - The value that was removed.
     /// * `None` - No key was removed, did not exist.
     ///
     /// # Example
@@ -419,16 +426,17 @@ impl ZendHashTable {
     /// ht.push("hello");
     /// assert_eq!(ht.len(), 1);
     ///
-    /// ht.remove_index(0);
+    /// assert_eq!(ht.remove_index(0).and_then(|v| v.string()), Some("hello".to_string()));
     /// assert_eq!(ht.len(), 0);
     /// ```
-    pub fn remove_index(&mut self, key: i64) -> Option<()> {
+    pub fn remove_index(&mut self, key: i64) -> Option<Zval> {
+        let removed = self.get(key).map(removed_value);
         let result = unsafe {
             #[allow(clippy::cast_sign_loss)]
             zend_hash_index_del(self, key as zend_ulong)
         };
 
-        if result < 0 { None } else { Some(()) }
+        if result < 0 { None } else { removed }
     }
 
     /// Attempts to insert an item into the hash table, or update if the key
@@ -634,6 +642,10 @@ impl ZendHashTable {
     /// assert!(!ht.has_sequential_keys());
     /// ```
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "a hash table cannot hold more than i64::MAX elements"
+    )]
     pub fn has_sequential_keys(&self) -> bool {
         !self
             .into_iter()
@@ -831,11 +843,7 @@ impl ToOwned for ZendHashTable {
             // SAFETY: FFI call does not modify `self`, returns a new hashtable.
             let ptr = zend_array_dup(ptr::from_ref(self).cast_mut());
 
-            // SAFETY: `as_mut()` checks if the pointer is null, and panics if it is not.
-            ZBox::from_raw(
-                ptr.as_mut()
-                    .expect("Failed to allocate memory for hashtable"),
-            )
+            ZBox::from_zend_alloc(ptr)
         }
     }
 }

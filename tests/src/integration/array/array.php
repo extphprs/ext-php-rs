@@ -161,3 +161,11 @@ assert($list[1] === 2, 'get_index_mut should leave other indexes alone');
 
 $empty_list = [];
 assert(test_array_get_index_mut($empty_list) === 0, 'get_index_mut should tolerate an empty array');
+
+$fruits = ['apple' => 'green', 'banana' => 'yellow'];
+assert('green' === test_array_remove($fruits, 'apple'));
+assert(null === test_array_remove($fruits, 'missing'));
+
+$colours = ['red', 'green'];
+assert('red' === test_array_remove_index($colours, 0));
+assert(null === test_array_remove_index($colours, 9));

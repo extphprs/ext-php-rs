@@ -140,6 +140,10 @@ impl<'a> IntoIterator for &'a mut ZendIterator {
     type Item = (Zval, Zval);
     type IntoIter = Iter<'a>;
 
+    #[expect(
+        clippy::expect_used,
+        reason = "IntoIterator has no error channel, and a fresh iterator can always be rewound"
+    )]
     fn into_iter(self) -> Self::IntoIter {
         self.iter().expect("Could not rewind iterator!")
     }
@@ -163,6 +167,10 @@ pub struct Iter<'a> {
 impl Iterator for Iter<'_> {
     type Item = (Zval, Zval);
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the engine keeps the iterator index non-negative and within i64"
+    )]
     fn next(&mut self) -> Option<Self::Item> {
         // Call next when index > 0, so next is really called at the start of each
         // iteration, which allow to work better with generator iterator

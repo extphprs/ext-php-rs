@@ -86,15 +86,12 @@ impl StreamWrapper {
     ///
     /// * `Error::StreamWrapperRegistrationFailure` - If the stream wrapper
     ///   could not be registered
-    ///
-    /// # Panics
-    ///
-    /// * If the name cannot be converted to a C string
+    /// * `Error::InvalidCString` - If the name contains a NUL byte
     pub fn register(self, name: &str) -> Result<Self, Error> {
+        let name = std::ffi::CString::new(name)?;
         // We have to convert it to a static so owned streamwrapper doesn't get dropped.
         let copy = Box::new(self);
         let copy = Box::leak(copy);
-        let name = std::ffi::CString::new(name).expect("Could not create C string for name!");
         let result = unsafe { php_register_url_stream_wrapper(name.as_ptr(), copy) };
         if result == 0 {
             Ok(*copy)
@@ -129,12 +126,9 @@ impl StreamWrapper {
     ///
     /// * `Error::StreamWrapperUnregistrationFailure` - If the stream wrapper
     ///   could not be unregistered
-    ///
-    /// # Panics
-    ///
-    /// * If the name cannot be converted to a C string
+    /// * `Error::InvalidCString` - If the name contains a NUL byte
     pub fn unregister(name: &str) -> Result<(), Error> {
-        let name = std::ffi::CString::new(name).expect("Could not create C string for name!");
+        let name = std::ffi::CString::new(name)?;
         match unsafe { php_unregister_url_stream_wrapper(name.as_ptr()) } {
             0 => Ok(()),
             _ => Err(Error::StreamWrapperUnregistrationFailure),
@@ -172,3 +166,17 @@ pub type Stream = php_stream;
 
 /// Operations that can be performed with a stream wrapper
 pub type StreamWrapperOps = php_stream_wrapper_ops;
+
+#[cfg(feature = "embed")]
+#[cfg(test)]
+mod tests {
+    use super::StreamWrapper;
+    use crate::error::Error;
+
+    #[test]
+    fn unregister_rejects_a_name_with_a_nul_byte() {
+        let err = StreamWrapper::unregister("we\0ird");
+
+        assert!(matches!(err, Err(Error::InvalidCString { position: 2 })));
+    }
+}

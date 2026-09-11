@@ -185,6 +185,10 @@ impl<'a> ZendExtensionBuilder<'a> {
     ///
     /// Panics if a `ZendExtensionHandler` has already been registered on this
     /// module. Each extension may register at most one handler.
+    #[expect(
+        clippy::expect_used,
+        reason = "the module is only absent on the test-only constructor"
+    )]
     pub fn finish(self) -> crate::builders::ModuleBuilder<'a> {
         register_config(ZendExtensionConfig {
             factory: self.factory,
@@ -331,6 +335,10 @@ unsafe extern "C" fn ext_deactivate() {
 /// # Safety
 ///
 /// Must be called during MINIT phase only.
+#[expect(
+    clippy::expect_used,
+    reason = "the name and version come from the module builder, i.e. from Cargo metadata compiled into the extension"
+)]
 pub(crate) unsafe fn zend_extension_startup(name: &str, version: &str) {
     let Some(cfg) = ZEND_EXT_CONFIG.get() else {
         return;

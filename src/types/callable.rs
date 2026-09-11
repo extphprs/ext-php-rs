@@ -7,7 +7,6 @@ use crate::{
     error::{Error, Result},
     ffi::_call_user_function_impl,
     flags::DataType,
-    zend::ExecutorGlobals,
 };
 
 use super::{ZendHashTable, Zval};
@@ -142,8 +141,8 @@ impl<'a> ZendCallable<'a> {
 
         if result < 0 {
             Err(Error::Callable)
-        } else if let Some(e) = ExecutorGlobals::take_exception() {
-            Err(Error::Exception(e))
+        } else if let Some(e) = Error::pending_exception() {
+            Err(e)
         } else {
             Ok(retval)
         }
@@ -234,8 +233,8 @@ impl<'a> ZendCallable<'a> {
 
         if result < 0 {
             Err(Error::Callable)
-        } else if let Some(e) = ExecutorGlobals::take_exception() {
-            Err(Error::Exception(e))
+        } else if let Some(e) = Error::pending_exception() {
+            Err(e)
         } else {
             Ok(retval)
         }

@@ -51,6 +51,28 @@ impl<T: ZBoxable> ZBox<T> {
         Self(unsafe { NonNull::new_unchecked(ptr) })
     }
 
+    /// Creates a new box from a pointer returned by a Zend allocation.
+    ///
+    /// # Parameters
+    ///
+    /// * `ptr` - A well-aligned pointer to a `T`, freshly allocated by the
+    ///   engine.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that `ptr` is well-aligned and pointing to a `T`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the engine returned a null pointer.
+    #[expect(
+        clippy::expect_used,
+        reason = "the Zend allocator aborts the process on OOM, so the pointer is never null"
+    )]
+    pub(crate) unsafe fn from_zend_alloc(ptr: *mut T) -> Self {
+        Self(NonNull::new(ptr).expect("the Zend allocator returned a null pointer"))
+    }
+
     /// Returns the pointer contained by the box, dropping the box in the
     /// process. The data pointed to by the returned pointer is not
     /// released.

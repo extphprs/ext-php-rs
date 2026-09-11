@@ -238,7 +238,7 @@ impl<'a> Enum<'a> {
                 fn from_name(name: &str) -> ::ext_php_rs::error::Result<Self> {
                     match name {
                         #(#case_from_names,)*
-                        _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+                        _ => Err(::ext_php_rs::error::Error::InvalidEnumCase { case: name.to_string() }),
                     }
                 }
 
@@ -282,7 +282,7 @@ impl<'a> Enum<'a> {
                         #(
                             #cases,
                         )*
-                        _ => Err(::ext_php_rs::error::Error::InvalidProperty),
+                        _ => Err(::ext_php_rs::error::Error::InvalidEnumCase { case: value.to_string() }),
                     }
                 }
             }

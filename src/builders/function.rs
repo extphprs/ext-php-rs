@@ -191,7 +191,7 @@ impl<'a> FunctionBuilder<'a> {
             type_: match self.retval {
                 Some(retval) => {
                     ZendType::empty_from_type(retval, self.ret_as_ref, false, self.ret_as_null)
-                        .ok_or(Error::InvalidCString)?
+                        .ok_or(Error::ZvalConversion(retval))?
                 }
                 None => ZendType::empty(false, false),
             },

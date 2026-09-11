@@ -82,10 +82,13 @@ pub trait FromZendObject<'a>: Sized {
     ///
     /// # Errors
     ///
-    /// If the conversion fails, an [`Error`] is returned.
+    /// * [`Error::ZvalConversion`] - If the object is not of the expected
+    ///   class.
+    /// * [`Error::InvalidProperty`] - If a property the conversion needs is
+    ///   missing.
     ///
-    /// [`Error`]: crate::error::Error
-    // TODO: Expand on error information
+    /// [`Error::ZvalConversion`]: crate::error::Error::ZvalConversion
+    /// [`Error::InvalidProperty`]: crate::error::Error::InvalidProperty
     fn from_zend_object(obj: &'a ZendObject) -> Result<Self>;
 }
 
@@ -99,10 +102,13 @@ pub trait FromZendObjectMut<'a>: Sized {
     ///
     /// # Errors
     ///
-    /// If the conversion fails, an [`Error`] is returned.
+    /// * [`Error::ZvalConversion`] - If the object is not of the expected
+    ///   class.
+    /// * [`Error::InvalidProperty`] - If a property the conversion needs is
+    ///   missing.
     ///
-    /// [`Error`]: crate::error::Error
-    // TODO: Expand on error information
+    /// [`Error::ZvalConversion`]: crate::error::Error::ZvalConversion
+    /// [`Error::InvalidProperty`]: crate::error::Error::InvalidProperty
     fn from_zend_object_mut(obj: &'a mut ZendObject) -> Result<Self>;
 }
 
@@ -123,10 +129,13 @@ pub trait IntoZendObject {
     ///
     /// # Errors
     ///
-    /// If the conversion fails, an [`Error`] is returned.
+    /// * [`Error::ZvalConversion`] - If the value has no object
+    ///   representation.
+    /// * [`Error::InvalidScope`] - If the class of the object has not been
+    ///   registered with the engine.
     ///
-    /// [`Error`]: crate::error::Error
-    // TODO: Expand on error information
+    /// [`Error::ZvalConversion`]: crate::error::Error::ZvalConversion
+    /// [`Error::InvalidScope`]: crate::error::Error::InvalidScope
     fn into_zend_object(self) -> Result<ZBox<ZendObject>>;
 }
 
@@ -153,10 +162,16 @@ pub trait IntoZval: Sized {
     ///
     /// # Errors
     ///
-    /// If the conversion fails, an [`Error`] is returned.
+    /// Implementations return the error that describes their failure, for
+    /// example:
     ///
-    /// [`Error`]: crate::error::Error
-    // TODO: Expand on error information
+    /// * [`Error::IntegerOverflow`] - If the value does not fit in a PHP
+    ///   integer.
+    /// * [`Error::InvalidCString`] - If a string in the value contains a NUL
+    ///   byte.
+    ///
+    /// [`Error::IntegerOverflow`]: crate::error::Error::IntegerOverflow
+    /// [`Error::InvalidCString`]: crate::error::Error::InvalidCString
     fn into_zval(self, persistent: bool) -> Result<Zval> {
         let mut zval = Zval::new();
         self.set_zval(&mut zval, persistent)?;
@@ -174,10 +189,16 @@ pub trait IntoZval: Sized {
     ///
     /// # Errors
     ///
-    /// If setting the content fails, an [`Error`] is returned.
+    /// Implementations return the error that describes their failure, for
+    /// example:
     ///
-    /// [`Error`]: crate::error::Error
-    // TODO: Expand on error information
+    /// * [`Error::IntegerOverflow`] - If the value does not fit in a PHP
+    ///   integer.
+    /// * [`Error::InvalidCString`] - If a string in the value contains a NUL
+    ///   byte.
+    ///
+    /// [`Error::IntegerOverflow`]: crate::error::Error::IntegerOverflow
+    /// [`Error::InvalidCString`]: crate::error::Error::InvalidCString
     fn set_zval(self, zv: &mut Zval, persistent: bool) -> Result<()>;
 }
 

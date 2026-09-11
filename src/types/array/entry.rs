@@ -458,9 +458,12 @@ impl<'a, 'k> OccupiedEntry<'a, 'k> {
     ///     assert!(ht.get("key").is_none());
     /// }
     /// ```
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "the removal is the point, the returned value is optional"
+    )]
     pub fn remove_entry(self) -> (ArrayKey<'k>, Option<Zval>) {
-        let value = self.get().map(Zval::shallow_clone);
-        self.ht.remove(self.key.clone());
+        let value = self.ht.remove(self.key.clone());
         (self.key, value)
     }
 
@@ -488,10 +491,12 @@ impl<'a, 'k> OccupiedEntry<'a, 'k> {
     ///     assert_eq!(value.str(), Some("value"));
     /// }
     /// ```
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "the removal is the point, the returned value is optional"
+    )]
     pub fn remove(self) -> Option<Zval> {
-        let value = self.get().map(Zval::shallow_clone);
-        self.ht.remove(self.key);
-        value
+        self.ht.remove(self.key)
     }
 }
 

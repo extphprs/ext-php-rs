@@ -25,6 +25,7 @@ anyhow = { version = "1", optional = true }
 smartstring = { version = "1", optional = true }
 indexmap = { version = "2", optional = true }
 inventory = "0.3"
+thiserror = "2"
 ext-php-rs-derive = { version = "=0.11.14", path = "./crates/macros" }
 ext-php-rs-introspection = { version = "0.1.0", path = "./crates/introspection" }
 

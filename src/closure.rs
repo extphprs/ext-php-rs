@@ -119,6 +119,10 @@ impl Closure {
     /// # Panics
     ///
     /// Panics if the `RustClosure` PHP class cannot be registered.
+    #[expect(
+        clippy::expect_used,
+        reason = "the RustClosure class is registered once during MINIT"
+    )]
     pub fn build() {
         if CLOSURE_META.has_ce() {
             return;
@@ -143,6 +147,7 @@ impl Closure {
 
     zend_fastcall! {
         /// External function used by the Zend interpreter to call the closure.
+        #[expect(clippy::expect_used, reason = "the engine only dispatches this handler on RustClosure instances")]
         extern "C" fn invoke(ex: &mut ExecuteData, ret: &mut Zval) {
             let (parser, this) = ex.parser_method::<Self>();
             let this = this.expect("Internal closure function called on non-closure class");
@@ -213,8 +218,9 @@ where
 {
     fn invoke(&mut self, _: ArgParser, ret: &mut Zval) {
         if let Err(e) = self().set_zval(ret, false) {
-            let _ = PhpException::default(format!("Failed to return closure result to PHP: {e}"))
-                .throw();
+            let _ =
+                PhpException::from_message(format!("Failed to return closure result to PHP: {e}"))
+                    .throw();
         }
     }
 }
@@ -225,8 +231,9 @@ where
 {
     fn invoke(&mut self, _: ArgParser, ret: &mut Zval) {
         if let Err(e) = self().set_zval(ret, false) {
-            let _ = PhpException::default(format!("Failed to return closure result to PHP: {e}"))
-                .throw();
+            let _ =
+                PhpException::from_message(format!("Failed to return closure result to PHP: {e}"))
+                    .throw();
         }
     }
 }
@@ -240,7 +247,7 @@ where
 
         Closure::wrap(Box::new(move || {
             let Some(this) = this.take() else {
-                let _ = PhpException::default(
+                let _ = PhpException::from_message(
                     "Attempted to call `FnOnce` closure more than once.".into(),
                 )
                 .throw();
@@ -267,7 +274,7 @@ macro_rules! php_closure_impl {
 
                 Closure::wrap(Box::new(move |$($gen),*| {
                     let Some(this) = this.take() else {
-                        let _ = PhpException::default(
+                        let _ = PhpException::from_message(
                             "Attempted to call `FnOnce` closure more than once.".into(),
                         )
                         .throw();
@@ -304,7 +311,7 @@ macro_rules! php_closure_impl {
                         match $gen.consume() {
                             Ok(val) => val,
                             _ => {
-                                let _ = PhpException::default(concat!("Invalid parameter type for `", stringify!($gen), "`.").into()).throw();
+                                let _ = PhpException::from_message(concat!("Invalid parameter type for `", stringify!($gen), "`.").into()).throw();
                                 return;
                             }
                         }
@@ -312,7 +319,7 @@ macro_rules! php_closure_impl {
                 );
 
                 if let Err(e) = result.set_zval(ret, false) {
-                    let _ = PhpException::default(format!("Failed to return closure result to PHP: {}", e)).throw();
+                    let _ = PhpException::from_message(format!("Failed to return closure result to PHP: {}", e)).throw();
                 }
             }
         }
