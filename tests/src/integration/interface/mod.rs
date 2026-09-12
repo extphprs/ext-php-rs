@@ -1,5 +1,5 @@
 use ext_php_rs::prelude::*;
-use ext_php_rs::types::ZendClassObject;
+use ext_php_rs::types::{ZendClassObject, Zval};
 use ext_php_rs::zend::ce;
 
 #[php_interface]
@@ -211,6 +211,144 @@ impl VecIterator {
 // You can use `#[php_impl_interface]` to implement interfaces defined in other crates.
 // See the `php_interface` and `php_impl_interface` macros for more details.
 
+// ============================================================================
+// Test Feature 5: Short form implements syntax
+// Using #[php(implements("\\InterfaceName"))] instead of the verbose
+// #[php(implements(ce = ce::interface, stub = "\\InterfaceName"))]
+// ============================================================================
+
+/// Test class implementing `ArrayAccess` using short form syntax.
+/// This tests runtime class entry lookup via `ClassEntry::try_find_no_autoload()`.
+#[php_class]
+#[php(name = "ExtPhpRs\\Interface\\ShortFormArrayAccess")]
+#[php(implements("\\ArrayAccess"))]
+pub struct ShortFormArrayAccess {
+    data: Vec<i64>,
+}
+
+#[php_impl]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+impl ShortFormArrayAccess {
+    pub fn __construct() -> Self {
+        Self {
+            data: vec![10, 20, 30, 40, 50],
+        }
+    }
+
+    /// `ArrayAccess::offsetExists` - offset must be `mixed` to match PHP interface.
+    pub fn offset_exists(&self, offset: &Zval) -> bool {
+        if let Some(idx) = offset.long() {
+            idx >= 0 && (idx as usize) < self.data.len()
+        } else {
+            false
+        }
+    }
+
+    /// `ArrayAccess::offsetGet` - offset must be `mixed` to match PHP interface.
+    pub fn offset_get(&self, offset: &Zval) -> Option<i64> {
+        let idx = offset.long()?;
+        if idx >= 0 {
+            self.data.get(idx as usize).copied()
+        } else {
+            None
+        }
+    }
+
+    /// `ArrayAccess::offsetSet` - offset and value must be `mixed` to match PHP interface.
+    pub fn offset_set(&mut self, offset: &Zval, value: &Zval) {
+        if let (Some(idx), Some(val)) = (offset.long(), value.long())
+            && idx >= 0
+            && (idx as usize) < self.data.len()
+        {
+            self.data[idx as usize] = val;
+        }
+    }
+
+    /// `ArrayAccess::offsetUnset` - offset must be `mixed` to match PHP interface.
+    pub fn offset_unset(&mut self, offset: &Zval) {
+        if let Some(idx) = offset.long()
+            && idx >= 0
+            && (idx as usize) < self.data.len()
+        {
+            self.data.remove(idx as usize);
+        }
+    }
+}
+
+/// Test class implementing `Countable` using short form syntax.
+/// `Countable` is defined in SPL which is always available.
+#[php_class]
+#[php(name = "ExtPhpRs\\Interface\\CountableTest")]
+#[php(implements("\\Countable"))]
+pub struct CountableTest {
+    items: Vec<String>,
+}
+
+#[php_impl]
+#[allow(clippy::cast_possible_wrap)]
+impl CountableTest {
+    pub fn __construct() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    pub fn add(&mut self, item: String) {
+        self.items.push(item);
+    }
+
+    /// Returns the count for `count()`.
+    pub fn count(&self) -> i64 {
+        self.items.len() as i64
+    }
+}
+
+/// Test class implementing multiple interfaces using mixed syntax
+/// (both short form and explicit form).
+#[php_class]
+#[php(name = "ExtPhpRs\\Interface\\MixedImplementsTest")]
+#[php(implements(ce = ce::iterator, stub = "\\Iterator"))]
+#[php(implements("\\Countable"))]
+pub struct MixedImplementsTest {
+    items: Vec<i64>,
+    index: usize,
+}
+
+#[php_impl]
+impl MixedImplementsTest {
+    pub fn __construct() -> Self {
+        Self {
+            items: vec![10, 20, 30],
+            index: 0,
+        }
+    }
+
+    // Iterator methods
+    pub fn current(&self) -> Option<i64> {
+        self.items.get(self.index).copied()
+    }
+
+    pub fn key(&self) -> usize {
+        self.index
+    }
+
+    pub fn next(&mut self) {
+        self.index += 1;
+    }
+
+    pub fn rewind(&mut self) {
+        self.index = 0;
+    }
+
+    pub fn valid(&self) -> bool {
+        self.index < self.items.len()
+    }
+
+    #[allow(clippy::cast_possible_wrap)]
+    // Countable method
+    pub fn count(&self) -> i64 {
+        self.items.len() as i64
+    }
+}
+
 // Test Feature 2: Interface inheritance via trait bounds
 // Define a parent interface
 #[php_interface]
@@ -270,6 +408,10 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<VecIterator>()
         // Greeter with #[php_impl_interface]
         .class::<Greeter>()
+        // Short form implements syntax tests
+        .class::<ShortFormArrayAccess>()
+        .class::<CountableTest>()
+        .class::<MixedImplementsTest>()
 }
 
 #[cfg(test)]
