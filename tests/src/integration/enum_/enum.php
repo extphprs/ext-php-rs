@@ -35,4 +35,4 @@ $before = memory_get_usage();
 for ($i = 0; $i < 10_000; $i++) {
     test_enum(TestEnum::Variant1);
 }
-assert(memory_get_usage() - $before < 1024, 'returning an enum case must not leak a reference');
+assert(( memory_get_usage() - $before ) < 1024, 'returning an enum case must not leak a reference');
