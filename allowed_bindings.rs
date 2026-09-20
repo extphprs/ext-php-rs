@@ -69,6 +69,7 @@ bind! {
     zend_ce_arithmetic_error,
     zend_ce_compile_error,
     zend_ce_division_by_zero_error,
+    zend_ce_error,
     zend_ce_error_exception,
     zend_ce_exception,
     zend_ce_parse_error,

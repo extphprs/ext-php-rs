@@ -4,7 +4,7 @@
 
 use crate::ffi::{
     zend_ce_aggregate, zend_ce_argument_count_error, zend_ce_arithmetic_error, zend_ce_arrayaccess,
-    zend_ce_compile_error, zend_ce_countable, zend_ce_division_by_zero_error,
+    zend_ce_compile_error, zend_ce_countable, zend_ce_division_by_zero_error, zend_ce_error,
     zend_ce_error_exception, zend_ce_exception, zend_ce_iterator, zend_ce_parse_error,
     zend_ce_serializable, zend_ce_stringable, zend_ce_throwable, zend_ce_traversable,
     zend_ce_type_error, zend_ce_unhandled_match_error, zend_ce_value_error,
@@ -38,6 +38,15 @@ pub fn throwable() -> &'static ClassEntry {
 /// If exception [`ClassEntry`] is not available
 pub fn exception() -> &'static ClassEntry {
     unsafe { zend_ce_exception.as_ref() }.unwrap()
+}
+
+/// Returns the base [`Error`](https://www.php.net/manual/en/class.error.php) class.
+///
+/// # Panics
+///
+/// If error [`ClassEntry`] is not available
+pub fn error() -> &'static ClassEntry {
+    unsafe { zend_ce_error.as_ref() }.unwrap()
 }
 
 /// Returns the base [`ErrorException`](https://www.php.net/manual/en/class.errorexception.php) class.

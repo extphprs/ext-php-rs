@@ -22,7 +22,7 @@
 
 use crate::ffi;
 use crate::types::ZendStr;
-use crate::zend::try_catch;
+use crate::zend::{CatchError, try_catch};
 use std::mem;
 use std::panic::AssertUnwindSafe;
 
@@ -42,6 +42,9 @@ pub enum PhpEvalError {
     /// A PHP fatal error (bailout) occurred during execution.
     #[error("PHP fatal error (bailout) during execution")]
     Bailout,
+    /// Rust code reached from the PHP code panicked.
+    #[error("Rust panic during execution: {0}")]
+    Panic(String),
 }
 
 /// Execute embedded PHP code within the running PHP engine.
@@ -103,6 +106,7 @@ pub fn execute(code: impl AsRef<[u8]>) -> Result<(), PhpEvalError> {
     unsafe { (*eg).error_reporting = prev_error_reporting };
 
     match result {
+        Err(CatchError::Panic(message)) => Err(PhpEvalError::Panic(message)),
         Err(_) => Err(PhpEvalError::Bailout),
         Ok(inner) => inner,
     }
