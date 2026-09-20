@@ -8,11 +8,25 @@
 //! the CLI builds without PHP and the layout of every `#[repr(C)]` type below
 //! is the whole contract between them.
 //!
-//! [`VERSION`] travels inside [`Description`]. Any change to a `#[repr(C)]`
-//! type here is a breaking change of this crate.
+//! [`VERSION`] travels inside [`Description`]. `cargo-php` reads it first and
+//! refuses an extension that was built with a different minor of this crate.
+//! A layout change therefore causes a clear error, not a misread.
+//!
+//! # Changing a type here
+//!
+//! An `assert_ffi_safe!` invocation follows every `#[repr(C)]` type. It makes
+//! sure that rustc accepts the type by value in an `extern "C"` signature, so
+//! a payload with a Rust-only layout such as `&str` is rejected. It also makes
+//! sure that the size and the alignment of the type on 64-bit targets match
+//! the recorded numbers.
+//!
+//! If you add, remove or reorder a field or a variant, or if a recorded number
+//! changes, the change is a breaking change of this crate. Mark the commit
+//! with `!`, so the release bumps the version that `cargo-php` compares, and
+//! update the numbers next to the type.
 use std::vec::Vec as StdVec;
 
-use abi::{Option, RString, Str, Vec};
+use abi::{Option, RString, Str, Vec, assert_ffi_safe};
 
 pub mod abi;
 mod data_type;
@@ -41,6 +55,7 @@ pub struct Description {
     /// Extension description.
     pub module: Module,
 }
+assert_ffi_safe!(Description, size = 96, align = 8);
 
 impl Description {
     /// Creates a new description.
@@ -87,6 +102,7 @@ pub struct Module {
     /// Constants exported by the extension.
     pub constants: Vec<Constant>,
 }
+assert_ffi_safe!(Module, size = 80, align = 8);
 
 /// Represents an exported function.
 #[repr(C)]
@@ -100,6 +116,7 @@ pub struct Function {
     /// Parameters of the function.
     pub params: Vec<Parameter>,
 }
+assert_ffi_safe!(Function, size = 88, align = 8);
 
 /// Represents a parameter attached to an exported function or method.
 #[repr(C)]
@@ -116,6 +133,7 @@ pub struct Parameter {
     /// Default value of the parameter.
     pub default: Option<RString>,
 }
+assert_ffi_safe!(Parameter, size = 80, align = 8);
 
 /// Represents an exported class or interface.
 #[repr(C)]
@@ -138,6 +156,7 @@ pub struct Class {
     /// Whether the export is an interface rather than a class.
     pub is_interface: bool,
 }
+assert_ffi_safe!(Class, size = 128, align = 8);
 
 impl Class {
     /// Creates the class representing a Rust closure, exported as
@@ -190,6 +209,7 @@ pub struct Enum {
     /// Backing type of the enum.
     pub backing_type: Option<RString>,
 }
+assert_ffi_safe!(Enum, size = 72, align = 8);
 
 /// Represents a case in an exported enum.
 #[repr(C)]
@@ -202,6 +222,7 @@ pub struct EnumCase {
     /// Value of the enum case.
     pub value: Option<RString>,
 }
+assert_ffi_safe!(EnumCase, size = 56, align = 8);
 
 /// Represents a property attached to an exported class.
 #[repr(C)]
@@ -224,6 +245,7 @@ pub struct Property {
     /// Default value of the property as a PHP stub string.
     pub default: Option<RString>,
 }
+assert_ffi_safe!(Property, size = 96, align = 8);
 
 /// Represents a method attached to an exported class.
 #[repr(C)]
@@ -246,6 +268,7 @@ pub struct Method {
     /// Not describe method body, if is abstract.
     pub r#abstract: bool,
 }
+assert_ffi_safe!(Method, size = 112, align = 8);
 
 /// Represents a value returned from a function or method.
 #[repr(C)]
@@ -256,6 +279,7 @@ pub struct Retval {
     /// Whether the return value is nullable.
     pub nullable: bool,
 }
+assert_ffi_safe!(Retval, size = 32, align = 8);
 
 /// Enumerator used to differentiate between methods.
 #[repr(C)]
@@ -268,6 +292,7 @@ pub enum MethodType {
     /// A constructor.
     Constructor,
 }
+assert_ffi_safe!(MethodType, size = 4, align = 4);
 
 /// Enumerator used to differentiate between different method and property
 /// visibilties.
@@ -281,6 +306,7 @@ pub enum Visibility {
     /// Public visibility.
     Public,
 }
+assert_ffi_safe!(Visibility, size = 4, align = 4);
 
 /// Represents an exported constant, stand alone or attached to a class.
 #[repr(C)]
@@ -292,10 +318,12 @@ pub struct Constant {
     /// Value of the constant.
     pub value: Option<RString>,
 }
+assert_ffi_safe!(Constant, size = 56, align = 8);
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    assert_ffi_safe!(DocBlock, size = 16, align = 8);
 
     #[test]
     fn description_carries_the_introspection_version() {

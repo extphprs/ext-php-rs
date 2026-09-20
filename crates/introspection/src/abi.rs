@@ -60,28 +60,35 @@ where
 
 /// An immutable, ABI-stable borrowed [`&'static str`][str].
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Str {
     ptr: *const u8,
     len: usize,
 }
 
 impl Str {
+    /// Wraps a static string slice. This function is usable in `const` items.
+    #[must_use]
+    pub const fn new(val: &'static str) -> Self {
+        Self {
+            ptr: val.as_ptr(),
+            len: val.len(),
+        }
+    }
+
     /// Returns the string as a string slice.
     ///
     /// The lifetime is `'static` and can outlive the [`Str`] object, as you can
     /// only initialize a [`Str`] through a static reference.
     #[must_use]
-    pub fn str(&self) -> &'static str {
+    pub const fn str(&self) -> &'static str {
         unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(self.ptr, self.len)) }
     }
 }
 
 impl From<&'static str> for Str {
     fn from(val: &'static str) -> Self {
-        let ptr = val.as_ptr();
-        let len = val.len();
-        Self { ptr, len }
+        Self::new(val)
     }
 }
 
@@ -102,6 +109,13 @@ impl PartialEq for Str {
         self.len == other.len && self.str() == other.str()
     }
 }
+
+impl Eq for Str {}
+
+// SAFETY: `Str` only wraps a `&'static str`, which is `Send` and `Sync`.
+unsafe impl Send for Str {}
+// SAFETY: see the `Send` impl above.
+unsafe impl Sync for Str {}
 
 /// An ABI-stable String
 #[repr(C)]
@@ -153,7 +167,7 @@ impl Display for RString {
 
 /// An ABI-stable [`Option`][std::option::Option].
 #[repr(C, u8)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Option<T> {
     /// [`Option::Some`][std::option::Option::Some] variant.
     Some(T),
@@ -182,3 +196,27 @@ where
         }
     }
 }
+
+impl<T> Eq for Option<T> where T: Eq {}
+
+/// Pins the layout of an ABI type. rustc must accept the type by value in an
+/// `extern "C"` signature, and its size and alignment on 64-bit targets must
+/// match the recorded values. If this fails, the introspection contract
+/// changed and the commit must be marked as breaking.
+macro_rules! assert_ffi_safe {
+    ($t:ty, size = $size:literal, align = $align:literal) => {
+        const _: () = {
+            #[deny(improper_ctypes_definitions)]
+            #[allow(dead_code)]
+            extern "C" fn by_value(_: $t) {}
+            #[cfg(target_pointer_width = "64")]
+            assert!(::std::mem::size_of::<$t>() == $size && ::std::mem::align_of::<$t>() == $align);
+        };
+    };
+}
+pub(crate) use assert_ffi_safe;
+
+assert_ffi_safe!(Vec<u8>, size = 16, align = 8);
+assert_ffi_safe!(Str, size = 16, align = 8);
+assert_ffi_safe!(RString, size = 16, align = 8);
+assert_ffi_safe!(Option<Str>, size = 24, align = 8);

@@ -283,7 +283,7 @@ impl<T: RegisteredClass> ZendClassObject<T> {
 }
 
 impl<'a, T: RegisteredClass> FromZval<'a> for &'a ZendClassObject<T> {
-    const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
+    const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
         Self::from_zend_object(zval.object()?).ok()
@@ -298,7 +298,7 @@ impl<'a, T: RegisteredClass> FromZendObject<'a> for &'a ZendClassObject<T> {
 }
 
 impl<'a, T: RegisteredClass> FromZvalMut<'a> for &'a mut ZendClassObject<T> {
-    const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
+    const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
         Self::from_zend_object_mut(zval.object_mut()?).ok()
@@ -368,7 +368,7 @@ impl<T: RegisteredClass + Clone> Clone for ZBox<ZendClassObject<T>> {
 }
 
 impl<T: RegisteredClass> IntoZval for ZBox<ZendClassObject<T>> {
-    const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
+    const TYPE: DataType = DataType::object(T::CLASS_NAME);
     const NULLABLE: bool = false;
 
     fn set_zval(mut self, zv: &mut Zval, _: bool) -> Result<()> {
@@ -384,7 +384,7 @@ impl<T: RegisteredClass> IntoZval for ZBox<ZendClassObject<T>> {
 }
 
 impl<T: RegisteredClass> IntoZval for &mut ZendClassObject<T> {
-    const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
+    const TYPE: DataType = DataType::object(T::CLASS_NAME);
     const NULLABLE: bool = false;
 
     #[inline]

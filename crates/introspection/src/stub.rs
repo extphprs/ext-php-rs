@@ -311,8 +311,10 @@ fn datatype_to_phpdoc(ty: &DataType, nullable: bool) -> String {
         DataType::Double => "float",
         DataType::String => "string",
         DataType::Array => "array",
-        DataType::Object(Some(name)) => return format_class_type(name, nullable),
-        DataType::Object(None) => "object",
+        DataType::Object(_) => match ty.class_name() {
+            Some(name) => return format_class_type(name, nullable),
+            None => "object",
+        },
         DataType::Resource => "resource",
         DataType::Callable => "callable",
         DataType::Void => "void",
@@ -563,11 +565,13 @@ impl ToStub for DataType {
                 DataType::Double => "float",
                 DataType::String => "string",
                 DataType::Array => "array",
-                DataType::Object(Some(ty)) => {
-                    fqdn.push_str(ty);
-                    fqdn.as_str()
-                }
-                DataType::Object(None) => "object",
+                DataType::Object(_) => match self.class_name() {
+                    Some(name) => {
+                        fqdn.push_str(name);
+                        fqdn.as_str()
+                    }
+                    None => "object",
+                },
                 DataType::Resource => "resource",
                 DataType::Reference => "reference",
                 DataType::Callable => "callable",
@@ -923,9 +927,9 @@ mod test {
         assert_eq!(DataType::Double.to_stub().unwrap(), "float");
         assert_eq!(DataType::String.to_stub().unwrap(), "string");
         assert_eq!(DataType::Array.to_stub().unwrap(), "array");
-        assert_eq!(DataType::Object(None).to_stub().unwrap(), "object");
+        assert_eq!(DataType::ANY_OBJECT.to_stub().unwrap(), "object");
         assert_eq!(
-            DataType::Object(Some("Foo\\Bar")).to_stub().unwrap(),
+            DataType::object("Foo\\Bar").to_stub().unwrap(),
             "\\Foo\\Bar"
         );
         assert_eq!(DataType::Resource.to_stub().unwrap(), "resource");
@@ -1166,7 +1170,7 @@ mod test {
         let prop = Property {
             name: "ref_".into(),
             docs: super::DocBlock(vec![" The related entity.".into()].into()),
-            ty: Option::Some(DataType::Object(Some("App\\Entity"))),
+            ty: Option::Some(DataType::object("App\\Entity")),
             vis: Visibility::Private,
             static_: false,
             nullable: true,

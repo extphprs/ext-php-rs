@@ -173,18 +173,14 @@ impl ToTokens for InterfaceData<'_> {
                 }
             }
             impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a #interface_name {
-                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(Some(
-                    <#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-                ));
+                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(<#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME);
                 #[inline]
                 fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
                     <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?).ok()
                 }
             }
             impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut #interface_name {
-                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(Some(
-                    <#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-                ));
+                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(<#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME);
                 #[inline]
                 fn from_zval_mut(zval: &'a mut ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
                     <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(zval.object_mut()?)
@@ -201,9 +197,7 @@ impl ToTokens for InterfaceData<'_> {
                 }
             }
             impl ::ext_php_rs::convert::IntoZval for #interface_name {
-                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(Some(
-                    <#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-                ));
+                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(<#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME);
                 const NULLABLE: bool = false;
                 #[inline]
                 fn set_zval(

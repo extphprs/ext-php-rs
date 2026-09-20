@@ -58,11 +58,9 @@ impl ZendType {
         is_variadic: bool,
         allow_null: bool,
     ) -> Option<Self> {
-        match type_ {
-            DataType::Object(Some(class)) => {
-                Self::empty_from_class_type(class, pass_by_ref, is_variadic, allow_null)
-            }
-            type_ => Some(Self::empty_from_primitive_type(
+        match type_.class_name() {
+            Some(class) => Self::empty_from_class_type(class, pass_by_ref, is_variadic, allow_null),
+            None => Some(Self::empty_from_primitive_type(
                 type_,
                 pass_by_ref,
                 is_variadic,
@@ -131,7 +129,7 @@ impl ZendType {
         is_variadic: bool,
         allow_null: bool,
     ) -> Self {
-        assert!(!matches!(type_, DataType::Object(Some(_))));
+        assert!(type_.class_name().is_none());
         Self {
             ptr: ptr::null_mut::<c_void>(),
             type_mask: Self::type_init_code(type_, pass_by_ref, is_variadic, allow_null),
