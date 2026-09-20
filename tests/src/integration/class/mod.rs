@@ -42,6 +42,16 @@ impl TestClass {
         self.number = number;
     }
 
+    #[php(getter)]
+    pub fn get_first_name(&self) -> String {
+        "first".to_string()
+    }
+
+    #[php(getter, name = "custom")]
+    pub fn get_renamed(&self) -> i64 {
+        7
+    }
+
     pub fn static_call(name: String) -> String {
         format!("Hello {name}")
     }

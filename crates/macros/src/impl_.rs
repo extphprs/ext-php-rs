@@ -263,15 +263,21 @@ impl<'a> ParsedImpl<'a> {
         &mut self,
         method: &'a syn::ImplItemFn,
         opts: &MethodArgs,
+        rename: &PhpRename,
         docs: Vec<String>,
     ) -> Result<()> {
         let is_getter = matches!(opts.ty, MethodTy::Getter);
-        let method_name = method.sig.ident.to_string();
+        let method_name = ident_to_php_name(&method.sig.ident);
         let prefix = if is_getter { "get_" } else { "set_" };
-        let prop_name = method_name
-            .strip_prefix(prefix)
-            .unwrap_or(&method_name)
-            .to_string();
+        let prop_name = rename.rename(
+            method_name.strip_prefix(prefix).unwrap_or(&method_name),
+            RenameRule::Camel,
+        );
+        validate_php_name(
+            &prop_name,
+            PhpNameContext::Property,
+            method.sig.ident.span(),
+        )?;
 
         let value_ty = match (is_getter, &method.sig.output) {
             (true, syn::ReturnType::Type(_, ty)) => Some(ty.as_ref()),
@@ -342,7 +348,7 @@ impl<'a> ParsedImpl<'a> {
                     });
                 }
                 syn::ImplItem::Fn(method) => {
-                    let attr = PhpFunctionImplAttribute::from_attributes(&method.attrs)?;
+                    let mut attr = PhpFunctionImplAttribute::from_attributes(&method.attrs)?;
                     let name = attr.rename.rename_method(
                         ident_to_php_name(&method.sig.ident),
                         self.change_method_case,
@@ -351,11 +357,12 @@ impl<'a> ParsedImpl<'a> {
                     let docs = get_docs(&attr.attrs)?;
                     method.attrs.retain(|attr| !attr.path().is_ident("php"));
 
+                    let rename = std::mem::take(&mut attr.rename);
                     let opts = MethodArgs::new(name, attr)?;
 
                     // Handle getter/setter methods
                     if matches!(opts.ty, MethodTy::Getter | MethodTy::Setter) {
-                        self.parse_property_method(method, &opts, docs)?;
+                        self.parse_property_method(method, &opts, &rename, docs)?;
                         continue;
                     }
 

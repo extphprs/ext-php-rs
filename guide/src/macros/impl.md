@@ -209,12 +209,15 @@ stubs print it.
 A class can expose a property whose value comes from Rust methods. Mark the
 method that reads the value with `#[php(getter)]` and the method that writes it
 with `#[php(setter)]`. The property name is the method name without its `get_`
-or `set_` prefix. Properties are declared in the order in which their first
+or `set_` prefix, converted to camelCase. This is the same rule as for
+`#[php(prop)]` fields: `get_first_name` gives the property `firstName`.
+Properties are declared in the order in which their first
 getter or setter appears in the `impl` block, after the `#[php(prop)]` field
 properties of the struct.
 
 If you want a different property name, pass a `name` or `change_case` option to
-the `#[php]` attribute.
+the `#[php]` attribute: `#[php(getter, name = "first_name")]` or
+`#[php(getter, change_case = "snake_case")]`.
 
 A property does not need both methods. A property with only a getter is
 read-only. A property with only a setter is write-only.

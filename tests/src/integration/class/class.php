@@ -56,9 +56,12 @@ assert(in_array('number', $propertyNames), 'Property "number" from getter/setter
 assert(in_array('booleanProp', $propertyNames), 'Property "booleanProp" from #[php(prop)] SHOULD appear in reflection');
 assert($testClassReflection->getProperty('string')->isPublic(), 'Property "string" should be public');
 assert(
-    $propertyNames === ['booleanProp', 'string', 'number'],
+    $propertyNames === ['booleanProp', 'string', 'number', 'firstName', 'custom'],
     'Properties must follow declaration order: fields first, then getter/setter properties'
 );
+assert($class->firstName === 'first', 'Getter property names are camelCase like field properties');
+assert(!property_exists($class, 'first_name'), 'The snake_case getter name must not be exposed');
+assert($class->custom === 7, '#[php(name)] on a getter renames the property');
 
 // Call regular from object
 assert($class->staticCall('Php') === 'Hello Php');
@@ -399,7 +402,7 @@ if (PHP_VERSION_ID >= 80_400) {
 
 // Test issue #325 - returning &'static str from getter
 $staticStrClass = new TestClassStaticStrGetter();
-assert($staticStrClass->static_value === 'Hello from static str');
+assert($staticStrClass->staticValue === 'Hello from static str');
 
 // Test issue #173 - simple type syntax for extends
 $baseObj = new TestBaseClass();
