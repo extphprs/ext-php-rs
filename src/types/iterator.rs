@@ -202,7 +202,7 @@ impl Iterator for Iter<'_> {
 }
 
 impl<'a> FromZvalMut<'a> for &'a mut ZendIterator {
-    const TYPE: DataType = DataType::Object(Some("Traversable"));
+    const TYPE: DataType = DataType::object("Traversable");
 
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
         zval.object()?.get_class_entry().get_iterator(zval, false)

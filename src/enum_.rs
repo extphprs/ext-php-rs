@@ -38,7 +38,7 @@ where
     fn from_zend_object(obj: &ZendObject) -> Result<Self> {
         if !ClassFlags::from_bits_truncate(unsafe { (*obj.ce).ce_flags }).contains(ClassFlags::Enum)
         {
-            return Err(Error::ZvalConversion(DataType::Object(None)));
+            return Err(Error::ZvalConversion(DataType::ANY_OBJECT));
         }
 
         let name = obj
@@ -58,7 +58,7 @@ impl<T> FromZval<'_> for T
 where
     T: RegisteredEnum + RegisteredClass,
 {
-    const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
+    const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval(zval: &Zval) -> Option<Self> {
         zval.object()
@@ -86,7 +86,7 @@ impl<T> IntoZval for T
 where
     T: RegisteredEnum + RegisteredClass,
 {
-    const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
+    const TYPE: DataType = DataType::object(T::CLASS_NAME);
     const NULLABLE: bool = false;
 
     fn set_zval(self, zv: &mut Zval, _persistent: bool) -> Result<()> {

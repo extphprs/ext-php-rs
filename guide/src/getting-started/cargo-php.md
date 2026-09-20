@@ -61,8 +61,9 @@ Options:
 
 `cargo php --version` prints the `ext-php-rs-introspection` version the CLI was
 built with. Stub generation refuses an extension whose version of that crate
-is not semver compatible, since the `#[repr(C)]` layout it reads may have
-changed.
+is not semver compatible, because the `#[repr(C)]` layout it reads can have
+changed. Every layout change of that crate bumps the version that this check
+compares, so rebuild `cargo-php` or the extension until both versions match.
 
 The command should always be executed from within your extensions manifest
 directory (the directory with your `Cargo.toml`).

@@ -146,7 +146,7 @@ fn parse_struct(
         }
 
         impl #into_impl_generics ::ext_php_rs::convert::IntoZval for #ident #ty_generics #into_where_clause {
-            const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(None);
+            const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::ANY_OBJECT;
             const NULLABLE: bool = false;
 
             fn set_zval(self, zv: &mut ::ext_php_rs::types::Zval, persistent: bool) -> ::ext_php_rs::error::Result<()> {
@@ -165,7 +165,7 @@ fn parse_struct(
         }
 
         impl #from_impl_generics ::ext_php_rs::convert::FromZval<'_zval> for #ident #ty_generics #from_where_clause {
-            const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(None);
+            const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::ANY_OBJECT;
 
             fn from_zval(zv: &'_zval ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
                 use ::ext_php_rs::convert::FromZendObject;

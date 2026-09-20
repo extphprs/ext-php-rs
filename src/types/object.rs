@@ -735,7 +735,7 @@ impl Debug for ZendObject {
 }
 
 impl<'a> FromZval<'a> for &'a ZendObject {
-    const TYPE: DataType = DataType::Object(None);
+    const TYPE: DataType = DataType::ANY_OBJECT;
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
         zval.object()
@@ -743,7 +743,7 @@ impl<'a> FromZval<'a> for &'a ZendObject {
 }
 
 impl<'a> FromZvalMut<'a> for &'a mut ZendObject {
-    const TYPE: DataType = DataType::Object(None);
+    const TYPE: DataType = DataType::ANY_OBJECT;
 
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
         zval.object_mut()
@@ -751,7 +751,7 @@ impl<'a> FromZvalMut<'a> for &'a mut ZendObject {
 }
 
 impl IntoZval for ZBox<ZendObject> {
-    const TYPE: DataType = DataType::Object(None);
+    const TYPE: DataType = DataType::ANY_OBJECT;
     const NULLABLE: bool = false;
 
     #[inline]
@@ -768,7 +768,7 @@ impl IntoZval for ZBox<ZendObject> {
 }
 
 impl IntoZval for &mut ZendObject {
-    const TYPE: DataType = DataType::Object(None);
+    const TYPE: DataType = DataType::ANY_OBJECT;
     const NULLABLE: bool = false;
 
     #[inline]

@@ -336,9 +336,9 @@ macro_rules! class_derives {
         }
 
         impl<'a> $crate::convert::FromZval<'a> for &'a $type {
-            const TYPE: $crate::flags::DataType = $crate::flags::DataType::Object(Some(
+            const TYPE: $crate::flags::DataType = $crate::flags::DataType::object(
                 <$type as $crate::class::RegisteredClass>::CLASS_NAME,
-            ));
+            );
 
             #[inline]
             fn from_zval(zval: &'a $crate::types::Zval) -> ::std::option::Option<Self> {
@@ -347,9 +347,9 @@ macro_rules! class_derives {
         }
 
         impl<'a> $crate::convert::FromZvalMut<'a> for &'a mut $type {
-            const TYPE: $crate::flags::DataType = $crate::flags::DataType::Object(Some(
+            const TYPE: $crate::flags::DataType = $crate::flags::DataType::object(
                 <$type as $crate::class::RegisteredClass>::CLASS_NAME,
-            ));
+            );
 
             #[inline]
             fn from_zval_mut(zval: &'a mut $crate::types::Zval) -> ::std::option::Option<Self> {
@@ -370,9 +370,9 @@ macro_rules! class_derives {
         }
 
         impl $crate::convert::IntoZval for $type {
-            const TYPE: $crate::flags::DataType = $crate::flags::DataType::Object(Some(
+            const TYPE: $crate::flags::DataType = $crate::flags::DataType::object(
                 <$type as $crate::class::RegisteredClass>::CLASS_NAME,
-            ));
+            );
             const NULLABLE: bool = false;
 
             #[inline]

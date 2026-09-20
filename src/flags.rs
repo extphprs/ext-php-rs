@@ -424,7 +424,7 @@ impl DataTypeExt for DataType {
         contains!(IS_NULL, Null);
 
         if (value & IS_OBJECT) == IS_OBJECT {
-            return DataType::Object(None);
+            return DataType::ANY_OBJECT;
         }
 
         contains!(IS_UNDEF, Undef);
@@ -471,7 +471,7 @@ impl TryFrom<ZvalTypeFlags> for DataType {
         contains!(Void);
 
         if value.contains(ZvalTypeFlags::Object) {
-            return Ok(DataType::Object(None));
+            return Ok(DataType::ANY_OBJECT);
         }
 
         Err(Error::InvalidTypeToDatatype(value))
@@ -505,7 +505,7 @@ mod tests {
         test!(IS_DOUBLE, Double);
         test!(IS_STRING, String);
         test!(IS_ARRAY, Array);
-        assert_eq!(DataType::from_u32(IS_OBJECT), DataType::Object(None));
+        assert_eq!(DataType::from_u32(IS_OBJECT), DataType::ANY_OBJECT);
         test!(IS_RESOURCE, Resource);
         test!(IS_REFERENCE, Reference);
         test!(IS_CONSTANT_AST, ConstantExpression);
@@ -516,7 +516,7 @@ mod tests {
         test!(IS_INTERNED_STRING_EX, String);
         test!(IS_STRING_EX, String);
         test!(IS_ARRAY_EX, Array);
-        assert_eq!(DataType::from_u32(IS_OBJECT_EX), DataType::Object(None));
+        assert_eq!(DataType::from_u32(IS_OBJECT_EX), DataType::ANY_OBJECT);
         test!(IS_RESOURCE_EX, Resource);
         test!(IS_REFERENCE_EX, Reference);
         test!(IS_CONSTANT_AST_EX, ConstantExpression);
