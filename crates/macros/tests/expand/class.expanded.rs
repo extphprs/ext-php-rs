@@ -104,3 +104,130 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
             .get_interface_methods()
     }
 }
+impl MyClass {
+    pub fn get_first(&self) -> i64 {
+        1
+    }
+    pub fn set_first(&mut self, _value: i64) {}
+    pub fn get_second(&self) -> String {
+        String::new()
+    }
+    pub fn plain(&self) {}
+}
+impl ::ext_php_rs::internal::class::PhpClassImpl<MyClass>
+for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
+    fn get_methods(
+        self,
+    ) -> ::std::vec::Vec<
+        (
+            ::ext_php_rs::builders::FunctionBuilder<'static>,
+            ::ext_php_rs::flags::MethodFlags,
+        ),
+    > {
+        ::alloc::boxed::box_assume_init_into_vec_unsafe(
+            ::alloc::intrinsics::write_box_via_move(
+                ::alloc::boxed::Box::new_uninit(),
+                [
+                    (
+                        ::ext_php_rs::builders::FunctionBuilder::new(
+                                "plain",
+                                {
+                                    (/*ERROR*/);
+                                    handler
+                                },
+                            )
+                            .not_required()
+                            .returns(::ext_php_rs::flags::DataType::Void, false, false),
+                        ::ext_php_rs::flags::MethodFlags::Public,
+                    ),
+                ],
+            ),
+        )
+    }
+    fn get_method_props(
+        self,
+    ) -> &'static [::ext_php_rs::internal::property::PropertyDescriptor<MyClass>] {
+        fn __method_get_0(
+            this: &MyClass,
+            __zv: &mut ::ext_php_rs::types::Zval,
+        ) -> ::ext_php_rs::exception::PhpResult {
+            use ::ext_php_rs::convert::IntoZval as _;
+            let value = MyClass::get_first(this);
+            value
+                .set_zval(__zv, false)
+                .map_err(|e| ::alloc::__export::must_use({
+                    ::alloc::fmt::format(
+                        format_args!("Failed to return property value: {0:?}", e),
+                    )
+                }))?;
+            Ok(())
+        }
+        fn __method_set_0(
+            this: &mut MyClass,
+            __zv: &::ext_php_rs::types::Zval,
+        ) -> ::ext_php_rs::exception::PhpResult {
+            use ::ext_php_rs::convert::FromZval as _;
+            let val = <i64 as ::ext_php_rs::convert::FromZval>::from_zval(__zv)
+                .ok_or("Unable to convert property value into required type.")?;
+            MyClass::set_first(this, val);
+            Ok(())
+        }
+        fn __method_get_1(
+            this: &MyClass,
+            __zv: &mut ::ext_php_rs::types::Zval,
+        ) -> ::ext_php_rs::exception::PhpResult {
+            use ::ext_php_rs::convert::IntoZval as _;
+            let value = MyClass::get_second(this);
+            value
+                .set_zval(__zv, false)
+                .map_err(|e| ::alloc::__export::must_use({
+                    ::alloc::fmt::format(
+                        format_args!("Failed to return property value: {0:?}", e),
+                    )
+                }))?;
+            Ok(())
+        }
+        static METHOD_PROPS: [::ext_php_rs::internal::property::PropertyDescriptor<
+            MyClass,
+        >; 2usize] = [
+            ::ext_php_rs::internal::property::PropertyDescriptor {
+                name: "first",
+                mangled_name: "first",
+                get: ::std::option::Option::Some(__method_get_0),
+                set: ::std::option::Option::Some(__method_set_0),
+                flags: ::ext_php_rs::flags::PropertyFlags::Public,
+                docs: &[],
+                ty: <i64 as ::ext_php_rs::convert::IntoZval>::TYPE,
+                nullable: <i64 as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                readonly: false,
+            },
+            ::ext_php_rs::internal::property::PropertyDescriptor {
+                name: "second",
+                mangled_name: "second",
+                get: ::std::option::Option::Some(__method_get_1),
+                set: ::std::option::Option::None,
+                flags: ::ext_php_rs::flags::PropertyFlags::Public,
+                docs: &[],
+                ty: <String as ::ext_php_rs::convert::IntoZval>::TYPE,
+                nullable: <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                readonly: true,
+            },
+        ];
+        &METHOD_PROPS
+    }
+    fn get_constructor(
+        self,
+    ) -> ::std::option::Option<::ext_php_rs::class::ConstructorMeta<MyClass>> {
+        ::std::option::Option::None
+    }
+    fn get_constants(
+        self,
+    ) -> &'static [(
+        &'static str,
+        &'static dyn ::ext_php_rs::convert::IntoZvalDyn,
+        &'static [&'static str],
+        ::ext_php_rs::flags::ConstantFlags,
+    )] {
+        &[]
+    }
+}

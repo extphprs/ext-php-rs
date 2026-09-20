@@ -55,6 +55,10 @@ assert(in_array('string', $propertyNames), 'Property "string" from getter/setter
 assert(in_array('number', $propertyNames), 'Property "number" from getter/setter SHOULD appear in reflection');
 assert(in_array('booleanProp', $propertyNames), 'Property "booleanProp" from #[php(prop)] SHOULD appear in reflection');
 assert($testClassReflection->getProperty('string')->isPublic(), 'Property "string" should be public');
+assert(
+    $propertyNames === ['booleanProp', 'string', 'number'],
+    'Properties must follow declaration order: fields first, then getter/setter properties'
+);
 
 // Call regular from object
 assert($class->staticCall('Php') === 'Hello Php');

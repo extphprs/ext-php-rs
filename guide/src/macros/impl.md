@@ -210,6 +210,8 @@ You can add properties to classes which use Rust functions as getters and/or
 setters. This is done with the `#[php(getter)]` and `#[php(setter)]` attributes. By
 default, the `get_` or `set_` prefix is trimmed from the start of the function
 name, and the remainder is used as the property name.
+Properties are declared in the order their first getter or setter appears in the
+`impl` block, after the `#[php(prop)]` field properties of the struct.
 
 If you want to use a different name for the property, you can pass a `name` or
 `change_case` option to the `#[php]` attribute which will change the property name.
