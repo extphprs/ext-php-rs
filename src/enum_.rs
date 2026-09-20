@@ -71,15 +71,14 @@ where
     T: RegisteredEnum + RegisteredClass,
 {
     fn into_zend_object(self) -> Result<ZBox<ZendObject>> {
-        let mut name = ZendStr::new(T::to_name(&self), false);
-        let variant = unsafe {
-            zend_enum_get_case(
-                ptr::from_ref(T::get_metadata().ce()).cast_mut(),
-                &raw mut *name,
-            )
-        };
-
-        Ok(unsafe { ZBox::from_raw(variant) })
+        let case = zend_case(&self);
+        // SAFETY: `zend_case` yields a valid object for the rest of the request.
+        // The class constant table keeps its own reference, so the box takes a
+        // reference of its own before assuming ownership of the pointer.
+        unsafe {
+            (*case).inc_count();
+            Ok(ZBox::from_raw(case))
+        }
     }
 }
 
@@ -91,30 +90,31 @@ where
     const NULLABLE: bool = false;
 
     fn set_zval(self, zv: &mut Zval, _persistent: bool) -> Result<()> {
-        // `set_object` increments the object refcount; the ZBox returned by
-        // `into_zend_object` already owns one ref, so we drop one before
-        // handing the pointer over to keep the net count at 1. Same pattern as
-        // `ZBox<ZendObject>::set_zval` in `object.rs`.
-        let mut obj = self.into_zend_object()?;
-        obj.dec_count();
-        let obj = obj.into_raw();
-        // SAFETY: `into_raw` yields a valid, exclusively owned object whose
-        // reference is transferred to the zval.
-        zv.set_object(unsafe { &mut *obj });
+        let case = zend_case(&self);
+        // SAFETY: `zend_case` yields a valid object for the rest of the request
+        // and `set_object` takes its own reference, so the class constant table
+        // keeps the one it already holds.
+        zv.set_object(unsafe { &mut *case });
         Ok(())
     }
 }
-// impl<'a, T> IntoZval for T
-// where
-//     T: RegisteredEnum + RegisteredClass + IntoZendObject
-// {
-//     const TYPE: DataType = DataType::Object(Some(T::CLASS_NAME));
-//     const NULLABLE: bool = false;
-//
-//     fn set_zval(self, zv: &mut Zval, persistent: bool) -> Result<()> {
-//         let obj = self.into_zend_object()?;
-//     }
-// }
+
+/// Resolves the PHP object backing an enum case.
+///
+/// The object is owned by the class constant table and stays alive until the
+/// end of the request. The pointer is borrowed: whoever stores it must take a
+/// reference of its own with [`PhpRc::inc_count`].
+fn zend_case<T: RegisteredEnum + RegisteredClass>(case: &T) -> *mut ZendObject {
+    let mut name = ZendStr::new(T::to_name(case), false);
+    // SAFETY: the class entry is registered and `to_name` only produces names
+    // declared as cases of this enum, which `zend_enum_get_case` requires.
+    unsafe {
+        zend_enum_get_case(
+            ptr::from_ref(T::get_metadata().ce()).cast_mut(),
+            &raw mut *name,
+        )
+    }
+}
 
 /// Represents a case in a PHP enum.
 pub struct EnumCase {

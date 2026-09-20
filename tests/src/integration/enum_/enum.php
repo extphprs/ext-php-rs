@@ -27,3 +27,12 @@ try {
 } catch (\Throwable $e) {
     assert('enum has no case matching `Nope`' === $e->getMessage(), $e->getMessage());
 }
+
+$weak = WeakReference::create(test_enum(TestEnum::Variant1));
+assert($weak->get() === StringBackedEnum::Variant2, 'returning an enum case must not free it');
+
+$before = memory_get_usage();
+for ($i = 0; $i < 10_000; $i++) {
+    test_enum(TestEnum::Variant1);
+}
+assert(memory_get_usage() - $before < 1024, 'returning an enum case must not leak a reference');
