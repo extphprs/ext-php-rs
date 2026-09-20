@@ -1,0 +1,5 @@
+error: Constructors are not supported on interfaces.
+ --> tests/ui/php_interface_constructor.rs:5:11
+  |
+5 |     #[php(constructor)]
+  |           ^^^^^^^^^^^

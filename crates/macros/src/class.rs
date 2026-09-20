@@ -1,5 +1,5 @@
 use darling::util::Flag;
-use darling::{FromAttributes, FromMeta, ToTokens};
+use darling::{FromAttributes, FromMeta, ToTokens, util::SpannedValue};
 use proc_macro2::TokenStream;
 use quote::{TokenStreamExt, quote};
 use syn::{Attribute, Expr, Fields, ItemStruct};
@@ -181,7 +181,7 @@ struct PropAttributes {
     #[darling(flatten)]
     rename: PhpRename,
     flags: Option<Expr>,
-    default: Option<Expr>,
+    default: Option<SpannedValue<Expr>>,
     attrs: Vec<Attribute>,
 }
 
@@ -189,7 +189,16 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
     let mut result = vec![];
     for field in fields {
         let attr = PropAttributes::from_attributes(&field.attrs)?;
-        if attr.prop.is_present() {
+        if !attr.prop.is_present() {
+            if let Some(php) = field.attrs.iter().find(|attr| attr.path().is_ident("php")) {
+                bail!(php.meta => "`#[php(...)]` on a field requires `prop`.");
+            }
+            continue;
+        }
+        if let (Some(default), false) = (&attr.default, attr.static_.is_present()) {
+            bail!(default.span() => "`default` is only supported on `static` properties.");
+        }
+        {
             let ident = field
                 .ident
                 .as_ref()
@@ -345,7 +354,7 @@ fn generate_registered_class_impl(
         let docs = &prop.docs;
 
         // Handle default value - if provided, wrap in Some(&value), otherwise None
-        let default_value = if let Some(expr) = &prop.attr.default {
+        let default_value = if let Some(expr) = prop.attr.default.as_deref() {
             quote! { ::std::option::Option::Some(&#expr as &'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)) }
         } else {
             quote! { ::std::option::Option::None }

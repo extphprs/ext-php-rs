@@ -1,0 +1,5 @@
+error: `default` is only supported on `static` properties.
+ --> tests/ui/php_class_instance_prop_default.rs:5:27
+  |
+5 |     #[php(prop, default = 0)]
+  |                           ^

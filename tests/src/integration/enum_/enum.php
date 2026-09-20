@@ -17,6 +17,20 @@ assert(StringBackedEnum::from('bar') === StringBackedEnum::Variant2);
 assert(StringBackedEnum::tryFrom('foo') === StringBackedEnum::Variant1);
 assert(StringBackedEnum::tryFrom('baz') === null);
 
+$unit = new ReflectionEnum(TestEnum::class);
+assert(!$unit->isBacked());
+assert(array_map(static fn(ReflectionEnumUnitCase $c): string => $c->getName(), $unit->getCases()) === [
+    'Variant1',
+    'Variant2'
+]);
+foreach ($unit->getCases() as $case) {
+    assert($case->isPublic(), $case->getName());
+}
+$int = new ReflectionEnum(IntBackedEnum::class);
+assert($int->isBacked() && (string) $int->getBackingType() === 'int');
+$string = new ReflectionEnum(StringBackedEnum::class);
+assert($string->isBacked() && (string) $string->getBackingType() === 'string');
+
 assert(test_enum(TestEnum::Variant1) === StringBackedEnum::Variant2);
 
 assert(test_enum_from_name('Variant1') === StringBackedEnum::Variant1);

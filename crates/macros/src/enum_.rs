@@ -1,6 +1,9 @@
 use std::convert::TryFrom;
 
-use darling::{FromAttributes, util::Flag};
+use darling::{
+    FromAttributes,
+    util::{Flag, SpannedValue},
+};
 use itertools::Itertools;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
@@ -22,8 +25,7 @@ struct PhpEnumAttribute {
     #[darling(default)]
     allow_native_discriminants: Flag,
     rename_cases: Option<RenameRule>,
-    // TODO: Implement visibility support
-    vis: Option<Visibility>,
+    vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
 }
 
@@ -39,6 +41,9 @@ struct PhpEnumVariantAttribute {
 
 pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
     let php_attr = PhpEnumAttribute::from_attributes(&input.attrs)?;
+    if let Some(vis) = &php_attr.vis {
+        bail!(vis.span() => "PHP enums are always public; remove `vis`.");
+    }
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let docs = get_docs(&php_attr.attrs)?;
@@ -92,7 +97,6 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
         cases.push(EnumCase {
             ident: variant.ident.clone(),
             name: case_name,
-            attrs: variant_attr,
             discriminant,
             docs,
         });
@@ -106,14 +110,7 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
         }
     }
 
-    let enum_props = Enum::new(
-        &input.ident,
-        &php_attr,
-        docs,
-        cases,
-        None, // TODO: Implement flags support
-        discriminant_type,
-    )?;
+    let enum_props = Enum::new(&input.ident, &php_attr, docs, cases, discriminant_type)?;
 
     Ok(quote! {
         #[allow(dead_code)]
@@ -130,7 +127,6 @@ pub struct Enum<'a> {
     discriminant_type: DiscriminantType,
     docs: Vec<String>,
     cases: Vec<EnumCase>,
-    flags: Option<String>,
 }
 
 impl<'a> Enum<'a> {
@@ -139,7 +135,6 @@ impl<'a> Enum<'a> {
         attrs: &PhpEnumAttribute,
         docs: Vec<String>,
         cases: Vec<EnumCase>,
-        flags: Option<String>,
         discriminant_type: DiscriminantType,
     ) -> Result<Self> {
         let name = attrs
@@ -153,19 +148,13 @@ impl<'a> Enum<'a> {
             discriminant_type,
             docs,
             cases,
-            flags,
         })
     }
 
     fn registered_class(&self) -> TokenStream {
         let ident = &self.ident;
         let name = &self.name;
-        let flags = self
-            .flags
-            .as_ref()
-            .map(|f| quote! { | #f })
-            .unwrap_or_default();
-        let flags = quote! { ::ext_php_rs::flags::ClassFlags::Enum #flags };
+        let flags = quote! { ::ext_php_rs::flags::ClassFlags::Enum };
         let docs = &self.docs;
 
         quote! {
@@ -345,8 +334,6 @@ impl ToTokens for Enum<'_> {
 struct EnumCase {
     ident: Ident,
     name: String,
-    #[allow(dead_code)]
-    attrs: PhpEnumVariantAttribute,
     discriminant: Option<Discriminant>,
     docs: Vec<String>,
 }

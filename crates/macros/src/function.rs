@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use darling::{FromAttributes, ToTokens};
+use darling::{FromAttributes, ToTokens, util::SpannedValue};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -63,12 +63,15 @@ struct PhpFunctionAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
-    vis: Option<Visibility>,
+    vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
 }
 
 pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     let php_attr = PhpFunctionAttribute::from_attributes(&input.attrs)?;
+    if let Some(vis) = &php_attr.vis {
+        bail!(vis.span() => "`vis` has no effect on a PHP function; visibility applies to methods and class constants.");
+    }
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;

@@ -1,0 +1,5 @@
+error: `#[php(...)]` on a field requires `prop`.
+ --> tests/ui/php_class_field_attr_without_prop.rs:5:7
+  |
+5 |     #[php(name = "total")]
+  |       ^^^

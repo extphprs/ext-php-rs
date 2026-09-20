@@ -1,0 +1,5 @@
+error: Interfaces cannot declare property accessors; declare a plain method instead.
+ --> tests/ui/php_interface_getter.rs:5:11
+  |
+5 |     #[php(getter)]
+  |           ^^^^^^
