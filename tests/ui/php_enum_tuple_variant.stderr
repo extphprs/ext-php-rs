@@ -1,0 +1,5 @@
+error: Enum cases must be unit variants.
+ --> tests/ui/php_enum_tuple_variant.rs:5:5
+  |
+5 |     Circle(f64),
+  |     ^^^^^^

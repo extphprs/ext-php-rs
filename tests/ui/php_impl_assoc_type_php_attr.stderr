@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on associated types.
+ --> tests/ui/php_impl_assoc_type_php_attr.rs:8:7
+  |
+8 |     #[php(name = "Item")]
+  |       ^^^

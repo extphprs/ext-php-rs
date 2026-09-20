@@ -449,9 +449,9 @@ impl ModuleBuilder<'_> {
             for interface in T::IMPLEMENTS {
                 builder = builder.implements(*interface);
             }
-            for (name, value, docs) in T::constants() {
+            for (name, value, docs, flags) in T::constants() {
                 builder = builder
-                    .dyn_constant(*name, *value, docs)
+                    .dyn_constant(*name, *value, docs, *flags)
                     .expect("Failed to register constant");
             }
 
@@ -504,9 +504,9 @@ impl ModuleBuilder<'_> {
             for interface in T::interface_implementations() {
                 builder = builder.implements(interface);
             }
-            for (name, value, docs) in T::constants() {
+            for (name, value, docs, flags) in T::constants() {
                 builder = builder
-                    .dyn_constant(*name, *value, docs)
+                    .dyn_constant(*name, *value, docs, *flags)
                     .expect("Failed to register constant");
             }
             for desc in T::get_metadata().all_properties() {

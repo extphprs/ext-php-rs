@@ -6,6 +6,7 @@ pub mod bool;
 pub mod callable;
 pub mod class;
 pub mod closure;
+pub mod constant;
 pub mod defaults;
 #[cfg(feature = "enum")]
 pub mod enum_;

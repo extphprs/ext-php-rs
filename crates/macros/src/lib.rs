@@ -853,8 +853,8 @@ pub fn php_class(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_class_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemStruct);
-    if !args.is_empty() {
-        return err!(input => "`#[php_class(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_class", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     class::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -876,6 +876,12 @@ fn php_class_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 ///   enum.
 /// - `#[php(allow_native_discriminants)]`: Allows the use of native Rust
 ///   discriminants (e.g., `Hearts = 1`).
+/// - `#[php(rename_cases = snake_case)]`: Sets the rename rule for every case
+///   that has no `name` of its own.
+///
+/// PHP enums are always public. `#[php(vis = "...")]` on an enum is a compile
+/// error, and so is any argument passed to the macro itself, such as
+/// `#[php_enum(name = "Suit")]`.
 ///
 /// The cases of the enum can be configured with the following options:
 /// - `#[php(name = "CaseName")]` or `#[php(change_case = snake_case)]`: Sets
@@ -977,8 +983,12 @@ pub fn php_enum(args: TokenStream, input: TokenStream) -> TokenStream {
     php_enum_internal(args.into(), input.into()).into()
 }
 
-fn php_enum_internal(_args: TokenStream2, input: TokenStream2) -> TokenStream2 {
+#[allow(clippy::needless_pass_by_value)]
+fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemEnum);
+    if let Err(e) = reject_args(&args, "php_enum", PHP_ATTR_HINT) {
+        return e.to_compile_error();
+    }
 
     enum_::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
@@ -1005,13 +1015,21 @@ fn php_enum_internal(_args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// See the [`name` and `change_case`](./php.md#name-and-change_case) section
 /// for a list of all available cases.
 ///
+/// The macro itself takes no arguments: `#[php_interface(name = "Foo")]` is a
+/// compile error. Put the options in `#[php(...)]` on the trait.
+///
 /// ## Methods
 ///
-/// See the [`php_impl`](./impl.md#)
+/// A trait method accepts the `name`, `change_case`, `defaults`, `optional` and
+/// `vis` options. Interfaces cannot declare property accessors or constructors,
+/// so `getter`, `setter` and `constructor` are compile errors here. See
+/// [`php_impl`](./impl.md#) for how each accepted option behaves.
 ///
 /// ## Constants
 ///
-/// See the [`php_impl`](./impl.md#)
+/// A trait constant accepts the `name` and `change_case` options. Interface
+/// constants are always public, so `vis` is a compile error here. See
+/// [`php_impl`](./impl.md#constants) for the value types.
 ///
 /// ## Example
 ///
@@ -1381,8 +1399,12 @@ pub fn php_interface(args: TokenStream, input: TokenStream) -> TokenStream {
     php_interface_internal(args.into(), input.into()).into()
 }
 
-fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStream2 {
+#[allow(clippy::needless_pass_by_value)]
+fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemTrait);
+    if let Err(e) = reject_args(&args, "php_interface", PHP_ATTR_HINT) {
+        return e.to_compile_error();
+    }
 
     interface::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
@@ -1395,6 +1417,10 @@ fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStre
 ///
 /// See the [list of types](../types/index.md) that are valid as parameter and
 /// return types.
+///
+/// A function accepts the `name`, `change_case`, `defaults` and `optional`
+/// options. PHP functions have no visibility, so `#[php(vis = "...")]` is a
+/// compile error on a function.
 ///
 /// ## Optional parameters
 ///
@@ -1599,8 +1625,8 @@ pub fn php_function(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_function_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemFn);
-    if !args.is_empty() {
-        return err!(input => "`#[php_function(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_function", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     function::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -1621,6 +1647,10 @@ fn php_function_internal(args: TokenStream2, input: TokenStream2) -> TokenStream
 ///   "new_name")]`
 /// - `change_case` - Allows you to rename the property using rename rules, e.g.
 ///   `#[php(change_case = PascalCase)]`
+///
+/// A global constant has no visibility. `#[php(vis = "...")]` on a
+/// `#[php_const]` is a compile error. Use `vis` on constants inside a
+/// `#[php_impl]` block.
 ///
 /// ## Examples
 ///
@@ -1667,8 +1697,8 @@ pub fn php_const(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_const_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemConst);
-    if !args.is_empty() {
-        return err!(input => "`#[php_const(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_const", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     constant::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -1777,8 +1807,8 @@ pub fn php_module(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemFn);
-    if !args.is_empty() {
-        return err!(input => "`#[php_module(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_module", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     module::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -1973,8 +2003,32 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// ## Constants
 ///
 /// Constants are defined as regular Rust `impl` constants. Any type that
-/// implements `IntoZval` can be used as a constant. Constant visibility is not
-/// supported at the moment, and therefore no attributes are valid on constants.
+/// implements `IntoZval` can be used as a constant. A constant accepts the
+/// `name`, `change_case` and `vis` options. The default visibility is `public`.
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// # use ext_php_rs::prelude::*;
+/// #[php_class]
+/// pub struct Limits;
+///
+/// #[php_impl]
+/// impl Limits {
+///     const MAX_USERS: i64 = 100;
+///
+///     #[php(vis = "protected")]
+///     const MAX_RETRIES: i64 = 3;
+///
+///     #[php(vis = "private", name = "SEED")]
+///     const RANDOM_SEED: i64 = 42;
+/// }
+/// # fn main() {}
+/// ```
+///
+/// PHP sees `public const MAX_USERS`, `protected const MAX_RETRIES` and
+/// `private const SEED`. Reflection reports the same visibility, and the
+/// generated stubs print it.
 ///
 /// ## Property getters and setters
 ///
@@ -2128,8 +2182,8 @@ pub fn php_impl(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_impl_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemImpl);
-    if !args.is_empty() {
-        return err!(input => "`#[php_impl(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_impl", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     impl_::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -2304,8 +2358,11 @@ pub fn php_extern(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn php_extern_internal(_: TokenStream2, input: TokenStream2) -> TokenStream2 {
+fn php_extern_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemForeignMod);
+    if let Err(e) = reject_args(&args, "php_extern", NO_ARGS_HINT) {
+        return e.to_compile_error();
+    }
 
     extern_::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
@@ -2464,7 +2521,7 @@ fn php_extern_internal(_: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// var_dump(give_union()); // int(5)
 /// ```
 // END DOCS FROM zval_convert.md
-#[proc_macro_derive(ZvalConvert)]
+#[proc_macro_derive(ZvalConvert, attributes(php))]
 pub fn zval_convert_derive(input: TokenStream) -> TokenStream {
     zval_convert_derive_internal(input.into()).into()
 }
@@ -2544,6 +2601,16 @@ fn wrap_constant_internal(input: TokenStream2) -> TokenStream2 {
         Ok(parsed) => parsed,
         Err(e) => e.to_compile_error(),
     }
+}
+
+const PHP_ATTR_HINT: &str = "Use `#[php(<args>)]` on the item instead.";
+const NO_ARGS_HINT: &str = "It takes no arguments.";
+
+fn reject_args(args: &TokenStream2, macro_name: &str, hint: &str) -> Result<(), syn::Error> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err(err!(args => "`#[{macro_name}(<args>)]` args are not supported. {hint}"))
 }
 
 macro_rules! parse_macro_input2 {

@@ -32,6 +32,7 @@
   - [Interfaces](./macros/interface.md)
   - [Classes](./macros/classes.md)
     - [`impl`s](./macros/impl.md)
+  - [Enums](./macros/enum.md)
   - [Constants](./macros/constant.md)
   - [PHP Functions](./macros/extern.md)
   - [`ZvalConvert`](./macros/zval_convert.md)

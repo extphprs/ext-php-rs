@@ -23,6 +23,20 @@ pub fn ident_to_php_name(ident: &Ident) -> String {
     name.strip_prefix("r#").unwrap_or(&name).to_string()
 }
 
+/// Rejects any `#[php(...)]` attribute on an item whose macro accepts none.
+///
+/// # Errors
+///
+/// Returns an error spanned on the first `#[php(...)]` attribute found.
+pub fn reject_php_attrs(attrs: &[syn::Attribute], context: &str) -> Result<(), syn::Error> {
+    match attrs.iter().find(|attr| attr.path().is_ident("php")) {
+        Some(attr) => {
+            Err(crate::err!(attr.meta => "`#[php(...)]` options are not supported on {context}."))
+        }
+        None => Ok(()),
+    }
+}
+
 /// PHP reserved keywords that cannot be used as class, interface, trait, enum,
 /// or function names.
 ///
@@ -302,6 +316,19 @@ pub enum Visibility {
     Private,
     #[darling(rename = "protected")]
     Protected,
+}
+
+impl Visibility {
+    /// Tokens for the matching variant of any `ext_php_rs::flags` bitflags
+    /// type that spells its visibility bits `Public`, `Protected` and `Private`.
+    pub fn flag_tokens(self, flags_ty: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        let variant = match self {
+            Visibility::Public => quote! { Public },
+            Visibility::Protected => quote! { Protected },
+            Visibility::Private => quote! { Private },
+        };
+        quote! { #flags_ty::#variant }
+    }
 }
 
 impl ToTokens for Visibility {

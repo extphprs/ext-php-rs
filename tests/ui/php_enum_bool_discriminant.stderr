@@ -1,0 +1,5 @@
+error: Unsupported discriminant type: `true`; use an integer or string literal.
+ --> tests/ui/php_enum_bool_discriminant.rs:5:19
+  |
+5 |     #[php(value = true)]
+  |                   ^^^^

@@ -5,10 +5,11 @@ use syn::{
     spanned::Spanned as _, token::Unsafe,
 };
 
-use crate::parsing::ident_to_php_name;
+use crate::parsing::{ident_to_php_name, reject_php_attrs};
 use crate::prelude::*;
 
 pub fn parser(input: ItemForeignMod) -> Result<TokenStream> {
+    reject_php_attrs(&input.attrs, "`#[php_extern]` blocks")?;
     input
         .items
         .into_iter()
@@ -24,6 +25,7 @@ fn parse_function(mut func: ForeignItemFn) -> Result<TokenStream> {
     let ForeignItemFn {
         attrs, vis, sig, ..
     } = &mut func;
+    reject_php_attrs(attrs, "`#[php_extern]` functions")?;
     sig.safety = Safety::Unsafe(Unsafe::default()); // Function must be unsafe.
 
     let Signature { ident, .. } = &sig;

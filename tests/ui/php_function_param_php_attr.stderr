@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on function parameters; use `defaults` and `optional` on the function.
+ --> tests/ui/php_function_param_php_attr.rs:4:16
+  |
+4 | pub fn greet(#[php(name = "who")] name: String) -> String {
+  |                ^^^

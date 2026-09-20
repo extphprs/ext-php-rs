@@ -177,8 +177,32 @@ Constructors cannot use the visibility or rename attributes listed above.
 ## Constants
 
 Constants are defined as regular Rust `impl` constants. Any type that implements
-`IntoZval` can be used as a constant. Constant visibility is not supported at
-the moment, and therefore no attributes are valid on constants.
+`IntoZval` can be used as a constant. A constant accepts the `name`,
+`change_case` and `vis` options. The default visibility is `public`.
+
+```rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+# use ext_php_rs::prelude::*;
+#[php_class]
+pub struct Limits;
+
+#[php_impl]
+impl Limits {
+    const MAX_USERS: i64 = 100;
+
+    #[php(vis = "protected")]
+    const MAX_RETRIES: i64 = 3;
+
+    #[php(vis = "private", name = "SEED")]
+    const RANDOM_SEED: i64 = 42;
+}
+# fn main() {}
+```
+
+PHP sees `public const MAX_USERS`, `protected const MAX_RETRIES` and
+`private const SEED`. Reflection reports the same visibility, and the generated
+stubs print it.
 
 ## Property getters and setters
 

@@ -1,0 +1,5 @@
+error: `vis` is only supported on constants inside `#[php_impl]` blocks.
+ --> tests/ui/php_const_vis.rs:4:13
+  |
+4 | #[php(vis = "private")]
+  |             ^^^^^^^^^

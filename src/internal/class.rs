@@ -5,7 +5,7 @@ use crate::{
     class::{ClassEntryInfo, ConstructorMeta, RegisteredClass},
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
-    flags::MethodFlags,
+    flags::{ConstantFlags, MethodFlags},
     internal::property::PropertyDescriptor,
 };
 
@@ -51,7 +51,14 @@ pub trait PhpClassImpl<T: RegisteredClass> {
     fn get_methods(self) -> Vec<(FunctionBuilder<'static>, MethodFlags)>;
     fn get_method_props(self) -> &'static [PropertyDescriptor<T>];
     fn get_constructor(self) -> Option<ConstructorMeta<T>>;
-    fn get_constants(self) -> &'static [(&'static str, &'static dyn IntoZvalDyn, DocComments)];
+    fn get_constants(
+        self,
+    ) -> &'static [(
+        &'static str,
+        &'static dyn IntoZvalDyn,
+        DocComments,
+        ConstantFlags,
+    )];
 }
 
 /// Default implementation for classes without an `impl` block. Classes that do
@@ -75,7 +82,14 @@ impl<T: RegisteredClass> PhpClassImpl<T> for &'_ PhpClassImplCollector<T> {
     }
 
     #[inline]
-    fn get_constants(self) -> &'static [(&'static str, &'static dyn IntoZvalDyn, DocComments)] {
+    fn get_constants(
+        self,
+    ) -> &'static [(
+        &'static str,
+        &'static dyn IntoZvalDyn,
+        DocComments,
+        ConstantFlags,
+    )] {
         &[]
     }
 }

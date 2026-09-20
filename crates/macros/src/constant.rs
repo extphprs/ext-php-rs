@@ -1,10 +1,12 @@
-use darling::FromAttributes;
+use darling::{FromAttributes, util::SpannedValue};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::ItemConst;
 
 use crate::helpers::get_docs;
-use crate::parsing::{PhpNameContext, PhpRename, RenameRule, ident_to_php_name, validate_php_name};
+use crate::parsing::{
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+};
 use crate::prelude::*;
 
 const INTERNAL_CONST_DOC_PREFIX: &str = "_internal_const_docs_";
@@ -15,13 +17,15 @@ const INTERNAL_CONST_NAME_PREFIX: &str = "_internal_const_name_";
 pub(crate) struct PhpConstAttribute {
     #[darling(flatten)]
     pub(crate) rename: PhpRename,
-    // TODO: Implement const Visibility
-    // pub(crate) vis: Option<Visibility>,
+    pub(crate) vis: Option<SpannedValue<Visibility>>,
     pub(crate) attrs: Vec<syn::Attribute>,
 }
 
 pub fn parser(mut item: ItemConst) -> Result<TokenStream> {
     let attr = PhpConstAttribute::from_attributes(&item.attrs)?;
+    if let Some(vis) = &attr.vis {
+        bail!(vis.span() => "`vis` is only supported on constants inside `#[php_impl]` blocks.");
+    }
 
     let name = attr
         .rename

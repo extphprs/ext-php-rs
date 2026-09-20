@@ -1,5 +1,5 @@
 use darling::FromAttributes;
-use darling::util::Flag;
+use darling::util::{Flag, SpannedValue};
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::{HashMap, HashSet};
@@ -9,7 +9,8 @@ use crate::constant::PhpConstAttribute;
 use crate::function::{Args, CallType, Function, MethodReceiver};
 use crate::helpers::get_docs;
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
+    validate_php_name,
 };
 use crate::prelude::*;
 
@@ -86,7 +87,7 @@ pub struct PhpFunctionImplAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
-    vis: Option<Visibility>,
+    vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
     getter: Flag,
     setter: Flag,
@@ -106,37 +107,38 @@ impl MethodArgs {
         let is_abstract = attr.abstract_method.is_present();
         let is_final = attr.final_method.is_present();
 
-        // Validate incompatible combinations
+        let abstract_span = attr.abstract_method.span();
+        let final_span = attr.final_method.span();
         if is_constructor {
             if is_abstract {
-                bail!("Constructors cannot be abstract.");
+                bail!(abstract_span => "Constructors cannot be abstract.");
             }
             if is_final {
-                bail!("Constructors cannot be final.");
+                bail!(final_span => "Constructors cannot be final.");
             }
         }
         if is_getter {
             if is_abstract {
-                bail!("Getters cannot be abstract.");
+                bail!(abstract_span => "Getters cannot be abstract.");
             }
             if is_final {
-                bail!("Getters cannot be final.");
+                bail!(final_span => "Getters cannot be final.");
             }
         }
         if is_setter {
             if is_abstract {
-                bail!("Setters cannot be abstract.");
+                bail!(abstract_span => "Setters cannot be abstract.");
             }
             if is_final {
-                bail!("Setters cannot be final.");
+                bail!(final_span => "Setters cannot be final.");
             }
         }
         if is_abstract {
             if is_final {
-                bail!("Methods cannot be both abstract and final.");
+                bail!(final_span => "Methods cannot be both abstract and final.");
             }
-            if matches!(attr.vis, Some(Visibility::Private)) {
-                bail!("Abstract methods cannot be private.");
+            if let Some(vis) = attr.vis.filter(|vis| **vis == Visibility::Private) {
+                bail!(vis.span() => "Abstract methods cannot be private.");
             }
         }
 
@@ -156,7 +158,7 @@ impl MethodArgs {
             name,
             optional: attr.optional,
             defaults: attr.defaults,
-            vis: attr.vis.unwrap_or(Visibility::Public),
+            vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
             ty,
             is_final,
         })
@@ -228,6 +230,8 @@ pub struct Constant<'a> {
     pub ident: &'a syn::Ident,
     /// Documentation for the constant.
     pub docs: Vec<String>,
+    /// PHP visibility of the constant.
+    pub vis: Visibility,
 }
 
 impl<'a> ParsedImpl<'a> {
@@ -301,6 +305,7 @@ impl<'a> ParsedImpl<'a> {
                         name,
                         ident: &c.ident,
                         docs,
+                        vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
                     });
                 }
                 syn::ImplItem::Fn(method) => {
@@ -361,7 +366,8 @@ impl<'a> ParsedImpl<'a> {
                             modifiers.insert(MethodModifier::Final);
                         }
 
-                        // Abstract methods use a different builder that doesn't generate a handler
+                        // Abstract methods use a different builder that doesn't
+                        // generate a handler
                         let builder = if is_abstract {
                             func.abstract_function_builder()
                         } else {
@@ -374,6 +380,9 @@ impl<'a> ParsedImpl<'a> {
                             modifiers,
                         });
                     }
+                }
+                syn::ImplItem::Type(t) => {
+                    reject_php_attrs(&t.attrs, "associated types")?;
                 }
                 _ => {}
             }
@@ -396,8 +405,11 @@ impl<'a> ParsedImpl<'a> {
             let name = &c.name;
             let ident = c.ident;
             let docs = &c.docs;
+            let flags = c
+                .vis
+                .flag_tokens(&quote! { ::ext_php_rs::flags::ConstantFlags });
             quote! {
-                (#name, &#path::#ident, &[#(#docs),*])
+                (#name, &#path::#ident, &[#(#docs),*], #flags)
             }
         });
 
@@ -603,7 +615,7 @@ impl<'a> ParsedImpl<'a> {
                     #constructor
                 }
 
-                fn get_constants(self) -> &'static [(&'static str, &'static dyn ::ext_php_rs::convert::IntoZvalDyn, &'static [&'static str])] {
+                fn get_constants(self) -> &'static [(&'static str, &'static dyn ::ext_php_rs::convert::IntoZvalDyn, &'static [&'static str], ::ext_php_rs::flags::ConstantFlags)] {
                     &[#(#constants),*]
                 }
             }

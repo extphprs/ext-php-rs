@@ -12,9 +12,9 @@ namespace {
     const HELLO_WORLD = 100;
 
     class TestClass {
-        const NEW_CONSTANT_NAME = 5;
+        public const NEW_CONSTANT_NAME = 5;
 
-        const SOME_OTHER_STR = 'Hello, world!';
+        public const SOME_OTHER_STR = 'Hello, world!';
 
         public int $a;
 

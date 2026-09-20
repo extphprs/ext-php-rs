@@ -32,6 +32,7 @@ ext-php-rs-introspection = { version = "0.1.0", path = "./crates/introspection" 
 [dev-dependencies]
 skeptic = "0.13"
 serde_json = "1"
+trybuild = "1.0.121"
 
 [build-dependencies]
 anyhow = "1"
@@ -103,6 +104,10 @@ required-features = ["observer"]
 name = "guide_tests"
 path = "tests/guide.rs"
 required-features = ["embed", "closure", "anyhow"]
+
+[[test]]
+name = "ui"
+path = "tests/ui.rs"
 
 [[test]]
 name = "module_tests"

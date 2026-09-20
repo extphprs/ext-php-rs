@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on `#[php_impl_interface]` items.
+  --> tests/ui/php_impl_interface_method_php_attr.rs:13:7
+   |
+13 |     #[php(name = "getName")]
+   |       ^^^

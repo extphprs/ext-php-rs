@@ -11,6 +11,11 @@ The `#[php_enum]` attribute can be configured with the following options:
 - `#[php(name = "EnumName")]` or `#[php(change_case = snake_case)]`: Sets the name of the enum in PHP.
   The default is the `PascalCase` name of the enum.
 - `#[php(allow_native_discriminants)]`: Allows the use of native Rust discriminants (e.g., `Hearts = 1`).
+- `#[php(rename_cases = snake_case)]`: Sets the rename rule for every case that has no `name` of its own.
+
+PHP enums are always public. `#[php(vis = "...")]` on an enum is a compile
+error, and so is any argument passed to the macro itself, such as
+`#[php_enum(name = "Suit")]`.
 
 The cases of the enum can be configured with the following options:
 - `#[php(name = "CaseName")]` or `#[php(change_case = snake_case)]`: Sets the name of the enum case in PHP.

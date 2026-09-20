@@ -1,0 +1,5 @@
+error: Enum cases must have unique discriminants; `High` repeats an earlier value.
+ --> tests/ui/php_enum_duplicate_discriminant.rs:8:5
+  |
+8 |     High,
+  |     ^^^^

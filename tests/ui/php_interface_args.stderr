@@ -1,0 +1,5 @@
+error: `#[php_interface(<args>)]` args are not supported. Use `#[php(<args>)]` on the item instead.
+ --> tests/ui/php_interface_args.rs:3:17
+  |
+3 | #[php_interface(name = "Named")]
+  |                 ^^^^

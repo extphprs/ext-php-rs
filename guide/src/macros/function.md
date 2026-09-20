@@ -6,6 +6,10 @@ should not be used on class methods - see the `#[php_impl]` macro for that.
 See the [list of types](../types/index.md) that are valid as parameter and
 return types.
 
+A function accepts the `name`, `change_case`, `defaults` and `optional`
+options. PHP functions have no visibility, so `#[php(vis = "...")]` is a
+compile error on a function.
+
 ## Optional parameters
 
 Optional parameters can be used by setting the Rust parameter type to a variant

@@ -1,0 +1,5 @@
+error: `#[php_class(<args>)]` args are not supported. Use `#[php(<args>)]` on the item instead.
+ --> tests/ui/php_class_args.rs:3:13
+  |
+3 | #[php_class(name = "Foo")]
+  |             ^^^^

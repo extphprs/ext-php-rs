@@ -12,7 +12,8 @@ use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn, 
 
 use crate::impl_::{FnBuilder, MethodModifier};
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
+    validate_php_name,
 };
 use crate::prelude::*;
 
@@ -72,12 +73,10 @@ impl ToTokens for SupertraitInterface {
 struct InterfaceData<'a> {
     ident: &'a Ident,
     name: String,
-    path: Path,
     /// Extends from `#[php(extends(...))]` attributes
     extends: Vec<ClassEntryAttribute>,
     /// Extends from Rust trait bounds (supertraits)
     supertrait_extends: Vec<SupertraitInterface>,
-    constructor: Option<Function<'a>>,
     methods: Vec<FnBuilder>,
     constants: Vec<Constant<'a>>,
     docs: Vec<String>,
@@ -93,12 +92,6 @@ impl ToTokens for InterfaceData<'_> {
         let methods_sig = &self.methods;
         let constants = &self.constants;
         let docs = &self.docs;
-
-        let _constructor = self
-            .constructor
-            .as_ref()
-            .map(|func| func.constructor_meta(&self.path, Some(&Visibility::Public)))
-            .option_tokens();
 
         quote! {
             pub struct #interface_name;
@@ -146,6 +139,7 @@ impl ToTokens for InterfaceData<'_> {
                     &'static str,
                     &'static dyn ext_php_rs::convert::IntoZvalDyn,
                     ext_php_rs::describe::DocComments,
+                    ext_php_rs::flags::ConstantFlags,
                 )] {
                     &[#(#constants),*]
                 }
@@ -223,20 +217,14 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
         validate_php_name(&name, PhpNameContext::Interface, ident.span())?;
         let docs = get_docs(&attrs.attrs)?;
         self.attrs.clean_php();
-        let interface_name = format_ident!("{INTERNAL_INTERFACE_NAME_PREFIX}{ident}");
-        let ts = quote! { #interface_name };
-        let path: Path = syn::parse2(ts)?;
-
         // Parse supertraits to automatically generate interface inheritance
         let supertrait_extends = parse_supertraits(&self.supertraits);
 
         let mut data = InterfaceData {
             ident,
             name,
-            path,
             extends: attrs.extends,
             supertrait_extends,
-            constructor: None,
             methods: Vec::default(),
             constants: Vec::default(),
             docs,
@@ -244,17 +232,13 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
 
         for item in &mut self.items {
             match item {
-                TraitItem::Fn(f) => match parse_trait_item_fn(f, attrs.change_method_case)? {
-                    MethodKind::Method(builder) => data.methods.push(builder),
-                    MethodKind::Constructor(builder) => {
-                        if data.constructor.replace(builder).is_some() {
-                            bail!("Only one constructor can be provided per class.");
-                        }
-                    }
-                },
+                TraitItem::Fn(f) => data
+                    .methods
+                    .push(parse_trait_item_fn(f, attrs.change_method_case)?),
                 TraitItem::Const(c) => data
                     .constants
                     .push(parse_trait_item_const(c, attrs.change_constant_case)?),
+                TraitItem::Type(t) => reject_php_attrs(&t.attrs, "associated types")?,
                 _ => {}
             }
         }
@@ -276,7 +260,8 @@ fn parse_supertraits(
         .iter()
         .filter_map(|bound| {
             if let TypeParamBound::Trait(trait_bound) = bound {
-                // Clone the path and modify the last segment to add PhpInterface prefix
+                // Clone the path and modify the last segment to add
+                // PhpInterface prefix
                 let mut path = trait_bound.path.clone();
                 let last_segment = path.segments.last_mut()?;
                 last_segment.ident =
@@ -305,20 +290,23 @@ pub struct PhpFunctionInterfaceAttribute {
     constructor: Flag,
 }
 
-enum MethodKind<'a> {
-    Method(FnBuilder),
-    Constructor(Function<'a>),
-}
-
 fn parse_trait_item_fn(
     fn_item: &mut TraitItemFn,
     change_case: Option<RenameRule>,
-) -> Result<MethodKind<'_>> {
+) -> Result<FnBuilder> {
     if fn_item.default.is_some() {
-        bail!(fn_item => "Interface an not have default impl");
+        bail!(fn_item => "Interface methods cannot have a default implementation.");
     }
 
     let php_attr = PhpFunctionInterfaceAttribute::from_attributes(&fn_item.attrs)?;
+    for flag in [&php_attr.getter, &php_attr.setter] {
+        if flag.is_present() {
+            bail!(flag.span() => "Interfaces cannot declare property accessors; declare a plain method instead.");
+        }
+    }
+    if php_attr.constructor.is_present() {
+        bail!(php_attr.constructor.span() => "Constructors are not supported on interfaces.");
+    }
     fn_item.attrs.clean_php();
 
     let mut args = Args::parse_from_fnargs(fn_item.sig.inputs.iter(), php_attr.defaults)?;
@@ -345,17 +333,11 @@ fn parse_trait_item_fn(
     )?;
     let f = Function::new(&fn_item.sig, method_name, args, php_attr.optional, docs);
 
-    if php_attr.constructor.is_present() {
-        Ok(MethodKind::Constructor(f))
-    } else {
-        let builder = FnBuilder {
-            builder: f.abstract_function_builder(),
-            vis: php_attr.vis.unwrap_or(Visibility::Public),
-            modifiers,
-        };
-
-        Ok(MethodKind::Method(builder))
-    }
+    Ok(FnBuilder {
+        builder: f.abstract_function_builder(),
+        vis: php_attr.vis.unwrap_or(Visibility::Public),
+        modifiers,
+    })
 }
 
 #[derive(Debug)]
@@ -371,7 +353,7 @@ impl ToTokens for Constant<'_> {
         let expr = &self.expr;
         let docs = &self.docs;
         quote! {
-            (#name, &#expr, &[#(#docs),*])
+            (#name, &#expr, &[#(#docs),*], ::ext_php_rs::flags::ConstantFlags::Public)
         }
         .to_tokens(tokens);
     }
@@ -392,6 +374,9 @@ fn parse_trait_item_const(
     }
 
     let attr = PhpConstAttribute::from_attributes(&const_item.attrs)?;
+    if let Some(vis) = &attr.vis {
+        bail!(vis.span() => "Interface constants are always public; remove `vis`.");
+    }
     let name = attr.rename.rename(
         ident_to_php_name(&const_item.ident),
         change_case.unwrap_or(RenameRule::ScreamingSnake),

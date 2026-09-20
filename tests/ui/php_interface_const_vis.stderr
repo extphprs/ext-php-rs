@@ -1,0 +1,5 @@
+error: Interface constants are always public; remove `vis`.
+ --> tests/ui/php_interface_const_vis.rs:5:17
+  |
+5 |     #[php(vis = "protected")]
+  |                 ^^^^^^^^^^^

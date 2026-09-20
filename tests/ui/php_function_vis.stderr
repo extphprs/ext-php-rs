@@ -1,0 +1,5 @@
+error: `vis` has no effect on a PHP function; visibility applies to methods and class constants.
+ --> tests/ui/php_function_vis.rs:4:13
+  |
+4 | #[php(vis = "private")]
+  |             ^^^^^^^^^

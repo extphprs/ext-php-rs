@@ -3,6 +3,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{ItemFn, Signature};
 
+use crate::parsing::reject_php_attrs;
 use crate::prelude::*;
 
 #[derive(FromAttributes, Default, Debug)]
@@ -42,6 +43,11 @@ fn get_module_delegate(
 }
 
 fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Result<TokenStream> {
+    for arg in &input.sig.inputs {
+        if let syn::FnArg::Typed(arg) = arg {
+            reject_php_attrs(&arg.attrs, "`#[php_module]` parameters")?;
+        }
+    }
     let delegate = get_module_delegate(&input, crate_name, static_ext)?;
 
     // An unmangled `get_module` collides with any other extension exporting the

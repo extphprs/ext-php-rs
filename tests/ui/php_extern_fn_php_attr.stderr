@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on `#[php_extern]` functions.
+ --> tests/ui/php_extern_fn_php_attr.rs:5:7
+  |
+5 |     #[php(name = "strlen")]
+  |       ^^^

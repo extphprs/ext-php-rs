@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use darling::{FromAttributes, ToTokens};
+use darling::{FromAttributes, ToTokens, util::SpannedValue};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -8,7 +8,8 @@ use syn::{Expr, FnArg, GenericArgument, ItemFn, PatType, PathArguments, Type, Ty
 
 use crate::helpers::get_docs;
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
+    validate_php_name,
 };
 use crate::prelude::*;
 use crate::syn_ext::DropLifetimes;
@@ -62,12 +63,15 @@ struct PhpFunctionAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
-    vis: Option<Visibility>,
+    vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
 }
 
 pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     let php_attr = PhpFunctionAttribute::from_attributes(&input.attrs)?;
+    if let Some(vis) = &php_attr.vis {
+        bail!(vis.span() => "`vis` has no effect on a PHP function; visibility applies to methods and class constants.");
+    }
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;
@@ -444,8 +448,9 @@ impl<'a> Function<'a> {
                         quote! { this.#ident(#({#arg_accessors}),*) }
                     }
                     (MethodReceiver::ZendClassObject, true) => {
-                        // Explicit scope helps with mutable borrow lifetime when
-                        // the method returns `&mut Self`
+                        // Explicit scope helps with mutable borrow lifetime
+                        // when the method returns `&mut
+                        // Self`
                         quote! {
                             {
                                 let _ = #class::#ident(this, #({#arg_accessors}),*);
@@ -885,12 +890,17 @@ impl<'a> Args<'a> {
                         span: receiver.span(),
                     });
                 }
-                FnArg::Typed(PatType { pat, ty, .. }) => {
+                FnArg::Typed(PatType { attrs, pat, ty, .. }) => {
+                    reject_php_attrs(
+                        attrs,
+                        "function parameters; use `defaults` and `optional` on the function",
+                    )?;
                     let syn::Pat::Ident(syn::PatIdent { ident, .. }) = &**pat else {
                         bail!(pat => "Unsupported argument.");
                     };
 
-                    // If the variable is `&[&Zval]` treat it as the variadic argument.
+                    // If the variable is `&[&Zval]` treat it as the variadic
+                    // argument.
                     let default = defaults.remove(ident);
                     let nullable = type_is_nullable(ty.as_ref())?;
                     let (variadic, as_ref, ty) = Self::parse_typed(ty);
@@ -949,8 +959,10 @@ impl<'a> Args<'a> {
                                 .and_then(|ga| match ga {
                                     GenericArgument::Type(ty) => Some(match ty {
                                         Type::Reference(r) => {
-                                            // Only mark as_ref for mutable references
-                                            // (Option<&mut T>), not immutable ones (Option<&T>)
+                                            // Only mark as_ref for mutable
+                                            // references
+                                            // (Option<&mut T>), not immutable
+                                            // ones (Option<&T>)
                                             as_ref = r.mutability.is_some();
                                             let mut new_ref = r.clone();
                                             new_ref.mutability = None;
@@ -984,7 +996,8 @@ impl<'a> Args<'a> {
     pub fn split_args(&self, optional: Option<&Ident>) -> (&[TypedArg<'a>], &[TypedArg<'a>]) {
         let mut mid = None;
         for (i, arg) in self.typed.iter().enumerate() {
-            // An argument is optional if it's nullable (Option<T>) or has a default value.
+            // An argument is optional if it's nullable (Option<T>) or has a
+            // default value.
             let is_optional = arg.nullable || arg.default.is_some();
             if let Some(optional) = optional {
                 if optional == arg.name {
@@ -1120,9 +1133,10 @@ impl TypedArg<'_> {
                 #variadic_name.as_slice()
             }
         } else if self.nullable {
-            // Originally I thought we could just use the below case for `null` options, as
-            // `val()` will return `Option<Option<T>>`, however, this isn't the case when
-            // the argument isn't given, as the underlying zval is null.
+            // Originally I thought we could just use the below case for `null`
+            // options, as `val()` will return `Option<Option<T>>`,
+            // however, this isn't the case when the argument isn't
+            // given, as the underlying zval is null.
             quote! {
                 #name.val()
             }

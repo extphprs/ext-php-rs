@@ -255,8 +255,6 @@ bitflags! {
         const Protected = ZEND_ACC_PROTECTED;
         /// Visibility private
         const Private = ZEND_ACC_PRIVATE;
-        /// Promoted constant
-        const Promoted = ZEND_ACC_PROMOTED;
     }
 }
 

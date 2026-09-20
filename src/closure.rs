@@ -187,6 +187,7 @@ impl RegisteredClass for Closure {
         &'static str,
         &'static dyn crate::convert::IntoZvalDyn,
         DocComments,
+        crate::flags::ConstantFlags,
     )] {
         unimplemented!()
     }

@@ -647,7 +647,7 @@ impl ToStub for Class {
             .constants
             .iter()
             .map(|c| {
-                c.to_stub()
+                c.class_stub()
                     .map(|s| (c.name.as_ref().to_string(), indent(&s, 4)))
             })
             .collect::<Result<_, FmtError>>()?;
@@ -825,10 +825,17 @@ impl ToStub for Method {
     }
 }
 
-impl ToStub for Constant {
-    fn fmt_stub(&self, buf: &mut String) -> FmtResult {
-        self.docs.fmt_stub(buf)?;
+impl Constant {
+    fn class_stub(&self) -> Result<String, FmtError> {
+        let mut buf = String::new();
+        self.docs.fmt_stub(&mut buf)?;
+        self.visibility.fmt_stub(&mut buf)?;
+        write!(buf, " ")?;
+        self.fmt_declaration(&mut buf)?;
+        Ok(buf)
+    }
 
+    fn fmt_declaration(&self, buf: &mut String) -> FmtResult {
         write!(buf, "const {} = ", self.name)?;
         if let Option::Some(value) = &self.value {
             write!(buf, "{value}")?;
@@ -836,6 +843,13 @@ impl ToStub for Constant {
             write!(buf, "null")?;
         }
         writeln!(buf, ";")
+    }
+}
+
+impl ToStub for Constant {
+    fn fmt_stub(&self, buf: &mut String) -> FmtResult {
+        self.docs.fmt_stub(buf)?;
+        self.fmt_declaration(buf)
     }
 }
 
@@ -1118,6 +1132,24 @@ mod test {
             "no docblock without docs or type: {stub}"
         );
         assert_eq!(stub, "public $x;\n");
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn class_constant_stub_carries_visibility() {
+        use crate::{Constant, Visibility, abi::Option};
+
+        let constant = Constant {
+            name: "SECRET".into(),
+            docs: super::DocBlock(vec![].into()),
+            value: Option::Some("1".into()),
+            visibility: Visibility::Private,
+        };
+        assert_eq!(
+            constant.class_stub().unwrap(),
+            "private const SECRET = 1;\n"
+        );
+        assert_eq!(constant.to_stub().unwrap(), "const SECRET = 1;\n");
     }
 
     #[test]

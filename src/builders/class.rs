@@ -14,21 +14,22 @@ use crate::{
     error::{Error, Result},
     exception::PhpException,
     ffi::{
-        zend_declare_class_constant, zend_declare_property, zend_do_implement_interface,
+        zend_declare_class_constant_ex, zend_declare_property, zend_do_implement_interface,
         zend_register_internal_class_ex, zend_register_internal_interface,
     },
-    flags::{ClassFlags, DataType, MethodFlags, PropertyFlags},
+    flags::{ClassFlags, ConstantFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
     zend::{ClassEntry, ExecuteData, ExecutorGlobals, FunctionEntry},
     zend_fastcall,
 };
 
-/// A constant entry: (name, `value_closure`, docs, `stub_value`)
+/// A constant entry: (name, `value_closure`, docs, `stub_value`, flags)
 type ConstantEntry = (
     String,
     Box<dyn FnOnce() -> Result<Zval>>,
     DocComments,
     String,
+    ConstantFlags,
 );
 type PropertyDefault = Option<Box<dyn FnOnce() -> Result<Zval>>>;
 
@@ -153,21 +154,22 @@ impl ClassBuilder {
     /// * `name` - The name of the constant to add to the class.
     /// * `value` - The value of the constant.
     /// * `docs` - Documentation comments for the constant.
+    /// * `flags` - Visibility of the constant.
     ///
     /// # Errors
     ///
-    /// TODO: Never?
+    /// Returns an error if `value` cannot be converted into a [`Zval`].
     pub fn constant<T: Into<String>>(
         mut self,
         name: T,
         value: impl IntoZval + 'static,
         docs: DocComments,
+        flags: ConstantFlags,
     ) -> Result<Self> {
-        // Convert to Zval first to get stub value
         let zval = value.into_zval(true)?;
         let stub = crate::convert::zval_to_stub(&zval);
         self.constants
-            .push((name.into(), Box::new(|| Ok(zval)), docs, stub));
+            .push((name.into(), Box::new(|| Ok(zval)), docs, stub, flags));
         Ok(self)
     }
 
@@ -182,15 +184,17 @@ impl ClassBuilder {
     /// * `name` - The name of the constant to add to the class.
     /// * `value` - The value of the constant.
     /// * `docs` - Documentation comments for the constant.
+    /// * `flags` - Visibility of the constant.
     ///
     /// # Errors
     ///
-    /// TODO: Never?
+    /// Returns an error if `value` cannot be converted into a [`Zval`].
     pub fn dyn_constant<T: Into<String>>(
         mut self,
         name: T,
         value: &'static dyn IntoZvalDyn,
         docs: DocComments,
+        flags: ConstantFlags,
     ) -> Result<Self> {
         let stub = value.stub_value();
         let value = Rc::new(value);
@@ -199,6 +203,7 @@ impl ClassBuilder {
             Box::new(move || value.as_zval(true)),
             docs,
             stub,
+            flags,
         ));
         Ok(self)
     }
@@ -444,19 +449,22 @@ impl ClassBuilder {
             }
         }
 
-        for (name, value, _, _) in self.constants {
-            let name = CString::new(name.as_str())?;
-            // `zend_declare_typed_class_constant` takes the payload with
+        for (name, value, _, _, flags) in self.constants {
+            // The constants table keeps the interned key; releasing an interned
+            // string is a no-op, so dropping the `ZBox` afterwards is sound.
+            let name = ZendStr::new_interned(&name, true);
+            // `zend_declare_class_constant_ex` takes the payload with
             // `ZVAL_COPY_VALUE` and no incref and, unlike
             // `zend_declare_typed_property`, does not reject refcounted values, so
             // the constants table owns it and the `Zval` must not run its destructor.
             let mut value = ManuallyDrop::new(value()?);
             unsafe {
-                zend_declare_class_constant(
+                zend_declare_class_constant_ex(
                     class,
-                    name.as_ptr(),
-                    name.as_bytes().len(),
+                    name.as_ptr().cast_mut(),
                     &raw mut *value,
+                    flags.bits().try_into()?,
+                    ptr::null_mut(),
                 );
             };
         }
@@ -541,7 +549,7 @@ mod tests {
     #[cfg(feature = "embed")]
     fn test_constant() {
         let class = ClassBuilder::new("Foo")
-            .constant("bar", 42, &["Doc 1"])
+            .constant("bar", 42, &["Doc 1"], ConstantFlags::Public)
             .expect("Failed to create constant");
         assert_eq!(class.constants.len(), 1);
         assert_eq!(class.constants[0].0, "bar");
@@ -552,7 +560,7 @@ mod tests {
     #[cfg(feature = "embed")]
     fn test_dyn_constant() {
         let class = ClassBuilder::new("Foo")
-            .dyn_constant("bar", &42, &["Doc 1"])
+            .dyn_constant("bar", &42, &["Doc 1"], ConstantFlags::Public)
             .expect("Failed to create constant");
         assert_eq!(class.constants.len(), 1);
         assert_eq!(class.constants[0].0, "bar");

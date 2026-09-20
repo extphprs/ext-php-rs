@@ -1,0 +1,5 @@
+error: PHP enums are always public; remove `vis`.
+ --> tests/ui/php_enum_vis.rs:4:13
+  |
+4 | #[php(vis = "protected")]
+  |             ^^^^^^^^^^^

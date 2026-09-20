@@ -37,6 +37,22 @@ assert($f->refToLikeThisClass('TEST', $f) === 'TEST - TEST | TEST - TEST');
 assert(ExtPhpRs\Interface\EmptyObjectInterface::STRING_CONST === 'STRING_CONST');
 assert(ExtPhpRs\Interface\EmptyObjectInterface::USIZE_CONST === 200);
 
+$reflection = new ReflectionClass(ExtPhpRs\Interface\EmptyObjectInterface::class);
+assert($reflection->isInterface());
+$ownMethods = array_filter(
+    $reflection->getMethods(),
+    static fn(ReflectionMethod $m): bool => $m->getDeclaringClass()->getName() === $reflection->getName()
+);
+$methods = array_map(static fn(ReflectionMethod $m): string => $m->getName(), $ownMethods);
+sort($methods);
+assert($methods === ['nonStatic', 'refToLikeThisClass', 'setValue', 'void'], implode(',', $methods));
+foreach ($ownMethods as $method) {
+    assert($method->isPublic() && $method->isAbstract(), $method->getName());
+}
+assert($reflection->getMethod('void')->isStatic());
+assert($reflection->getConstructor() === null);
+assert($reflection->getProperties() === []);
+
 // Test Feature 1: Interface inheritance via Rust trait bounds
 assert(interface_exists('ExtPhpRs\Interface\ParentInterface'), 'ParentInterface should exist');
 assert(interface_exists('ExtPhpRs\Interface\ChildInterface'), 'ChildInterface should exist');

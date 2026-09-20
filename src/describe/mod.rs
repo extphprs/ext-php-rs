@@ -11,7 +11,7 @@ use crate::builders::EnumBuilder;
 use crate::{
     builders::{ClassBuilder, FunctionBuilder},
     constant::IntoConst,
-    flags::{ClassFlags, MethodFlags, PropertyFlags},
+    flags::{ClassFlags, ConstantFlags, MethodFlags, PropertyFlags},
     prelude::ModuleBuilder,
 };
 
@@ -129,10 +129,11 @@ impl From<ClassBuilder> for Class {
             constants: val
                 .constants
                 .into_iter()
-                .map(|(name, _, docs, stub)| Constant {
+                .map(|(name, _, docs, stub, flags)| Constant {
                     name: name.into(),
                     value: Option::Some(stub.into()),
                     docs: docs.into(),
+                    visibility: flags.into(),
                 })
                 .collect::<StdVec<_>>()
                 .into(),
@@ -284,11 +285,25 @@ impl From<MethodFlags> for Visibility {
     }
 }
 
+impl From<ConstantFlags> for Visibility {
+    fn from(value: ConstantFlags) -> Self {
+        if value.contains(ConstantFlags::Protected) {
+            return Self::Protected;
+        }
+        if value.contains(ConstantFlags::Private) {
+            return Self::Private;
+        }
+
+        Self::Public
+    }
+}
+
 fn constant_from(name: String, value: &dyn IntoConst, docs: DocComments) -> Constant {
     Constant {
         name: name.into(),
         value: Option::Some(value.stub_value().into()),
         docs: docs.into(),
+        visibility: Visibility::Public,
     }
 }
 
