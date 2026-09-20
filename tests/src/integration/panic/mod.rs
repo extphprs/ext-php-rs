@@ -2,6 +2,7 @@
 //! Every fixture here panics on purpose; the PHP side asserts that it sees a
 //! PHP `Error` whose message starts with `Rust panic: ` and that the engine
 //! keeps running afterwards.
+#![allow(clippy::unused_self)]
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -271,5 +272,32 @@ mod tests {
     #[test]
     fn bailout_guard_drops_once_on_panic() {
         panic_script_survives("panic_guard.php");
+    }
+
+    fn module_refused_at_startup(crate_name: &str, logged: &str) {
+        let (status, output) = crate::integration::test::load_broken_module(crate_name);
+
+        assert!(!status.success(), "{output}");
+        assert!(
+            status.code().is_some(),
+            "php was killed by a signal: {status}\n{output}"
+        );
+        assert!(output.contains(logged), "{output}");
+        assert!(
+            output.contains(&format!("Unable to start {crate_name} module")),
+            "{output}"
+        );
+        assert!(!output.contains("panicked"), "{output}");
+        assert!(!output.contains("alive"), "{output}");
+    }
+
+    #[test]
+    fn unbuildable_module_fails_minit_instead_of_aborting() {
+        module_refused_at_startup("broken-module", "module could not be built");
+    }
+
+    #[test]
+    fn failing_registration_fails_minit_instead_of_aborting() {
+        module_refused_at_startup("broken-minit", "module startup failed");
     }
 }

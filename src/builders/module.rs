@@ -643,15 +643,9 @@ impl ModuleStartup {
     ///
     /// # Errors
     ///
-    /// * Returns an error if a constant could not be registered.
-    ///
-    /// # Panics
-    ///
-    /// * Panics if a class could not be registered.
-    #[expect(
-        clippy::expect_used,
-        reason = "registration runs in MINIT, where a failure is an extension bug the engine cannot recover from"
-    )]
+    /// * Returns an error if a constant, interface, class or enum could not be
+    ///   registered. The generated MINIT then returns `FAILURE` and PHP refuses
+    ///   to start the module.
     pub fn startup(self, _ty: i32, mod_num: i32) -> Result<()> {
         for (name, val) in self.constants {
             val.register_constant(&name, mod_num)?;
@@ -659,21 +653,16 @@ impl ModuleStartup {
 
         // Interfaces must be registered before classes so that classes can implement
         // them
-        self.interfaces.into_iter().map(|c| c()).for_each(|c| {
-            c.register().expect("Failed to build interface");
-        });
+        self.interfaces
+            .into_iter()
+            .try_for_each(|c| c().register())?;
 
-        self.classes.into_iter().map(|c| c()).for_each(|c| {
-            c.register().expect("Failed to build class");
-        });
+        self.classes.into_iter().try_for_each(|c| c().register())?;
 
         #[cfg(feature = "enum")]
         self.enums
             .into_iter()
-            .map(|builder| builder())
-            .for_each(|e| {
-                e.register().expect("Failed to build enum");
-            });
+            .try_for_each(|builder| builder().register())?;
 
         // Initialize observer systems if registered
         #[cfg(feature = "observer")]

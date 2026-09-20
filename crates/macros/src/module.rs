@@ -74,20 +74,25 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
 
             extern "C" fn ext_php_rs_startup(ty: i32, mod_num: i32) -> i32 {
                 let a = unsafe { #startup };
-                let b = __EXT_PHP_RS_MODULE_STARTUP
-                    .lock()
-                    .take()
-                    .map(|startup| {
-                        ::ext_php_rs::internal::ext_php_rs_startup();
-                        startup.startup(ty, mod_num).map(|_| 0).unwrap_or(1)
-                    })
-                    .unwrap_or_else(|| {
-                        // Module already started, call ext_php_rs_startup for idempotent
-                        // initialization (e.g., Closure::build early-returns if already built)
-                        ::ext_php_rs::internal::ext_php_rs_startup();
-                        0
-                    });
+                let b = ::ext_php_rs::internal::startup_guard(|| {
+                    // ext_php_rs_startup is idempotent (Closure::build early-returns once
+                    // built), so it runs whether or not this is the first startup.
+                    ::ext_php_rs::internal::ext_php_rs_startup();
+                    match __EXT_PHP_RS_MODULE_STARTUP.lock().take() {
+                        Some(startup) => startup.startup(ty, mod_num),
+                        None => Ok(()),
+                    }
+                });
                 a | b
+            }
+
+            static __EXT_PHP_RS_BUILD_ERROR: ::std::sync::OnceLock<::std::string::String> =
+                ::std::sync::OnceLock::new();
+
+            extern "C" fn ext_php_rs_failed_startup(_ty: i32, _mod_num: i32) -> i32 {
+                ::ext_php_rs::internal::failed_module_startup(
+                    __EXT_PHP_RS_BUILD_ERROR.get().map_or("unknown error", ::std::string::String::as_str),
+                )
             }
 
             __EXT_PHP_RS_MODULE_ENTRY.get_or_init(|| {
@@ -107,7 +112,20 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                         __EXT_PHP_RS_MODULE_STARTUP.lock().replace(startup);
                         (entry, owned)
                     },
-                    Err(e) => panic!("Failed to build PHP module: {:?}", e),
+                    Err(e) => {
+                        // get_module cannot report failure to the engine (dl() dereferences the
+                        // returned entry unchecked), so hand back a placeholder entry whose
+                        // MINIT logs the build error and fails.
+                        let _ = __EXT_PHP_RS_BUILD_ERROR.set(e.to_string());
+                        let (entry, _, owned) = ::ext_php_rs::builders::ModuleBuilder::new(
+                            env!("CARGO_PKG_NAME"),
+                            env!("CARGO_PKG_VERSION"),
+                        )
+                        .startup_function(ext_php_rs_failed_startup)
+                        .try_into()
+                        .unwrap_or_else(|_| ::std::unreachable!("a module with only env! strings always builds"));
+                        (entry, owned)
+                    }
                 }
             })
         }
@@ -161,6 +179,22 @@ mod tests {
         assert!(!out.contains(r#"no_mangle)]extern"C"fnget_module("#));
         assert!(out.contains(r#"extern"C"fnget_module("#));
         assert!(out.contains(r#"#[unsafe(no_mangle)]extern"C"fnmy_ext_get_module("#));
+    }
+
+    #[test]
+    fn build_failure_yields_a_placeholder_entry_whose_minit_fails() {
+        let out = expand(Some("my_ext"), false);
+        assert!(!out.contains("panic!"));
+        assert!(out.contains(r#"extern"C"fnext_php_rs_failed_startup("#));
+        assert!(out.contains("::ext_php_rs::internal::failed_module_startup("));
+        assert!(out.contains(".startup_function(ext_php_rs_failed_startup)"));
+    }
+
+    #[test]
+    fn minit_runs_registration_under_startup_guard() {
+        let out = expand(Some("my_ext"), false);
+        assert!(out.contains("::ext_php_rs::internal::startup_guard(||"));
+        assert!(!out.contains("unwrap_or(1)"));
     }
 
     #[test]
