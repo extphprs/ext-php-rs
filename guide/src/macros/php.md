@@ -41,18 +41,33 @@ Which attributes are available depends on the element you are annotating:
 | change_constant_case       | ❌      | ❌   | ❌       | ❌             | ✅     | ❌             | ❌          | ❌     | ❌          |
 | flags                      | ❌      | ❌   | ✅       | ✅             | ❌     | ❌             | ❌          | ❌     | ❌          |
 | prop                       | ❌      | ❌   | ❌       | ✅             | ❌     | ❌             | ❌          | ❌     | ❌          |
+| static                     | ❌      | ❌   | ❌       | ✅             | ❌     | ❌             | ❌          | ❌     | ❌          |
+| default                    | ❌      | ❌   | ❌       | ✅ (static)    | ❌     | ❌             | ❌          | ❌     | ❌          |
+| readonly                   | ❌      | ❌   | ✅       | ❌             | ❌     | ❌             | ❌          | ❌     | ❌          |
 | extends                    | ❌      | ❌   | ✅       | ❌             | ❌     | ❌             | ❌          | ❌     | ❌          |
 | implements                 | ❌      | ❌   | ✅       | ❌             | ❌     | ❌             | ❌          | ❌     | ❌          |
 | modifier                   | ❌      | ❌   | ✅       | ❌             | ❌     | ❌             | ❌          | ❌     | ❌          |
 | defaults                   | ❌      | ✅   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
 | optional                   | ❌      | ✅   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
-| vis                        | ❌      | ✅   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
+| vis                        | ❌      | ❌   | ❌       | ❌             | ❌     | ✅             | ✅          | ❌     | ❌          |
 | getter                     | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
 | setter                     | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
 | constructor                | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
-| abstract_method            | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
+| abstract                   | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
+| final                      | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
 | allow_native_discriminants | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
-| discriminant               | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ❌     | ✅          |
+| value                      | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ❌     | ✅          |
+| rename_cases               | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
+
+An option marked ❌ is a compile error. The error points at the option and
+names the item where the option is valid. The proc macros themselves take no
+arguments: write `#[php_class]` and `#[php(name = "Foo")]`, not
+`#[php_class(name = "Foo")]`.
+
+Trait methods inside `#[php_interface]` accept `name`, `change_case`,
+`defaults`, `optional` and `vis`. Trait constants accept `name` and
+`change_case`. Methods inside `#[php_impl_interface]` and items under
+`#[derive(ZvalConvert)]` or `#[php_extern]` accept no `#[php]` option.
 
 ## `name` and `change_case`
 

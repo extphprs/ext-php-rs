@@ -16,13 +16,21 @@ By default all constants are renamed to `UPPER_CASE` and all methods are renamed
 See the [`name` and `change_case`](./php.md#name-and-change_case) section for a list of all
 available cases.
 
+The macro itself takes no arguments: `#[php_interface(name = "Foo")]` is a
+compile error. Put the options in `#[php(...)]` on the trait.
+
 ## Methods
 
-See the [`php_impl`](./impl.md#)
+A trait method accepts the `name`, `change_case`, `defaults`, `optional` and
+`vis` options. Interfaces cannot declare property accessors or constructors, so
+`getter`, `setter` and `constructor` are compile errors here. See
+[`php_impl`](./impl.md#) for how each accepted option behaves.
 
 ## Constants
 
-See the [`php_impl`](./impl.md#)
+A trait constant accepts the `name` and `change_case` options. Interface
+constants are always public, so `vis` is a compile error here. See
+[`php_impl`](./impl.md#constants) for the value types.
 
 ## Example
 
