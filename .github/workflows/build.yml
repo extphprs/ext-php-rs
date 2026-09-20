@@ -176,6 +176,51 @@ jobs:
         # Macos fails on unstable rust. We skip the inline examples test for now.
         if: "!(contains(matrix.os, 'macos') && matrix.rust == 'nightly')"
         run: cargo test --release --workspace --features closure,anyhow,runtime,observer --no-fail-fast
+  compile-fail:
+    name: Macro diagnostics (compile-fail)
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+        env:
+          phpts: nts
+          debug: true
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          # Pinned on purpose: trybuild snapshots depend on the rustc version.
+          # Bump it together with `TRYBUILD=overwrite cargo test --test ui -- --ignored`.
+          toolchain: "1.98.1"
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: ${{ env.RUST_CACHE_PREFIX }}
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/llvm-17
+          key: ubuntu-latest-llvm-17
+      - name: Setup LLVM & Clang
+        id: clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "17"
+          directory: ${{ runner.temp }}/llvm-17
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      - name: Configure Clang
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-17/lib" >> $GITHUB_ENV
+          echo "LLVM_VERSION=${{ steps.clang.outputs.version }}" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-17/bin/llvm-config" >> $GITHUB_ENV
+      - name: Run compile-fail fixtures
+        run: cargo test --test ui -- --ignored
   test-embed:
     name: Test with embed (${{ matrix.label }})
     runs-on: ubuntu-latest
