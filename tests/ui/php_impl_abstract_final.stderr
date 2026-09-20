@@ -1,0 +1,5 @@
+error: Methods cannot be both abstract and final.
+ --> tests/ui/php_impl_abstract_final.rs:8:21
+  |
+8 |     #[php(abstract, final)]
+  |                     ^^^^^

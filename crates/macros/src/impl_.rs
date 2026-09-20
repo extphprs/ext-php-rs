@@ -1,5 +1,5 @@
 use darling::FromAttributes;
-use darling::util::Flag;
+use darling::util::{Flag, SpannedValue};
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::{HashMap, HashSet};
@@ -87,7 +87,7 @@ pub struct PhpFunctionImplAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
-    vis: Option<Visibility>,
+    vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
     getter: Flag,
     setter: Flag,
@@ -107,37 +107,38 @@ impl MethodArgs {
         let is_abstract = attr.abstract_method.is_present();
         let is_final = attr.final_method.is_present();
 
-        // Validate incompatible combinations
+        let abstract_span = attr.abstract_method.span();
+        let final_span = attr.final_method.span();
         if is_constructor {
             if is_abstract {
-                bail!("Constructors cannot be abstract.");
+                bail!(abstract_span => "Constructors cannot be abstract.");
             }
             if is_final {
-                bail!("Constructors cannot be final.");
+                bail!(final_span => "Constructors cannot be final.");
             }
         }
         if is_getter {
             if is_abstract {
-                bail!("Getters cannot be abstract.");
+                bail!(abstract_span => "Getters cannot be abstract.");
             }
             if is_final {
-                bail!("Getters cannot be final.");
+                bail!(final_span => "Getters cannot be final.");
             }
         }
         if is_setter {
             if is_abstract {
-                bail!("Setters cannot be abstract.");
+                bail!(abstract_span => "Setters cannot be abstract.");
             }
             if is_final {
-                bail!("Setters cannot be final.");
+                bail!(final_span => "Setters cannot be final.");
             }
         }
         if is_abstract {
             if is_final {
-                bail!("Methods cannot be both abstract and final.");
+                bail!(final_span => "Methods cannot be both abstract and final.");
             }
-            if matches!(attr.vis, Some(Visibility::Private)) {
-                bail!("Abstract methods cannot be private.");
+            if let Some(vis) = attr.vis.filter(|vis| **vis == Visibility::Private) {
+                bail!(vis.span() => "Abstract methods cannot be private.");
             }
         }
 
@@ -157,7 +158,7 @@ impl MethodArgs {
             name,
             optional: attr.optional,
             defaults: attr.defaults,
-            vis: attr.vis.unwrap_or(Visibility::Public),
+            vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
             ty,
             is_final,
         })

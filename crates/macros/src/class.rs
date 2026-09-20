@@ -202,7 +202,7 @@ fn parse_fields<'a>(fields: impl Iterator<Item = &'a mut syn::Field>) -> Result<
             let ident = field
                 .ident
                 .as_ref()
-                .ok_or_else(|| err!("Only named fields can be properties."))?;
+                .ok_or_else(|| err!(field => "Only named fields can be properties."))?;
             let docs = get_docs(&attr.attrs)?;
             field.attrs.retain(|attr| !attr.path().is_ident("php"));
 

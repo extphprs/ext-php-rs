@@ -52,7 +52,7 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
 
     for variant in &mut input.variants {
         if variant.fields != Fields::Unit {
-            bail!("Enum cases must be unit variants, found: {:?}", variant);
+            bail!(variant => "Enum cases must be unit variants.");
         }
         if !php_attr.allow_native_discriminants.is_present() && variant.discriminant.is_some() {
             bail!(variant => "Native discriminants are currently not exported to PHP. To set a discriminant, use the `#[php(allow_native_discriminants)]` attribute on the enum. To export discriminants, set the #[php(value = ...)] attribute on the enum case.");
@@ -85,7 +85,7 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
                 }
             }
         } else if discriminant_type != DiscriminantType::None {
-            bail!(variant => "Discriminant must be specified for all enum cases, found: {:?}", variant);
+            bail!(variant => "Discriminant must be specified for all enum cases.");
         }
 
         let case_name = variant_attr.rename.rename(
@@ -106,7 +106,7 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
             .filter_map(|case| case.discriminant.as_ref())
             .all_unique()
         {
-            bail!(variant => "Enum cases must have unique discriminants, found duplicates in: {:?}", cases);
+            bail!(variant => "Enum cases must have unique discriminants; `{}` repeats an earlier value.", variant.ident);
         }
     }
 
@@ -353,8 +353,8 @@ impl TryFrom<&Lit> for Discriminant {
             Lit::Int(i) => i
                 .base10_parse::<i64>()
                 .map(Discriminant::Integer)
-                .map_err(|_| err!(lit => "Invalid integer literal for enum case: {:?}", lit)),
-            _ => bail!(lit => "Unsupported discriminant type: {:?}", lit),
+                .map_err(|_| err!(lit => "Invalid integer literal for enum case: `{}`.", lit.to_token_stream())),
+            _ => bail!(lit => "Unsupported discriminant type: `{}`; use an integer or string literal.", lit.to_token_stream()),
         }
     }
 }

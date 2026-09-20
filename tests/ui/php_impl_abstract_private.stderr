@@ -1,0 +1,5 @@
+error: Abstract methods cannot be private.
+ --> tests/ui/php_impl_abstract_private.rs:8:27
+  |
+8 |     #[php(abstract, vis = "private")]
+  |                           ^^^^^^^^^
