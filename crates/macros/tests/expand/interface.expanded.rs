@@ -72,8 +72,16 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
         &'static str,
         &'static dyn ext_php_rs::convert::IntoZvalDyn,
         ext_php_rs::describe::DocComments,
+        ext_php_rs::flags::ConstantFlags,
     )] {
-        &[("MY_CONST", &42, &[" Doc comments for MY_CONST."])]
+        &[
+            (
+                "MY_CONST",
+                &42,
+                &[" Doc comments for MY_CONST."],
+                ::ext_php_rs::flags::ConstantFlags::Public,
+            ),
+        ]
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface {
@@ -225,8 +233,12 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
         &'static str,
         &'static dyn ext_php_rs::convert::IntoZvalDyn,
         ext_php_rs::describe::DocComments,
+        ext_php_rs::flags::ConstantFlags,
     )] {
-        &[("my_const", &42, &[]), ("AnotherConst", &"Hello", &[])]
+        &[
+            ("my_const", &42, &[], ::ext_php_rs::flags::ConstantFlags::Public),
+            ("AnotherConst", &"Hello", &[], ::ext_php_rs::flags::ConstantFlags::Public),
+        ]
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface2 {

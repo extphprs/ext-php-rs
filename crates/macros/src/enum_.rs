@@ -192,7 +192,7 @@ impl<'a> Enum<'a> {
                 }
 
                 #[inline]
-                fn constants() -> &'static [(&'static str, &'static dyn ::ext_php_rs::convert::IntoZvalDyn, &'static [&'static str])] {
+                fn constants() -> &'static [(&'static str, &'static dyn ::ext_php_rs::convert::IntoZvalDyn, &'static [&'static str], ::ext_php_rs::flags::ConstantFlags)] {
                     use ::ext_php_rs::internal::class::PhpClassImpl;
                     ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default().get_constants()
                 }

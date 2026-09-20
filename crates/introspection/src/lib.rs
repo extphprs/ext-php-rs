@@ -317,8 +317,10 @@ pub struct Constant {
     pub docs: DocBlock,
     /// Value of the constant.
     pub value: Option<RString>,
+    /// Visibility of the constant. Always public for module constants.
+    pub visibility: Visibility,
 }
-assert_ffi_safe!(Constant, size = 56, align = 8);
+assert_ffi_safe!(Constant, size = 64, align = 8);
 
 #[cfg(test)]
 mod tests {

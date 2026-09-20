@@ -230,6 +230,8 @@ pub struct Constant<'a> {
     pub ident: &'a syn::Ident,
     /// Documentation for the constant.
     pub docs: Vec<String>,
+    /// PHP visibility of the constant.
+    pub vis: Visibility,
 }
 
 impl<'a> ParsedImpl<'a> {
@@ -303,6 +305,7 @@ impl<'a> ParsedImpl<'a> {
                         name,
                         ident: &c.ident,
                         docs,
+                        vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
                     });
                 }
                 syn::ImplItem::Fn(method) => {
@@ -402,8 +405,11 @@ impl<'a> ParsedImpl<'a> {
             let name = &c.name;
             let ident = c.ident;
             let docs = &c.docs;
+            let flags = c
+                .vis
+                .flag_tokens(&quote! { ::ext_php_rs::flags::ConstantFlags });
             quote! {
-                (#name, &#path::#ident, &[#(#docs),*])
+                (#name, &#path::#ident, &[#(#docs),*], #flags)
             }
         });
 
@@ -609,7 +615,7 @@ impl<'a> ParsedImpl<'a> {
                     #constructor
                 }
 
-                fn get_constants(self) -> &'static [(&'static str, &'static dyn ::ext_php_rs::convert::IntoZvalDyn, &'static [&'static str])] {
+                fn get_constants(self) -> &'static [(&'static str, &'static dyn ::ext_php_rs::convert::IntoZvalDyn, &'static [&'static str], ::ext_php_rs::flags::ConstantFlags)] {
                     &[#(#constants),*]
                 }
             }

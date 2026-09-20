@@ -85,7 +85,7 @@ bind! {
     zend_ce_countable,
     zend_ce_stringable,
     zend_class_entry,
-    zend_declare_class_constant,
+    zend_declare_class_constant_ex,
     zend_declare_property,
     zend_do_implement_interface,
     zend_empty_array,

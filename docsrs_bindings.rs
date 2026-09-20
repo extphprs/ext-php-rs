@@ -1994,6 +1994,15 @@ pub struct _zend_property_info {
     pub hooks: *mut *mut zend_function,
 }
 #[repr(C)]
+pub struct _zend_class_constant {
+    pub value: zval,
+    pub doc_comment: *mut zend_string,
+    pub attributes: *mut HashTable,
+    pub ce: *mut zend_class_entry,
+    pub type_: zend_type,
+}
+pub type zend_class_constant = _zend_class_constant;
+#[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_internal_arg_info {
     pub name: *const ::std::os::raw::c_char,
@@ -2577,12 +2586,13 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
-    pub fn zend_declare_class_constant(
+    pub fn zend_declare_class_constant_ex(
         ce: *mut zend_class_entry,
-        name: *const ::std::os::raw::c_char,
-        name_length: usize,
+        name: *mut zend_string,
         value: *mut zval,
-    );
+        access_type: ::std::os::raw::c_int,
+        doc_comment: *mut zend_string,
+    ) -> *mut zend_class_constant;
 }
 unsafe extern "C" {
     pub fn zend_update_static_property(

@@ -139,6 +139,7 @@ impl ToTokens for InterfaceData<'_> {
                     &'static str,
                     &'static dyn ext_php_rs::convert::IntoZvalDyn,
                     ext_php_rs::describe::DocComments,
+                    ext_php_rs::flags::ConstantFlags,
                 )] {
                     &[#(#constants),*]
                 }
@@ -352,7 +353,7 @@ impl ToTokens for Constant<'_> {
         let expr = &self.expr;
         let docs = &self.docs;
         quote! {
-            (#name, &#expr, &[#(#docs),*])
+            (#name, &#expr, &[#(#docs),*], ::ext_php_rs::flags::ConstantFlags::Public)
         }
         .to_tokens(tokens);
     }
@@ -373,6 +374,9 @@ fn parse_trait_item_const(
     }
 
     let attr = PhpConstAttribute::from_attributes(&const_item.attrs)?;
+    if let Some(vis) = &attr.vis {
+        bail!(vis.span() => "Interface constants are always public; remove `vis`.");
+    }
     let name = attr.rename.rename(
         ident_to_php_name(&const_item.ident),
         change_case.unwrap_or(RenameRule::ScreamingSnake),

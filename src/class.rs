@@ -13,7 +13,7 @@ use crate::{
     convert::IntoZvalDyn,
     describe::DocComments,
     exception::PhpException,
-    flags::{ClassFlags, MethodFlags, PropertyFlags},
+    flags::{ClassFlags, ConstantFlags, MethodFlags, PropertyFlags},
     internal::property::PropertyDescriptor,
     zend::{ClassEntry, ExecuteData, ZendObjectHandlers},
 };
@@ -67,7 +67,12 @@ pub trait RegisteredClass: Sized + 'static {
     fn constructor() -> Option<ConstructorMeta<Self>>;
 
     /// Returns the constants provided by the class.
-    fn constants() -> &'static [(&'static str, &'static dyn IntoZvalDyn, DocComments)];
+    fn constants() -> &'static [(
+        &'static str,
+        &'static dyn IntoZvalDyn,
+        DocComments,
+        ConstantFlags,
+    )];
 
     /// Returns the static properties provided by the class.
     ///
