@@ -206,25 +206,29 @@ stubs print it.
 
 ## Property getters and setters
 
-You can add properties to classes which use Rust functions as getters and/or
-setters. This is done with the `#[php(getter)]` and `#[php(setter)]` attributes. By
-default, the `get_` or `set_` prefix is trimmed from the start of the function
-name, and the remainder is used as the property name.
-Properties are declared in the order their first getter or setter appears in the
-`impl` block, after the `#[php(prop)]` field properties of the struct.
+A class can expose a property whose value comes from Rust methods. Mark the
+method that reads the value with `#[php(getter)]` and the method that writes it
+with `#[php(setter)]`. The property name is the method name without its `get_`
+or `set_` prefix. Properties are declared in the order in which their first
+getter or setter appears in the `impl` block, after the `#[php(prop)]` field
+properties of the struct.
 
-If you want to use a different name for the property, you can pass a `name` or
-`change_case` option to the `#[php]` attribute which will change the property name.
+If you want a different property name, pass a `name` or `change_case` option to
+the `#[php]` attribute.
 
-Properties do not necessarily have to have both a getter and a setter, if the
-property is immutable the setter can be omitted, and vice versa for getters.
+A property does not need both methods. A property with only a getter is
+read-only. A property with only a setter is write-only.
 
-The `#[php(getter)]` and `#[php(setter)]` attributes are mutually exclusive on methods.
-Properties cannot have multiple getters or setters, and the property name cannot
-conflict with field properties defined on the struct.
+One method cannot be both a getter and a setter. A property cannot have two
+getters or two setters. The getter and the setter of one property must have the
+same visibility. Each of these cases is a compile error. The property name
+cannot conflict with a field property defined on the struct.
 
-As the same as field properties, method property types must implement both
-`IntoZval` and `FromZval`.
+The PHP type of the property comes from the return type of the getter. If the
+property has no getter, the type comes from the argument of the setter. The
+documentation of the property comes from the getter, or from the setter when
+the getter has none. Like field properties, the type must implement `IntoZval`
+and `FromZval`.
 
 ### Overriding field properties with getters/setters
 

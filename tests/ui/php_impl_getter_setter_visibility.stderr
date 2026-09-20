@@ -1,0 +1,5 @@
+error: The getter and setter of property `value` must have the same visibility.
+  --> tests/ui/php_impl_getter_setter_visibility.rs:13:25
+   |
+13 |     #[php(setter, vis = "private")]
+   |                         ^^^^^^^^^

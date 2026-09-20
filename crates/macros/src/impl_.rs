@@ -74,6 +74,8 @@ struct MethodArgs {
     defaults: HashMap<Ident, Expr>,
     /// Visibility of the method (public, protected, private).
     vis: Visibility,
+    /// Span of the explicit `vis` option, when given.
+    vis_span: Option<proc_macro2::Span>,
     /// Method type.
     ty: MethodTy,
     /// Whether this is a final method.
@@ -109,6 +111,9 @@ impl MethodArgs {
 
         let abstract_span = attr.abstract_method.span();
         let final_span = attr.final_method.span();
+        if is_getter && is_setter {
+            bail!(attr.setter.span() => "A method cannot be both a getter and a setter.");
+        }
         if is_constructor {
             if is_abstract {
                 bail!(abstract_span => "Constructors cannot be abstract.");
@@ -158,6 +163,7 @@ impl MethodArgs {
             name,
             optional: attr.optional,
             defaults: attr.defaults,
+            vis_span: attr.vis.as_ref().map(SpannedValue::span),
             vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
             ty,
             is_final,
@@ -258,7 +264,7 @@ impl<'a> ParsedImpl<'a> {
         method: &'a syn::ImplItemFn,
         opts: &MethodArgs,
         docs: Vec<String>,
-    ) {
+    ) -> Result<()> {
         let is_getter = matches!(opts.ty, MethodTy::Getter);
         let method_name = method.sig.ident.to_string();
         let prefix = if is_getter { "get_" } else { "set_" };
@@ -292,20 +298,27 @@ impl<'a> ParsedImpl<'a> {
                 self.properties.len() - 1
             });
         let group = &mut self.properties[idx];
-        if is_getter {
-            group.getter = Some(&method.sig.ident);
+        let kind = if is_getter { "getter" } else { "setter" };
+        let slot = if is_getter {
+            &mut group.getter
         } else {
-            group.setter = Some(&method.sig.ident);
+            &mut group.setter
+        };
+        if slot.is_some() {
+            bail!(method.sig.ident => "Property `{}` already has a {kind}.", group.name);
         }
-        if group.value_ty.is_none() {
+        if group.vis != opts.vis {
+            let span = opts.vis_span.unwrap_or_else(|| method.sig.ident.span());
+            bail!(span => "The getter and setter of property `{}` must have the same visibility.", group.name);
+        }
+        *slot = Some(&method.sig.ident);
+        if (is_getter && value_ty.is_some()) || group.value_ty.is_none() {
             group.value_ty = value_ty;
         }
-        if opts.vis == Visibility::Public {
-            group.vis = Visibility::Public;
-        }
-        if group.docs.is_empty() {
+        if (is_getter && !docs.is_empty()) || group.docs.is_empty() {
             group.docs = docs;
         }
+        Ok(())
     }
 
     /// Parses an impl block from `items`, populating `self`.
@@ -342,7 +355,7 @@ impl<'a> ParsedImpl<'a> {
 
                     // Handle getter/setter methods
                     if matches!(opts.ty, MethodTy::Getter | MethodTy::Setter) {
-                        self.parse_property_method(method, &opts, docs);
+                        self.parse_property_method(method, &opts, docs)?;
                         continue;
                     }
 

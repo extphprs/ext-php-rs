@@ -1,0 +1,5 @@
+error: A method cannot be both a getter and a setter.
+ --> tests/ui/php_impl_getter_setter_same_method.rs:8:19
+  |
+8 |     #[php(getter, setter)]
+  |                   ^^^^^^
