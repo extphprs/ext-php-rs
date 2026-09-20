@@ -192,7 +192,6 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
         >; 2usize] = [
             ::ext_php_rs::internal::property::PropertyDescriptor {
                 name: "first",
-                mangled_name: "first",
                 get: ::std::option::Option::Some(__method_get_0),
                 set: ::std::option::Option::Some(__method_set_0),
                 flags: ::ext_php_rs::flags::PropertyFlags::Public,
@@ -203,7 +202,6 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
             },
             ::ext_php_rs::internal::property::PropertyDescriptor {
                 name: "second",
-                mangled_name: "second",
                 get: ::std::option::Option::Some(__method_get_1),
                 set: ::std::option::Option::None,
                 flags: ::ext_php_rs::flags::PropertyFlags::Public,

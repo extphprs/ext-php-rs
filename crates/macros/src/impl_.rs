@@ -561,7 +561,6 @@ impl<'a> ParsedImpl<'a> {
                 let descriptor = quote! {
                     ::ext_php_rs::internal::property::PropertyDescriptor {
                         name: #prop_name,
-                        mangled_name: #prop_name,
                         get: #getter_ref,
                         set: #setter_ref,
                         flags: #flags,

@@ -368,26 +368,15 @@ impl ZendObjectHandlers {
         ) -> PhpResult {
             let self_ = &*obj;
             let metadata = T::get_metadata();
-            let method_mangled = metadata.method_mangled_names();
+            let mangled_names = metadata.mangled_names();
 
-            for desc in metadata.field_properties() {
+            for (desc, mangled) in metadata.all_properties().zip(mangled_names) {
                 let Some(getter) = desc.get else { continue };
                 let mut zv = Zval::new();
                 if getter(self_, &mut zv).is_err() {
                     continue;
                 }
-                props.insert(desc.mangled_name, zv).map_err(|e| {
-                    format!("Failed to insert value into properties hashtable: {e:?}")
-                })?;
-            }
-
-            for (i, desc) in metadata.method_properties().iter().enumerate() {
-                let Some(getter) = desc.get else { continue };
-                let mut zv = Zval::new();
-                if getter(self_, &mut zv).is_err() {
-                    continue;
-                }
-                props.insert(&*method_mangled[i], zv).map_err(|e| {
+                props.insert(&**mangled, zv).map_err(|e| {
                     format!("Failed to insert value into properties hashtable: {e:?}")
                 })?;
             }

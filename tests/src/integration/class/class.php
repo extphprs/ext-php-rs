@@ -469,3 +469,15 @@ $vis = new TestPropertyVisibility(1, 'secret', 'guarded');
 assert($vis->publicNum === 1, 'Public read should work before cache warms');
 assert($vis->publicNum === 1, 'Public read should work after cache warms');
 assert_exception_thrown(fn() => $vis->privateStr, 'Private access should throw even if cache_slot is warm');
+
+// A private property declared through a const flags expression must be mangled
+// like one declared with a literal `PropertyFlags::Private`.
+$constFlags = new TestConstFlagsProp('hidden');
+ob_start();
+var_dump($constFlags);
+$dump = ob_get_clean();
+assert(
+    str_contains($dump, '["secret":"TestConstFlagsProp":private]'),
+    'get_properties must mangle a private property declared with a const flags expression'
+);
+assert(( new ReflectionProperty(TestConstFlagsProp::class, 'secret') )->isPrivate());

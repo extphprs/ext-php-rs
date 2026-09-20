@@ -705,6 +705,21 @@ impl TestUncloneableClass {
     }
 }
 
+const HIDDEN: ext_php_rs::flags::PropertyFlags = ext_php_rs::flags::PropertyFlags::Private;
+
+#[php_class]
+pub struct TestConstFlagsProp {
+    #[php(prop, flags = HIDDEN)]
+    pub secret: String,
+}
+
+#[php_impl]
+impl TestConstFlagsProp {
+    pub fn __construct(secret: String) -> Self {
+        Self { secret }
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -718,6 +733,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
         .class::<TestPropertyVisibility>()
+        .class::<TestConstFlagsProp>()
         .class::<TestReservedKeywordMethods>()
         .class::<TestLazyClass>()
         .class::<TestFinalMethods>()
