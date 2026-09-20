@@ -303,9 +303,8 @@ impl<'a> Function<'a> {
                             #handler_body
                         }));
 
-                        // If there was a bailout, run BailoutGuard cleanups and re-trigger
+                        // try_catch already dropped the BailoutGuards of this frame; re-trigger the bailout
                         if catch_result.is_err() {
-                            ::ext_php_rs::zend::run_bailout_cleanups();
                             unsafe { ::ext_php_rs::zend::bailout(); }
                         }
                     }
@@ -843,11 +842,10 @@ impl<'a> Function<'a> {
                             #class::#ident(#({#arg_accessors}),*).into()
                         }));
 
-                        // If there was a bailout, run BailoutGuard cleanups and re-trigger
+                        // try_catch already dropped the BailoutGuards of this frame; re-trigger the bailout
                         match catch_result {
                             Ok(result) => result,
                             Err(_) => {
-                                ::ext_php_rs::zend::run_bailout_cleanups();
                                 unsafe { ::ext_php_rs::zend::bailout() }
                             }
                         }

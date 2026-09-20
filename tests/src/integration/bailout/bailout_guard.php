@@ -1,16 +1,18 @@
 <?php
 
-// Test BailoutGuard - ensures values wrapped in BailoutGuard are cleaned up on bailout
-
 bailout_test_reset();
 
-// This function creates 2 guarded trackers and 1 unguarded tracker,
-// then calls a callback that triggers exit().
-// All 3 should be cleaned up (guarded ones via BailoutGuard, unguarded via try_call).
-bailout_test_with_guard(function () {
-    exit(0);
+register_shutdown_function(function () {
+    $counter = bailout_test_get_counter();
+    if ($counter !== 2) {
+        fwrite(STDERR, "Expected 2 destructors, got {$counter}\n");
+        exit(1);
+    }
 });
 
-// After the function returns, check that all 3 destructors were called
-$counter = bailout_test_get_counter();
-assert($counter === 3, "Expected 3 destructors to be called with BailoutGuard, got {$counter}");
+bailout_test_with_guard(function () {
+    bailout_test_trigger();
+});
+
+fwrite(STDERR, "unreachable: the bailout did not propagate\n");
+exit(1);

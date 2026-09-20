@@ -1,9 +1,25 @@
-//! Provides cleanup guarantees for values that need to be dropped even when PHP bailout occurs.
+//! Drops a value even when a PHP bailout skips its frame.
 //!
-//! When PHP triggers a bailout (via `exit()`, fatal error, etc.), it uses `longjmp` which
-//! bypasses Rust's normal stack unwinding. This means destructors for stack-allocated values
-//! won't run. `BailoutGuard` solves this by heap-allocating values and registering cleanup
-//! callbacks that run when a bailout is caught.
+//! A bailout is a `longjmp` that the engine makes on a fatal error or on `memory_limit`
+//! exhaustion. The jump skips the Rust frames between the error and the catch point, so
+//! Rust does not run their destructors. `BailoutGuard` moves the value to the heap and
+//! registers a cleanup entry with the innermost [`try_catch`](crate::zend::try_catch)
+//! frame. That frame drops the value when it catches the bailout.
+//!
+//! # Ownership
+//!
+//! Every [`try_catch`](crate::zend::try_catch) call records the depth of the cleanup stack
+//! on entry. The wrapper of each exported PHP function is such a call. When the frame
+//! catches a bailout, it drops the guards that were created inside its closure, newest
+//! first. The guards that were created before the frame are not changed. You can still
+//! use them.
+//!
+//! Do not move a guard out of a `try_catch` closure through shared mutable state, for
+//! example `AssertUnwindSafe(&mut Option<_>)`. If that closure bails out, the frame drops
+//! the value and the moved guard points at freed memory.
+//!
+//! `BailoutGuard` is `!Send`. The cleanup stack belongs to the thread that created the
+//! guard.
 //!
 //! # Example
 //!
@@ -12,78 +28,68 @@
 //!
 //! #[php_function]
 //! pub fn my_function(callback: ZendCallable) {
-//!     // Wrap resources that MUST be cleaned up in BailoutGuard
 //!     let resource = BailoutGuard::new(ExpensiveResource::new());
 //!
-//!     // Use the resource (BailoutGuard implements Deref/DerefMut)
+//!     // BailoutGuard implements Deref and DerefMut
 //!     resource.do_something();
 //!
-//!     // If the callback triggers exit(), the resource will still be cleaned up
+//!     // The resource is dropped even if the callback hits a fatal error
 //!     let _ = callback.try_call(vec![]);
 //! }
+//! ```
+//!
+//! A guard cannot leave its thread:
+//!
+//! ```compile_fail
+//! use ext_php_rs::zend::BailoutGuard;
+//!
+//! let guard = BailoutGuard::new(42_u64);
+//! std::thread::spawn(move || drop(guard));
 //! ```
 
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 
-/// A cleanup entry: (callback, active). The active flag is set to false when
-/// the guard is dropped normally, so we don't double-drop.
-type CleanupEntry = (Box<dyn FnOnce()>, bool);
+/// A cleanup entry. `None` marks an entry whose guard was released out of LIFO
+/// order; it is popped once every newer entry is gone.
+type CleanupEntry = Option<Box<dyn FnOnce()>>;
 
 thread_local! {
-    /// Stack of cleanup callbacks to run when bailout is caught.
     static CLEANUP_STACK: RefCell<Vec<CleanupEntry>> = const { RefCell::new(Vec::new()) };
 }
 
-/// A guard that ensures a value is dropped even if PHP bailout occurs.
+/// A guard that drops its value even if a PHP bailout skips its frame.
 ///
-/// `BailoutGuard` heap-allocates the wrapped value and registers a cleanup callback.
-/// If a bailout occurs, the cleanup runs before the bailout is re-triggered.
-/// If the guard is dropped normally, the cleanup is cancelled and the value is dropped.
+/// `BailoutGuard::new` moves the value to the heap and registers a cleanup entry with
+/// the innermost [`try_catch`](crate::zend::try_catch) frame. If that frame catches a
+/// bailout, it drops the value. If you drop the guard, the guard releases the entry and
+/// drops the value.
 ///
-/// # Performance Note
+/// # Performance
 ///
-/// This incurs a heap allocation. Only use for values that absolutely must be
-/// cleaned up (file handles, network connections, locks, etc.). For simple values,
-/// the overhead isn't worth it.
+/// `BailoutGuard::new` makes one heap allocation. Use it only for values that must be
+/// released: file handles, network connections, locks. Do not wrap simple values.
 pub struct BailoutGuard<T> {
-    /// Pointer to the heap-allocated value. Using raw pointer because we need
-    /// to pass it to the cleanup callback.
     value: *mut T,
-    /// Index in the cleanup stack. Used to deactivate cleanup on normal drop.
     index: usize,
 }
 
-// SAFETY: BailoutGuard can be sent between threads if T can.
-// The cleanup stack is thread-local, so each thread has its own.
-unsafe impl<T: Send> Send for BailoutGuard<T> {}
-
 impl<T: 'static> BailoutGuard<T> {
-    /// Creates a new `BailoutGuard` wrapping the given value.
+    /// Wraps `value` in a new guard.
     ///
-    /// The value is heap-allocated and a cleanup callback is registered.
-    /// If a bailout occurs, the value will be dropped. If this guard is
-    /// dropped normally, the value is dropped and the cleanup is cancelled.
+    /// The value moves to the heap. The guard registers a cleanup entry with the
+    /// innermost `try_catch` frame.
     pub fn new(value: T) -> Self {
-        let boxed = Box::new(value);
-        let ptr = Box::into_raw(boxed);
-
+        let ptr = Box::into_raw(Box::new(value));
         let index = CLEANUP_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
-            let idx = stack.len();
-            let ptr_copy = ptr;
-            // Register cleanup that drops the heap-allocated value
-            stack.push((
-                Box::new(move || {
-                    // SAFETY: This only runs if bailout occurred and normal drop didn't.
-                    // The pointer is valid because we heap-allocated it.
-                    unsafe {
-                        drop(Box::from_raw(ptr_copy));
-                    }
-                }),
-                true, // active
-            ));
-            idx
+            stack.push(Some(Box::new(move || {
+                // SAFETY: only the bailout path runs this closure. The frames that owned
+                // the guard were jumped over by longjmp, so its Drop never runs and this is
+                // the only release of the allocation.
+                unsafe { drop(Box::from_raw(ptr)) }
+            })));
+            stack.len() - 1
         });
 
         Self { value: ptr, index }
@@ -104,27 +110,32 @@ impl<T: 'static> BailoutGuard<T> {
         unsafe { &mut *self.value }
     }
 
-    /// Consumes the guard and returns the wrapped value.
+    /// Consumes the guard and returns the value.
     ///
-    /// The cleanup callback is cancelled.
+    /// The guard releases its cleanup entry.
     #[must_use]
     pub fn into_inner(self) -> T {
-        // Deactivate cleanup
-        CLEANUP_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            if self.index < stack.len() {
-                stack[self.index].1 = false;
-            }
-        });
-
-        // Take ownership of the value
+        self.release();
         // SAFETY: We're consuming self, so no one else can access the pointer.
         let value = unsafe { *Box::from_raw(self.value) };
-
-        // Prevent Drop from running (we've already handled cleanup)
         std::mem::forget(self);
-
         value
+    }
+}
+
+impl<T> BailoutGuard<T> {
+    fn release(&self) {
+        CLEANUP_STACK.with(|stack| {
+            let mut stack = stack.borrow_mut();
+            if self.index + 1 == stack.len() {
+                stack.pop();
+                while stack.last().is_some_and(Option::is_none) {
+                    stack.pop();
+                }
+            } else if let Some(entry) = stack.get_mut(self.index) {
+                *entry = None;
+            }
+        });
     }
 }
 
@@ -148,41 +159,32 @@ impl<T> DerefMut for BailoutGuard<T> {
 
 impl<T> Drop for BailoutGuard<T> {
     fn drop(&mut self) {
-        // Deactivate cleanup callback (we're dropping normally)
-        CLEANUP_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            if self.index < stack.len() {
-                stack[self.index].1 = false;
-            }
-        });
-
-        // Drop the heap-allocated value
+        self.release();
         // SAFETY: We're in Drop, so no one else can access the pointer.
-        unsafe {
-            drop(Box::from_raw(self.value));
-        }
+        unsafe { drop(Box::from_raw(self.value)) }
     }
 }
 
-/// Runs all registered bailout cleanup callbacks.
+/// Current depth of the cleanup stack, recorded by `try_catch` on entry.
+pub(crate) fn cleanup_depth() -> usize {
+    CLEANUP_STACK.with(|stack| stack.borrow().len())
+}
+
+/// Removes the cleanup entries above `depth` and runs them, newest first.
 ///
-/// This should be called after catching a bailout and before re-triggering it.
-/// Only active cleanups (those whose guards haven't been dropped) are run.
-///
-/// # Note
-///
-/// This function is automatically called by the generated handler code when a
-/// bailout is caught. You typically don't need to call this directly.
-#[doc(hidden)]
-pub fn run_bailout_cleanups() {
-    CLEANUP_STACK.with(|stack| {
-        // Drain and run all active cleanups in reverse order (LIFO)
-        for (cleanup, active) in stack.borrow_mut().drain(..).rev() {
-            if active {
-                cleanup();
-            }
+/// `try_catch` calls this after it catches a bailout. The entries leave the stack before
+/// they run, so a destructor can create new guards or call the engine.
+pub(crate) fn run_cleanups_above(depth: usize) {
+    let entries: Vec<CleanupEntry> = CLEANUP_STACK.with(|stack| {
+        let mut stack = stack.borrow_mut();
+        if depth >= stack.len() {
+            return Vec::new();
         }
+        stack.drain(depth..).collect()
     });
+    for cleanup in entries.into_iter().rev().flatten() {
+        cleanup();
+    }
 }
 
 #[cfg(test)]
@@ -191,92 +193,105 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    /// Creates a drop counter that increments the given `AtomicUsize` on drop.
-    fn make_drop_counter(counter: Arc<AtomicUsize>) -> impl Drop + 'static {
-        struct DropCounter(Arc<AtomicUsize>);
-        impl Drop for DropCounter {
-            fn drop(&mut self) {
-                self.0.fetch_add(1, Ordering::SeqCst);
-            }
+    struct DropCounter(Arc<AtomicUsize>);
+    impl Drop for DropCounter {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
         }
-        DropCounter(counter)
+    }
+
+    fn counter() -> (Arc<AtomicUsize>, impl Fn() -> DropCounter) {
+        let count = Arc::new(AtomicUsize::new(0));
+        let make = {
+            let count = Arc::clone(&count);
+            move || DropCounter(Arc::clone(&count))
+        };
+        (count, make)
+    }
+
+    fn reset() {
+        CLEANUP_STACK.with(|stack| stack.borrow_mut().clear());
     }
 
     #[test]
-    fn test_normal_drop() {
-        let drop_count = Arc::new(AtomicUsize::new(0));
-        // Clear any leftover cleanup entries from previous tests
-        CLEANUP_STACK.with(|stack| stack.borrow_mut().clear());
-
+    fn normal_drop_pops_entry() {
+        reset();
+        let (count, make) = counter();
         {
-            let _guard = BailoutGuard::new(make_drop_counter(Arc::clone(&drop_count)));
-            assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+            let _guard = BailoutGuard::new(make());
+            assert_eq!(cleanup_depth(), 1);
         }
-
-        // Value should be dropped when guard goes out of scope
-        assert_eq!(drop_count.load(Ordering::SeqCst), 1);
-
-        // Cleanup stack should be empty (cleanup was deactivated)
-        CLEANUP_STACK.with(|stack| {
-            assert!(stack.borrow().is_empty() || !stack.borrow()[0].1);
-        });
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        assert_eq!(cleanup_depth(), 0);
     }
 
     #[test]
-    fn test_bailout_cleanup() {
-        let drop_count = Arc::new(AtomicUsize::new(0));
-        // Clear any leftover cleanup entries from previous tests
-        CLEANUP_STACK.with(|stack| stack.borrow_mut().clear());
-
-        // Simulate what happens during bailout:
-        // 1. Guard is created
-        // 2. Bailout occurs (longjmp) - guard's Drop doesn't run
-        // 3. run_bailout_cleanups() is called
-
-        let guard = BailoutGuard::new(make_drop_counter(Arc::clone(&drop_count)));
-
-        // Simulate bailout - don't drop the guard normally
-        std::mem::forget(guard);
-
-        // Value hasn't been dropped yet
-        assert_eq!(drop_count.load(Ordering::SeqCst), 0);
-
-        // Run bailout cleanups (simulating what try_catch does)
-        run_bailout_cleanups();
-
-        // Value should now be dropped
-        assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+    fn out_of_order_drop_drains_once_newer_guard_goes() {
+        reset();
+        let (count, make) = counter();
+        let older = BailoutGuard::new(make());
+        let newer = BailoutGuard::new(make());
+        drop(older);
+        assert_eq!(cleanup_depth(), 2);
+        drop(newer);
+        assert_eq!(cleanup_depth(), 0);
+        assert_eq!(count.load(Ordering::SeqCst), 2);
     }
 
     #[test]
-    fn test_into_inner() {
-        let drop_count = Arc::new(AtomicUsize::new(0));
-        // Clear any leftover cleanup entries from previous tests
-        CLEANUP_STACK.with(|stack| stack.borrow_mut().clear());
+    fn cleanups_above_depth_spare_outer_guard() {
+        reset();
+        let (count, make) = counter();
+        let outer = BailoutGuard::new(make());
+        let depth = cleanup_depth();
+        let inner = BailoutGuard::new(make());
+        std::mem::forget(inner);
 
-        let guard = BailoutGuard::new(make_drop_counter(Arc::clone(&drop_count)));
-        let value = guard.into_inner();
+        run_cleanups_above(depth);
 
-        // Value hasn't been dropped yet (we own it now)
-        assert_eq!(drop_count.load(Ordering::SeqCst), 0);
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        assert_eq!(cleanup_depth(), 1);
+        assert_eq!(outer.get().0.load(Ordering::SeqCst), 1);
+        drop(outer);
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+        assert_eq!(cleanup_depth(), 0);
+    }
 
+    struct Record(Arc<std::sync::Mutex<Vec<u8>>>, u8);
+    impl Drop for Record {
+        fn drop(&mut self) {
+            self.0.lock().expect("poisoned").push(self.1);
+        }
+    }
+
+    #[test]
+    fn cleanups_run_newest_first() {
+        reset();
+        let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+        std::mem::forget(BailoutGuard::new(Record(Arc::clone(&order), 1)));
+        std::mem::forget(BailoutGuard::new(Record(Arc::clone(&order), 2)));
+
+        run_cleanups_above(0);
+
+        assert_eq!(*order.lock().expect("poisoned"), vec![2, 1]);
+    }
+
+    #[test]
+    fn into_inner_releases_entry() {
+        reset();
+        let (count, make) = counter();
+        let value = BailoutGuard::new(make()).into_inner();
+        assert_eq!(cleanup_depth(), 0);
+        assert_eq!(count.load(Ordering::SeqCst), 0);
         drop(value);
-
-        // Now it's dropped
-        assert_eq!(drop_count.load(Ordering::SeqCst), 1);
+        assert_eq!(count.load(Ordering::SeqCst), 1);
     }
 
     #[test]
-    fn test_deref() {
-        let guard = BailoutGuard::new(String::from("hello"));
-        assert_eq!(&*guard, "hello");
-        assert_eq!(guard.len(), 5);
-    }
-
-    #[test]
-    fn test_deref_mut() {
+    fn deref_and_deref_mut() {
         let mut guard = BailoutGuard::new(String::from("hello"));
         guard.push_str(" world");
         assert_eq!(&*guard, "hello world");
+        assert_eq!(guard.len(), 11);
     }
 }
