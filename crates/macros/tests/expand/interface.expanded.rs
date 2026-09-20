@@ -102,10 +102,8 @@ for &'a mut PhpInterfaceMyInterface {
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(
-        Some(
-            <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-        ),
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
     );
     #[inline]
     fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
@@ -114,10 +112,8 @@ impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface {
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(
-        Some(
-            <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-        ),
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
     );
     #[inline]
     fn from_zval_mut(
@@ -140,10 +136,8 @@ impl ::ext_php_rs::convert::IntoZendObject for PhpInterfaceMyInterface {
     }
 }
 impl ::ext_php_rs::convert::IntoZval for PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(
-        Some(
-            <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-        ),
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
     );
     const NULLABLE: bool = false;
     #[inline]
@@ -261,10 +255,8 @@ for &'a mut PhpInterfaceMyInterface2 {
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(
-        Some(
-            <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-        ),
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
     );
     #[inline]
     fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
@@ -273,10 +265,8 @@ impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface2 {
     }
 }
 impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(
-        Some(
-            <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-        ),
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
     );
     #[inline]
     fn from_zval_mut(
@@ -299,10 +289,8 @@ impl ::ext_php_rs::convert::IntoZendObject for PhpInterfaceMyInterface2 {
     }
 }
 impl ::ext_php_rs::convert::IntoZval for PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::Object(
-        Some(
-            <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-        ),
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
     );
     const NULLABLE: bool = false;
     #[inline]
