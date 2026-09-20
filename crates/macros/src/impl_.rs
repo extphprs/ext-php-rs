@@ -9,7 +9,8 @@ use crate::constant::PhpConstAttribute;
 use crate::function::{Args, CallType, Function, MethodReceiver};
 use crate::helpers::get_docs;
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
+    validate_php_name,
 };
 use crate::prelude::*;
 
@@ -361,7 +362,8 @@ impl<'a> ParsedImpl<'a> {
                             modifiers.insert(MethodModifier::Final);
                         }
 
-                        // Abstract methods use a different builder that doesn't generate a handler
+                        // Abstract methods use a different builder that doesn't
+                        // generate a handler
                         let builder = if is_abstract {
                             func.abstract_function_builder()
                         } else {
@@ -374,6 +376,9 @@ impl<'a> ParsedImpl<'a> {
                             modifiers,
                         });
                     }
+                }
+                syn::ImplItem::Type(t) => {
+                    reject_php_attrs(&t.attrs, "associated types")?;
                 }
                 _ => {}
             }

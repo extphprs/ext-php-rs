@@ -12,7 +12,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{FnArg, ImplItem, ItemImpl, Pat, ReturnType};
 
-use crate::parsing::{MethodRename, RenameRule, ident_to_php_name};
+use crate::parsing::{MethodRename, RenameRule, ident_to_php_name, reject_php_attrs};
 use crate::prelude::*;
 
 /// Attributes for the `#[php_impl_interface]` macro.
@@ -69,14 +69,25 @@ pub fn parser(args: PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStrea
     // Get the struct type being implemented
     let struct_ty = &input.self_ty;
 
+    reject_php_attrs(
+        &input.attrs,
+        "`#[php_impl_interface]` blocks; pass them as macro arguments instead",
+    )?;
+
     // Generate method builders for each trait method
     let mut method_builders = Vec::new();
 
     for item in &input.items {
+        let attrs = match item {
+            ImplItem::Fn(method) => &method.attrs,
+            ImplItem::Const(c) => &c.attrs,
+            ImplItem::Type(t) => &t.attrs,
+            _ => continue,
+        };
+        reject_php_attrs(attrs, "`#[php_impl_interface]` items")?;
         let ImplItem::Fn(method) = item else {
             continue;
         };
-
         let method_ident = &method.sig.ident;
         let php_name = ident_to_php_name(method_ident);
         let php_name = php_name.rename_method(change_method_case);

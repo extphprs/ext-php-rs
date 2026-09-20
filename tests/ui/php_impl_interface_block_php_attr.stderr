@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on `#[php_impl_interface]` blocks; pass them as macro arguments instead.
+  --> tests/ui/php_impl_interface_block_php_attr.rs:12:3
+   |
+12 | #[php(change_method_case = "snake_case")]
+   |   ^^^

@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on `#[derive(ZvalConvert)]` fields.
+ --> tests/ui/zval_convert_php_attr.rs:5:7
+  |
+5 |     #[php(name = "X")]
+  |       ^^^

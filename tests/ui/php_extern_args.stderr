@@ -1,0 +1,5 @@
+error: `#[php_extern(<args>)]` args are not supported. It takes no arguments.
+ --> tests/ui/php_extern_args.rs:3:14
+  |
+3 | #[php_extern(name = "strlen")]
+  |              ^^^^

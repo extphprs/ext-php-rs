@@ -1,0 +1,5 @@
+error: `#[php(...)]` options are not supported on `#[php_module]` parameters.
+ --> tests/ui/php_module_param_php_attr.rs:4:21
+  |
+4 | pub fn get_module(#[php(name = "m")] module: ModuleBuilder) -> ModuleBuilder {
+  |                     ^^^

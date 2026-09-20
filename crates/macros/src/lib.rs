@@ -853,8 +853,8 @@ pub fn php_class(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_class_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemStruct);
-    if !args.is_empty() {
-        return err!(input => "`#[php_class(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_class", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     class::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -977,8 +977,12 @@ pub fn php_enum(args: TokenStream, input: TokenStream) -> TokenStream {
     php_enum_internal(args.into(), input.into()).into()
 }
 
-fn php_enum_internal(_args: TokenStream2, input: TokenStream2) -> TokenStream2 {
+#[allow(clippy::needless_pass_by_value)]
+fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemEnum);
+    if let Err(e) = reject_args(&args, "php_enum", PHP_ATTR_HINT) {
+        return e.to_compile_error();
+    }
 
     enum_::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
@@ -1381,8 +1385,12 @@ pub fn php_interface(args: TokenStream, input: TokenStream) -> TokenStream {
     php_interface_internal(args.into(), input.into()).into()
 }
 
-fn php_interface_internal(_args: TokenStream2, input: TokenStream2) -> TokenStream2 {
+#[allow(clippy::needless_pass_by_value)]
+fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemTrait);
+    if let Err(e) = reject_args(&args, "php_interface", PHP_ATTR_HINT) {
+        return e.to_compile_error();
+    }
 
     interface::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
@@ -1599,8 +1607,8 @@ pub fn php_function(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_function_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemFn);
-    if !args.is_empty() {
-        return err!(input => "`#[php_function(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_function", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     function::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -1667,8 +1675,8 @@ pub fn php_const(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_const_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemConst);
-    if !args.is_empty() {
-        return err!(input => "`#[php_const(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_const", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     constant::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -1721,7 +1729,7 @@ fn php_const_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// the crate. The startup function of that entry logs the build error and fails
 /// as described above.
 ///
-/// The `startup` function that you name in `#[php_module(startup = ...)]` is
+/// The `startup` function that you name in `#[php(startup = ...)]` is
 /// your own `extern "C"` function. A panic inside it is not caught.
 ///
 /// ## Usage
@@ -1777,8 +1785,8 @@ pub fn php_module(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemFn);
-    if !args.is_empty() {
-        return err!(input => "`#[php_module(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_module", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     module::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -2128,8 +2136,8 @@ pub fn php_impl(args: TokenStream, input: TokenStream) -> TokenStream {
 #[allow(clippy::needless_pass_by_value)]
 fn php_impl_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemImpl);
-    if !args.is_empty() {
-        return err!(input => "`#[php_impl(<args>)]` args are no longer supported. Please use `#[php(<args>)]` instead.").to_compile_error();
+    if let Err(e) = reject_args(&args, "php_impl", PHP_ATTR_HINT) {
+        return e.to_compile_error();
     }
 
     impl_::parser(input).unwrap_or_else(|e| e.to_compile_error())
@@ -2304,8 +2312,11 @@ pub fn php_extern(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn php_extern_internal(_: TokenStream2, input: TokenStream2) -> TokenStream2 {
+fn php_extern_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
     let input = parse_macro_input2!(input as ItemForeignMod);
+    if let Err(e) = reject_args(&args, "php_extern", NO_ARGS_HINT) {
+        return e.to_compile_error();
+    }
 
     extern_::parser(input).unwrap_or_else(|e| e.to_compile_error())
 }
@@ -2464,7 +2475,7 @@ fn php_extern_internal(_: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// var_dump(give_union()); // int(5)
 /// ```
 // END DOCS FROM zval_convert.md
-#[proc_macro_derive(ZvalConvert)]
+#[proc_macro_derive(ZvalConvert, attributes(php))]
 pub fn zval_convert_derive(input: TokenStream) -> TokenStream {
     zval_convert_derive_internal(input.into()).into()
 }
@@ -2544,6 +2555,16 @@ fn wrap_constant_internal(input: TokenStream2) -> TokenStream2 {
         Ok(parsed) => parsed,
         Err(e) => e.to_compile_error(),
     }
+}
+
+const PHP_ATTR_HINT: &str = "Use `#[php(<args>)]` on the item instead.";
+const NO_ARGS_HINT: &str = "It takes no arguments.";
+
+fn reject_args(args: &TokenStream2, macro_name: &str, hint: &str) -> Result<(), syn::Error> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err(err!(args => "`#[{macro_name}(<args>)]` args are not supported. {hint}"))
 }
 
 macro_rules! parse_macro_input2 {

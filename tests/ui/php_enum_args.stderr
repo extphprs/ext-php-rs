@@ -1,0 +1,5 @@
+error: `#[php_enum(<args>)]` args are not supported. Use `#[php(<args>)]` on the item instead.
+ --> tests/ui/php_enum_args.rs:3:12
+  |
+3 | #[php_enum(name = "Suit")]
+  |            ^^^^

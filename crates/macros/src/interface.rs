@@ -12,7 +12,8 @@ use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn, 
 
 use crate::impl_::{FnBuilder, MethodModifier};
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
+    validate_php_name,
 };
 use crate::prelude::*;
 
@@ -255,6 +256,7 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
                 TraitItem::Const(c) => data
                     .constants
                     .push(parse_trait_item_const(c, attrs.change_constant_case)?),
+                TraitItem::Type(t) => reject_php_attrs(&t.attrs, "associated types")?,
                 _ => {}
             }
         }
@@ -276,7 +278,8 @@ fn parse_supertraits(
         .iter()
         .filter_map(|bound| {
             if let TypeParamBound::Trait(trait_bound) = bound {
-                // Clone the path and modify the last segment to add PhpInterface prefix
+                // Clone the path and modify the last segment to add
+                // PhpInterface prefix
                 let mut path = trait_bound.path.clone();
                 let last_segment = path.segments.last_mut()?;
                 last_segment.ident =

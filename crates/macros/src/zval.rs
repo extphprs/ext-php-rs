@@ -6,10 +6,27 @@ use syn::{
     LifetimeParam, TypeGenerics, Variant, WhereClause, punctuated::Punctuated, token::Where,
 };
 
-use crate::parsing::ident_to_php_name;
+use crate::parsing::{ident_to_php_name, reject_php_attrs};
 use crate::prelude::*;
 
 pub fn parser(input: DeriveInput) -> Result<TokenStream> {
+    reject_php_attrs(&input.attrs, "`#[derive(ZvalConvert)]` items")?;
+    match &input.data {
+        syn::Data::Struct(data) => {
+            for field in &data.fields {
+                reject_php_attrs(&field.attrs, "`#[derive(ZvalConvert)]` fields")?;
+            }
+        }
+        syn::Data::Enum(data) => {
+            for variant in &data.variants {
+                reject_php_attrs(&variant.attrs, "`#[derive(ZvalConvert)]` variants")?;
+                for field in &variant.fields {
+                    reject_php_attrs(&field.attrs, "`#[derive(ZvalConvert)]` fields")?;
+                }
+            }
+        }
+        syn::Data::Union(_) => {}
+    }
     let DeriveInput {
         generics, ident, ..
     } = input;
