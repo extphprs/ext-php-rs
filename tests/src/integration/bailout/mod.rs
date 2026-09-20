@@ -5,12 +5,13 @@
 //!
 //! There are two mechanisms for ensuring cleanup:
 //!
-//! 1. **Using `try_call`**: When calling PHP code via `try_call`, bailouts are caught
-//!    internally and the function returns normally, allowing regular Rust destructors to run.
+//! 1. `exit()`: since PHP 8.0 `exit()` is an unwind exception, not a `longjmp`, so the
+//!    handler returns normally and regular Rust destructors run.
 //!
-//! 2. **Using `BailoutGuard`**: For values that MUST be cleaned up even if bailout occurs
-//!    directly (not via `try_call`), wrap them in `BailoutGuard`. This heap-allocates the
-//!    value and registers a cleanup callback that runs when bailout is caught.
+//! 2. `BailoutGuard`: on a real bailout (fatal error, `memory_limit`, or
+//!    `bailout_test_trigger()` below) the frames are jumped over. Values wrapped in
+//!    `BailoutGuard` are still dropped by the `try_catch` of the exported handler; plain
+//!    values are leaked.
 
 use ext_php_rs::prelude::*;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -84,22 +85,24 @@ pub fn bailout_test_without_exit() {
     // No bailout - destructors should run normally when function returns
 }
 
-/// Test `BailoutGuard` - wrap resources that MUST be cleaned up in `BailoutGuard`.
-/// This demonstrates using `BailoutGuard` for guaranteed cleanup even on direct bailout.
+#[php_function]
+pub fn bailout_test_trigger() {
+    unsafe { ext_php_rs::zend::bailout() }
+}
+
 #[php_function]
 pub fn bailout_test_with_guard(callback: ext_php_rs::types::ZendCallable) {
-    // Wrap trackers in BailoutGuard - these will be cleaned up even if bailout
-    // occurs directly (not caught by try_call)
     let _guarded1 = BailoutGuard::new(DropTracker::new(1));
     let _guarded2 = BailoutGuard::new(DropTracker::new(2));
 
-    // This unguarded tracker demonstrates the difference - without BailoutGuard,
-    // and without try_call catching the bailout, this would NOT be cleaned up.
-    // But since try_call catches it, all destructors run normally.
-    let _unguarded = DropTracker::new(3);
-
-    // Call the PHP callback which will trigger exit()
     let _ = callback.try_call(vec![]);
+}
+
+#[php_function]
+pub fn bailout_test_outer_guard(callback: ext_php_rs::types::ZendCallable) {
+    let guard = BailoutGuard::new(DropTracker::new(1));
+    let _ = callback.try_call(vec![]);
+    std::hint::black_box(guard.get());
 }
 
 /// Inner function for nested bailout test - creates guarded resources
@@ -155,7 +158,9 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(bailout_test_get_counter))
         .function(wrap_function!(bailout_test_with_callback))
         .function(wrap_function!(bailout_test_without_exit))
+        .function(wrap_function!(bailout_test_trigger))
         .function(wrap_function!(bailout_test_with_guard))
+        .function(wrap_function!(bailout_test_outer_guard))
         .function(wrap_function!(bailout_test_nested))
         .function(wrap_function!(bailout_test_deep_nested))
 }
@@ -175,19 +180,17 @@ mod tests {
             "bailout/bailout_exit.php"
         ));
 
-        // Test BailoutGuard cleanup mechanism
         assert!(crate::integration::test::run_php(
             "bailout/bailout_guard.php"
         ));
-
-        // Test nested calls with BailoutGuard (2 levels)
         assert!(crate::integration::test::run_php(
             "bailout/bailout_nested.php"
         ));
-
-        // Test deeply nested calls with BailoutGuard (3 levels via closures)
         assert!(crate::integration::test::run_php(
             "bailout/bailout_deep_nested.php"
+        ));
+        assert!(crate::integration::test::run_php(
+            "bailout/bailout_outer_survives.php"
         ));
     }
 }

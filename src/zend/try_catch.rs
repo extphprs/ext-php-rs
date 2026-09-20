@@ -1,3 +1,4 @@
+use super::bailout_guard::{cleanup_depth, run_cleanups_above};
 use crate::ffi::{
     ext_php_rs_zend_bailout, ext_php_rs_zend_first_try_catch, ext_php_rs_zend_try_catch,
 };
@@ -37,6 +38,10 @@ pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnOnce() -> R + UnwindSafe>(
 ///
 /// [`try_catch`] allows to use this mechanism
 ///
+/// On bailout, this function drops every [`BailoutGuard`](crate::zend::BailoutGuard)
+/// that was created inside `func`, newest first, before it returns. The guards that
+/// were created before the call are not changed.
+///
 /// # Returns
 ///
 /// * The result of the function
@@ -71,6 +76,7 @@ pub fn try_catch_first<R, F: FnOnce() -> R + UnwindSafe>(func: F) -> Result<R, C
 
 fn do_try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F, first: bool) -> Result<R, CatchError> {
     let mut panic_ptr = null_mut();
+    let depth = cleanup_depth();
     let has_bailout = unsafe {
         if first {
             ext_php_rs_zend_first_try_catch(
@@ -93,6 +99,7 @@ fn do_try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F, first: bool) -> Resul
     let panic = panic_ptr.cast::<std::thread::Result<R>>();
 
     if has_bailout {
+        run_cleanups_above(depth);
         return Err(CatchError::Bailout);
     }
 
@@ -130,8 +137,53 @@ pub unsafe fn bailout() -> ! {
 #[cfg(test)]
 mod tests {
     use crate::embed::Embed;
-    use crate::zend::{bailout, try_catch};
-    use std::ptr::null_mut;
+    use crate::zend::{BailoutGuard, bailout, try_catch};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct DropCounter(Arc<AtomicUsize>);
+    impl Drop for DropCounter {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn bailout_drops_inner_guard_and_spares_outer() {
+        let outer_drops = Arc::new(AtomicUsize::new(0));
+        let inner_drops = Arc::new(AtomicUsize::new(0));
+        let (caught, outer_alive_after) = Embed::run(|| {
+            let outer = BailoutGuard::new(DropCounter(Arc::clone(&outer_drops)));
+            let inner_drops = Arc::clone(&inner_drops);
+            let caught = try_catch(move || {
+                let _inner = BailoutGuard::new(DropCounter(inner_drops));
+                unsafe { bailout() }
+            });
+            let outer_alive_after = outer.get().0.load(Ordering::SeqCst) == 0;
+            drop(outer);
+            (caught.is_err(), outer_alive_after)
+        });
+
+        assert!(caught);
+        assert!(outer_alive_after);
+        assert_eq!(inner_drops.load(Ordering::SeqCst), 1);
+        assert_eq!(outer_drops.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn normal_return_drops_guard_once() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let ok = Embed::run(|| {
+            let drops = Arc::clone(&drops);
+            try_catch(move || {
+                let _guard = BailoutGuard::new(DropCounter(drops));
+            })
+            .is_ok()
+        });
+
+        assert!(ok);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+    }
 
     #[test]
     fn test_catch() {
@@ -207,24 +259,15 @@ mod tests {
 
     #[test]
     fn test_memory_leak() {
-        use std::panic::AssertUnwindSafe;
-
+        let drops = Arc::new(AtomicUsize::new(0));
         Embed::run(|| {
-            let mut ptr = null_mut();
-
-            let _ = try_catch(AssertUnwindSafe(|| {
-                let mut result = "foo".to_string();
-                ptr = &raw mut result;
-
-                unsafe {
-                    bailout();
-                }
-            }));
-
-            // Check that the string is never released
-            let result = unsafe { &*ptr as &str };
-
-            assert_eq!(result, "foo");
+            let drops = Arc::clone(&drops);
+            let _ = try_catch(move || {
+                let _unguarded = DropCounter(drops);
+                unsafe { bailout() }
+            });
         });
+
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
     }
 }

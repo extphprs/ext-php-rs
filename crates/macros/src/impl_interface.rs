@@ -419,7 +419,6 @@ fn generate_method_builder(
                         }));
 
                         if catch_result.is_err() {
-                            ::ext_php_rs::zend::run_bailout_cleanups();
                             unsafe {
                                 ::ext_php_rs::zend::bailout();
                             }
