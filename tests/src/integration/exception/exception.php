@@ -43,3 +43,20 @@ try {
 } catch (\Throwable $e) {
     assert('an object was expected' === $e->getMessage(), $e->getMessage());
 }
+
+try {
+    throw_interface_class();
+    assert(false, 'an Error should have been thrown instead of the interface');
+} catch (\Throwable $e) {
+    assert(get_class($e) === \Error::class, get_class($e));
+    assert(str_contains($e->getMessage(), 'cannot throw Throwable'), $e->getMessage());
+    assert(str_contains($e->getMessage(), 'original message: cannot instantiate'), $e->getMessage());
+}
+
+try {
+    throw_nul_message();
+    assert(false, 'an Error should have been thrown instead of the NUL message');
+} catch (\Throwable $e) {
+    assert(get_class($e) === \Error::class, get_class($e));
+    assert(str_contains($e->getMessage(), 'original message: before\\0after'), $e->getMessage());
+}

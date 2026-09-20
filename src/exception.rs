@@ -96,25 +96,32 @@ impl PhpException {
         self
     }
 
-    /// Throws the exception, returning nothing inside a result if successful
-    /// and an error otherwise.
+    /// Throws the exception. Always leaves an exception pending in the engine.
     ///
     /// Does nothing if an exception is already pending: the engine propagates
     /// that one, and throwing over it would discard its class and stack trace.
     ///
-    /// # Errors
-    ///
-    /// * [`Error::InvalidException`] - If the exception type is an interface or
-    ///   abstract class.
-    /// * If the message contains NUL bytes.
-    pub fn throw(self) -> Result<()> {
+    /// When the exception itself cannot be thrown (an interface or abstract
+    /// class, a message containing a NUL byte, or an attached value that is not
+    /// an object) a plain `Error` is thrown instead. Its message names the
+    /// cause and carries the original message, so the failure is reported to
+    /// PHP rather than to the Rust caller, which sits inside an `extern "C"`
+    /// frame with no way to propagate it.
+    pub fn throw(self) {
         if ExecutorGlobals::has_exception() {
-            return Ok(());
+            return;
         }
 
-        match self.object {
+        let class = self.ex.name().unwrap_or_default();
+        let message = self.message.replace('\0', "\\0");
+        let result = match self.object {
             Some(object) => throw_object(object),
             None => throw_with_code(self.ex, self.code, &self.message),
+        };
+
+        if let Err(err) = result {
+            let fallback = format!("cannot throw {class}: {err}; original message: {message}");
+            let _ = throw_with_code(ce::error(), 0, &fallback);
         }
     }
 }
@@ -312,25 +319,6 @@ mod tests {
             let obj = Zval::new();
             let ex = PhpException::from_message("Test".into()).with_object(obj);
             assert!(ex.object.is_some());
-        });
-    }
-
-    #[test]
-    fn test_throw_code() {
-        Embed::run(|| {
-            let ex = PhpException::from_message("Test".into());
-            assert!(ex.throw().is_ok());
-
-            assert!(false, "Should not reach here");
-        });
-    }
-
-    #[test]
-    fn test_throw_object_rejects_a_non_object() {
-        Embed::run(|| {
-            let ex = PhpException::from_message("Test".into()).with_object(Zval::new());
-
-            assert!(matches!(ex.throw(), Err(Error::Object)));
         });
     }
 
