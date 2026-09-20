@@ -27,6 +27,24 @@ register the following (if required):
 Classes and constants are not registered with PHP in the `get_module` function. These are
 registered inside the extension startup function.
 
+## Startup failures
+
+If a constant, an interface, a class or an enum cannot be registered, the
+generated startup function logs the cause as an `E_CORE_WARNING` and returns
+`FAILURE`. PHP then reports `Unable to start <extension> module`. At engine
+startup PHP exits. From `dl()` the request fails. A panic during registration
+gets the same treatment. The process does not abort in either case.
+
+`get_module` cannot report a failure, because PHP reads the returned entry
+without a check. If the `ModuleBuilder` cannot become a module entry, for
+example because a function name, an argument name or the module name contains a
+NUL byte, the macro returns a placeholder entry with the name of the crate. The
+startup function of that entry logs the build error and fails as described
+above.
+
+The `startup` function that you name in `#[php_module(startup = ...)]` is your
+own `extern "C"` function. A panic inside it is not caught.
+
 ## Usage
 
 ```rust,no_run

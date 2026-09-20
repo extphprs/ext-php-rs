@@ -141,3 +141,7 @@ let result = try_catch(|| {
 // On Err, try_catch dropped _tmp. connection is still valid here.
 connection.query("...");
 ```
+
+`try_catch` also catches a panic inside the closure and returns
+`Err(CatchError::Panic(message))`. It does not resume the panic. If you want the
+panic to continue, call `std::panic::resume_unwind` with your own payload.
