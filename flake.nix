@@ -56,10 +56,10 @@
       # local dev and CI (nhedger/setup-mago) run the exact same version.
       mago = pkgs.stdenvNoCC.mkDerivation rec {
         pname = "mago";
-        version = "1.48.0";
+        version = "1.49.0";
         src = pkgs.fetchurl {
           url = "https://github.com/carthage-software/mago/releases/download/${version}/mago-${version}-x86_64-unknown-linux-musl.tar.gz";
-          hash = "sha256-WLWhtJuBTvez2+keEAsGCmysCp4g1FNeAzEj9Vs2RDo=";
+          hash = "sha256-jigDGfg3o75qeqy0o+LS5J56yJkPioH+6sK0CQOVegw=";
         };
         installPhase = ''
           runHook preInstall
