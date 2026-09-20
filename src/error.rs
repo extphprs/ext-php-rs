@@ -62,6 +62,13 @@ pub enum Error {
     /// garbage.
     #[error("invalid pointer")]
     InvalidPointer,
+    /// A class declared two properties with the same name, for example a
+    /// `#[php(prop)]` field and a `#[php(getter)]` method.
+    #[error("property `{property}` is declared twice")]
+    DuplicateProperty {
+        /// `Class::$property` that was declared twice.
+        property: String,
+    },
     /// The given property name does not exist.
     #[error("property `{property}` does not exist on the object")]
     InvalidProperty {

@@ -53,6 +53,16 @@ pub struct ClassProperty {
     pub default_stub: Option<String>,
 }
 
+/// Returns the first property name that appears more than once.
+fn duplicate_property(properties: &[ClassProperty]) -> Option<&str> {
+    properties.iter().enumerate().find_map(|(i, prop)| {
+        properties[..i]
+            .iter()
+            .any(|earlier| earlier.name == prop.name)
+            .then_some(prop.name.as_str())
+    })
+}
+
 /// Builder for registering a class in PHP.
 #[must_use]
 pub struct ClassBuilder {
@@ -367,6 +377,11 @@ impl ClassBuilder {
             "Classes can only be registered from a module startup (MINIT) function: \
              `do_register_internal_class` dereferences `EG(current_module)`."
         );
+        if let Some(name) = duplicate_property(&self.properties) {
+            return Err(Error::DuplicateProperty {
+                property: format!("{}::${name}", self.name),
+            });
+        }
 
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
 
@@ -543,6 +558,35 @@ mod tests {
         assert!(class.properties[0].default.is_none());
         assert_eq!(class.properties[0].docs, &["Doc 1"] as DocComments);
         assert_eq!(class.properties[0].ty, Some(DataType::String));
+    }
+
+    fn named_property(name: &str) -> ClassProperty {
+        ClassProperty {
+            name: name.into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty: None,
+            nullable: false,
+            readonly: false,
+            default_stub: None,
+        }
+    }
+
+    #[test]
+    fn duplicate_property_returns_the_repeated_name() {
+        let properties = [
+            named_property("a"),
+            named_property("b"),
+            named_property("a"),
+        ];
+        assert_eq!(duplicate_property(&properties), Some("a"));
+    }
+
+    #[test]
+    fn duplicate_property_returns_none_for_distinct_names() {
+        let properties = [named_property("a"), named_property("b")];
+        assert_eq!(duplicate_property(&properties), None);
     }
 
     #[test]

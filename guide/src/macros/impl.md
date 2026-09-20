@@ -224,54 +224,21 @@ read-only. A property with only a setter is write-only.
 
 One method cannot be both a getter and a setter. A property cannot have two
 getters or two setters. The getter and the setter of one property must have the
-same visibility. Each of these cases is a compile error. The property name
-cannot conflict with a field property defined on the struct.
+same visibility. Each of these cases is a compile error.
+
+A method property cannot have the same name as a `#[php(prop)]` field of the
+struct. The two macros are expanded separately, so this is not a compile error.
+The extension fails to load with this error:
+
+```text
+property `Book::$title` is declared twice
+```
 
 The PHP type of the property comes from the return type of the getter. If the
 property has no getter, the type comes from the argument of the setter. The
 documentation of the property comes from the getter, or from the setter when
 the getter has none. Like field properties, the type must implement `IntoZval`
 and `FromZval`.
-
-### Overriding field properties with getters/setters
-
-If you have a field property defined with `#[php(prop)]` on your struct, you can
-override its access by defining a getter or setter method with the same property
-name. The method-based property will take precedence:
-
-```rust,ignore
-use ext_php_rs::prelude::*;
-
-#[php_class]
-pub struct Book {
-    #[php(prop)]
-    pub title: String,  // Direct field access
-}
-
-#[php_impl]
-impl Book {
-    pub fn __construct(title: String) -> Self {
-        Self { title }
-    }
-
-    // This getter overrides $book->title access
-    #[php(getter)]
-    pub fn get_title(&self) -> String {
-        format!("Title: {}", self.title)
-    }
-}
-```
-
-In PHP, accessing `$book->title` will now call the `get_title()` method instead
-of directly accessing the field:
-
-```php
-$book = new Book("The Rust Book");
-echo $book->title; // Output: "Title: The Rust Book"
-```
-
-This is useful when you need to add validation, transformation, or side effects
-to property access while still having the convenience of a public field in Rust.
 
 ## Example
 
