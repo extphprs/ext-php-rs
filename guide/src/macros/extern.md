@@ -21,6 +21,9 @@ The function can panic when called under a few circumstances:
 * The actual function call failed internally.
 * The output [`Zval`] could not be parsed into the output type.
 
+Inside a function that PHP calls, these panics become a PHP `Error`. The
+process does not abort. See [Exceptions](../exceptions.md#panics).
+
 The last point can be important when interacting with functions that return
 unions, such as [`strpos`] which can return an integer or a boolean. In this
 case, a [`Zval`] should be returned as parsing a boolean to an integer is

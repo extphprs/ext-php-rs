@@ -232,8 +232,7 @@ fn generate_method_builder(
                         None => {
                             let msg = format!("Invalid value for argument `{}`", #php_name);
                             ::ext_php_rs::exception::PhpException::from_message(msg.into())
-                                .throw()
-                                .expect("Failed to throw PHP exception.");
+                                .throw();
                             return;
                         }
                     };
@@ -307,7 +306,7 @@ fn generate_method_builder(
         quote! {
             if let Err(e) = result.set_zval(retval, false) {
                 let e: ::ext_php_rs::exception::PhpException = e.into();
-                e.throw().expect("Failed to throw PHP exception.");
+                e.throw();
             }
         }
     };
@@ -354,8 +353,7 @@ fn generate_method_builder(
                 Some(this) => this,
                 None => {
                     ::ext_php_rs::exception::PhpException::from_message("Failed to get $this".into())
-                        .throw()
-                        .expect("Failed to throw PHP exception.");
+                        .throw();
                     return;
                 }
             };
@@ -380,8 +378,7 @@ fn generate_method_builder(
                 Some(this) => this,
                 None => {
                     ::ext_php_rs::exception::PhpException::from_message("Failed to get $this".into())
-                        .throw()
-                        .expect("Failed to throw PHP exception.");
+                        .throw();
                     return;
                 }
             };
@@ -411,18 +408,10 @@ fn generate_method_builder(
                         retval: &mut ::ext_php_rs::types::Zval,
                     ) {
                         use ::ext_php_rs::convert::IntoZval;
-                        use ::ext_php_rs::zend::try_catch;
-                        use ::std::panic::AssertUnwindSafe;
 
-                        let catch_result = try_catch(AssertUnwindSafe(|| {
+                        ::ext_php_rs::zend::run_handler(::std::panic::AssertUnwindSafe(|| {
                             #handler_body
                         }));
-
-                        if catch_result.is_err() {
-                            unsafe {
-                                ::ext_php_rs::zend::bailout();
-                            }
-                        }
                     }
                 }
                 handler

@@ -267,7 +267,7 @@ impl<'a> Function<'a> {
                 // The method returns &Self or &mut Self, use `this` directly
                 if let Err(e) = this.set_zval(retval, false) {
                     let e: ::ext_php_rs::exception::PhpException = e.into();
-                    e.throw().expect("Failed to throw PHP exception.");
+                    e.throw();
                 }
             }
         } else {
@@ -281,7 +281,7 @@ impl<'a> Function<'a> {
 
                 if let Err(e) = result.set_zval(retval, false) {
                     let e: ::ext_php_rs::exception::PhpException = e.into();
-                    e.throw().expect("Failed to throw PHP exception.");
+                    e.throw();
                 }
             }
         };
@@ -294,19 +294,9 @@ impl<'a> Function<'a> {
                         ex: &mut ::ext_php_rs::zend::ExecuteData,
                         retval: &mut ::ext_php_rs::types::Zval,
                     ) {
-                        use ::ext_php_rs::zend::try_catch;
-                        use ::std::panic::AssertUnwindSafe;
-
-                        // Wrap the handler body with try_catch to ensure Rust destructors
-                        // are called if a bailout occurs (issue #537)
-                        let catch_result = try_catch(AssertUnwindSafe(|| {
+                        ::ext_php_rs::zend::run_handler(::std::panic::AssertUnwindSafe(|| {
                             #handler_body
                         }));
-
-                        // try_catch already dropped the BailoutGuards of this frame; re-trigger the bailout
-                        if catch_result.is_err() {
-                            unsafe { ::ext_php_rs::zend::bailout(); }
-                        }
                     }
                 }
                 handler
@@ -400,7 +390,7 @@ impl<'a> Function<'a> {
         let arg_accessors = self.args.typed.iter().map(|arg| {
             arg.accessor(|e| {
                 quote! {
-                    #e.throw().expect("Failed to throw PHP exception.");
+                    #e.throw();
                     return;
                 }
             })
@@ -434,8 +424,7 @@ impl<'a> Function<'a> {
                             Some(this) => this,
                             None => {
                                 ::ext_php_rs::exception::PhpException::from_message("Failed to retrieve reference to `$this`".into())
-                                    .throw()
-                                    .unwrap();
+                                    .throw();
                                 return;
                             }
                         };
@@ -561,7 +550,7 @@ impl<'a> Function<'a> {
                     None => {
                         ::ext_php_rs::exception::PhpException::from_message(
                             concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
-                        ).throw().expect("Failed to throw PHP exception.");
+                        ).throw();
                         return;
                     }
                 }
@@ -571,7 +560,7 @@ impl<'a> Function<'a> {
         let throw_invalid = quote! {
             ::ext_php_rs::exception::PhpException::from_message(
                 concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
-            ).throw().expect("Failed to throw PHP exception.");
+            ).throw();
             return;
         };
 
@@ -580,7 +569,7 @@ impl<'a> Function<'a> {
                 concat!("Argument `$", stringify!(#name), "` must not be null").into(),
                 0,
                 ::ext_php_rs::zend::ce::type_error(),
-            ).throw().expect("Failed to throw PHP exception.");
+            ).throw();
             return;
         };
 
@@ -671,7 +660,7 @@ impl<'a> Function<'a> {
         let this_error = quote! {
             ::ext_php_rs::exception::PhpException::from_message(
                 "Failed to retrieve reference to `$this`".into()
-            ).throw().unwrap();
+            ).throw();
             return;
         };
 
@@ -731,7 +720,7 @@ impl<'a> Function<'a> {
 
                 if let Err(e) = __this.set_zval(retval, false) {
                     let e: ::ext_php_rs::exception::PhpException = e.into();
-                    e.throw().expect("Failed to throw PHP exception.");
+                    e.throw();
                 }
             }
         } else {
@@ -745,7 +734,7 @@ impl<'a> Function<'a> {
 
                 if let Err(e) = __result.set_zval(retval, false) {
                     let e: ::ext_php_rs::exception::PhpException = e.into();
-                    e.throw().expect("Failed to throw PHP exception.");
+                    e.throw();
                 }
             }
         }
@@ -823,32 +812,17 @@ impl<'a> Function<'a> {
             ::ext_php_rs::class::ConstructorMeta {
                 constructor: {
                     fn inner(ex: &mut ::ext_php_rs::zend::ExecuteData) -> ::ext_php_rs::class::ConstructorResult<#class> {
-                        use ::ext_php_rs::zend::try_catch;
-                        use ::std::panic::AssertUnwindSafe;
-
-                        // Wrap the constructor body with try_catch to ensure Rust destructors
-                        // are called if a bailout occurs (issue #537)
-                        let catch_result = try_catch(AssertUnwindSafe(|| {
-                            #(#arg_declarations)*
-                            let parse = ex.parser()
-                                #(.arg(&mut #required_arg_names))*
-                                .not_required()
-                                #(.arg(&mut #not_required_arg_names))*
-                                .parse();
-                            if parse.is_err() {
-                                return ::ext_php_rs::class::ConstructorResult::ArgError;
-                            }
-                            #(#variadic_bindings)*
-                            #class::#ident(#({#arg_accessors}),*).into()
-                        }));
-
-                        // try_catch already dropped the BailoutGuards of this frame; re-trigger the bailout
-                        match catch_result {
-                            Ok(result) => result,
-                            Err(_) => {
-                                unsafe { ::ext_php_rs::zend::bailout() }
-                            }
+                        #(#arg_declarations)*
+                        let parse = ex.parser()
+                            #(.arg(&mut #required_arg_names))*
+                            .not_required()
+                            #(.arg(&mut #not_required_arg_names))*
+                            .parse();
+                        if parse.is_err() {
+                            return ::ext_php_rs::class::ConstructorResult::ArgError;
                         }
+                        #(#variadic_bindings)*
+                        #class::#ident(#({#arg_accessors}),*).into()
                     }
                     inner
                 },

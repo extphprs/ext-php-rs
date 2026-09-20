@@ -3598,6 +3598,9 @@ unsafe extern "C" {
     pub static mut zend_ce_error_exception: *mut zend_class_entry;
 }
 unsafe extern "C" {
+    pub static mut zend_ce_error: *mut zend_class_entry;
+}
+unsafe extern "C" {
     pub static mut zend_ce_compile_error: *mut zend_class_entry;
 }
 unsafe extern "C" {

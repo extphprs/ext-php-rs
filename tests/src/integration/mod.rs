@@ -21,6 +21,7 @@ pub mod number;
 pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
+pub mod panic;
 pub mod persistent_string;
 pub mod reference;
 pub mod separated;
@@ -38,40 +39,52 @@ mod test {
 
     static BUILD: Once = Once::new();
 
+    /// A `cargo build` for a workspace extension crate, with the feature set this
+    /// test binary was compiled with. Every extension crate in `tests/` declares the
+    /// same features, so `ext-php-rs` resolves to the artifact that is already built
+    /// and its build script does not run again inside the test process.
+    fn cargo_build(package: Option<&str>) -> Command {
+        let mut command = Command::new("cargo");
+        command.arg("build");
+        if let Some(package) = package {
+            command.args(["-p", package]);
+        }
+
+        #[cfg(not(debug_assertions))]
+        command.arg("--release");
+
+        // Build features list dynamically based on compiled features
+        // Note: Using vec_init_then_push pattern here is intentional due to conditional
+        // compilation
+        #[allow(clippy::vec_init_then_push)]
+        {
+            let mut features = vec![];
+            #[cfg(feature = "enum")]
+            features.push("enum");
+            #[cfg(feature = "closure")]
+            features.push("closure");
+            #[cfg(feature = "anyhow")]
+            features.push("anyhow");
+            #[cfg(feature = "runtime")]
+            features.push("runtime");
+            #[cfg(feature = "static")]
+            features.push("static");
+            #[cfg(feature = "observer")]
+            features.push("observer");
+
+            if !features.is_empty() {
+                command.arg("--no-default-features");
+                command.arg("--features").arg(features.join(","));
+            }
+        }
+        command
+    }
+
     fn setup() {
         BUILD.call_once(|| {
-            let mut command = Command::new("cargo");
-            command.arg("build");
-
-            #[cfg(not(debug_assertions))]
-            command.arg("--release");
-
-            // Build features list dynamically based on compiled features
-            // Note: Using vec_init_then_push pattern here is intentional due to conditional
-            // compilation
-            #[allow(clippy::vec_init_then_push)]
-            {
-                let mut features = vec![];
-                #[cfg(feature = "enum")]
-                features.push("enum");
-                #[cfg(feature = "closure")]
-                features.push("closure");
-                #[cfg(feature = "anyhow")]
-                features.push("anyhow");
-                #[cfg(feature = "runtime")]
-                features.push("runtime");
-                #[cfg(feature = "static")]
-                features.push("static");
-                #[cfg(feature = "observer")]
-                features.push("observer");
-
-                if !features.is_empty() {
-                    command.arg("--no-default-features");
-                    command.arg("--features").arg(features.join(","));
-                }
-            }
-
-            let result = command.output().expect("failed to execute cargo build");
+            let result = cargo_build(None)
+                .output()
+                .expect("failed to execute cargo build");
 
             assert!(
                 result.status.success(),
@@ -186,7 +199,46 @@ mod test {
         });
     }
 
+    /// Builds the named broken extension crate and loads it in a `php`
+    /// subprocess. Returns the exit status and the combined stdout and stderr.
+    pub fn load_broken_module(crate_name: &str) -> (std::process::ExitStatus, String) {
+        let built = cargo_build(Some(crate_name))
+            .output()
+            .expect("failed to execute cargo build");
+        assert!(
+            built.status.success(),
+            "{crate_name} build failed:\n{}",
+            String::from_utf8_lossy(&built.stderr)
+        );
+
+        let lib_name = crate_name.replace('-', "_");
+        let mut path = PathBuf::from(get_extension_path());
+        path.set_file_name(if std::env::consts::DLL_EXTENSION == "dll" {
+            lib_name
+        } else {
+            format!("lib{lib_name}")
+        });
+        path.set_extension(std::env::consts::DLL_EXTENSION);
+
+        let output = Command::new(find_php().expect("Could not find PHP executable"))
+            .arg(format!("-dextension={}", path.display()))
+            .arg("-ddisplay_startup_errors=1")
+            .args(["-r", "echo 'alive';"])
+            .output()
+            .expect("failed to run php");
+        let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
+        combined.push_str(&String::from_utf8_lossy(&output.stderr));
+        (output.status, combined)
+    }
+
     pub fn run_php(file: &str) -> bool {
+        run_php_capturing_stderr(file);
+        true
+    }
+
+    /// Runs the script in a real `php` subprocess, panics unless it exits
+    /// successfully, and returns what it wrote to stderr.
+    pub fn run_php_capturing_stderr(file: &str) -> String {
         setup();
         let path = get_extension_path();
         let output = Command::new(find_php().expect("Could not find PHP executable"))
@@ -197,19 +249,18 @@ mod test {
             .arg(format!("src/integration/{file}"))
             .output()
             .expect("failed to run php file");
-        if output.status.success() {
-            true
-        } else {
-            panic!(
-                "
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(
+            output.status.success(),
+            "
                 status: {}
                 stdout: {}
                 stderr: {}
                 ",
-                output.status,
-                String::from_utf8(output.stdout).unwrap(),
-                String::from_utf8(output.stderr).unwrap()
-            );
-        }
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            stderr
+        );
+        stderr
     }
 }

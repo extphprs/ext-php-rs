@@ -71,6 +71,8 @@ members = [
     "crates/php-build",
     "crates/introspection",
     "tests",
+    "tests/broken-module",
+    "tests/broken-minit",
 ]
 
 [package.metadata.docs.rs]

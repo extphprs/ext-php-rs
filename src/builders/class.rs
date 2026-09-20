@@ -250,14 +250,9 @@ impl ClassBuilder {
 
         zend_fastcall! {
             extern fn constructor<T: RegisteredClass>(ex: &mut ExecuteData, _: &mut Zval) {
-                use crate::zend::try_catch;
-                use std::panic::AssertUnwindSafe;
-
-                // Wrap the constructor body with try_catch to ensure Rust destructors
-                // are called if a bailout occurs (issue #537)
-                let catch_result = try_catch(AssertUnwindSafe(|| {
+                crate::zend::run_handler(std::panic::AssertUnwindSafe(|| {
                     let Some(ConstructorMeta { constructor, .. }) = T::constructor() else {
-                        let _ = PhpException::from_message("You cannot instantiate this class from PHP.".into())
+                        PhpException::from_message("You cannot instantiate this class from PHP.".into())
                             .throw();
                         return;
                     };
@@ -265,7 +260,7 @@ impl ClassBuilder {
                     let this = match constructor(ex) {
                         ConstructorResult::Ok(this) => this,
                         ConstructorResult::Exception(e) => {
-                            let _ = e.throw();
+                            e.throw();
                             return;
                         }
                         ConstructorResult::ArgError => return,
@@ -274,18 +269,13 @@ impl ClassBuilder {
                     // Use get_object_uninit because the Rust backing is not yet initialized.
                     // We need access to the ZendClassObject to call initialize() on it.
                     let Some(this_obj) = ex.get_object_uninit::<T>() else {
-                        let _ = PhpException::from_message("Failed to retrieve reference to `this` object.".into())
+                        PhpException::from_message("Failed to retrieve reference to `this` object.".into())
                             .throw();
                         return;
                     };
 
                     this_obj.initialize(this);
                 }));
-
-                // If there was a bailout, re-trigger it after Rust cleanup
-                if catch_result.is_err() {
-                    unsafe { crate::zend::bailout(); }
-                }
             }
         }
 

@@ -2,7 +2,7 @@
 
 use crate::{
     boxed::ZBox,
-    error::Result,
+    error::{Error, Result},
     exception::PhpException,
     flags::DataType,
     types::{ZendObject, Zval},
@@ -244,7 +244,8 @@ where
             Ok(val) => val.set_zval(zv, persistent),
             Err(e) => {
                 let ex: PhpException = e.into();
-                ex.throw()
+                ex.throw();
+                Err(Error::pending_exception().unwrap_or(Error::Callable))
             }
         }
     }

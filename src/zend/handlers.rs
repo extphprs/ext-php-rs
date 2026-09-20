@@ -1,7 +1,11 @@
-use std::{ffi::CString, ffi::c_void, mem::MaybeUninit, os::raw::c_int, ptr};
+use std::{
+    ffi::CString, ffi::c_void, mem::MaybeUninit, os::raw::c_int, panic::AssertUnwindSafe,
+    panic::catch_unwind, ptr,
+};
 
 use crate::{
     class::RegisteredClass,
+    error::php_error,
     exception::PhpResult,
     ffi::{
         ext_php_rs_executor_globals, instanceof_function_slow, std_object_handlers,
@@ -9,9 +13,11 @@ use crate::{
         zend_objects_clone_members, zend_std_get_properties, zend_std_has_property,
         zend_std_read_property, zend_std_write_property, zend_throw_error,
     },
+    flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
     internal::property::PropertyDescriptor,
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
+    zend::catch_panic,
 };
 
 /// A set of functions associated with a PHP class.
@@ -109,7 +115,23 @@ impl ZendObjectHandlers {
                 .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
         } {
             // Manually drop the object as we don't want to free the underlying memory.
-            unsafe { ptr::drop_in_place(&raw mut obj.obj) };
+            // A panic in the user's `Drop` must not escape this `extern "C"` frame, and
+            // no exception can be thrown here: this also runs from the collector and at
+            // shutdown. Report it as a warning and keep freeing the object.
+            let dropped = catch_unwind(AssertUnwindSafe(|| unsafe {
+                ptr::drop_in_place(&raw mut obj.obj);
+            }));
+            if let Err(payload) = dropped {
+                let message = payload
+                    .downcast_ref::<&str>()
+                    .map(|s| (*s).to_owned())
+                    .or_else(|| payload.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "non-string panic payload".to_owned());
+                php_error(
+                    &ErrorType::Warning,
+                    &format!("Rust panic in Drop for {}: {message}", T::CLASS_NAME),
+                );
+            }
         }
 
         // Always call the standard destructor to clean up the PHP object
@@ -124,34 +146,49 @@ impl ZendObjectHandlers {
         // PHP will call OBJ_RELEASE on the returned pointer if an exception
         // is thrown, so we must NEVER return the original object. Always
         // allocate a new (possibly uninitialized) object for error paths.
-        let cloned_val = unsafe {
-            object
-                .as_ref()
-                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
-                .and_then(|old| old.obj.as_ref())
-                .and_then(RegisteredClass::clone_obj)
-        };
+        let cloned_val = catch_panic(|| {
+            Ok(unsafe {
+                object
+                    .as_ref()
+                    .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
+                    .and_then(|old| old.obj.as_ref())
+                    .and_then(RegisteredClass::clone_obj)
+            })
+        });
 
-        if let Some(val) = cloned_val {
-            let mut new = ZendClassObject::<T>::new(val);
-            unsafe { zend_objects_clone_members(&raw mut new.std, object) };
-            let raw = new.into_raw();
-            // SAFETY: `into_raw` yields a valid object the engine takes over.
-            unsafe { &raw mut (*raw).std }
-        } else {
-            let msg = CString::new(format!(
-                "Trying to clone an uncloneable object of class {}",
-                T::CLASS_NAME
-            ))
-            .expect("Failed to create error message");
-            unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
-            // Return a new uninitialized object that PHP can safely release.
-            // free_obj handles uninitialized (None) objects gracefully.
-            let empty = unsafe { ZendClassObject::<T>::new_uninit(None) };
-            let raw = empty.into_raw();
-            // SAFETY: `into_raw` yields a valid object the engine takes over.
-            unsafe { &raw mut (*raw).std }
+        match cloned_val {
+            Ok(Some(val)) => {
+                let mut new = ZendClassObject::<T>::new(val);
+                unsafe { zend_objects_clone_members(&raw mut new.std, object) };
+                let raw = new.into_raw();
+                // SAFETY: `into_raw` yields a valid object the engine takes over.
+                unsafe { &raw mut (*raw).std }
+            }
+            Ok(None) => {
+                let msg = CString::new(format!(
+                    "Trying to clone an uncloneable object of class {}",
+                    T::CLASS_NAME
+                ))
+                .expect("Failed to create error message");
+                unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
+                Self::released_placeholder::<T>()
+            }
+            Err(panic) => {
+                panic.throw();
+                Self::released_placeholder::<T>()
+            }
         }
+    }
+
+    /// A fresh uninitialised object for the error paths of `clone_obj`: PHP calls
+    /// `OBJ_RELEASE` on whatever `clone_obj` returns once an exception is pending,
+    /// so the original must never be handed back. `free_obj` accepts the `None`
+    /// backing.
+    fn released_placeholder<T: RegisteredClass>() -> *mut ZendObject {
+        let empty = unsafe { ZendClassObject::<T>::new_uninit(None) };
+        let raw = empty.into_raw();
+        // SAFETY: `into_raw` yields a valid object the engine takes over.
+        unsafe { &raw mut (*raw).std }
     }
 
     #[allow(clippy::items_after_statements)]
@@ -218,10 +255,10 @@ impl ZendObjectHandlers {
             })
         }
 
-        match unsafe { internal::<T>(object, obj, member, type_, cache_slot, rv) } {
+        match catch_panic(|| unsafe { internal::<T>(object, obj, member, type_, cache_slot, rv) }) {
             Ok(rv) => rv,
             Err(e) => {
-                let _ = e.throw();
+                e.throw();
                 unsafe { (*rv).set_null() };
                 rv
             }
@@ -287,10 +324,10 @@ impl ZendObjectHandlers {
             })
         }
 
-        match unsafe { internal::<T>(object, obj, member, value, cache_slot) } {
+        match catch_panic(|| unsafe { internal::<T>(object, obj, member, value, cache_slot) }) {
             Ok(rv) => rv,
             Err(e) => {
-                let _ = e.throw();
+                e.throw();
                 value
             }
         }
@@ -358,8 +395,8 @@ impl ZendObjectHandlers {
             Ok(())
         }
 
-        if let Err(e) = unsafe { internal::<T>(obj, props) } {
-            let _ = e.throw();
+        if let Err(e) = catch_panic(|| unsafe { internal::<T>(obj, props) }) {
+            e.throw();
         }
 
         props
@@ -446,10 +483,12 @@ impl ZendObjectHandlers {
             Ok(unsafe { zend_std_has_property(object, member, has_set_exists, cache_slot) })
         }
 
-        match unsafe { internal::<T>(object, obj, member, has_set_exists, cache_slot) } {
+        match catch_panic(|| unsafe {
+            internal::<T>(object, obj, member, has_set_exists, cache_slot)
+        }) {
             Ok(rv) => rv,
             Err(e) => {
-                let _ = e.throw();
+                e.throw();
                 0
             }
         }
