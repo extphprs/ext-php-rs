@@ -21,6 +21,7 @@ pub mod number;
 pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
+pub mod panic;
 pub mod persistent_string;
 pub mod reference;
 pub mod separated;
@@ -187,6 +188,13 @@ mod test {
     }
 
     pub fn run_php(file: &str) -> bool {
+        run_php_capturing_stderr(file);
+        true
+    }
+
+    /// Runs the script in a real `php` subprocess, panics unless it exits
+    /// successfully, and returns what it wrote to stderr.
+    pub fn run_php_capturing_stderr(file: &str) -> String {
         setup();
         let path = get_extension_path();
         let output = Command::new(find_php().expect("Could not find PHP executable"))
@@ -197,19 +205,18 @@ mod test {
             .arg(format!("src/integration/{file}"))
             .output()
             .expect("failed to run php file");
-        if output.status.success() {
-            true
-        } else {
-            panic!(
-                "
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(
+            output.status.success(),
+            "
                 status: {}
                 stdout: {}
                 stderr: {}
                 ",
-                output.status,
-                String::from_utf8(output.stdout).unwrap(),
-                String::from_utf8(output.stderr).unwrap()
-            );
-        }
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            stderr
+        );
+        stderr
     }
 }
