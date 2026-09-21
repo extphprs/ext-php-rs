@@ -29,9 +29,9 @@ placed underneath the `#[php_class]` attribute.
     `ce_fn` must be a valid function with the signature `fn() -> &'static ClassEntry`.
 
 You may also use the `#[php(prop)]` attribute on a struct field to use the field as a
-PHP property. By default, the field will be accessible from PHP publicly with
-the same name as the field. Property types must implement `IntoZval` and
-`FromZval`.
+PHP property. By default, the property is public and its name is the field name
+converted to camelCase: the field `first_name` gives the property `firstName`.
+Property types must implement `IntoZval` and `FromZval`.
 
 You can customize properties with these options:
 

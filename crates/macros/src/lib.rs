@@ -60,9 +60,10 @@ extern crate proc_macro;
 ///     signature `fn() -> &'static ClassEntry`.
 ///
 /// You may also use the `#[php(prop)]` attribute on a struct field to use the
-/// field as a PHP property. By default, the field will be accessible from PHP
-/// publicly with the same name as the field. Property types must implement
-/// `IntoZval` and `FromZval`.
+/// field as a PHP property. By default, the property is public and its name is
+/// the field name converted to camelCase: the field `first_name` gives the
+/// property `firstName`. Property types must implement `IntoZval` and
+/// `FromZval`.
 ///
 /// You can customize properties with these options:
 ///
@@ -2032,66 +2033,39 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///
 /// ## Property getters and setters
 ///
-/// You can add properties to classes which use Rust functions as getters and/or
-/// setters. This is done with the `#[php(getter)]` and `#[php(setter)]`
-/// attributes. By default, the `get_` or `set_` prefix is trimmed from the
-/// start of the function name, and the remainder is used as the property name.
+/// A class can expose a property whose value comes from Rust methods. Mark the
+/// method that reads the value with `#[php(getter)]` and the method that writes
+/// it with `#[php(setter)]`. The property name is the method name without its
+/// `get_` or `set_` prefix, converted to camelCase. This is the same rule as
+/// for `#[php(prop)]` fields: `get_first_name` gives the property `firstName`.
+/// Properties are declared in the order in which their first
+/// getter or setter appears in the `impl` block, after the `#[php(prop)]` field
+/// properties of the struct.
 ///
-/// If you want to use a different name for the property, you can pass a `name`
-/// or `change_case` option to the `#[php]` attribute which will change the
-/// property name.
+/// If you want a different property name, pass a `name` or `change_case` option
+/// to the `#[php]` attribute: `#[php(getter, name = "first_name")]` or
+/// `#[php(getter, change_case = "snake_case")]`.
 ///
-/// Properties do not necessarily have to have both a getter and a setter, if
-/// the property is immutable the setter can be omitted, and vice versa for
-/// getters.
+/// A property does not need both methods. A property with only a getter is
+/// read-only. A property with only a setter is write-only.
 ///
-/// The `#[php(getter)]` and `#[php(setter)]` attributes are mutually exclusive
-/// on methods. Properties cannot have multiple getters or setters, and the
-/// property name cannot conflict with field properties defined on the struct.
+/// One method cannot be both a getter and a setter. A property cannot have two
+/// getters or two setters. The getter and the setter of one property must have
+/// the same visibility. Each of these cases is a compile error.
 ///
-/// As the same as field properties, method property types must implement both
+/// A method property cannot have the same name as a `#[php(prop)]` field of the
+/// struct. The two macros are expanded separately, so this is not a compile
+/// error. The extension fails to load with this error:
+///
+/// ```text
+/// property `Book::$title` is declared twice
+/// ```
+///
+/// The PHP type of the property comes from the return type of the getter. If
+/// the property has no getter, the type comes from the argument of the setter.
+/// The documentation of the property comes from the getter, or from the setter
+/// when the getter has none. Like field properties, the type must implement
 /// `IntoZval` and `FromZval`.
-///
-/// ### Overriding field properties with getters/setters
-///
-/// If you have a field property defined with `#[php(prop)]` on your struct, you
-/// can override its access by defining a getter or setter method with the same
-/// property name. The method-based property will take precedence:
-///
-/// ```rust,ignore
-/// use ext_php_rs::prelude::*;
-///
-/// #[php_class]
-/// pub struct Book {
-///     #[php(prop)]
-///     pub title: String,  // Direct field access
-/// }
-///
-/// #[php_impl]
-/// impl Book {
-///     pub fn __construct(title: String) -> Self {
-///         Self { title }
-///     }
-///
-///     // This getter overrides $book->title access
-///     #[php(getter)]
-///     pub fn get_title(&self) -> String {
-///         format!("Title: {}", self.title)
-///     }
-/// }
-/// ```
-///
-/// In PHP, accessing `$book->title` will now call the `get_title()` method
-/// instead of directly accessing the field:
-///
-/// ```php
-/// $book = new Book("The Rust Book");
-/// echo $book->title; // Output: "Title: The Rust Book"
-/// ```
-///
-/// This is useful when you need to add validation, transformation, or side
-/// effects to property access while still having the convenience of a public
-/// field in Rust.
 ///
 /// ## Example
 ///

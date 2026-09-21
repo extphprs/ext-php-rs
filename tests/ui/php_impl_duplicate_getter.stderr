@@ -1,0 +1,5 @@
+error: Property `value` already has a getter.
+  --> tests/ui/php_impl_duplicate_getter.rs:14:8
+   |
+14 |     fn value(&self) -> i64 {
+   |        ^^^^^

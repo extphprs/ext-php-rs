@@ -198,7 +198,7 @@ pub struct ClassMetadata<T: 'static> {
     handlers: OnceCell<ZendObjectHandlers>,
     field_properties: &'static [PropertyDescriptor<T>],
     method_properties: OnceCell<&'static [PropertyDescriptor<T>]>,
-    method_mangled_names: OnceCell<Box<[Box<str>]>>,
+    mangled_names: OnceCell<Box<[Box<str>]>>,
     /// Argument info tables of this class's methods. `zend_register_functions`
     /// borrows them for the life of the process, so they are owned here rather
     /// than orphaned: this static is the class's equivalent of a C extension's
@@ -220,7 +220,7 @@ impl<T: 'static> ClassMetadata<T> {
             handlers: OnceCell::new(),
             field_properties,
             method_properties: OnceCell::new(),
-            method_mangled_names: OnceCell::new(),
+            mangled_names: OnceCell::new(),
             arg_info: OnceCell::new(),
             ce: AtomicPtr::new(std::ptr::null_mut()),
             phantom: PhantomData,
@@ -340,17 +340,17 @@ impl<T: RegisteredClass> ClassMetadata<T> {
             .chain(self.method_properties().iter())
     }
 
-    /// Returns pre-computed PHP-convention mangled names for method properties.
+    /// Returns the PHP-convention mangled names of every property, in
+    /// [`all_properties`](Self::all_properties) order.
     ///
-    /// Lazily initialized on first access. One allocation per class for the
-    /// entire process lifetime. Field properties already carry compile-time
-    /// mangled names in their [`PropertyDescriptor::mangled_name`] field.
+    /// Private properties mangle to `"\0Class\0name"`, protected ones to
+    /// `"\0*\0name"`, public ones keep their name. Computed once per class on
+    /// first access, one allocation for the process lifetime.
     #[must_use]
     #[inline]
-    pub fn method_mangled_names(&self) -> &[Box<str>] {
-        self.method_mangled_names.get_or_init(|| {
-            self.method_properties()
-                .iter()
+    pub fn mangled_names(&self) -> &[Box<str>] {
+        self.mangled_names.get_or_init(|| {
+            self.all_properties()
                 .map(|desc| {
                     if desc.flags.contains(PropertyFlags::Private) {
                         format!("\0{}\0{}", T::CLASS_NAME, desc.name).into_boxed_str()

@@ -11,16 +11,10 @@ use crate::{
 ///
 /// * `T` - The Rust struct type that owns this property.
 pub struct PropertyDescriptor<T: 'static> {
-    /// Property name as seen from PHP (camelCase after conversion).
+    /// Property name as seen from PHP (camelCase after conversion). The
+    /// mangled form used by `get_properties` is computed once at runtime by
+    /// [`ClassMetadata::mangled_names`](crate::class::ClassMetadata::mangled_names).
     pub name: &'static str,
-    /// PHP-convention mangled name for `get_properties` output.
-    ///
-    /// For field properties this is a compile-time literal emitted by the proc
-    /// macro (`"\0ClassName\0prop"` for private, `"\0*\0prop"` for protected,
-    /// or the bare name for public). For method properties the macro sets this
-    /// to the unmangled `name`; the real mangled form is provided at runtime by
-    /// [`ClassMetadata::method_mangled_names`](crate::class::ClassMetadata::method_mangled_names).
-    pub mangled_name: &'static str,
     /// Getter function. Takes `&T` (immutable) and writes into the Zval.
     /// `None` means the property is write-only.
     pub get: Option<fn(&T, &mut Zval) -> PhpResult>,
@@ -39,7 +33,7 @@ pub struct PropertyDescriptor<T: 'static> {
     pub readonly: bool,
 }
 
-// 64-bit: 96 bytes, 32-bit: ~56 bytes.
+// 64-bit: 80 bytes, 32-bit: ~48 bytes.
 // Bound: 12 pointer-sized words = 96 on 64-bit, 48 on 32-bit.
 const _: () = assert!(
     std::mem::size_of::<PropertyDescriptor<()>>() <= 12 * std::mem::size_of::<usize>(),

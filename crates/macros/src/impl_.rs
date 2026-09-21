@@ -74,6 +74,8 @@ struct MethodArgs {
     defaults: HashMap<Ident, Expr>,
     /// Visibility of the method (public, protected, private).
     vis: Visibility,
+    /// Span of the explicit `vis` option, when given.
+    vis_span: Option<proc_macro2::Span>,
     /// Method type.
     ty: MethodTy,
     /// Whether this is a final method.
@@ -109,6 +111,9 @@ impl MethodArgs {
 
         let abstract_span = attr.abstract_method.span();
         let final_span = attr.final_method.span();
+        if is_getter && is_setter {
+            bail!(attr.setter.span() => "A method cannot be both a getter and a setter.");
+        }
         if is_constructor {
             if is_abstract {
                 bail!(abstract_span => "Constructors cannot be abstract.");
@@ -158,6 +163,7 @@ impl MethodArgs {
             name,
             optional: attr.optional,
             defaults: attr.defaults,
+            vis_span: attr.vis.as_ref().map(SpannedValue::span),
             vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
             ty,
             is_final,
@@ -165,15 +171,13 @@ impl MethodArgs {
     }
 }
 
-/// A property getter or setter method.
+/// A PHP property backed by getter and/or setter methods, in declaration order.
 #[derive(Debug)]
-struct PropertyMethod<'a> {
+struct PropGroup<'a> {
     /// Property name in PHP (e.g., "name" for `get_name`/`set_name`).
-    prop_name: String,
-    /// The Rust method identifier.
-    method_ident: &'a syn::Ident,
-    /// Whether this is a getter (true) or setter (false).
-    is_getter: bool,
+    name: String,
+    getter: Option<&'a syn::Ident>,
+    setter: Option<&'a syn::Ident>,
     /// Visibility of the property.
     vis: Visibility,
     /// Documentation comments for the property.
@@ -190,8 +194,8 @@ struct ParsedImpl<'a> {
     constructor: Option<(Function<'a>, Option<Visibility>)>,
     constants: Vec<Constant<'a>>,
     has_abstract_methods: bool,
-    /// Property getter/setter methods.
-    properties: Vec<PropertyMethod<'a>>,
+    /// Properties backed by getter/setter methods, in declaration order.
+    properties: Vec<PropGroup<'a>>,
 }
 
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -259,15 +263,21 @@ impl<'a> ParsedImpl<'a> {
         &mut self,
         method: &'a syn::ImplItemFn,
         opts: &MethodArgs,
+        rename: &PhpRename,
         docs: Vec<String>,
-    ) {
+    ) -> Result<()> {
         let is_getter = matches!(opts.ty, MethodTy::Getter);
-        let method_name = method.sig.ident.to_string();
+        let method_name = ident_to_php_name(&method.sig.ident);
         let prefix = if is_getter { "get_" } else { "set_" };
-        let prop_name = method_name
-            .strip_prefix(prefix)
-            .unwrap_or(&method_name)
-            .to_string();
+        let prop_name = rename.rename(
+            method_name.strip_prefix(prefix).unwrap_or(&method_name),
+            RenameRule::Camel,
+        );
+        validate_php_name(
+            &prop_name,
+            PhpNameContext::Property,
+            method.sig.ident.span(),
+        )?;
 
         let value_ty = match (is_getter, &method.sig.output) {
             (true, syn::ReturnType::Type(_, ty)) => Some(ty.as_ref()),
@@ -278,14 +288,43 @@ impl<'a> ParsedImpl<'a> {
             _ => None,
         };
 
-        self.properties.push(PropertyMethod {
-            prop_name,
-            method_ident: &method.sig.ident,
-            is_getter,
-            vis: opts.vis,
-            docs,
-            value_ty,
-        });
+        let idx = self
+            .properties
+            .iter()
+            .position(|g| g.name == prop_name)
+            .unwrap_or_else(|| {
+                self.properties.push(PropGroup {
+                    name: prop_name,
+                    getter: None,
+                    setter: None,
+                    vis: opts.vis,
+                    docs: Vec::new(),
+                    value_ty: None,
+                });
+                self.properties.len() - 1
+            });
+        let group = &mut self.properties[idx];
+        let kind = if is_getter { "getter" } else { "setter" };
+        let slot = if is_getter {
+            &mut group.getter
+        } else {
+            &mut group.setter
+        };
+        if slot.is_some() {
+            bail!(method.sig.ident => "Property `{}` already has a {kind}.", group.name);
+        }
+        if group.vis != opts.vis {
+            let span = opts.vis_span.unwrap_or_else(|| method.sig.ident.span());
+            bail!(span => "The getter and setter of property `{}` must have the same visibility.", group.name);
+        }
+        *slot = Some(&method.sig.ident);
+        if (is_getter && value_ty.is_some()) || group.value_ty.is_none() {
+            group.value_ty = value_ty;
+        }
+        if (is_getter && !docs.is_empty()) || group.docs.is_empty() {
+            group.docs = docs;
+        }
+        Ok(())
     }
 
     /// Parses an impl block from `items`, populating `self`.
@@ -309,7 +348,7 @@ impl<'a> ParsedImpl<'a> {
                     });
                 }
                 syn::ImplItem::Fn(method) => {
-                    let attr = PhpFunctionImplAttribute::from_attributes(&method.attrs)?;
+                    let mut attr = PhpFunctionImplAttribute::from_attributes(&method.attrs)?;
                     let name = attr.rename.rename_method(
                         ident_to_php_name(&method.sig.ident),
                         self.change_method_case,
@@ -318,11 +357,12 @@ impl<'a> ParsedImpl<'a> {
                     let docs = get_docs(&attr.attrs)?;
                     method.attrs.retain(|attr| !attr.path().is_ident("php"));
 
+                    let rename = std::mem::take(&mut attr.rename);
                     let opts = MethodArgs::new(name, attr)?;
 
                     // Handle getter/setter methods
                     if matches!(opts.ty, MethodTy::Getter | MethodTy::Setter) {
-                        self.parse_property_method(method, &opts, docs);
+                        self.parse_property_method(method, &opts, &rename, docs)?;
                         continue;
                     }
 
@@ -427,52 +467,14 @@ impl<'a> ParsedImpl<'a> {
             quote! {}
         };
 
-        // Group properties by name to combine getters and setters
-        #[allow(clippy::items_after_statements)]
-        struct PropGroup<'a> {
-            getter: Option<&'a syn::Ident>,
-            setter: Option<&'a syn::Ident>,
-            vis: Visibility,
-            docs: Vec<String>,
-            value_ty: Option<&'a syn::Type>,
-        }
-        let mut prop_groups: HashMap<&str, PropGroup> = HashMap::new();
-        for prop in &self.properties {
-            let entry = prop_groups
-                .entry(&prop.prop_name)
-                .or_insert_with(|| PropGroup {
-                    getter: None,
-                    setter: None,
-                    vis: prop.vis,
-                    docs: prop.docs.clone(),
-                    value_ty: prop.value_ty,
-                });
-            if prop.is_getter {
-                entry.getter = Some(prop.method_ident);
-                if entry.value_ty.is_none() {
-                    entry.value_ty = prop.value_ty;
-                }
-            } else {
-                entry.setter = Some(prop.method_ident);
-                if entry.value_ty.is_none() {
-                    entry.value_ty = prop.value_ty;
-                }
-            }
-            // Use the most permissive visibility and combine docs
-            if prop.vis == Visibility::Public {
-                entry.vis = Visibility::Public;
-            }
-            if !prop.docs.is_empty() && entry.docs.is_empty() {
-                entry.docs.clone_from(&prop.docs);
-            }
-        }
-
         // Generate static PropertyDescriptor entries for method properties.
         // Each getter/setter pair gets wrapper fn pointers and a descriptor.
-        let method_prop_data: Vec<(Vec<TokenStream>, TokenStream)> = prop_groups
+        let method_prop_data: Vec<(Vec<TokenStream>, TokenStream)> = self
+            .properties
             .iter()
             .enumerate()
-            .map(|(i, (prop_name, group))| {
+            .map(|(i, group)| {
+                let prop_name = &group.name;
                 let flags = match group.vis {
                     Visibility::Public => quote! { ::ext_php_rs::flags::PropertyFlags::Public },
                     Visibility::Protected => {
@@ -556,14 +558,9 @@ impl<'a> ParsedImpl<'a> {
                     quote! { ::std::option::Option::None }
                 };
 
-                if group.getter.is_none() && group.setter.is_none() {
-                    return (Vec::new(), quote! {});
-                }
-
                 let descriptor = quote! {
                     ::ext_php_rs::internal::property::PropertyDescriptor {
                         name: #prop_name,
-                        mangled_name: #prop_name,
                         get: #getter_ref,
                         set: #setter_ref,
                         flags: #flags,
@@ -581,11 +578,8 @@ impl<'a> ParsedImpl<'a> {
             .iter()
             .flat_map(|(fns, _)| fns.iter())
             .collect();
-        let method_prop_descriptors: Vec<&TokenStream> = method_prop_data
-            .iter()
-            .filter(|(fns, _)| !fns.is_empty() || !matches!(&fns[..], []))
-            .map(|(_, d)| d)
-            .collect();
+        let method_prop_descriptors: Vec<&TokenStream> =
+            method_prop_data.iter().map(|(_, d)| d).collect();
         let method_prop_count = method_prop_descriptors.len();
 
         quote! {

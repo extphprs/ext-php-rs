@@ -42,6 +42,16 @@ impl TestClass {
         self.number = number;
     }
 
+    #[php(getter)]
+    pub fn get_first_name(&self) -> String {
+        "first".to_string()
+    }
+
+    #[php(getter, name = "custom")]
+    pub fn get_renamed(&self) -> i64 {
+        7
+    }
+
     pub fn static_call(name: String) -> String {
         format!("Hello {name}")
     }
@@ -695,6 +705,21 @@ impl TestUncloneableClass {
     }
 }
 
+const HIDDEN: ext_php_rs::flags::PropertyFlags = ext_php_rs::flags::PropertyFlags::Private;
+
+#[php_class]
+pub struct TestConstFlagsProp {
+    #[php(prop, flags = HIDDEN)]
+    pub secret: String,
+}
+
+#[php_impl]
+impl TestConstFlagsProp {
+    pub fn __construct(secret: String) -> Self {
+        Self { secret }
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -708,6 +733,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestStaticProps>()
         .class::<FluentBuilder>()
         .class::<TestPropertyVisibility>()
+        .class::<TestConstFlagsProp>()
         .class::<TestReservedKeywordMethods>()
         .class::<TestLazyClass>()
         .class::<TestFinalMethods>()
