@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, ffi::CString, mem, ptr};
 
-use super::{ClassBuilder, FunctionBuilder};
+use super::{ClassBuilder, FunctionBuilder, class::first_duplicate};
 use crate::{
     PHP_DEBUG, PHP_ZTS,
     class::RegisteredClass,
@@ -683,12 +683,26 @@ pub type StartupShutdownFunc = unsafe extern "C" fn(_type: i32, _module_number: 
 /// A function to be called when `phpinfo();` is called.
 pub type InfoFunc = unsafe extern "C" fn(zend_module: *mut ModuleEntry);
 
+impl ModuleBuilder<'_> {
+    /// Checks that no two functions share a PHP name. The engine compares
+    /// function names ignoring ASCII case.
+    fn validate(&self) -> Result<()> {
+        match first_duplicate(self.functions.iter().map(|f| f.name.as_str()), true) {
+            Some(name) => Err(crate::error::Error::DuplicateFunction {
+                function: name.to_owned(),
+            }),
+            None => Ok(()),
+        }
+    }
+}
+
 /// Builds a [`ModuleEntry`] and [`ModuleStartup`] from a [`ModuleBuilder`].
 /// This is the entry point for the module to be registered with PHP.
 impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocations) {
     type Error = crate::error::Error;
 
     fn try_from(builder: ModuleBuilder) -> Result<Self, Self::Error> {
+        builder.validate()?;
         let mut arg_info = Vec::with_capacity(builder.functions.len());
         let mut function_table = Vec::with_capacity(builder.functions.len() + 1);
         for function in builder.functions {
@@ -820,6 +834,18 @@ mod tests {
         assert!(builder.info_func.is_none());
         #[cfg(feature = "enum")]
         assert!(builder.enums.is_empty());
+    }
+
+    #[test]
+    fn functions_that_differ_only_by_case_fail_the_module_build() {
+        let builder = ModuleBuilder::new("test", "1.0")
+            .function(FunctionBuilder::new("say_hello", test_function))
+            .function(FunctionBuilder::new("Say_Hello", test_function));
+        let built = <(ModuleEntry, ModuleStartup, ModuleAllocations)>::try_from(builder);
+        assert!(matches!(
+            built,
+            Err(crate::error::Error::DuplicateFunction { function }) if function == "Say_Hello"
+        ));
     }
 
     #[test]

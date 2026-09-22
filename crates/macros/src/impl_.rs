@@ -2,15 +2,15 @@ use darling::FromAttributes;
 use darling::util::{Flag, SpannedValue};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use syn::{Expr, Ident, ItemImpl};
 
 use crate::constant::PhpConstAttribute;
 use crate::function::{Args, CallType, Function, MethodReceiver};
 use crate::helpers::get_docs;
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
-    validate_php_name,
+    NameSet, PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name,
+    reject_php_attrs, validate_php_name,
 };
 use crate::prelude::*;
 
@@ -196,9 +196,11 @@ struct ParsedImpl<'a> {
     has_abstract_methods: bool,
     /// Properties backed by getter/setter methods, in declaration order.
     properties: Vec<PropGroup<'a>>,
+    method_names: NameSet,
+    constant_names: NameSet,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MethodModifier {
     Abstract,
     Static,
@@ -223,7 +225,7 @@ pub struct FnBuilder {
     /// The visibility of this method.
     pub vis: Visibility,
     /// Whether this method is abstract.
-    pub modifiers: HashSet<MethodModifier>,
+    pub modifiers: BTreeSet<MethodModifier>,
 }
 
 #[derive(Debug)]
@@ -256,6 +258,8 @@ impl<'a> ParsedImpl<'a> {
             constants: Vec::default(),
             has_abstract_methods: false,
             properties: Vec::default(),
+            method_names: NameSet::case_insensitive(),
+            constant_names: NameSet::case_sensitive(),
         }
     }
 
@@ -337,6 +341,9 @@ impl<'a> ParsedImpl<'a> {
                         .rename
                         .rename(ident_to_php_name(&c.ident), self.change_constant_case);
                     validate_php_name(&name, PhpNameContext::Constant, c.ident.span())?;
+                    if self.constant_names.insert(&name).is_err() {
+                        bail!(c.ident => "PHP constant `{name}` is already declared in this block. Rename one of them with `#[php(name = \"...\")]`.");
+                    }
                     let docs = get_docs(&attr.attrs)?;
                     c.attrs.retain(|attr| !attr.path().is_ident("php"));
 
@@ -366,10 +373,19 @@ impl<'a> ParsedImpl<'a> {
                         continue;
                     }
 
+                    let php_name = if matches!(opts.ty, MethodTy::Constructor) {
+                        "__construct"
+                    } else {
+                        opts.name.as_str()
+                    };
+                    if let Err(earlier) = self.method_names.insert(php_name) {
+                        bail!(method.sig.ident => "PHP method `{php_name}` is already declared as `{earlier}` in this block. PHP method names ignore case. Rename one of them with `#[php(name = \"...\")]`.");
+                    }
+
                     let args = Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
                     let mut func = Function::new(&method.sig, opts.name, args, opts.optional, docs);
 
-                    let mut modifiers: HashSet<MethodModifier> = HashSet::new();
+                    let mut modifiers: BTreeSet<MethodModifier> = BTreeSet::new();
 
                     if matches!(opts.ty, MethodTy::Constructor) {
                         if self.constructor.replace((func, opts.vis.into())).is_some() {
@@ -632,5 +648,41 @@ impl quote::ToTokens for FnBuilder {
             (#builder, #(#flags)|*)
         }
         .to_tokens(tokens);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::{ToTokens, quote};
+
+    use super::{BTreeSet, FnBuilder, MethodModifier};
+    use crate::parsing::Visibility;
+
+    #[test]
+    fn modifiers_render_in_a_fixed_order() {
+        let render = |inserted: [MethodModifier; 2]| {
+            FnBuilder {
+                builder: quote! { b },
+                vis: Visibility::Public,
+                modifiers: inserted.into_iter().collect::<BTreeSet<_>>(),
+            }
+            .to_token_stream()
+            .to_string()
+        };
+        let expected = quote! {
+            (b, ::ext_php_rs::flags::MethodFlags::Public
+                | ::ext_php_rs::flags::MethodFlags::Abstract
+                | ::ext_php_rs::flags::MethodFlags::Static)
+        }
+        .to_string();
+
+        assert_eq!(
+            render([MethodModifier::Static, MethodModifier::Abstract]),
+            expected
+        );
+        assert_eq!(
+            render([MethodModifier::Abstract, MethodModifier::Static]),
+            expected
+        );
     }
 }

@@ -198,3 +198,10 @@ assert($param->isOptional());
 $param = ( new ReflectionMethod('ExtPhpRs\Interface\OptionalGreeting', 'greetOptional') )->getParameters()[0];
 assert($param->allowsNull());
 assert($param->isOptional());
+
+$renamed = new ReflectionClass('ExtPhpRs\Interface\RenamedGreeter');
+assert($renamed->isInstantiable(), 'a class must register every interface method under the interface name');
+$greeter = new ExtPhpRs\Interface\RenamedGreeter();
+assert($greeter instanceof ExtPhpRs\Interface\RenamedGreeting);
+assert($greeter->greet_loudly() === 'HELLO');
+assert($greeter->customGreeting() === 'custom');

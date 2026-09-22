@@ -1,0 +1,5 @@
+error: `rename_cases` is now `change_cases_case`.
+ --> tests/ui/php_enum_rename_cases.rs:4:22
+  |
+4 | #[php(rename_cases = "snake_case")]
+  |                      ^^^^^^^^^^^^

@@ -12,7 +12,8 @@ use syn::{Fields, Ident, ItemEnum, Lit};
 use crate::{
     helpers::get_docs,
     parsing::{
-        PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+        NameSet, PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name,
+        validate_php_name,
     },
     prelude::*,
 };
@@ -24,7 +25,8 @@ struct PhpEnumAttribute {
     rename: PhpRename,
     #[darling(default)]
     allow_native_discriminants: Flag,
-    rename_cases: Option<RenameRule>,
+    change_cases_case: Option<RenameRule>,
+    rename_cases: Option<SpannedValue<RenameRule>>,
     vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
 }
@@ -44,10 +46,14 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
     if let Some(vis) = &php_attr.vis {
         bail!(vis.span() => "PHP enums are always public; remove `vis`.");
     }
+    if let Some(rename_cases) = &php_attr.rename_cases {
+        bail!(rename_cases.span() => "`rename_cases` is now `change_cases_case`.");
+    }
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
     let docs = get_docs(&php_attr.attrs)?;
     let mut cases = vec![];
+    let mut case_names = NameSet::case_sensitive();
     let mut discriminant_type = DiscriminantType::None;
 
     for variant in &mut input.variants {
@@ -90,9 +96,12 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
 
         let case_name = variant_attr.rename.rename(
             ident_to_php_name(&variant.ident),
-            php_attr.rename_cases.unwrap_or(RenameRule::Pascal),
+            php_attr.change_cases_case.unwrap_or(RenameRule::Pascal),
         );
         validate_php_name(&case_name, PhpNameContext::EnumCase, variant.ident.span())?;
+        if case_names.insert(&case_name).is_err() {
+            bail!(variant.ident => "Enum case `{case_name}` is already declared. Rename one of them with `#[php(name = \"...\")]`.");
+        }
 
         cases.push(EnumCase {
             ident: variant.ident.clone(),

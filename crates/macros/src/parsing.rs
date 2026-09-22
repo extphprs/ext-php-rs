@@ -1,5 +1,6 @@
 use convert_case::{Case, Casing};
 use darling::FromMeta;
+use darling::util::SpannedValue;
 use quote::{ToTokens, quote};
 use syn::Ident;
 
@@ -288,6 +289,47 @@ pub fn validate_php_name(
     Ok(())
 }
 
+/// The PHP names already declared in one item, compared the way the engine
+/// keys its tables: methods and functions with ASCII case folding, constants
+/// and enum cases exactly.
+#[derive(Debug)]
+pub struct NameSet {
+    fold_ascii_case: bool,
+    names: Vec<String>,
+}
+
+impl NameSet {
+    pub fn case_insensitive() -> Self {
+        Self {
+            fold_ascii_case: true,
+            names: Vec::new(),
+        }
+    }
+
+    pub fn case_sensitive() -> Self {
+        Self {
+            fold_ascii_case: false,
+            names: Vec::new(),
+        }
+    }
+
+    /// Records `name`, or returns the earlier name it collides with.
+    pub fn insert(&mut self, name: &str) -> std::result::Result<(), String> {
+        let same = |earlier: &&String| {
+            if self.fold_ascii_case {
+                earlier.eq_ignore_ascii_case(name)
+            } else {
+                *earlier == name
+            }
+        };
+        if let Some(earlier) = self.names.iter().find(same) {
+            return Err(earlier.clone());
+        }
+        self.names.push(name.to_owned());
+        Ok(())
+    }
+}
+
 const MAGIC_METHOD: [&str; 17] = [
     "__construct",
     "__destruct",
@@ -351,18 +393,32 @@ pub trait MethodRename: Rename {
 }
 
 #[derive(FromMeta, Debug, Default)]
-#[darling(default)]
+#[darling(default, and_then = Self::exclusive)]
 pub struct PhpRename {
     name: Option<String>,
-    change_case: Option<RenameRule>,
+    change_case: Option<SpannedValue<RenameRule>>,
 }
 
 impl PhpRename {
+    fn exclusive(self) -> darling::Result<Self> {
+        match (&self.name, &self.change_case) {
+            (Some(_), Some(change_case)) => Err(darling::Error::custom(
+                "`name` and `change_case` cannot be used together; `name` already sets the PHP name",
+            )
+            .with_span(&change_case.span())),
+            _ => Ok(self),
+        }
+    }
+
+    fn rule(&self, default: RenameRule) -> RenameRule {
+        self.change_case.as_deref().copied().unwrap_or(default)
+    }
+
     pub fn rename(&self, name: impl AsRef<str>, default: RenameRule) -> String {
         if let Some(name) = self.name.as_ref() {
             name.clone()
         } else {
-            name.as_ref().rename(self.change_case.unwrap_or(default))
+            name.as_ref().rename(self.rule(default))
         }
     }
 
@@ -370,8 +426,7 @@ impl PhpRename {
         if let Some(name) = self.name.as_ref() {
             name.clone()
         } else {
-            name.as_ref()
-                .rename_method(self.change_case.unwrap_or(default))
+            name.as_ref().rename_method(self.rule(default))
         }
     }
 }
@@ -445,7 +500,28 @@ where
 mod tests {
     use crate::parsing::{MethodRename, Rename};
 
+    use darling::FromMeta;
+    use darling::util::SpannedValue;
+    use proc_macro2::Span;
+
     use super::{PhpRename, RenameRule};
+
+    #[test]
+    fn name_set_folds_ascii_case_for_methods() {
+        let mut methods = super::NameSet::case_insensitive();
+        assert_eq!(methods.insert("fooBar"), Ok(()));
+        assert_eq!(methods.insert("other"), Ok(()));
+        assert_eq!(methods.insert("FOOBAR"), Err("fooBar".to_string()));
+        assert_eq!(methods.insert("fooBär"), Ok(()));
+    }
+
+    #[test]
+    fn name_set_compares_constants_exactly() {
+        let mut constants = super::NameSet::case_sensitive();
+        assert_eq!(constants.insert("FOO"), Ok(()));
+        assert_eq!(constants.insert("foo"), Ok(()));
+        assert_eq!(constants.insert("FOO"), Err("FOO".to_string()));
+    }
 
     #[test]
     fn php_rename() {
@@ -459,19 +535,14 @@ mod tests {
 
         let rename = PhpRename {
             name: None,
-            change_case: Some(RenameRule::ScreamingSnake),
+            change_case: Some(SpannedValue::new(
+                RenameRule::ScreamingSnake,
+                Span::call_site(),
+            )),
         };
         assert_eq!(rename.rename("testCase", RenameRule::Snake), "TEST_CASE");
         assert_eq!(rename.rename("TestCase", RenameRule::Snake), "TEST_CASE");
         assert_eq!(rename.rename("TEST_CASE", RenameRule::Snake), "TEST_CASE");
-
-        let rename = PhpRename {
-            name: Some("test".to_string()),
-            change_case: Some(RenameRule::ScreamingSnake),
-        };
-        assert_eq!(rename.rename("testCase", RenameRule::Snake), "test");
-        assert_eq!(rename.rename("TestCase", RenameRule::Snake), "test");
-        assert_eq!(rename.rename("TEST_CASE", RenameRule::Snake), "test");
 
         let rename = PhpRename {
             name: None,
@@ -480,6 +551,35 @@ mod tests {
         assert_eq!(rename.rename("testCase", RenameRule::Snake), "test_case");
         assert_eq!(rename.rename("TestCase", RenameRule::Snake), "test_case");
         assert_eq!(rename.rename("TEST_CASE", RenameRule::Snake), "test_case");
+    }
+
+    #[test]
+    fn name_and_change_case_are_exclusive() {
+        let parse = |tokens| {
+            PhpRename::from_list(&darling::ast::NestedMeta::parse_meta_list(tokens).unwrap())
+        };
+
+        assert!(parse(quote::quote! { name = "x", change_case = "snake_case" }).is_err());
+        assert!(parse(quote::quote! { name = "x" }).is_ok());
+        assert!(parse(quote::quote! { change_case = "snake_case" }).is_ok());
+    }
+
+    #[test]
+    fn name_and_change_case_are_exclusive_across_attributes() {
+        #[derive(darling::FromAttributes)]
+        #[darling(attributes(php))]
+        struct Attr {
+            #[darling(flatten)]
+            _rename: PhpRename,
+        }
+
+        let attrs: Vec<syn::Attribute> = vec![
+            syn::parse_quote!(#[php(name = "x")]),
+            syn::parse_quote!(#[php(change_case = "snake_case")]),
+        ];
+
+        assert!(<Attr as darling::FromAttributes>::from_attributes(&attrs).is_err());
+        assert!(<Attr as darling::FromAttributes>::from_attributes(&attrs[..1]).is_ok());
     }
 
     #[test]
@@ -494,7 +594,10 @@ mod tests {
 
         let rename = PhpRename {
             name: None,
-            change_case: Some(RenameRule::ScreamingSnake),
+            change_case: Some(SpannedValue::new(
+                RenameRule::ScreamingSnake,
+                Span::call_site(),
+            )),
         };
         assert_eq!(
             rename.rename_method("testCase", RenameRule::Snake),
@@ -508,14 +611,6 @@ mod tests {
             rename.rename_method("TEST_CASE", RenameRule::Snake),
             "TEST_CASE"
         );
-
-        let rename = PhpRename {
-            name: Some("test".to_string()),
-            change_case: Some(RenameRule::ScreamingSnake),
-        };
-        assert_eq!(rename.rename_method("testCase", RenameRule::Snake), "test");
-        assert_eq!(rename.rename_method("TestCase", RenameRule::Snake), "test");
-        assert_eq!(rename.rename_method("TEST_CASE", RenameRule::Snake), "test");
 
         let rename = PhpRename {
             name: None,
@@ -561,7 +656,7 @@ mod tests {
                 magic,
                 PhpRename {
                     name: None,
-                    change_case: Some(RenameRule::None)
+                    change_case: Some(SpannedValue::new(RenameRule::None, Span::call_site()))
                 }
                 .rename_method(magic, RenameRule::ScreamingSnake)
             );
@@ -571,7 +666,7 @@ mod tests {
                 expected,
                 PhpRename {
                     name: None,
-                    change_case: Some(RenameRule::Camel)
+                    change_case: Some(SpannedValue::new(RenameRule::Camel, Span::call_site()))
                 }
                 .rename_method(magic, RenameRule::ScreamingSnake)
             );
@@ -581,7 +676,7 @@ mod tests {
                 expected,
                 PhpRename {
                     name: None,
-                    change_case: Some(RenameRule::Pascal)
+                    change_case: Some(SpannedValue::new(RenameRule::Pascal, Span::call_site()))
                 }
                 .rename_method(magic, RenameRule::ScreamingSnake)
             );
@@ -591,7 +686,7 @@ mod tests {
                 expected,
                 PhpRename {
                     name: None,
-                    change_case: Some(RenameRule::Snake)
+                    change_case: Some(SpannedValue::new(RenameRule::Snake, Span::call_site()))
                 }
                 .rename_method(magic, RenameRule::ScreamingSnake)
             );
@@ -601,7 +696,10 @@ mod tests {
                 expected,
                 PhpRename {
                     name: None,
-                    change_case: Some(RenameRule::ScreamingSnake)
+                    change_case: Some(SpannedValue::new(
+                        RenameRule::ScreamingSnake,
+                        Span::call_site()
+                    ))
                 }
                 .rename_method(magic, RenameRule::Camel)
             );
@@ -669,7 +767,8 @@ mod tests {
         assert!(is_php_reserved_keyword("CLASS"));
         assert!(is_php_reserved_keyword("FUNCTION"));
 
-        // Type keywords are NOT in the reserved list (they're in PHP_TYPE_KEYWORDS)
+        // Type keywords are NOT in the reserved list (they're in
+        // PHP_TYPE_KEYWORDS)
         assert!(!is_php_reserved_keyword("void"));
         assert!(!is_php_reserved_keyword("true"));
         assert!(!is_php_reserved_keyword("bool"));

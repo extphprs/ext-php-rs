@@ -38,7 +38,7 @@ You can customize properties with these options:
 - `name` - Allows you to rename the property, e.g.
   `#[php(prop, name = "new_name")]`
 - `change_case` - Allows you to rename the property using rename rules, e.g.
-  `#[php(prop, change_case = PascalCase)]`
+  `#[php(prop, change_case = "PascalCase")]`
 - `static` - Makes the property static (shared across all instances), e.g.
   `#[php(prop, static)]`
 - `flags` - Sets property visibility flags, e.g.

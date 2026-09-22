@@ -389,3 +389,7 @@ echo serialize_object($user);
 3. **Link-time discovery**: The `inventory` crate uses link-time registration for
    interface discovery, so all implementations are automatically discovered when the
    final binary is linked.
+
+4. **Method names**: Each method gets the PHP name that `#[php_interface]` declared
+   for it. The trait's `change_method_case` and the `name` or `change_case` of a
+   trait method apply to the class too. `#[php_impl_interface]` takes no arguments.

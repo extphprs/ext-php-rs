@@ -292,12 +292,45 @@ impl OptionalGreeting for OptionalGreeter {
     }
 }
 
+#[php_interface]
+#[php(name = "ExtPhpRs\\Interface\\RenamedGreeting")]
+#[php(change_method_case = "snake_case")]
+#[allow(dead_code)]
+pub trait RenamedGreeting {
+    fn greet_loudly(&self) -> String;
+    #[php(name = "customGreeting")]
+    fn custom(&self) -> String;
+}
+
+#[php_class]
+#[php(name = "ExtPhpRs\\Interface\\RenamedGreeter")]
+pub struct RenamedGreeter;
+
+#[php_impl]
+impl RenamedGreeter {
+    pub fn __construct() -> Self {
+        Self
+    }
+}
+
+#[php_impl_interface]
+impl RenamedGreeting for RenamedGreeter {
+    fn greet_loudly(&self) -> String {
+        "HELLO".to_string()
+    }
+
+    fn custom(&self) -> String {
+        "custom".to_string()
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .interface::<PhpInterfaceEmptyObjectTrait>()
         .interface::<PhpInterfaceParentInterface>()
         .interface::<PhpInterfaceChildInterface>()
         .interface::<PhpInterfaceOptionalGreeting>()
+        .interface::<PhpInterfaceRenamedGreeting>()
         // Iterator examples for issue #308
         .class::<RangeIterator>()
         .class::<MapIterator>()
@@ -305,6 +338,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         // Greeter with #[php_impl_interface]
         .class::<Greeter>()
         .class::<OptionalGreeter>()
+        .class::<RenamedGreeter>()
 }
 
 #[cfg(test)]

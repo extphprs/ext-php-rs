@@ -22,6 +22,7 @@ trait MyInterface2 {
     fn my_method(&self, arg: i32) -> String;
     #[php(change_case = "PascalCase")]
     fn anotherMethod(&self) -> i32;
+    fn static_method() -> i32;
 }
 
 #[php_class]

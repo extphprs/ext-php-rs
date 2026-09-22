@@ -1,0 +1,5 @@
+error: Enum case `Hearts` is already declared. Rename one of them with `#[php(name = "...")]`.
+ --> tests/ui/php_enum_duplicate_case.rs:7:5
+  |
+7 |     Spades,
+  |     ^^^^^^

@@ -2,11 +2,15 @@ use std::{ffi::CString, mem::ManuallyDrop, ptr};
 
 use crate::{
     args::ArgInfoTables,
-    builders::{FunctionBuilder, function::free_registered_entries},
+    builders::{
+        FunctionBuilder,
+        class::{ensure_class_name_free, first_duplicate},
+        function::free_registered_entries,
+    },
     convert::IntoZval,
     describe::DocComments,
     enum_::{Discriminant, EnumCase},
-    error::Result,
+    error::{Error, Result},
     ffi::{zend_enum_add_case, zend_register_internal_enum},
     flags::{DataType, DataTypeExt, MethodFlags},
     types::{ZendStr, Zval},
@@ -84,6 +88,23 @@ impl EnumBuilder {
         self
     }
 
+    /// Checks that no two methods or cases of the enum share a PHP name.
+    /// Methods are compared ignoring ASCII case, like the engine.
+    fn validate(&self) -> Result<()> {
+        if let Some(name) = first_duplicate(self.methods.iter().map(|(m, _)| m.name.as_str()), true)
+        {
+            return Err(Error::DuplicateMethod {
+                method: format!("{}::{name}", self.name),
+            });
+        }
+        if let Some(name) = first_duplicate(self.cases.iter().map(|c| c.name), false) {
+            return Err(Error::DuplicateConstant {
+                constant: format!("{}::{name}", self.name),
+            });
+        }
+        Ok(())
+    }
+
     /// Registers the enum with PHP.
     ///
     /// # Panics
@@ -94,14 +115,20 @@ impl EnumBuilder {
     ///
     /// # Errors
     ///
-    /// If the enum could not be registered, e.g. due to an invalid name or
-    /// data type.
+    /// * [`Error::DuplicateMethod`] or [`Error::DuplicateConstant`] - If two
+    ///   methods or cases share a PHP name.
+    /// * [`Error::DuplicateClass`] - If a class with this name, ignoring ASCII
+    ///   case, is already registered.
+    /// * If the enum could not be registered, e.g. due to an invalid name or
+    ///   data type.
     pub fn register(self) -> Result<()> {
         assert!(
             !ExecutorGlobals::get().current_module.is_null(),
             "Enums can only be registered from a module startup (MINIT) function: \
              `do_register_internal_class` dereferences `EG(current_module)`."
         );
+        self.validate()?;
+        ensure_class_name_free(&self.name)?;
 
         let mut arg_info = Vec::with_capacity(self.methods.len());
         let mut methods = Vec::with_capacity(self.methods.len() + 1);
@@ -175,6 +202,37 @@ impl EnumBuilder {
 mod tests {
     use super::*;
     use crate::enum_::Discriminant;
+
+    #[test]
+    fn validate_rejects_a_repeated_case() {
+        const same: EnumCase = EnumCase {
+            name: "Variant1",
+            discriminant: None,
+            docs: &[],
+        };
+        let builder = EnumBuilder::new("Foo").case(&case1).case(&same);
+        assert!(matches!(
+            builder.validate(),
+            Err(Error::DuplicateConstant { constant }) if constant == "Foo::Variant1"
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_methods_that_differ_only_by_case() {
+        let builder = EnumBuilder::new("Foo")
+            .method(
+                FunctionBuilder::new("label", crate::test::test_function),
+                MethodFlags::Public,
+            )
+            .method(
+                FunctionBuilder::new("Label", crate::test::test_function),
+                MethodFlags::Public,
+            );
+        assert!(matches!(
+            builder.validate(),
+            Err(Error::DuplicateMethod { method }) if method == "Foo::Label"
+        ));
+    }
 
     const case1: EnumCase = EnumCase {
         name: "Variant1",

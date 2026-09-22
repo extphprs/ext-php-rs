@@ -1,0 +1,5 @@
+error: `name` and `change_case` cannot be used together; `name` already sets the PHP name
+ --> tests/ui/php_function_name_and_change_case.rs:4:39
+  |
+4 | #[php(name = "renamed", change_case = "UPPER_CASE")]
+  |                                       ^^^^^^^^^^^^

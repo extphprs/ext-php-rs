@@ -69,6 +69,33 @@ pub enum Error {
         /// `Class::$property` that was declared twice.
         property: String,
     },
+    /// A class or enum declared two methods whose names differ only by ASCII
+    /// case. PHP method names ignore case.
+    #[error("method `{method}` is declared twice")]
+    DuplicateMethod {
+        /// `Class::method` that was declared twice.
+        method: String,
+    },
+    /// A class declared two constants, or an enum two cases, with the same
+    /// name.
+    #[error("constant `{constant}` is declared twice")]
+    DuplicateConstant {
+        /// `Class::CONSTANT` that was declared twice.
+        constant: String,
+    },
+    /// A module declared two functions whose names differ only by ASCII case.
+    #[error("function `{function}` is declared twice")]
+    DuplicateFunction {
+        /// Name of the function that was declared twice.
+        function: String,
+    },
+    /// A class, interface or enum with this name, ignoring ASCII case, is
+    /// already registered with the engine.
+    #[error("class `{class}` is already registered")]
+    DuplicateClass {
+        /// Name of the class that was registered twice.
+        class: String,
+    },
     /// The given property name does not exist.
     #[error("property `{property}` does not exist on the object")]
     InvalidProperty {

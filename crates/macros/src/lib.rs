@@ -70,7 +70,7 @@ extern crate proc_macro;
 /// - `name` - Allows you to rename the property, e.g. `#[php(prop, name =
 ///   "new_name")]`
 /// - `change_case` - Allows you to rename the property using rename rules, e.g.
-///   `#[php(prop, change_case = PascalCase)]`
+///   `#[php(prop, change_case = "PascalCase")]`
 /// - `static` - Makes the property static (shared across all instances), e.g.
 ///   `#[php(prop, static)]`
 /// - `flags` - Sets property visibility flags, e.g. `#[php(prop, flags =
@@ -873,20 +873,21 @@ fn php_class_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// ## Options
 ///
 /// The `#[php_enum]` attribute can be configured with the following options:
-/// - `#[php(name = "EnumName")]` or `#[php(change_case = snake_case)]`: Sets
+/// - `#[php(name = "EnumName")]` or `#[php(change_case = "snake_case")]`: Sets
 ///   the name of the enum in PHP. The default is the `PascalCase` name of the
 ///   enum.
 /// - `#[php(allow_native_discriminants)]`: Allows the use of native Rust
 ///   discriminants (e.g., `Hearts = 1`).
-/// - `#[php(rename_cases = snake_case)]`: Sets the rename rule for every case
-///   that has no `name` of its own.
+/// - `#[php(change_cases_case = "snake_case")]`: Sets the rename rule for every
+///   case that has no `name` or `change_case` of its own. The old name of this
+///   option, `rename_cases`, is a compile error.
 ///
 /// PHP enums are always public. `#[php(vis = "...")]` on an enum is a compile
 /// error, and so is any argument passed to the macro itself, such as
 /// `#[php_enum(name = "Suit")]`.
 ///
 /// The cases of the enum can be configured with the following options:
-/// - `#[php(name = "CaseName")]` or `#[php(change_case = snake_case)]`: Sets
+/// - `#[php(name = "CaseName")]` or `#[php(change_case = "snake_case")]`: Sets
 ///   the name of the enum case in PHP. The default is the `PascalCase` name of
 ///   the case.
 /// - `#[php(value = "value")]` or `#[php(value = 123)]`: Sets the discriminant
@@ -1395,6 +1396,11 @@ fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// 3. **Link-time discovery**: The `inventory` crate uses link-time
 ///    registration for interface discovery, so all implementations are
 ///    automatically discovered when the final binary is linked.
+///
+/// 4. **Method names**: Each method gets the PHP name that `#[php_interface]`
+///    declared for it. The trait's `change_method_case` and the `name` or
+///    `change_case` of a trait method apply to the class too.
+///    `#[php_impl_interface]` takes no arguments.
 // END DOCS FROM interface.md
 #[proc_macro_attribute]
 pub fn php_interface(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -1655,7 +1661,7 @@ fn php_function_internal(args: TokenStream2, input: TokenStream2) -> TokenStream
 /// - `name` - Allows you to rename the property, e.g. `#[php(name =
 ///   "new_name")]`
 /// - `change_case` - Allows you to rename the property using rename rules, e.g.
-///   `#[php(change_case = PascalCase)]`
+///   `#[php(change_case = "PascalCase")]`
 ///
 /// A global constant has no visibility. `#[php(vis = "...")]` on a
 /// `#[php_const]` is a compile error. Use `vis` on constants inside a
@@ -2216,30 +2222,12 @@ fn php_impl_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// After registration, PHP's `is_a($obj, 'MyInterface')` will return `true`
 /// for instances of `MyClass`, and `$obj->myMethod()` will be callable.
 ///
-/// ## Options
+/// ## Method names
 ///
-/// ### `change_method_case`
-///
-/// If the interface uses a non-default `change_method_case` (e.g.,
-/// `#[php(change_method_case = "snake_case")]`), you must specify the same
-/// setting on `#[php_impl_interface]` to ensure method names match:
-///
-/// ```rust,no_run,ignore
-/// #[php_interface]
-/// #[php(change_method_case = "snake_case")]
-/// trait MyInterface {
-///     fn my_method(&self) -> String;
-/// }
-///
-/// #[php_impl_interface(change_method_case = "snake_case")]
-/// impl MyInterface for MyClass {
-///     fn my_method(&self) -> String {
-///         "Hello!".to_string()
-///     }
-/// }
-/// ```
-///
-/// The default is `camelCase` (matching the interface default).
+/// Each method is registered under the name that `#[php_interface]` gave it.
+/// The trait's `change_method_case` and the `name` or `change_case` of a trait
+/// method apply to the class too. The macro takes no arguments:
+/// `#[php_impl_interface(change_method_case = "...")]` is a compile error.
 ///
 /// ## Requirements
 ///
@@ -2263,7 +2251,7 @@ fn php_impl_interface_internal(args: TokenStream2, input: TokenStream2) -> Token
         Err(e) => return e.write_errors(),
     };
 
-    impl_interface::parser(args, &input).unwrap_or_else(|e| e.to_compile_error())
+    impl_interface::parser(&args, &input).unwrap_or_else(|e| e.to_compile_error())
 }
 
 // BEGIN DOCS FROM extern.md

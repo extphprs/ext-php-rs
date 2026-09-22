@@ -36,6 +36,14 @@ pub enum StringBackedEnum {
     Variant2,
 }
 
+#[php_enum]
+#[php(change_cases_case = "UPPER_CASE")]
+pub enum RenamedCasesEnum {
+    FirstCase,
+    #[php(name = "Kept")]
+    SecondCase,
+}
+
 #[php_function]
 pub fn test_enum(a: TestEnum) -> Result<StringBackedEnum> {
     let str: &str = StringBackedEnum::Variant2.into();
@@ -55,6 +63,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .enumeration::<TestEnum>()
         .enumeration::<IntBackedEnum>()
         .enumeration::<StringBackedEnum>()
+        .enumeration::<RenamedCasesEnum>()
         .function(wrap_function!(test_enum))
         .function(wrap_function!(test_enum_from_name))
 }

@@ -57,7 +57,7 @@ Which attributes are available depends on the element you are annotating:
 | final                      | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
 | allow_native_discriminants | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
 | value                      | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ❌     | ✅          |
-| rename_cases               | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
+| change_cases_case          | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
 
 An option marked ❌ is a compile error. The error points at the option and
 names the item where the option is valid. The proc macros themselves take no
@@ -71,13 +71,17 @@ Trait methods inside `#[php_interface]` accept `name`, `change_case`,
 
 ## `name` and `change_case`
 
-`name` and `change_case` are mutually exclusive. The `name` attribute is used to set the name of
-an item to a string literal. The `change_case` attribute is used to change the case of the name.
+The `name` option sets the PHP name of an item to a string literal. The
+`change_case` option converts the Rust name to a different case. You can use
+only one of the two on an item. If you use both, the macro gives a compile
+error.
 
 ```rs
 #[php(name = "NEW_NAME")]
-#[php(change_case = snake_case)]]
+#[php(change_case = "snake_case")]
 ```
+
+The case is a string literal.
 
 Available cases are:
 - `snake_case`
@@ -85,3 +89,18 @@ Available cases are:
 - `camelCase`
 - `UPPER_CASE`
 - `none` - No change
+
+Two items can get the same PHP name after renaming. For example, `fn get_count`
+and `#[php(name = "GETCOUNT")] fn count_again` both give the PHP method
+`getCount`, because PHP method names ignore case. If two methods, two constants
+or two enum cases of one block get the same PHP name, the macro gives a compile
+error at the second item. Method names are compared without case. Constant and
+enum case names are compared with case.
+
+The macros cannot see a clash between two blocks, for example a method of
+`#[php_impl]` and a method of `#[php_impl_interface]` with the same PHP name.
+The builders check these at module startup. If two methods, two constants or
+two functions share a PHP name, or if a class with the same name is already
+registered, the extension does not start. The startup error names the item:
+`Error::DuplicateMethod`, `Error::DuplicateConstant`, `Error::DuplicateFunction`
+or `Error::DuplicateClass`.
