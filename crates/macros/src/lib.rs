@@ -641,8 +641,9 @@ extern crate proc_macro;
 /// ## Cloning
 ///
 /// PHP's native `clone` operator is supported for `#[php_class]` structs that
-/// derive `Clone`. Add `#[derive(Clone)]` to your struct and the cloned PHP
-/// object will contain a proper copy of the Rust data:
+/// implement `Clone`. A derive or a hand-written `impl Clone` both work, and
+/// the spelling of the derive path does not matter. The cloned PHP object
+/// contains a copy of the Rust data:
 ///
 /// ```rust,ignore
 /// use ext_php_rs::prelude::*;
@@ -672,10 +673,10 @@ extern crate proc_macro;
 /// echo $style->fontSize;  // 12.0 — original is unchanged
 /// ```
 ///
-/// Structs that do **not** derive `Clone` will throw an error when cloned:
+/// Structs that do not implement `Clone` throw an error when cloned:
 ///
 /// ```php
-/// // If MyClass doesn't #[derive(Clone)]:
+/// // If MyClass does not implement Clone:
 /// $obj = new MyClass();
 /// $copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
 /// ```
@@ -1425,10 +1426,11 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 ///
 /// ## Optional parameters
 ///
-/// Optional parameters can be used by setting the Rust parameter type to a
-/// variant of `Option<T>`. The macro will then figure out which parameters are
-/// optional by using the last consecutive arguments that are a variant of
-/// `Option<T>` or have a default value.
+/// An `Option<T>` parameter accepts `null` and can be omitted. The macro reads
+/// this from the type through `FromZvalMut::NULLABLE`, so a type alias such as
+/// `type MaybeAge = Option<i64>` or the qualified path
+/// `std::option::Option<i64>` behaves like `Option<i64>`. The trailing run of
+/// parameters that are nullable or have a default value is optional.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1455,7 +1457,11 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 ///
 /// Default parameter values can also be set for optional parameters. This is
 /// done through the `#[php(defaults)]` attribute option. When an optional
-/// parameter has a default, it does not need to be a variant of `Option`:
+/// parameter has a default, it does not need to be a variant of `Option`. The
+/// default expression is converted into the parameter type with `Into`, so the
+/// type must implement `IntoZval` and `Clone`. The module evaluates it once at
+/// load time and renders the value into the stub file and into
+/// `ReflectionParameter::getDefaultValue()`:
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1541,9 +1547,11 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 ///
 /// ## Variadic Functions
 ///
-/// Variadic functions can be implemented by specifying the last argument in the
-/// Rust function to the type `&[&Zval]`. This is the equivalent of a PHP
-/// function using the `...$args` syntax.
+/// A slice parameter `&[T]` in last position is variadic, the equivalent of the
+/// PHP `...$args` syntax. `T` is any argument type: `&[&Zval]` receives the raw
+/// values, `&[i64]` receives converted integers. A variadic parameter that is
+/// not the last parameter is a compile error. The slice must be spelled in the
+/// signature; a type alias that hides the slice is not detected.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1600,7 +1608,7 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// ```
 ///
 /// The only case that falls back to the runtime argument parser is when using
-/// variadic arguments (`&[&Zval]`, the Rust equivalent of PHP's `...$args`):
+/// variadic arguments (`&[T]`, the Rust equivalent of PHP's `...$args`):
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
