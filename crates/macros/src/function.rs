@@ -822,6 +822,7 @@ impl<'a> Args<'a> {
                 }
             }
         }
+        reject_unknown_defaults(defaults)?;
         Ok(result)
     }
 
@@ -850,6 +851,19 @@ impl<'a> Args<'a> {
             const __REQUIRED: usize = ::ext_php_rs::args::required_count(&[#(#omittable),*]);
         }
     }
+}
+
+fn reject_unknown_defaults(defaults: HashMap<Ident, Expr>) -> Result<()> {
+    let mut unknown: Vec<Ident> = defaults.into_keys().collect();
+    unknown.sort();
+    unknown
+        .into_iter()
+        .map(|name| err!(name => "no parameter named `{name}`; `defaults` keys must match a parameter name"))
+        .reduce(|mut all, next| {
+            all.combine(next);
+            all
+        })
+        .map_or(Ok(()), Err)
 }
 
 /// A `&[T]` parameter is the variadic tail. The element type decides the
@@ -1017,6 +1031,36 @@ mod tests {
         let args = parse_args("fn f(a: i64, rest: &[i64])");
         let tokens = args.required_count(None).to_string();
         assert!(tokens.ends_with("|| false , false]) ;"));
+    }
+
+    fn parse_with_defaults(sig: &str, defaults: &[&str]) -> Result<Args<'static>> {
+        let sig: &'static syn::Signature =
+            Box::leak(Box::new(syn::parse_str::<syn::Signature>(sig).unwrap()));
+        let defaults = defaults
+            .iter()
+            .map(|name| (format_ident!("{name}"), syn::parse_quote!(0)))
+            .collect();
+        Args::parse_from_fnargs(sig.inputs.iter(), defaults)
+    }
+
+    #[test]
+    fn defaults_are_taken_by_their_parameter() {
+        let args = parse_with_defaults("fn f(a: i64, b: i64)", &["b"]).unwrap();
+        assert!(args.typed[0].default.is_none());
+        assert!(args.typed[1].default.is_some());
+    }
+
+    #[test]
+    fn defaults_for_unknown_parameters_are_rejected_in_name_order() {
+        let err = parse_with_defaults("fn f(a: i64)", &["zed", "a", "bee"]).unwrap_err();
+        let messages: Vec<String> = err.into_iter().map(|e| e.to_string()).collect();
+        assert_eq!(
+            messages,
+            [
+                "no parameter named `bee`; `defaults` keys must match a parameter name",
+                "no parameter named `zed`; `defaults` keys must match a parameter name",
+            ]
+        );
     }
 
     #[test]
