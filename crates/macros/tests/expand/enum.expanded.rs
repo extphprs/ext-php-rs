@@ -190,11 +190,11 @@ impl TryFrom<i64> for MyEnumWithIntValues {
         }
     }
 }
-impl Into<i64> for MyEnumWithIntValues {
-    fn into(self) -> i64 {
-        match self {
-            Self::Variant1 => 1i64,
-            Self::Variant2 => 42i64,
+impl ::core::convert::From<MyEnumWithIntValues> for i64 {
+    fn from(value: MyEnumWithIntValues) -> Self {
+        match value {
+            MyEnumWithIntValues::Variant1 => 1i64,
+            MyEnumWithIntValues::Variant2 => 42i64,
         }
     }
 }
@@ -292,11 +292,11 @@ impl TryFrom<&str> for MyEnumWithStringValues {
         }
     }
 }
-impl Into<&'static str> for MyEnumWithStringValues {
-    fn into(self) -> &'static str {
-        match self {
-            Self::Variant1 => "foo",
-            Self::Variant2 => "bar",
+impl ::core::convert::From<MyEnumWithStringValues> for &'static str {
+    fn from(value: MyEnumWithStringValues) -> Self {
+        match value {
+            MyEnumWithStringValues::Variant1 => "foo",
+            MyEnumWithStringValues::Variant2 => "bar",
         }
     }
 }

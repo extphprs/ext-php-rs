@@ -287,7 +287,7 @@ impl<'a> Enum<'a> {
         }
     }
 
-    pub fn impl_into(&self) -> TokenStream {
+    pub fn impl_from(&self) -> TokenStream {
         if self.discriminant_type == DiscriminantType::None {
             return quote! {};
         }
@@ -296,7 +296,7 @@ impl<'a> Enum<'a> {
             DiscriminantType::String => quote! { &'static str },
             DiscriminantType::None => unreachable!("Discriminant type should not be None here"),
         };
-        let ident = &self.ident;
+        let enum_ident = &self.ident;
         let cases = self.cases.iter().map(|case| {
             let ident = &case.ident;
             match case
@@ -304,15 +304,15 @@ impl<'a> Enum<'a> {
                 .as_ref()
                 .expect("Discriminant should be set")
             {
-                Discriminant::String(s) => quote! { Self::#ident => #s },
-                Discriminant::Integer(i) => quote! { Self::#ident => #i },
+                Discriminant::String(s) => quote! { #enum_ident::#ident => #s },
+                Discriminant::Integer(i) => quote! { #enum_ident::#ident => #i },
             }
         });
 
         quote! {
-            impl Into<#discriminant_type> for #ident {
-                fn into(self) -> #discriminant_type {
-                    match self {
+            impl ::core::convert::From<#enum_ident> for #discriminant_type {
+                fn from(value: #enum_ident) -> Self {
+                    match value {
                         #(
                             #cases,
                         )*
@@ -328,13 +328,13 @@ impl ToTokens for Enum<'_> {
         let class = self.registered_class();
         let enum_impl = self.registered_enum();
         let impl_try_from = self.impl_try_from();
-        let impl_into = self.impl_into();
+        let impl_from = self.impl_from();
 
         tokens.extend(quote! {
             #class
             #enum_impl
             #impl_try_from
-            #impl_into
+            #impl_from
         });
     }
 }
