@@ -176,7 +176,15 @@ impl<'a> Arg<'a> {
     }
 
     /// Returns the internal PHP argument info.
-    pub(crate) fn as_arg_info(&self) -> Result<ArgInfo> {
+    ///
+    /// An optional nullable argument without an explicit default reports
+    /// `null` as its default, the same way PHP declares `?T $x = null`.
+    pub(crate) fn as_arg_info(&self, optional: bool) -> Result<ArgInfo> {
+        let default_value = match &self.default_value {
+            Some(val) => Some(val.as_str()),
+            None if optional && self.allow_null && !self.variadic => Some("null"),
+            None => None,
+        };
         Ok(ArgInfo {
             name: CString::new(self.name.as_str())?.into_raw(),
             type_: ZendType::empty_from_type(
@@ -186,8 +194,8 @@ impl<'a> Arg<'a> {
                 self.allow_null,
             )
             .ok_or(Error::ZvalConversion(self.r#type))?,
-            default_value: match &self.default_value {
-                Some(val) => CString::new(val.as_str())?.into_raw(),
+            default_value: match default_value {
+                Some(val) => CString::new(val)?.into_raw(),
                 None => ptr::null(),
             },
         })
@@ -352,6 +360,41 @@ mod tests {
     }
 
     #[test]
+    fn optional_nullable_arg_reports_a_null_default() {
+        let info = Arg::of::<Option<i64>>("a").as_arg_info(true).unwrap();
+        let default = unsafe { std::ffi::CStr::from_ptr(info.default_value) };
+        assert_eq!(default.to_str().unwrap(), "null");
+        assert!(
+            Arg::of::<Option<i64>>("a")
+                .as_arg_info(false)
+                .unwrap()
+                .default_value
+                .is_null()
+        );
+        assert!(
+            Arg::of::<i64>("a")
+                .as_arg_info(true)
+                .unwrap()
+                .default_value
+                .is_null()
+        );
+        assert!(
+            Arg::of::<Option<i64>>("a")
+                .is_variadic()
+                .as_arg_info(true)
+                .unwrap()
+                .default_value
+                .is_null()
+        );
+        let info = Arg::of::<Option<i64>>("a")
+            .default("5")
+            .as_arg_info(true)
+            .unwrap();
+        let default = unsafe { std::ffi::CStr::from_ptr(info.default_value) };
+        assert_eq!(default.to_str().unwrap(), "5");
+    }
+
+    #[test]
     fn test_new() {
         let arg = Arg::new("test", DataType::Long);
         assert_eq!(arg.name, "test");
@@ -486,7 +529,7 @@ mod tests {
     #[cfg(feature = "embed")]
     fn test_as_arg_info() {
         let arg = Arg::new("test", DataType::Long);
-        let arg_info = arg.as_arg_info();
+        let arg_info = arg.as_arg_info(false);
         assert!(arg_info.is_ok());
 
         let arg_info = arg_info.unwrap();
@@ -502,7 +545,7 @@ mod tests {
     #[cfg(feature = "embed")]
     fn test_as_arg_info_with_default() {
         let arg = Arg::new("test", DataType::Long).default("default");
-        let arg_info = arg.as_arg_info();
+        let arg_info = arg.as_arg_info(false);
         assert!(arg_info.is_ok());
 
         let arg_info = arg_info.unwrap();

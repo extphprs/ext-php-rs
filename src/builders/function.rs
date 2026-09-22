@@ -209,7 +209,8 @@ impl<'a> FunctionBuilder<'a> {
         args.extend(
             self.args
                 .iter()
-                .map(Arg::as_arg_info)
+                .enumerate()
+                .map(|(i, arg)| arg.as_arg_info(i >= n_req))
                 .collect::<Result<Vec<_>>>()?,
         );
 
