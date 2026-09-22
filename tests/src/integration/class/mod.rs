@@ -122,7 +122,7 @@ impl TestClassArrayAccess {
 
 #[php_class]
 #[php(extends(ce = ce::exception, stub = "\\Exception"))]
-#[derive(Default)]
+#[derive(std::default::Default)]
 pub struct TestClassExtends;
 
 #[php_impl]
@@ -693,6 +693,27 @@ impl TestCloneableClass {
 }
 
 #[php_class]
+pub struct TestManualCloneClass {
+    #[php(prop)]
+    pub copies: i32,
+}
+
+impl Clone for TestManualCloneClass {
+    fn clone(&self) -> Self {
+        Self {
+            copies: self.copies + 1,
+        }
+    }
+}
+
+#[php_impl]
+impl TestManualCloneClass {
+    pub fn __construct() -> Self {
+        Self { copies: 0 }
+    }
+}
+
+#[php_class]
 pub struct TestUncloneableClass {
     #[php(prop)]
     pub data: String,
@@ -723,6 +744,7 @@ impl TestConstFlagsProp {
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
+        .class::<TestManualCloneClass>()
         .class::<TestClassArrayAccess>()
         .class::<TestClassExtends>()
         .class::<TestClassExtendsWithProp>()

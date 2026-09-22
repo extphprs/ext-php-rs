@@ -426,6 +426,18 @@ impl ::ext_php_rs::class::RegisteredClass for MyImpl {
         ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
             .get_interface_methods()
     }
+    #[inline]
+    #[must_use]
+    fn default_init() -> ::std::option::Option<Self> {
+        use ::ext_php_rs::internal::class::ProbeDefault as _;
+        ::ext_php_rs::internal::class::DefaultProbe::<Self>::default().default_init()
+    }
+    #[inline]
+    #[must_use]
+    fn clone_obj(&self) -> ::std::option::Option<Self> {
+        use ::ext_php_rs::internal::class::ProbeClone as _;
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+    }
 }
 impl MyInterface for MyImpl {
     fn my_method(&self, arg: i32) -> String {
