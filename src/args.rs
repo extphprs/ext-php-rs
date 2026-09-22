@@ -52,6 +52,25 @@ impl<'a> Arg<'a> {
         }
     }
 
+    /// Creates an argument whose type, nullability and pass-by-reference
+    /// flag come from the Rust type it is extracted into.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The name of the parameter.
+    pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
+        Arg {
+            name: name.into(),
+            r#type: T::TYPE,
+            as_ref: T::BY_REF,
+            allow_null: T::NULLABLE,
+            variadic: false,
+            default_value: None,
+            zval: None,
+            variadic_zvals: vec![],
+        }
+    }
+
     /// Sets the argument as a reference.
     #[allow(clippy::wrong_self_convention)]
     pub fn as_ref(mut self) -> Self {
@@ -168,7 +187,6 @@ impl<'a> Arg<'a> {
             )
             .ok_or(Error::ZvalConversion(self.r#type))?,
             default_value: match &self.default_value {
-                Some(val) if val.as_str() == "None" => CString::new("null")?.into_raw(),
                 Some(val) => CString::new(val.as_str())?.into_raw(),
                 None => ptr::null(),
             },
@@ -190,6 +208,20 @@ impl From<Arg<'_>> for Parameter {
 
 /// Internal argument information used by Zend.
 pub type ArgInfo = zend_internal_arg_info;
+
+/// Number of required parameters for a signature, given for every parameter
+/// whether it may be omitted (nullable or defaulted).
+///
+/// Follows the PHP rule: only the trailing run of omittable parameters is
+/// optional, an omittable parameter followed by a required one stays required.
+#[must_use]
+pub const fn required_count(omittable: &[bool]) -> usize {
+    let mut required = omittable.len();
+    while required > 0 && omittable[required - 1] {
+        required -= 1;
+    }
+    required
+}
 
 /// Parses the arguments of a function.
 #[must_use]
@@ -222,6 +254,12 @@ impl<'a, 'b> ArgParser<'a, 'b> {
     /// Sets the next arguments to be added as not required.
     pub fn not_required(mut self) -> Self {
         self.min_num_args = Some(self.args.len());
+        self
+    }
+
+    /// Sets how many leading arguments are required, see [`required_count`].
+    pub fn required_args(mut self, count: usize) -> Self {
+        self.min_num_args = Some(count);
         self
     }
 
@@ -291,6 +329,27 @@ mod tests {
     use crate::embed::Embed;
 
     use super::*;
+
+    #[test]
+    fn required_count_keeps_omittable_args_before_a_required_one() {
+        assert_eq!(required_count(&[]), 0);
+        assert_eq!(required_count(&[false, false]), 2);
+        assert_eq!(required_count(&[false, true]), 1);
+        assert_eq!(required_count(&[true, false, true, true]), 2);
+        assert_eq!(required_count(&[true, true]), 0);
+    }
+
+    #[test]
+    fn of_reads_metadata_from_the_type() {
+        let arg = Arg::of::<Option<i64>>("maybe");
+        assert_eq!(arg.r#type, DataType::Long);
+        assert!(arg.allow_null);
+        assert!(!arg.as_ref);
+        let arg = Arg::of::<&mut Zval>("target");
+        assert_eq!(arg.r#type, DataType::Mixed);
+        assert!(!arg.allow_null);
+        assert!(arg.as_ref);
+    }
 
     #[test]
     fn test_new() {
