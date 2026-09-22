@@ -4,7 +4,7 @@ use darling::{FromAttributes, ToTokens, util::SpannedValue};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned as _;
-use syn::{Expr, FnArg, GenericArgument, ItemFn, PatType, PathArguments, Type, TypePath};
+use syn::{Expr, FnArg, ItemFn, PatType, Type};
 
 use crate::helpers::get_docs;
 use crate::parsing::{
@@ -166,14 +166,10 @@ impl<'a> Function<'a> {
 
     pub fn abstract_function_builder(&self) -> TokenStream {
         let name = &self.name;
-        let (required, not_required) = self.args.split_args(self.optional.as_ref());
-
-        // `entry` impl
-        let required_args = required
-            .iter()
-            .map(TypedArg::arg_builder)
-            .collect::<Vec<_>>();
-        let not_required_args = not_required
+        let required = self.args.required_count(self.optional.as_ref());
+        let args = self
+            .args
+            .typed
             .iter()
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
@@ -188,20 +184,20 @@ impl<'a> Function<'a> {
             }
         };
 
-        quote! {
+        quote! {{
+            #required
             ::ext_php_rs::builders::FunctionBuilder::new_abstract(#name)
-            #(.arg(#required_args))*
-            .not_required()
-            #(.arg(#not_required_args))*
+            #(.arg(#args))*
+            .required_args(__REQUIRED)
             #returns
             #docs
-        }
+        }}
     }
 
     /// Generates the function builder for the function.
     pub fn function_builder(&self, call_type: &CallType) -> TokenStream {
         let name = &self.name;
-        let (required, not_required) = self.args.split_args(self.optional.as_ref());
+        let required = self.args.required_count(self.optional.as_ref());
 
         // `handler` impl
         let arg_declarations = self
@@ -212,17 +208,15 @@ impl<'a> Function<'a> {
             .collect::<Vec<_>>();
 
         // `entry` impl
-        let required_args = required
-            .iter()
-            .map(TypedArg::arg_builder)
-            .collect::<Vec<_>>();
-        let not_required_args = not_required
+        let args = self
+            .args
+            .typed
             .iter()
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
 
         let returns = self.build_returns(Some(call_type));
-        let result = self.build_result(call_type, required, not_required);
+        let result = self.build_result(call_type);
         let docs = if self.docs.is_empty() {
             quote! {}
         } else {
@@ -290,7 +284,8 @@ impl<'a> Function<'a> {
             }
         };
 
-        quote! {
+        quote! {{
+            #required
             ::ext_php_rs::builders::FunctionBuilder::new(#name, {
                 ::ext_php_rs::zend_fastcall! {
                     #[allow(clippy::used_underscore_binding)]
@@ -305,12 +300,11 @@ impl<'a> Function<'a> {
                 }
                 handler
             })
-            #(.arg(#required_args))*
-            .not_required()
-            #(.arg(#not_required_args))*
+            #(.arg(#args))*
+            .required_args(__REQUIRED)
             #returns
             #docs
-        }
+        }}
     }
 
     fn build_returns(&self, call_type: Option<&CallType>) -> TokenStream {
@@ -368,15 +362,9 @@ impl<'a> Function<'a> {
         }
     }
 
-    fn build_result(
-        &self,
-        call_type: &CallType,
-        required: &[TypedArg<'_>],
-        not_required: &[TypedArg<'_>],
-    ) -> TokenStream {
+    fn build_result(&self, call_type: &CallType) -> TokenStream {
         let ident = self.ident;
-        let required_arg_names: Vec<_> = required.iter().map(|arg| arg.name).collect();
-        let not_required_arg_names: Vec<_> = not_required.iter().map(|arg| arg.name).collect();
+        let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
 
         let variadic_bindings = self.args.typed.iter().filter_map(|arg| {
             if arg.variadic {
@@ -406,9 +394,8 @@ impl<'a> Function<'a> {
         match call_type {
             CallType::Function => quote! {
                 let parse = ex.parser()
-                    #(.arg(&mut #required_arg_names))*
-                    .not_required()
-                    #(.arg(&mut #not_required_arg_names))*
+                    #(.arg(&mut #arg_names))*
+                    .required_args(__REQUIRED)
                     .parse();
                 if parse.is_err() {
                     return;
@@ -465,9 +452,8 @@ impl<'a> Function<'a> {
                 quote! {
                     #this
                     let parse_result = parse
-                        #(.arg(&mut #required_arg_names))*
-                        .not_required()
-                        #(.arg(&mut #not_required_arg_names))*
+                        #(.arg(&mut #arg_names))*
+                        .required_args(__REQUIRED)
                         .parse();
                     if parse_result.is_err() {
                         return;
@@ -503,63 +489,20 @@ impl<'a> Function<'a> {
     /// reads zvals directly from the call frame via pointer arithmetic
     /// and converts with `FromZvalMut` inline. Matches the pattern used by
     /// PHP's `ZEND_PARSE_PARAMETERS_START`/`END` C macros.
-    fn restore_mutability(ty: &Type) -> Type {
-        if let Type::Reference(r) = ty {
-            let mut mref = r.clone();
-            mref.mutability = Some(syn::token::Mut::default());
-            Type::Reference(mref)
-        } else {
-            ty.clone()
-        }
-    }
-
-    fn build_fast_arg_binding(i: usize, arg: &TypedArg<'_>, min_num_args: usize) -> TokenStream {
+    fn build_fast_arg_binding(i: usize, arg: &TypedArg<'_>) -> TokenStream {
         let name = arg.name;
         let ty = arg.clean_ty();
         let zval_ident = format_ident!("__zval_{}", i);
-
-        // parse_typed unwraps Option<T> → T and strips &mut → &.
-        // Restore mutability for as_ref args so FromZvalMut resolves correctly.
-        let convert_ty = if arg.as_ref {
-            Self::restore_mutability(&ty)
-        } else {
-            ty.clone()
-        };
-
-        let binding_ty: Type = if !arg.nullable {
-            ty.clone()
-        } else if arg.as_ref {
-            let mty = Self::restore_mutability(&ty);
-            syn::parse_quote! { Option<#mty> }
-        } else {
-            syn::parse_quote! { Option<#ty> }
-        };
 
         let read_zval = quote! {
             let #zval_ident = unsafe { ex.zend_call_arg(#i) };
             let Some(#zval_ident) = #zval_ident else { return; };
         };
 
-        let from_zval = quote! {
-            <#convert_ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
+        let convert = quote! {
+            <#ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
                 #zval_ident.dereference_mut()
             )
-        };
-
-        let convert = if arg.nullable {
-            from_zval.clone()
-        } else {
-            quote! {
-                match #from_zval {
-                    Some(val) => val,
-                    None => {
-                        ::ext_php_rs::exception::PhpException::from_message(
-                            concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
-                        ).throw();
-                        return;
-                    }
-                }
-            }
         };
 
         let throw_invalid = quote! {
@@ -569,95 +512,70 @@ impl<'a> Function<'a> {
             return;
         };
 
-        let throw_null = quote! {
-            ::ext_php_rs::exception::PhpException::new(
-                concat!("Argument `$", stringify!(#name), "` must not be null").into(),
-                0,
-                ::ext_php_rs::zend::ce::type_error(),
-            ).throw();
-            return;
-        };
+        // An explicit null on a non-nullable parameter that has a default is a
+        // TypeError, the same as PHP reports for `int $x = 5` called with null.
+        let reject_null = arg.default.as_ref().map(|_| {
+            quote! {
+                if !<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE && #zval_ident.is_null() {
+                    ::ext_php_rs::exception::PhpException::new(
+                        concat!("Argument `$", stringify!(#name), "` must not be null").into(),
+                        0,
+                        ::ext_php_rs::zend::ce::type_error(),
+                    ).throw();
+                    return;
+                }
+            }
+        });
 
-        // Required arg — always present
-        if i < min_num_args {
-            return quote! {
-                #read_zval
-                let #name: #binding_ty = #convert;
-            };
-        }
-
-        // Optional arg — may be omitted
-        let fallback = match (&arg.default, arg.nullable) {
-            (Some(expr), _) => quote! { #expr },
-            (None, true) => quote! { None },
-            (None, false) => throw_invalid.clone(),
-        };
-
-        // Non-nullable with default: explicit null must throw TypeError
-        if !arg.nullable && arg.default.is_some() {
-            return quote! {
-                let #name: #binding_ty = if __num_args > #i {
-                    #read_zval
-                    if #zval_ident.is_null() { #throw_null }
-                    #convert
-                } else {
-                    #fallback
-                };
-            };
-        }
+        let missing = arg.missing_value(&ty);
 
         quote! {
-            let #name: #binding_ty = if __num_args > #i {
-                #read_zval
-                #convert
-            } else {
-                #fallback
+            let #name: #ty = {
+                let __value = if #i < __REQUIRED || __num_args > #i {
+                    #read_zval
+                    #reject_null
+                    #convert
+                } else {
+                    #missing
+                };
+                match __value {
+                    Some(value) => value,
+                    None => { #throw_invalid }
+                }
             };
         }
     }
 
-    fn build_fast_count_check(min_num_args: usize, max_num_args: usize) -> TokenStream {
-        let min_u32 = u32::try_from(min_num_args).expect("too many args");
+    fn build_fast_count_check(max_num_args: usize) -> TokenStream {
         let max_u32 = u32::try_from(max_num_args).expect("too many args");
 
-        if min_num_args == max_num_args {
-            quote! {
-                let __num_args = unsafe { ex.This.u2.num_args } as usize;
-                if __num_args != #min_num_args {
-                    unsafe {
-                        ::ext_php_rs::ffi::zend_wrong_parameters_count_error(#min_u32, #max_u32);
-                    };
-                    return;
-                }
-            }
-        } else {
-            quote! {
-                let __num_args = unsafe { ex.This.u2.num_args } as usize;
-                if !(#min_num_args..=#max_num_args).contains(&__num_args) {
-                    unsafe {
-                        ::ext_php_rs::ffi::zend_wrong_parameters_count_error(#min_u32, #max_u32);
-                    };
-                    return;
-                }
+        quote! {
+            let __num_args = unsafe { ex.This.u2.num_args } as usize;
+            if !(__REQUIRED..=#max_num_args).contains(&__num_args) {
+                unsafe {
+                    ::ext_php_rs::ffi::zend_wrong_parameters_count_error(
+                        __REQUIRED.try_into().unwrap_or(u32::MAX),
+                        #max_u32,
+                    );
+                };
+                return;
             }
         }
     }
 
     fn build_fast_handler_body(&self, call_type: &CallType) -> TokenStream {
         let ident = self.ident;
-        let (required, _not_required) = self.args.split_args(self.optional.as_ref());
-        let min_num_args = required.len();
         let max_num_args = self.args.typed.len();
 
         // Arg count validation (matches zend_wrong_parameters_count_error)
-        let count_check = Self::build_fast_count_check(min_num_args, max_num_args);
+        let count_check = Self::build_fast_count_check(max_num_args);
 
         let arg_bindings: Vec<TokenStream> = self
             .args
             .typed
             .iter()
             .enumerate()
-            .map(|(i, arg)| Self::build_fast_arg_binding(i, arg, min_num_args))
+            .map(|(i, arg)| Self::build_fast_arg_binding(i, arg))
             .collect();
 
         let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
@@ -775,18 +693,14 @@ impl<'a> Function<'a> {
         visibility: Option<&Visibility>,
     ) -> TokenStream {
         let ident = self.ident;
-        let (required, not_required) = self.args.split_args(self.optional.as_ref());
-        let required_args = required
+        let required = self.args.required_count(self.optional.as_ref());
+        let args = self
+            .args
+            .typed
             .iter()
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
-        let not_required_args = not_required
-            .iter()
-            .map(TypedArg::arg_builder)
-            .collect::<Vec<_>>();
-
-        let required_arg_names: Vec<_> = required.iter().map(|arg| arg.name).collect();
-        let not_required_arg_names: Vec<_> = not_required.iter().map(|arg| arg.name).collect();
+        let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
         let arg_declarations = self
             .args
             .typed
@@ -813,15 +727,15 @@ impl<'a> Function<'a> {
         let docs = &self.docs;
         let flags = visibility.option_tokens();
 
-        quote! {
+        quote! {{
+            #required
             ::ext_php_rs::class::ConstructorMeta {
                 constructor: {
                     fn inner(ex: &mut ::ext_php_rs::zend::ExecuteData) -> ::ext_php_rs::class::ConstructorResult<#class> {
                         #(#arg_declarations)*
                         let parse = ex.parser()
-                            #(.arg(&mut #required_arg_names))*
-                            .not_required()
-                            #(.arg(&mut #not_required_arg_names))*
+                            #(.arg(&mut #arg_names))*
+                            .required_args(__REQUIRED)
                             .parse();
                         if parse.is_err() {
                             return ::ext_php_rs::class::ConstructorResult::ArgError;
@@ -835,15 +749,14 @@ impl<'a> Function<'a> {
                     fn inner(func: ::ext_php_rs::builders::FunctionBuilder) -> ::ext_php_rs::builders::FunctionBuilder {
                         func
                             .docs(&[#(#docs),*])
-                            #(.arg(#required_args))*
-                            .not_required()
-                            #(.arg(#not_required_args))*
+                            #(.arg(#args))*
+                            .required_args(__REQUIRED)
                     }
                     inner
                 },
                 flags: #flags
             }
-        }
+        }}
     }
 }
 
@@ -856,9 +769,7 @@ pub struct ReceiverArg {
 pub struct TypedArg<'a> {
     pub name: &'a Ident,
     pub ty: Type,
-    pub nullable: bool,
     pub default: Option<Expr>,
-    pub as_ref: bool,
     pub variadic: bool,
 }
 
@@ -898,19 +809,15 @@ impl<'a> Args<'a> {
                     let syn::Pat::Ident(syn::PatIdent { ident, .. }) = &**pat else {
                         bail!(pat => "Unsupported argument.");
                     };
+                    if result.typed.last().is_some_and(|arg| arg.variadic) {
+                        bail!(pat => "A variadic parameter (`&[T]`) must be the last parameter.");
+                    }
 
-                    // If the variable is `&[&Zval]` treat it as the variadic
-                    // argument.
-                    let default = defaults.remove(ident);
-                    let nullable = type_is_nullable(ty.as_ref())?;
-                    let (variadic, as_ref, ty) = Self::parse_typed(ty);
                     result.typed.push(TypedArg {
                         name: ident,
-                        ty,
-                        nullable,
-                        default,
-                        as_ref,
-                        variadic,
+                        ty: (**ty).clone(),
+                        default: defaults.remove(ident),
+                        variadic: is_slice_ref(ty),
                     });
                 }
             }
@@ -918,102 +825,37 @@ impl<'a> Args<'a> {
         Ok(result)
     }
 
-    fn parse_typed(ty: &Type) -> (bool, bool, Type) {
-        match ty {
-            Type::Reference(ref_) => {
-                let as_ref = ref_.mutability.is_some();
-                match ref_.elem.as_ref() {
-                    Type::Slice(slice) => (
-                        // TODO: Allow specifying the variadic type.
-                        slice.elem.to_token_stream().to_string() == "& Zval",
-                        as_ref,
-                        ty.clone(),
-                    ),
-                    _ => (false, as_ref, ty.clone()),
-                }
+    /// Emits `const __REQUIRED: usize`, the number of leading required
+    /// parameters.
+    ///
+    /// With `#[php(optional = x)]` it is the position of `x`. Otherwise it is
+    /// computed by `ext_php_rs::args::required_count` from each parameter's
+    /// `FromZvalMut::NULLABLE` and default, so the rule follows the type and
+    /// not its spelling. A variadic parameter is counted by the runtime.
+    pub fn required_count(&self, optional: Option<&Ident>) -> TokenStream {
+        if let Some(optional) = optional
+            && let Some(index) = self.typed.iter().position(|arg| arg.name == optional)
+        {
+            return quote! { const __REQUIRED: usize = #index; };
+        }
+        let omittable = self.typed.iter().map(|arg| {
+            if arg.variadic {
+                return quote! { false };
             }
-            Type::Path(TypePath { path, .. }) => {
-                let mut as_ref = false;
-
-                // PhpRef<'a> explicitly requires PHP pass-by-reference.
-                // Separated<'a> is handled by default (as_ref stays false).
-                if path
-                    .segments
-                    .last()
-                    .is_some_and(|seg| seg.ident == "PhpRef")
-                {
-                    as_ref = true;
-                }
-
-                // For for types that are `Option<&mut T>` to turn them into
-                // `Option<&T>`, marking the Arg as as "passed by reference".
-                let ty = path
-                    .segments
-                    .last()
-                    .filter(|seg| seg.ident == "Option")
-                    .and_then(|seg| {
-                        if let PathArguments::AngleBracketed(args) = &seg.arguments {
-                            args.args
-                                .iter()
-                                .find(|arg| matches!(arg, GenericArgument::Type(_)))
-                                .and_then(|ga| match ga {
-                                    GenericArgument::Type(ty) => Some(match ty {
-                                        Type::Reference(r) => {
-                                            // Only mark as_ref for mutable
-                                            // references
-                                            // (Option<&mut T>), not immutable
-                                            // ones (Option<&T>)
-                                            as_ref = r.mutability.is_some();
-                                            let mut new_ref = r.clone();
-                                            new_ref.mutability = None;
-                                            Type::Reference(new_ref)
-                                        }
-                                        _ => ty.clone(),
-                                    }),
-                                    _ => None,
-                                })
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| ty.clone());
-                (false, as_ref, ty.clone())
-            }
-            _ => (false, false, ty.clone()),
+            let ty = arg.clean_ty();
+            let has_default = arg.default.is_some();
+            quote! { <#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE || #has_default }
+        });
+        quote! {
+            const __REQUIRED: usize = ::ext_php_rs::args::required_count(&[#(#omittable),*]);
         }
     }
+}
 
-    /// Splits the typed arguments into two slices:
-    ///
-    /// 1. Required arguments.
-    /// 2. Non-required arguments.
-    ///
-    /// # Parameters
-    ///
-    /// * `optional` - The first optional argument. If [`None`], the optional
-    ///   arguments will be from the first optional argument (nullable or has
-    ///   default) after the last required argument to the end of the arguments.
-    pub fn split_args(&self, optional: Option<&Ident>) -> (&[TypedArg<'a>], &[TypedArg<'a>]) {
-        let mut mid = None;
-        for (i, arg) in self.typed.iter().enumerate() {
-            // An argument is optional if it's nullable (Option<T>) or has a
-            // default value.
-            let is_optional = arg.nullable || arg.default.is_some();
-            if let Some(optional) = optional {
-                if optional == arg.name {
-                    mid.replace(i);
-                }
-            } else if mid.is_none() && is_optional {
-                mid.replace(i);
-            } else if !is_optional {
-                mid.take();
-            }
-        }
-        match mid {
-            Some(mid) => (&self.typed[..mid], &self.typed[mid..]),
-            None => (&self.typed[..], &self.typed[0..0]),
-        }
-    }
+/// A `&[T]` parameter is the variadic tail. The element type decides the
+/// PHP type, nullability and pass-by-reference of each variadic value.
+fn is_slice_ref(ty: &Type) -> bool {
+    matches!(ty, Type::Reference(reference) if matches!(*reference.elem, Type::Slice(_)))
 }
 
 impl TypedArg<'_> {
@@ -1023,7 +865,7 @@ impl TypedArg<'_> {
         let mut ty = self.ty.clone();
         ty.drop_lifetimes();
 
-        // Variadic arguments are passed as &[&Zval], so we need to extract the
+        // Variadic arguments are passed as &[T], so we need to extract the
         // inner type.
         if self.variadic {
             let Type::Reference(reference) = &ty else {
@@ -1053,105 +895,72 @@ impl TypedArg<'_> {
     fn arg_builder(&self) -> TokenStream {
         let name = ident_to_php_name(self.name);
         let ty = self.clean_ty();
-        let null = if self.nullable {
-            Some(quote! { .allow_null() })
-        } else {
-            None
-        };
         let default = self.default.as_ref().map(|val| {
             let val = expr_to_php_stub(val);
             quote! {
                 .default(#val)
             }
         });
-        let as_ref = if self.as_ref {
-            Some(quote! { .as_ref() })
-        } else {
-            None
-        };
         let variadic = self.variadic.then(|| quote! { .is_variadic() });
         quote! {
-            ::ext_php_rs::args::Arg::new(#name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE)
-                #null
+            ::ext_php_rs::args::Arg::of::<#ty>(#name)
                 #default
-                #as_ref
                 #variadic
+        }
+    }
+
+    /// The value of the argument when the caller omitted it: the default when
+    /// one is declared, otherwise what the type says (`Some(None)` for
+    /// `Option<T>`, `None` for a required type).
+    fn missing_value(&self, ty: &Type) -> TokenStream {
+        if let Some(default) = &self.default {
+            quote! { ::std::option::Option::Some((#default).into()) }
+        } else {
+            quote! { <#ty as ::ext_php_rs::convert::FromZvalMut>::from_missing() }
         }
     }
 
     /// Get the accessor used to access the value of the argument.
     fn accessor(&self, bail_fn: impl Fn(TokenStream) -> TokenStream) -> TokenStream {
         let name = self.name;
-        if let Some(default) = &self.default {
-            if self.nullable {
-                // For nullable types with defaults, null is acceptable
-                quote! {
-                    #name.val().unwrap_or(#default.into())
-                }
-            } else {
-                // For non-nullable types with defaults:
-                // - If argument was omitted: use default
-                // - If null was explicitly passed: throw TypeError
-                // - If a value was passed: try to convert it
-                let bail_null = bail_fn(quote! {
-                    ::ext_php_rs::exception::PhpException::new(
-                        concat!("Argument `$", stringify!(#name), "` must not be null").into(),
-                        0,
-                        ::ext_php_rs::zend::ce::type_error(),
-                    )
-                });
-                let bail_invalid = bail_fn(quote! {
-                    ::ext_php_rs::exception::PhpException::from_message(
-                        concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
-                    )
-                });
-                quote! {
-                    match #name.zval() {
-                        Some(zval) if zval.is_null() => {
-                            // Null was explicitly passed to a non-nullable parameter
-                            #bail_null
-                        }
-                        Some(_) => {
-                            // A value was passed, try to convert it
-                            match #name.val() {
-                                Some(val) => val,
-                                None => {
-                                    #bail_invalid
-                                }
-                            }
-                        }
-                        None => {
-                            // Argument was omitted, use default
-                            #default.into()
-                        }
-                    }
-                }
-            }
-        } else if self.variadic {
+        if self.variadic {
             let variadic_name = format_ident!("__variadic_{}", name);
-            quote! {
+            return quote! {
                 #variadic_name.as_slice()
-            }
-        } else if self.nullable {
-            // Originally I thought we could just use the below case for `null`
-            // options, as `val()` will return `Option<Option<T>>`,
-            // however, this isn't the case when the argument isn't
-            // given, as the underlying zval is null.
-            quote! {
-                #name.val()
-            }
-        } else {
-            let bail = bail_fn(quote! {
-                ::ext_php_rs::exception::PhpException::from_message(
-                    concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
+            };
+        }
+
+        let ty = self.clean_ty();
+        let bail_invalid = bail_fn(quote! {
+            ::ext_php_rs::exception::PhpException::from_message(
+                concat!("Invalid value given for argument `", stringify!(#name), "`.").into()
+            )
+        });
+        let reject_null = self.default.as_ref().map(|_| {
+            let bail_null = bail_fn(quote! {
+                ::ext_php_rs::exception::PhpException::new(
+                    concat!("Argument `$", stringify!(#name), "` must not be null").into(),
+                    0,
+                    ::ext_php_rs::zend::ce::type_error(),
                 )
             });
             quote! {
-                match #name.val() {
-                    Some(val) => val,
-                    None => {
-                        #bail;
-                    }
+                Some(zval) if !<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE && zval.is_null() => {
+                    #bail_null
+                }
+            }
+        });
+        let missing = self.missing_value(&ty);
+
+        quote! {
+            match match #name.zval() {
+                #reject_null
+                Some(zval) => <#ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(zval.dereference_mut()),
+                None => #missing,
+            } {
+                Some(value) => value,
+                None => {
+                    #bail_invalid
                 }
             }
         }
@@ -1269,31 +1078,54 @@ fn expr_to_php_stub(expr: &Expr) -> String {
     }
 }
 
-/// Returns true if the given type is nullable in PHP (i.e., it's an
-/// `Option<T>`).
-///
-/// Note: Having a default value does NOT make a type nullable. A parameter with
-/// a default value is optional (can be omitted), but passing `null` explicitly
-/// should still be rejected unless the type is `Option<T>`.
-// TODO(david): Eventually move to compile-time constants for this (similar to
-// FromZval::NULLABLE).
-pub fn type_is_nullable(ty: &Type) -> Result<bool> {
-    Ok(match ty {
-        Type::Path(path) => path
-            .path
-            .segments
-            .iter()
-            .next_back()
-            .is_some_and(|seg| seg.ident == "Option"),
-        Type::Reference(_) => false, /* Reference cannot be nullable unless */
-        // wrapped in `Option` (in that case it'd be a Path).
-        _ => bail!(ty => "Unsupported argument type."),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn parse_args(sig: &str) -> Args<'static> {
+        let sig: &'static syn::Signature =
+            Box::leak(Box::new(syn::parse_str::<syn::Signature>(sig).unwrap()));
+        Args::parse_from_fnargs(sig.inputs.iter(), HashMap::new()).unwrap()
+    }
+
+    #[test]
+    fn slice_reference_in_last_position_is_variadic_whatever_the_element() {
+        let args = parse_args("fn f(a: i64, rest: &[&ext_php_rs::types::Zval])");
+        assert!(!args.typed[0].variadic);
+        assert!(args.typed[1].variadic);
+        let args = parse_args("fn f(rest: &[i64])");
+        assert!(args.typed[0].variadic);
+        assert_eq!(
+            args.typed[0].clean_ty().to_token_stream().to_string(),
+            "i64"
+        );
+    }
+
+    #[test]
+    fn variadic_must_be_last() {
+        let sig = syn::parse_str::<syn::Signature>("fn f(rest: &[i64], a: i64)").unwrap();
+        let err = Args::parse_from_fnargs(sig.inputs.iter(), HashMap::new()).unwrap_err();
+        assert!(err.to_string().contains("must be the last parameter"));
+    }
+
+    #[test]
+    fn required_count_follows_the_optional_attribute_or_the_types() {
+        let args = parse_args("fn f(a: MaybeAge, b: Option<i64>)");
+        let by_type = args.required_count(None).to_string();
+        assert!(by_type.contains("required_count"));
+        assert!(
+            by_type.contains("MaybeAge as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
+        );
+        let explicit = args.required_count(Some(&format_ident!("b"))).to_string();
+        assert_eq!(explicit, "const __REQUIRED : usize = 1usize ;");
+    }
+
+    #[test]
+    fn variadic_slot_is_never_counted_as_omittable() {
+        let args = parse_args("fn f(a: i64, rest: &[i64])");
+        let tokens = args.required_count(None).to_string();
+        assert!(tokens.ends_with("|| false , false]) ;"));
+    }
 
     #[test]
     fn test_only_reference_receivers_are_accepted() {

@@ -1,12 +1,16 @@
 # Zval Ownership: `Separated` & `PhpRef`
 
 In PHP, there is a distinction between passing a value normally (`$x`) and
-passing it by reference (`&$x`). In ext-php-rs, using `&mut Zval` in a function
-signature sets PHP's `ZEND_SEND_BY_REF` flag, which forces callers to pass by
-reference — meaning literals like `foo([1, 2, 3])` are rejected at runtime.
+passing it by reference (`&$x`). In ext-php-rs, a parameter type declares
+pass-by-reference through `FromZvalMut::BY_REF`. `&mut Zval`, `PhpRef` and
+`&mut ZendHashTable` set PHP's `ZEND_SEND_BY_REF` flag. The flag forces callers
+to pass a variable, so a literal like `foo([1, 2, 3])` is rejected at runtime.
 
-`Separated` and `PhpRef` fix this by decoupling Rust mutability from PHP's
-pass-by-reference semantics.
+Object parameters (`&mut ZendObject`, `&mut MyClass`) are passed by value. PHP
+objects are handles, so the caller sees every mutation without the flag.
+
+`Separated` and `PhpRef` decouple Rust mutability from PHP's pass-by-reference
+semantics.
 
 ## When to use which
 
@@ -15,7 +19,9 @@ pass-by-reference semantics.
 | `Separated` | `foo($x)` or `foo([1,2])` | No | Mutate a local copy (COW) |
 | `PhpRef` | `foo(&$x)` | Yes | Modify the caller's variable |
 | `&Zval` | `foo($x)` | No | Read-only access |
-| `&mut Zval` | `foo(&$x)` | Yes | Legacy — prefer `PhpRef` |
+| `&mut Zval` | `foo(&$x)` | Yes | Legacy, prefer `PhpRef` |
+| `&mut ZendHashTable` | `foo(&$x)` | Yes | Mutate the caller's array in place |
+| `&mut MyClass` | `foo($x)` or `foo(new MyClass)` | Yes | Objects are handles |
 
 ## `Separated` — local mutation without pass-by-reference
 
@@ -77,10 +83,10 @@ increment($x);
 ## How it works
 
 Both types are `#[repr(transparent)]` newtypes over `&mut Zval` with zero
-runtime overhead. The difference is purely in the proc macro:
-
-- `Separated` → macro emits `Arg::new(...)` (no pass-by-ref flag)
-- `PhpRef` → macro emits `Arg::new(...).as_ref()` (sets pass-by-ref flag)
+runtime overhead. The difference is one constant on their `FromZvalMut`
+implementation: `PhpRef` sets `BY_REF = true`, `Separated` keeps the default
+`false`. The macro emits `Arg::of::<T>(name)`, which reads that constant, so a
+type alias of `PhpRef` is also passed by reference.
 
 The `Zval::array_mut()` method already implements PHP's `SEPARATE_ARRAY()`
 semantics — it duplicates the underlying hashtable when the refcount is greater

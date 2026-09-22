@@ -1,0 +1,46 @@
+error[E0277]: `std::option::Option<&mut Counter>` cannot be used as a PHP function argument
+ --> tests/ui/php_function_option_mut_object_arg.rs:7:23
+  |
+7 | pub fn bump(_counter: Option<&mut Counter>) {}
+  |                       ^^^^^^^^^^^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `std::option::Option<&mut Counter>`
+  |
+  = help: the trait `FromZval<'_>` is not implemented for `std::option::Option<&mut Counter>`
+  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the trait `FromZval<'_>` is conditionally implemented for `std::option::Option<T>`
+ --> src/convert.rs
+  |
+  | / impl<'a, T> FromZval<'a> for Option<T>
+  | | where
+  | |     T: FromZval<'a>,
+  | |________------------^
+  |          |
+  |          unsatisfied requirement introduced here: `&mut Counter: FromZval<'_>`
+  |          unsatisfied requirement introduced here: `&mut Counter: FromZval<'_>`
+  = note: required for `std::option::Option<&mut Counter>` to implement `FromZvalMut<'_>`
+note: required by a bound in `Arg::<'a>::of`
+ --> src/args.rs
+  |
+  |     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
+  |                  ^^^^^^^^^^^^^^^ required by this bound in `Arg::<'a>::of`
+
+error[E0277]: `std::option::Option<&mut Counter>` cannot be used as a PHP function argument
+ --> tests/ui/php_function_option_mut_object_arg.rs:7:23
+  |
+7 | pub fn bump(_counter: Option<&mut Counter>) {}
+  |                       ^^^^^^^^^^^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `std::option::Option<&mut Counter>`
+  |
+  = help: the trait `FromZval<'_>` is not implemented for `std::option::Option<&mut Counter>`
+  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the trait `FromZval<'_>` is conditionally implemented for `std::option::Option<T>`
+ --> src/convert.rs
+  |
+  | / impl<'a, T> FromZval<'a> for Option<T>
+  | | where
+  | |     T: FromZval<'a>,
+  | |________------------^
+  |          |
+  |          unsatisfied requirement introduced here: `&mut Counter: FromZval<'_>`
+  |          unsatisfied requirement introduced here: `&mut Counter: FromZval<'_>`
+  = note: required for `std::option::Option<&mut Counter>` to implement `FromZvalMut<'_>`

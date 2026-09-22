@@ -12,6 +12,7 @@ mod integration;
 #[php_module]
 pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     let mut module = integration::array::build_module(module);
+    module = integration::aliases::build_module(module);
     module = integration::bailout::build_module(module);
     module = integration::binary::build_module(module);
     module = integration::binary_slice::build_module(module);

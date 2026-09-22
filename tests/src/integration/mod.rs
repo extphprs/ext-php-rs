@@ -1,3 +1,4 @@
+pub mod aliases;
 pub mod array;
 pub mod bailout;
 pub mod binary;

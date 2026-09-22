@@ -887,6 +887,20 @@ impl<'a> FromZvalMut<'a> for &'a mut ZendHashTable {
     }
 }
 
+impl<'a> FromZvalMut<'a> for Option<&'a mut ZendHashTable> {
+    const TYPE: DataType = DataType::Array;
+    const NULLABLE: bool = true;
+    const BY_REF: bool = true;
+
+    fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
+        Some(zval.array_mut())
+    }
+
+    fn from_missing() -> Option<Self> {
+        Some(None)
+    }
+}
+
 /// Represents an empty, immutable, shared PHP array.
 ///
 /// Since PHP 7.3, it's possible for extensions to return a zval backed by

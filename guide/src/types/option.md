@@ -8,10 +8,11 @@ is also able to be converted to/from a zval.
 | ------------- | -------------- | --------------- | ---------------- | ---------------------------------- |
 | Yes           | No             | Yes             | No               | Depends on `T`, `null` for `None`. |
 
-Using `Option<T>` as a parameter indicates that the parameter is nullable. If
-null is passed, a `None` value will be supplied. It is also used in the place of
-optional parameters. If the parameter is not given, a `None` value will also be
-supplied.
+An `Option<T>` parameter is nullable. If the caller passes `null`, the function
+receives `None`. A trailing `Option<T>` parameter is also optional. If the caller
+omits it, the function receives `None`, and PHP reflection reports a default of
+`null`. The macro reads this from `FromZvalMut::NULLABLE`, so a type alias or a
+qualified path behaves the same way as `Option<T>`.
 
 Returning `Option<T>` is a nullable return type. Returning `None` will return
 null to PHP.

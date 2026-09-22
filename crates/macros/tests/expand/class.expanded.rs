@@ -129,15 +129,20 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
                 ::alloc::boxed::Box::new_uninit(),
                 [
                     (
-                        ::ext_php_rs::builders::FunctionBuilder::new(
-                                "plain",
-                                {
-                                    (/*ERROR*/);
-                                    handler
-                                },
-                            )
-                            .not_required()
-                            .returns(::ext_php_rs::flags::DataType::Void, false, false),
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                                &[],
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new(
+                                    "plain",
+                                    {
+                                        (/*ERROR*/);
+                                        handler
+                                    },
+                                )
+                                .required_args(__REQUIRED)
+                                .returns(::ext_php_rs::flags::DataType::Void, false, false)
+                        },
                         ::ext_php_rs::flags::MethodFlags::Public,
                     ),
                 ],
