@@ -1,0 +1,97 @@
+error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
+ --> tests/ui/php_function_slice_alias.rs:7:24
+  |
+7 | pub fn count_all(rest: Rest<'_>) -> usize {
+  |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
+  |
+  = help: the trait `RegisteredEnum` is not implemented for `&[&_zval_struct]`
+  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+  = help: the following other types implement trait `FromZvalMut<'a>`:
+            &'a mut ZendClassObject<T>
+            &'a mut _zend_array
+            &'a mut _zend_object
+            &'a mut _zend_object_iterator
+            &'a mut _zval_struct
+            PhpRef<'a>
+            Separated<'a>
+            ext_php_rs::types::Iterable<'a>
+            std::option::Option<&'a mut _zend_array>
+  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
+  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
+note: required by a bound in `Arg::<'a>::of`
+ --> src/args.rs
+  |
+  |     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
+  |                  ^^^^^^^^^^^^^^^ required by this bound in `Arg::<'a>::of`
+
+error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
+ --> tests/ui/php_function_slice_alias.rs:7:24
+  |
+7 | pub fn count_all(rest: Rest<'_>) -> usize {
+  |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
+  |
+  = help: the trait `RegisteredClass` is not implemented for `&[&_zval_struct]`
+  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+  = help: the following other types implement trait `FromZvalMut<'a>`:
+            &'a mut ZendClassObject<T>
+            &'a mut _zend_array
+            &'a mut _zend_object
+            &'a mut _zend_object_iterator
+            &'a mut _zval_struct
+            PhpRef<'a>
+            Separated<'a>
+            ext_php_rs::types::Iterable<'a>
+            std::option::Option<&'a mut _zend_array>
+  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
+  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
+note: required by a bound in `Arg::<'a>::of`
+ --> src/args.rs
+  |
+  |     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
+  |                  ^^^^^^^^^^^^^^^ required by this bound in `Arg::<'a>::of`
+
+error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
+ --> tests/ui/php_function_slice_alias.rs:7:24
+  |
+7 | pub fn count_all(rest: Rest<'_>) -> usize {
+  |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
+  |
+  = help: the trait `RegisteredEnum` is not implemented for `&[&_zval_struct]`
+  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+  = help: the following other types implement trait `FromZvalMut<'a>`:
+            &'a mut ZendClassObject<T>
+            &'a mut _zend_array
+            &'a mut _zend_object
+            &'a mut _zend_object_iterator
+            &'a mut _zval_struct
+            PhpRef<'a>
+            Separated<'a>
+            ext_php_rs::types::Iterable<'a>
+            std::option::Option<&'a mut _zend_array>
+  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
+  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
+
+error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
+ --> tests/ui/php_function_slice_alias.rs:7:24
+  |
+7 | pub fn count_all(rest: Rest<'_>) -> usize {
+  |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
+  |
+  = help: the trait `RegisteredClass` is not implemented for `&[&_zval_struct]`
+  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+  = help: the following other types implement trait `FromZvalMut<'a>`:
+            &'a mut ZendClassObject<T>
+            &'a mut _zend_array
+            &'a mut _zend_object
+            &'a mut _zend_object_iterator
+            &'a mut _zval_struct
+            PhpRef<'a>
+            Separated<'a>
+            ext_php_rs::types::Iterable<'a>
+            std::option::Option<&'a mut _zend_array>
+  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
+  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`

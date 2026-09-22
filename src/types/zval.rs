@@ -1313,6 +1313,7 @@ impl<'a> FromZval<'a> for &'a Zval {
 
 impl<'a> FromZvalMut<'a> for &'a mut Zval {
     const TYPE: DataType = DataType::Mixed;
+    const BY_REF: bool = true;
 
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {
         Some(zval)

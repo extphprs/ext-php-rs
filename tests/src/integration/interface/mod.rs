@@ -259,17 +259,52 @@ impl ParentInterface for Greeter {
     }
 }
 
+type Salutation = Option<String>;
+
+#[php_interface]
+#[php(name = "ExtPhpRs\\Interface\\OptionalGreeting")]
+#[allow(dead_code)]
+pub trait OptionalGreeting {
+    fn greet_optional(&self, salutation: Salutation) -> String;
+}
+
+#[php_class]
+#[php(name = "ExtPhpRs\\Interface\\OptionalGreeter")]
+pub struct OptionalGreeter {
+    name: String,
+}
+
+#[php_impl]
+impl OptionalGreeter {
+    pub fn __construct(name: String) -> Self {
+        Self { name }
+    }
+}
+
+#[php_impl_interface]
+impl OptionalGreeting for OptionalGreeter {
+    fn greet_optional(&self, salutation: Salutation) -> String {
+        format!(
+            "{} {}",
+            salutation.unwrap_or_else(|| "Hi".to_string()),
+            self.name
+        )
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .interface::<PhpInterfaceEmptyObjectTrait>()
         .interface::<PhpInterfaceParentInterface>()
         .interface::<PhpInterfaceChildInterface>()
+        .interface::<PhpInterfaceOptionalGreeting>()
         // Iterator examples for issue #308
         .class::<RangeIterator>()
         .class::<MapIterator>()
         .class::<VecIterator>()
         // Greeter with #[php_impl_interface]
         .class::<Greeter>()
+        .class::<OptionalGreeter>()
 }
 
 #[cfg(test)]

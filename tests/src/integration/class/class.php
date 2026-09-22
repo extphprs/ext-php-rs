@@ -438,6 +438,11 @@ assert($original->name === 'original', 'Original name should be unchanged after 
 $result = TestCloneableClass::acceptCloneable($cloned);
 assert($result === 'accepted: 100 modified', 'Cloned object should be accepted as typed parameter');
 
+$manual = new TestManualCloneClass();
+$manualClone = clone $manual;
+assert($manualClone->copies === 1, 'A hand-written Clone impl drives the clone handler');
+assert($manual->copies === 0);
+
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
 

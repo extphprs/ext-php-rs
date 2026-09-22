@@ -39,25 +39,30 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
                 ::alloc::boxed::Box::new_uninit(),
                 [
                     (
-                        ::ext_php_rs::builders::FunctionBuilder::new_abstract("myMethod")
-                            .arg(
-                                ::ext_php_rs::args::Arg::new(
-                                    "arg",
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::TYPE,
-                                ),
-                            )
-                            .not_required()
-                            .returns(
-                                <String as ::ext_php_rs::convert::IntoZval>::TYPE,
-                                false,
-                                <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                            )
-                            .docs(
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                                 &[
-                                    " Doc comments for my_method.",
-                                    " This method does something.",
+                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                                        || false,
                                 ],
-                            ),
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new_abstract(
+                                    "myMethod",
+                                )
+                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .required_args(__REQUIRED)
+                                .returns(
+                                    <String as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                    false,
+                                    <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                                )
+                                .docs(
+                                    &[
+                                        " Doc comments for my_method.",
+                                        " This method does something.",
+                                    ],
+                                )
+                        },
                         ::ext_php_rs::flags::MethodFlags::Public
                             | ::ext_php_rs::flags::MethodFlags::Abstract,
                     ),
@@ -191,34 +196,42 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
                 ::alloc::boxed::Box::new_uninit(),
                 [
                     (
-                        ::ext_php_rs::builders::FunctionBuilder::new_abstract(
-                                "MY_METHOD",
-                            )
-                            .arg(
-                                ::ext_php_rs::args::Arg::new(
-                                    "arg",
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::TYPE,
-                                ),
-                            )
-                            .not_required()
-                            .returns(
-                                <String as ::ext_php_rs::convert::IntoZval>::TYPE,
-                                false,
-                                <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                            ),
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                                &[
+                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                                        || false,
+                                ],
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new_abstract(
+                                    "MY_METHOD",
+                                )
+                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .required_args(__REQUIRED)
+                                .returns(
+                                    <String as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                    false,
+                                    <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                                )
+                        },
                         ::ext_php_rs::flags::MethodFlags::Public
                             | ::ext_php_rs::flags::MethodFlags::Abstract,
                     ),
                     (
-                        ::ext_php_rs::builders::FunctionBuilder::new_abstract(
-                                "AnotherMethod",
-                            )
-                            .not_required()
-                            .returns(
-                                <i32 as ::ext_php_rs::convert::IntoZval>::TYPE,
-                                false,
-                                <i32 as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                            ),
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                                &[],
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new_abstract(
+                                    "AnotherMethod",
+                                )
+                                .required_args(__REQUIRED)
+                                .returns(
+                                    <i32 as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                    false,
+                                    <i32 as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                                )
+                        },
                         ::ext_php_rs::flags::MethodFlags::Public
                             | ::ext_php_rs::flags::MethodFlags::Abstract,
                     ),
@@ -313,5 +326,162 @@ impl ::ext_php_rs::convert::IntoZval for PhpInterfaceMyInterface2 {
     ) -> ::ext_php_rs::error::Result<()> {
         use ::ext_php_rs::convert::IntoZendObject;
         self.into_zend_object()?.set_zval(zv, persistent)
+    }
+}
+struct MyImpl {}
+impl ::ext_php_rs::class::RegisteredClass for MyImpl {
+    const CLASS_NAME: &'static str = "MyImpl";
+    const BUILDER_MODIFIER: ::std::option::Option<
+        fn(::ext_php_rs::builders::ClassBuilder) -> ::ext_php_rs::builders::ClassBuilder,
+    > = ::std::option::Option::None;
+    const EXTENDS: ::std::option::Option<::ext_php_rs::class::ClassEntryInfo> = None;
+    const IMPLEMENTS: &'static [::ext_php_rs::class::ClassEntryInfo] = &[];
+    const FLAGS: ::ext_php_rs::flags::ClassFlags = ::ext_php_rs::flags::ClassFlags::empty();
+    const DOC_COMMENTS: &'static [&'static str] = &[];
+    #[inline]
+    fn get_metadata() -> &'static ::ext_php_rs::class::ClassMetadata<Self> {
+        static FIELD_PROPS: [::ext_php_rs::internal::property::PropertyDescriptor<
+            MyImpl,
+        >; 0usize] = [];
+        static METADATA: ::ext_php_rs::class::ClassMetadata<MyImpl> = ::ext_php_rs::class::ClassMetadata::new(
+            &FIELD_PROPS,
+        );
+        &METADATA
+    }
+    #[must_use]
+    fn static_properties() -> &'static [(
+        &'static str,
+        ::ext_php_rs::flags::PropertyFlags,
+        ::std::option::Option<&'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync)>,
+        &'static [&'static str],
+    )] {
+        static STATIC_PROPS: &[(
+            &str,
+            ::ext_php_rs::flags::PropertyFlags,
+            ::std::option::Option<
+                &'static (dyn ::ext_php_rs::convert::IntoZvalDyn + Sync),
+            >,
+            &[&str],
+        )] = &[];
+        STATIC_PROPS
+    }
+    #[inline]
+    fn method_properties() -> &'static [::ext_php_rs::internal::property::PropertyDescriptor<
+        Self,
+    >] {
+        use ::ext_php_rs::internal::class::PhpClassImpl;
+        ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+            .get_method_props()
+    }
+    #[inline]
+    fn method_builders() -> ::std::vec::Vec<
+        (
+            ::ext_php_rs::builders::FunctionBuilder<'static>,
+            ::ext_php_rs::flags::MethodFlags,
+        ),
+    > {
+        use ::ext_php_rs::internal::class::PhpClassImpl;
+        ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+            .get_methods()
+    }
+    #[inline]
+    fn constructor() -> ::std::option::Option<
+        ::ext_php_rs::class::ConstructorMeta<Self>,
+    > {
+        use ::ext_php_rs::internal::class::PhpClassImpl;
+        ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+            .get_constructor()
+    }
+    #[inline]
+    fn constants() -> &'static [(
+        &'static str,
+        &'static dyn ::ext_php_rs::convert::IntoZvalDyn,
+        &'static [&'static str],
+        ::ext_php_rs::flags::ConstantFlags,
+    )] {
+        use ::ext_php_rs::internal::class::PhpClassImpl;
+        ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+            .get_constants()
+    }
+    #[inline]
+    fn interface_implementations() -> ::std::vec::Vec<
+        ::ext_php_rs::class::ClassEntryInfo,
+    > {
+        let my_type_id = ::std::any::TypeId::of::<Self>();
+        ::ext_php_rs::inventory::iter::<
+            ::ext_php_rs::internal::class::InterfaceRegistration,
+        >()
+            .filter(|reg| reg.class_type_id == my_type_id)
+            .map(|reg| (reg.interface_getter)())
+            .collect()
+    }
+    #[inline]
+    fn interface_method_implementations() -> ::std::vec::Vec<
+        (
+            ::ext_php_rs::builders::FunctionBuilder<'static>,
+            ::ext_php_rs::flags::MethodFlags,
+        ),
+    > {
+        use ::ext_php_rs::internal::class::InterfaceMethodsProvider;
+        ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
+            .get_interface_methods()
+    }
+    #[inline]
+    #[must_use]
+    fn default_init() -> ::std::option::Option<Self> {
+        use ::ext_php_rs::internal::class::ProbeDefault as _;
+        ::ext_php_rs::internal::class::DefaultProbe::<Self>::default().default_init()
+    }
+    #[inline]
+    #[must_use]
+    fn clone_obj(&self) -> ::std::option::Option<Self> {
+        use ::ext_php_rs::internal::class::ProbeClone as _;
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+    }
+}
+impl MyInterface for MyImpl {
+    fn my_method(&self, arg: i32) -> String {
+        String::new()
+    }
+}
+impl ::ext_php_rs::internal::class::InterfaceMethodsProvider<MyImpl>
+for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
+    fn get_interface_methods(
+        self,
+    ) -> ::std::vec::Vec<
+        (
+            ::ext_php_rs::builders::FunctionBuilder<'static>,
+            ::ext_php_rs::flags::MethodFlags,
+        ),
+    > {
+        ::alloc::boxed::box_assume_init_into_vec_unsafe(
+            ::alloc::intrinsics::write_box_via_move(
+                ::alloc::boxed::Box::new_uninit(),
+                [
+                    (
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                                &[<i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE],
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new(
+                                    "myMethod",
+                                    {
+                                        (/*ERROR*/);
+                                        handler
+                                    },
+                                )
+                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .required_args(__REQUIRED)
+                                .returns(
+                                    <String as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                    false,
+                                    <String as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                                )
+                        },
+                        ::ext_php_rs::flags::MethodFlags::Public,
+                    ),
+                ],
+            ),
+        )
     }
 }

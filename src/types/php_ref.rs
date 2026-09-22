@@ -63,6 +63,7 @@ impl DerefMut for PhpRef<'_> {
 
 impl<'a> FromZvalMut<'a> for PhpRef<'a> {
     const TYPE: DataType = DataType::Mixed;
+    const BY_REF: bool = true;
 
     #[inline]
     fn from_zval_mut(zval: &'a mut Zval) -> Option<Self> {

@@ -603,8 +603,9 @@ This is **optional** - if your extension only targets PHP 8.2+, you can use
 ## Cloning
 
 PHP's native `clone` operator is supported for `#[php_class]` structs that
-derive `Clone`. Add `#[derive(Clone)]` to your struct and the cloned PHP object
-will contain a proper copy of the Rust data:
+implement `Clone`. A derive or a hand-written `impl Clone` both work, and the
+spelling of the derive path does not matter. The cloned PHP object contains a
+copy of the Rust data:
 
 ```rust,ignore
 use ext_php_rs::prelude::*;
@@ -634,10 +635,10 @@ $copy->fontSize = 16.0;
 echo $style->fontSize;  // 12.0 — original is unchanged
 ```
 
-Structs that do **not** derive `Clone` will throw an error when cloned:
+Structs that do not implement `Clone` throw an error when cloned:
 
 ```php
-// If MyClass doesn't #[derive(Clone)]:
+// If MyClass does not implement Clone:
 $obj = new MyClass();
 $copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
 ```

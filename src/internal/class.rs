@@ -94,6 +94,65 @@ impl<T: RegisteredClass> PhpClassImpl<T> for &'_ PhpClassImplCollector<T> {
     }
 }
 
+/// Probe for an optional `Default` implementation on a registered class.
+///
+/// Autoref specialisation: the by-value impl needs `T: Default`, the
+/// reference impl is the fallback, so `DefaultProbe::<T>::default().default_init()`
+/// resolves at compile time without the macro reading derive attributes.
+pub struct DefaultProbe<T>(PhantomData<T>);
+
+impl<T> Default for DefaultProbe<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+pub trait ProbeDefault<T> {
+    fn default_init(self) -> Option<T>;
+}
+
+impl<T: Default> ProbeDefault<T> for DefaultProbe<T> {
+    #[inline]
+    fn default_init(self) -> Option<T> {
+        Some(T::default())
+    }
+}
+
+impl<T> ProbeDefault<T> for &'_ DefaultProbe<T> {
+    #[inline]
+    fn default_init(self) -> Option<T> {
+        None
+    }
+}
+
+/// Probe for an optional `Clone` implementation on a registered class, same
+/// mechanism as [`DefaultProbe`].
+pub struct CloneProbe<T>(PhantomData<T>);
+
+impl<T> Default for CloneProbe<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+pub trait ProbeClone<T> {
+    fn clone_obj(self, value: &T) -> Option<T>;
+}
+
+impl<T: Clone> ProbeClone<T> for CloneProbe<T> {
+    #[inline]
+    fn clone_obj(self, value: &T) -> Option<T> {
+        Some(value.clone())
+    }
+}
+
+impl<T> ProbeClone<T> for &'_ CloneProbe<T> {
+    #[inline]
+    fn clone_obj(self, _: &T) -> Option<T> {
+        None
+    }
+}
+
 // This implementation is only used for `TYPE` and `NULLABLE`.
 impl<T: RegisteredClass + IntoZval> IntoZval for PhpClassImplCollector<T> {
     const TYPE: crate::flags::DataType = T::TYPE;

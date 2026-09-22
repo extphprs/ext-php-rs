@@ -12,10 +12,11 @@ compile error on a function.
 
 ## Optional parameters
 
-Optional parameters can be used by setting the Rust parameter type to a variant
-of `Option<T>`. The macro will then figure out which parameters are optional by
-using the last consecutive arguments that are a variant of `Option<T>` or have a
-default value.
+An `Option<T>` parameter accepts `null` and can be omitted. The macro reads this
+from the type through `FromZvalMut::NULLABLE`, so a type alias such as
+`type MaybeAge = Option<i64>` or the qualified path `std::option::Option<i64>`
+behaves like `Option<i64>`. The trailing run of parameters that are nullable or
+have a default value is optional.
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -42,7 +43,11 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 
 Default parameter values can also be set for optional parameters. This is done
 through the `#[php(defaults)]` attribute option. When an optional parameter has a
-default, it does not need to be a variant of `Option`:
+default, it does not need to be a variant of `Option`. The default expression is
+converted into the parameter type with `Into`, and the type must implement
+`StubLiteral`, which every scalar, string, `Option`, `Vec` and `HashMap` does.
+The module renders the value once at load time into the stub file and into
+`ReflectionParameter::getDefaultValue()`:
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -128,9 +133,11 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 
 ## Variadic Functions
 
-Variadic functions can be implemented by specifying the last argument in the Rust
-function to the type `&[&Zval]`. This is the equivalent of a PHP function using
-the `...$args` syntax.
+A slice parameter `&[T]` in last position is variadic, the equivalent of the PHP
+`...$args` syntax. `T` is any argument type: `&[&Zval]` receives the raw values,
+`&[i64]` receives converted integers. A variadic parameter that is not the last
+parameter is a compile error. The slice must be spelled in the signature; a type
+alias that hides the slice is not detected.
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -187,7 +194,7 @@ impl MyClass {
 ```
 
 The only case that falls back to the runtime argument parser is when using
-variadic arguments (`&[&Zval]`, the Rust equivalent of PHP's `...$args`):
+variadic arguments (`&[T]`, the Rust equivalent of PHP's `...$args`):
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]

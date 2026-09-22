@@ -28,3 +28,22 @@ assert(
 );
 assert(test_defaults_nullable_with_some_default(null) === null, 'Should return null when null is passed');
 assert(test_defaults_nullable_with_some_default('custom') === 'custom', 'Should return custom value when provided');
+
+function default_of(string $function): mixed
+{
+    return ( new ReflectionFunction($function) )->getParameters()[0]->getDefaultValue();
+}
+
+assert(default_of('test_defaults_integer') === 42);
+assert(default_of('test_defaults_nullable_string') === null);
+assert(default_of('test_defaults_multiple_option_arguments') === null);
+assert(
+    ( new ReflectionFunction('test_defaults_multiple_option_arguments') )->getParameters()[1]->getDefaultValue()
+    === null
+);
+assert(default_of('test_defaults_nullable_with_some_default') === 'fallback');
+assert(test_defaults_str() === 'HI');
+assert(test_defaults_str('yo') === 'YO');
+assert(default_of('test_defaults_str') === 'hi');
+assert(test_defaults_float() === 3.0);
+assert(default_of('test_defaults_float') === 1.5);

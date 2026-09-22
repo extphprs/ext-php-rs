@@ -128,6 +128,13 @@ impl<'a> FunctionBuilder<'a> {
         self
     }
 
+    /// Sets how many leading arguments are required, see
+    /// [`required_count`](crate::args::required_count).
+    pub fn required_args(mut self, count: usize) -> Self {
+        self.n_req = Some(count);
+        self
+    }
+
     /// Sets the return value of the function.
     ///
     /// # Parameters
@@ -202,7 +209,8 @@ impl<'a> FunctionBuilder<'a> {
         args.extend(
             self.args
                 .iter()
-                .map(Arg::as_arg_info)
+                .enumerate()
+                .map(|(i, arg)| arg.as_arg_info(i >= n_req))
                 .collect::<Result<Vec<_>>>()?,
         );
 

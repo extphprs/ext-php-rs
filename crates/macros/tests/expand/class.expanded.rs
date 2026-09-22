@@ -103,6 +103,18 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         ::ext_php_rs::internal::class::PhpClassImplCollector::<Self>::default()
             .get_interface_methods()
     }
+    #[inline]
+    #[must_use]
+    fn default_init() -> ::std::option::Option<Self> {
+        use ::ext_php_rs::internal::class::ProbeDefault as _;
+        ::ext_php_rs::internal::class::DefaultProbe::<Self>::default().default_init()
+    }
+    #[inline]
+    #[must_use]
+    fn clone_obj(&self) -> ::std::option::Option<Self> {
+        use ::ext_php_rs::internal::class::ProbeClone as _;
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+    }
 }
 impl MyClass {
     pub fn get_first(&self) -> i64 {
@@ -129,15 +141,20 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
                 ::alloc::boxed::Box::new_uninit(),
                 [
                     (
-                        ::ext_php_rs::builders::FunctionBuilder::new(
-                                "plain",
-                                {
-                                    (/*ERROR*/);
-                                    handler
-                                },
-                            )
-                            .not_required()
-                            .returns(::ext_php_rs::flags::DataType::Void, false, false),
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                                &[],
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new(
+                                    "plain",
+                                    {
+                                        (/*ERROR*/);
+                                        handler
+                                    },
+                                )
+                                .required_args(__REQUIRED)
+                                .returns(::ext_php_rs::flags::DataType::Void, false, false)
+                        },
                         ::ext_php_rs::flags::MethodFlags::Public,
                     ),
                 ],
