@@ -96,3 +96,11 @@ and `#[php(name = "GETCOUNT")] fn count_again` both give the PHP method
 or two enum cases of one block get the same PHP name, the macro gives a compile
 error at the second item. Method names are compared without case. Constant and
 enum case names are compared with case.
+
+The macros cannot see a clash between two blocks, for example a method of
+`#[php_impl]` and a method of `#[php_impl_interface]` with the same PHP name.
+The builders check these at module startup. If two methods, two constants or
+two functions share a PHP name, or if a class with the same name is already
+registered, the extension does not start. The startup error names the item:
+`Error::DuplicateMethod`, `Error::DuplicateConstant`, `Error::DuplicateFunction`
+or `Error::DuplicateClass`.

@@ -15,11 +15,12 @@ use crate::{
     exception::PhpException,
     ffi::{
         zend_declare_class_constant_ex, zend_declare_property, zend_do_implement_interface,
-        zend_register_internal_class_ex, zend_register_internal_interface,
+        zend_hash_str_find_ptr_lc, zend_register_internal_class_ex,
+        zend_register_internal_interface,
     },
     flags::{ClassFlags, ConstantFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
-    zend::{ClassEntry, ExecuteData, ExecutorGlobals, FunctionEntry},
+    zend::{ClassEntry, CompilerGlobals, ExecuteData, ExecutorGlobals, FunctionEntry},
     zend_fastcall,
 };
 
@@ -53,14 +54,49 @@ pub struct ClassProperty {
     pub default_stub: Option<String>,
 }
 
-/// Returns the first property name that appears more than once.
-fn duplicate_property(properties: &[ClassProperty]) -> Option<&str> {
-    properties.iter().enumerate().find_map(|(i, prop)| {
-        properties[..i]
+/// Returns the first name that repeats an earlier one. The engine keys
+/// method, function and class tables by ASCII-lowercased name, and constant and
+/// property tables by the exact name.
+pub(crate) fn first_duplicate<'a>(
+    names: impl IntoIterator<Item = &'a str>,
+    fold_ascii_case: bool,
+) -> Option<&'a str> {
+    let names: Vec<&str> = names.into_iter().collect();
+    names.iter().enumerate().find_map(|(i, name)| {
+        names[..i]
             .iter()
-            .any(|earlier| earlier.name == prop.name)
-            .then_some(prop.name.as_str())
+            .any(|earlier| {
+                if fold_ascii_case {
+                    earlier.eq_ignore_ascii_case(name)
+                } else {
+                    earlier == name
+                }
+            })
+            .then_some(*name)
     })
+}
+
+/// Returns an error when the engine already holds a class, interface or enum
+/// named `name`, ignoring ASCII case. `do_register_internal_class` would
+/// silently replace it.
+///
+/// `EG(class_table)` is only set at request startup, so this reads
+/// `CG(class_table)`, which holds every class registered so far.
+pub(crate) fn ensure_class_name_free(name: &str) -> Result<()> {
+    let class_table = CompilerGlobals::get().class_table;
+    if class_table.is_null() {
+        return Ok(());
+    }
+    // SAFETY: `class_table` is the engine's live class table and `name` is
+    // valid for `name.len()` bytes; the lookup copies it before lowercasing.
+    let found = unsafe { zend_hash_str_find_ptr_lc(class_table, name.as_ptr().cast(), name.len()) };
+    if found.is_null() {
+        Ok(())
+    } else {
+        Err(Error::DuplicateClass {
+            class: name.to_owned(),
+        })
+    }
 }
 
 /// Builder for registering a class in PHP.
@@ -358,10 +394,37 @@ impl ClassBuilder {
         self
     }
 
+    /// Checks that no two properties, methods or constants of the class share
+    /// a PHP name. Methods are compared ignoring ASCII case, like the engine.
+    fn validate(&self) -> Result<()> {
+        if let Some(name) = first_duplicate(self.properties.iter().map(|p| p.name.as_str()), false)
+        {
+            return Err(Error::DuplicateProperty {
+                property: format!("{}::${name}", self.name),
+            });
+        }
+        if let Some(name) = first_duplicate(self.methods.iter().map(|(m, _)| m.name.as_str()), true)
+        {
+            return Err(Error::DuplicateMethod {
+                method: format!("{}::{name}", self.name),
+            });
+        }
+        if let Some(name) = first_duplicate(self.constants.iter().map(|c| c.0.as_str()), false) {
+            return Err(Error::DuplicateConstant {
+                constant: format!("{}::{name}", self.name),
+            });
+        }
+        Ok(())
+    }
+
     /// Builds and registers the class.
     ///
     /// # Errors
     ///
+    /// * [`Error::DuplicateProperty`], [`Error::DuplicateMethod`] or
+    ///   [`Error::DuplicateConstant`] - If two members share a PHP name.
+    /// * [`Error::DuplicateClass`] - If a class with this name, ignoring ASCII
+    ///   case, is already registered.
     /// * [`Error::InvalidPointer`] - If the class could not be registered.
     /// * [`Error::InvalidCString`] - If the class name is not a valid C string.
     /// * [`Error::IntegerOverflow`] - If the property flags are not valid.
@@ -377,11 +440,8 @@ impl ClassBuilder {
             "Classes can only be registered from a module startup (MINIT) function: \
              `do_register_internal_class` dereferences `EG(current_module)`."
         );
-        if let Some(name) = duplicate_property(&self.properties) {
-            return Err(Error::DuplicateProperty {
-                property: format!("{}::${name}", self.name),
-            });
-        }
+        self.validate()?;
+        ensure_class_name_free(&self.name)?;
 
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
 
@@ -573,20 +633,91 @@ mod tests {
         }
     }
 
-    #[test]
-    fn duplicate_property_returns_the_repeated_name() {
-        let properties = [
-            named_property("a"),
-            named_property("b"),
-            named_property("a"),
-        ];
-        assert_eq!(duplicate_property(&properties), Some("a"));
+    fn with_constant(mut class: ClassBuilder, name: &str) -> ClassBuilder {
+        class.constants.push((
+            name.into(),
+            Box::new(|| Err(Error::InvalidPointer)),
+            &[],
+            String::new(),
+            ConstantFlags::Public,
+        ));
+        class
     }
 
     #[test]
-    fn duplicate_property_returns_none_for_distinct_names() {
-        let properties = [named_property("a"), named_property("b")];
-        assert_eq!(duplicate_property(&properties), None);
+    fn first_duplicate_folds_ascii_case_only_when_asked() {
+        assert_eq!(first_duplicate(["a", "b", "a"], false), Some("a"));
+        assert_eq!(first_duplicate(["a", "B", "b"], false), None);
+        assert_eq!(first_duplicate(["a", "B", "b"], true), Some("b"));
+        assert_eq!(first_duplicate(["ä", "Ä"], true), None);
+        assert_eq!(first_duplicate([], true), None);
+    }
+
+    #[test]
+    fn validate_rejects_a_repeated_property() {
+        let mut class = ClassBuilder::new("Foo");
+        class.properties = vec![named_property("a"), named_property("a")];
+        assert!(matches!(
+            class.validate(),
+            Err(Error::DuplicateProperty { property }) if property == "Foo::$a"
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_methods_that_differ_only_by_case() {
+        let class = ClassBuilder::new("Foo")
+            .method(
+                FunctionBuilder::new("run", test_function),
+                MethodFlags::Public,
+            )
+            .method(
+                FunctionBuilder::new("RUN", test_function),
+                MethodFlags::Static,
+            );
+        assert!(matches!(
+            class.validate(),
+            Err(Error::DuplicateMethod { method }) if method == "Foo::RUN"
+        ));
+    }
+
+    #[test]
+    fn validate_compares_constants_exactly() {
+        let class = with_constant(with_constant(ClassBuilder::new("Foo"), "A"), "a");
+        assert!(class.validate().is_ok());
+        let class = with_constant(class, "A");
+        assert!(matches!(
+            class.validate(),
+            Err(Error::DuplicateConstant { constant }) if constant == "Foo::A"
+        ));
+    }
+
+    #[test]
+    #[cfg(feature = "embed")]
+    fn class_names_already_in_the_class_table_are_taken() {
+        let ran = crate::embed::Embed::run(|| {
+            assert!(matches!(
+                ensure_class_name_free("STDCLASS"),
+                Err(Error::DuplicateClass { class }) if class == "STDCLASS"
+            ));
+            assert!(ensure_class_name_free("ExtPhpRsNoSuchClass").is_ok());
+            true
+        });
+        assert!(ran);
+    }
+
+    #[test]
+    fn validate_accepts_distinct_members() {
+        let mut class = ClassBuilder::new("Foo")
+            .method(
+                FunctionBuilder::new("run", test_function),
+                MethodFlags::Public,
+            )
+            .method(
+                FunctionBuilder::new("stop", test_function),
+                MethodFlags::Public,
+            );
+        class.properties = vec![named_property("a"), named_property("b")];
+        assert!(with_constant(class, "A").validate().is_ok());
     }
 
     #[test]
