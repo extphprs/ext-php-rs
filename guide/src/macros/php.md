@@ -57,7 +57,7 @@ Which attributes are available depends on the element you are annotating:
 | final                      | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ✅          | ❌     | ❌          |
 | allow_native_discriminants | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
 | value                      | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ❌     | ✅          |
-| rename_cases               | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
+| change_cases_case          | ❌      | ❌   | ❌       | ❌             | ❌     | ❌             | ❌          | ✅     | ❌          |
 
 An option marked ❌ is a compile error. The error points at the option and
 names the item where the option is valid. The proc macros themselves take no

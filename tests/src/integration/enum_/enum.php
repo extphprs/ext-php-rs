@@ -31,6 +31,13 @@ assert($int->isBacked() && (string) $int->getBackingType() === 'int');
 $string = new ReflectionEnum(StringBackedEnum::class);
 assert($string->isBacked() && (string) $string->getBackingType() === 'string');
 
+assert(
+    array_map(static fn(RenamedCasesEnum $c): string => $c->name, RenamedCasesEnum::cases()) === [
+        'FIRST_CASE',
+        'Kept'
+    ]
+);
+
 assert(test_enum(TestEnum::Variant1) === StringBackedEnum::Variant2);
 
 assert(test_enum_from_name('Variant1') === StringBackedEnum::Variant1);
