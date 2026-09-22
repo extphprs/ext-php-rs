@@ -349,9 +349,7 @@ fn parse_trait_item_fn(
     let mut modifiers: BTreeSet<MethodModifier> = BTreeSet::new();
     modifiers.insert(MethodModifier::Abstract);
 
-    if args.typed.first().is_some_and(|arg| arg.name == "self_") {
-        args.typed.pop();
-    } else if args.receiver.is_none() {
+    if !args.take_self_object()? && args.receiver.is_none() {
         modifiers.insert(MethodModifier::Static);
     }
 
