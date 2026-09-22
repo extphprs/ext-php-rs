@@ -23,3 +23,13 @@ trait MyInterface2 {
     #[php(change_case = "PascalCase")]
     fn anotherMethod(&self) -> i32;
 }
+
+#[php_class]
+struct MyImpl {}
+
+#[php_impl_interface]
+impl MyInterface for MyImpl {
+    fn my_method(&self, arg: i32) -> String {
+        String::new()
+    }
+}

@@ -186,3 +186,15 @@ function greetWithInterface(ExtPhpRs\Interface\ParentInterface $obj): string
 
 $result = greetWithInterface($greeter);
 assert($result === 'Hello from World!', 'parentMethod should work via interface type hint');
+
+$greeter = new ExtPhpRs\Interface\OptionalGreeter('World');
+assert($greeter instanceof ExtPhpRs\Interface\OptionalGreeting);
+assert($greeter->greetOptional() === 'Hi World');
+assert($greeter->greetOptional(null) === 'Hi World');
+assert($greeter->greetOptional('Hello') === 'Hello World');
+$param = ( new ReflectionMethod($greeter, 'greetOptional') )->getParameters()[0];
+assert($param->allowsNull());
+assert($param->isOptional());
+$param = ( new ReflectionMethod('ExtPhpRs\Interface\OptionalGreeting', 'greetOptional') )->getParameters()[0];
+assert($param->allowsNull());
+assert($param->isOptional());

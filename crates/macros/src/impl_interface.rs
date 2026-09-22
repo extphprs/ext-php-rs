@@ -157,16 +157,6 @@ fn generate_method_builder(
     output: &ReturnType,
     is_static: bool,
 ) -> TokenStream {
-    // Helper to check if a type is Option<T>
-    fn is_option_type(ty: &syn::Type) -> bool {
-        if let syn::Type::Path(type_path) = ty
-            && let Some(segment) = type_path.path.segments.last()
-        {
-            return segment.ident == "Option";
-        }
-        false
-    }
-
     // Collect non-self arguments in order
     let args: Vec<_> = inputs
         .iter()
@@ -180,105 +170,58 @@ fn generate_method_builder(
         })
         .collect();
 
-    // Find the optional boundary: the first index where all remaining args are
-    // Option<T>. Args before this boundary are required (even if Option<T>),
-    // args at/after are optional. This handles cases like `fn foo(opt:
-    // Option<i64>, required: i64)` correctly - `opt` is effectively required
-    // because a required param follows it.
-    let optional_boundary = {
-        let mut boundary = args.len();
-        for i in (0..args.len()).rev() {
-            if is_option_type(args[i].1) {
-                boundary = i;
-            } else {
-                break;
-            }
-        }
-        boundary
+    // The required count follows each parameter's `FromZvalMut::NULLABLE`, so
+    // an alias of `Option<T>` behaves like `Option<T>`. An `Option<T>` before a
+    // required parameter stays required.
+    let omittable = args
+        .iter()
+        .map(|(_, ty)| quote! { <#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE });
+    let required = quote! {
+        const __REQUIRED: usize = ::ext_php_rs::args::required_count(&[#(#omittable),*]);
     };
 
-    let required_args: Vec<_> = args[..optional_boundary].to_vec();
-    let optional_args: Vec<_> = args[optional_boundary..].to_vec();
-
-    // Create Arg declarations for each parameter (in order)
-    let required_arg_declarations: Vec<_> = required_args
-        .iter()
-        .map(|(name, ty)| {
-            let php_name = ident_to_php_name(name);
-            // Even Option<T> args in required position don't get allow_null() in parser
-            quote! {
-                let mut #name = ::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE);
-            }
-        })
-        .collect();
-
-    let optional_arg_declarations: Vec<_> = optional_args
+    let arg_declarations: Vec<_> = args
         .iter()
         .map(|(name, ty)| {
             let php_name = ident_to_php_name(name);
             quote! {
-                let mut #name = ::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE).allow_null();
+                let mut #name = ::ext_php_rs::args::Arg::of::<#ty>(#php_name);
             }
         })
         .collect();
 
-    let required_arg_names: Vec<_> = required_args.iter().map(|(name, _)| *name).collect();
-    let optional_arg_names: Vec<_> = optional_args.iter().map(|(name, _)| *name).collect();
     let arg_names: Vec<_> = args.iter().map(|(name, _)| name).collect();
 
-    // Value accessors that extract values from the Arg objects after parsing
-    let required_arg_value_accessors: Vec<_> = required_args
+    // Value accessors that extract values from the Arg objects after parsing.
+    // An omitted argument takes `FromZvalMut::from_missing()`.
+    let arg_value_accessors: Vec<_> = args
         .iter()
         .map(|(name, ty)| {
             let php_name = ident_to_php_name(name);
-            if is_option_type(ty) {
-                // Option<T> in required position - still use .val() which returns Option<T>
-                quote! {
-                    let #name: #ty = #name.val();
-                }
-            } else {
-                quote! {
-                    let #name: #ty = match #name.val() {
-                        Some(v) => v,
-                        None => {
-                            let msg = format!("Invalid value for argument `{}`", #php_name);
-                            ::ext_php_rs::exception::PhpException::from_message(msg.into())
-                                .throw();
-                            return;
-                        }
-                    };
-                }
-            }
-        })
-        .collect();
-
-    let optional_arg_value_accessors: Vec<_> = optional_args
-        .iter()
-        .map(|(name, ty)| {
-            // For Option<T>, .val() returns Option<T>, which is what we want
             quote! {
-                let #name: #ty = #name.val();
+                let #name: #ty = match match #name.zval() {
+                    Some(zval) => <#ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(zval.dereference_mut()),
+                    None => <#ty as ::ext_php_rs::convert::FromZvalMut>::from_missing(),
+                } {
+                    Some(value) => value,
+                    None => {
+                        let msg = format!("Invalid value for argument `{}`", #php_name);
+                        ::ext_php_rs::exception::PhpException::from_message(msg.into())
+                            .throw();
+                        return;
+                    }
+                };
             }
         })
         .collect();
 
     // Generate .arg() calls for PHP reflection metadata (for FunctionBuilder)
-    let required_arg_builders: Vec<_> = required_args
+    let arg_builders: Vec<_> = args
         .iter()
         .map(|(name, ty)| {
             let php_name = ident_to_php_name(name);
             quote! {
-                .arg(::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE))
-            }
-        })
-        .collect();
-
-    let optional_arg_builders: Vec<_> = optional_args
-        .iter()
-        .map(|(name, ty)| {
-            let php_name = ident_to_php_name(name);
-            quote! {
-                .arg(::ext_php_rs::args::Arg::new(#php_name, <#ty as ::ext_php_rs::convert::FromZvalMut>::TYPE).allow_null())
+                .arg(::ext_php_rs::args::Arg::of::<#ty>(#php_name))
             }
         })
         .collect();
@@ -325,34 +268,28 @@ fn generate_method_builder(
     let handler_body = if is_static {
         if is_void {
             quote! {
-                #(#required_arg_declarations)*
-                #(#optional_arg_declarations)*
+                #(#arg_declarations)*
                 let parse = ex.parser()
-                    #(.arg(&mut #required_arg_names))*
-                    .not_required()
-                    #(.arg(&mut #optional_arg_names))*
+                    #(.arg(&mut #arg_names))*
+                    .required_args(__REQUIRED)
                     .parse();
                 if parse.is_err() {
                     return;
                 }
-                #(#required_arg_value_accessors)*
-                #(#optional_arg_value_accessors)*
+                #(#arg_value_accessors)*
                 <#struct_ty>::#method_ident(#(#arg_names),*);
             }
         } else {
             quote! {
-                #(#required_arg_declarations)*
-                #(#optional_arg_declarations)*
+                #(#arg_declarations)*
                 let parse = ex.parser()
-                    #(.arg(&mut #required_arg_names))*
-                    .not_required()
-                    #(.arg(&mut #optional_arg_names))*
+                    #(.arg(&mut #arg_names))*
+                    .required_args(__REQUIRED)
                     .parse();
                 if parse.is_err() {
                     return;
                 }
-                #(#required_arg_value_accessors)*
-                #(#optional_arg_value_accessors)*
+                #(#arg_value_accessors)*
                 let result = <#struct_ty>::#method_ident(#(#arg_names),*);
                 #result_handling
             }
@@ -368,18 +305,15 @@ fn generate_method_builder(
                     return;
                 }
             };
-            #(#required_arg_declarations)*
-            #(#optional_arg_declarations)*
+            #(#arg_declarations)*
             let parse_result = parse
-                #(.arg(&mut #required_arg_names))*
-                .not_required()
-                #(.arg(&mut #optional_arg_names))*
+                #(.arg(&mut #arg_names))*
+                .required_args(__REQUIRED)
                 .parse();
             if parse_result.is_err() {
                 return;
             }
-            #(#required_arg_value_accessors)*
-            #(#optional_arg_value_accessors)*
+            #(#arg_value_accessors)*
             this.#method_ident(#(#arg_names),*);
         }
     } else {
@@ -393,25 +327,23 @@ fn generate_method_builder(
                     return;
                 }
             };
-            #(#required_arg_declarations)*
-            #(#optional_arg_declarations)*
+            #(#arg_declarations)*
             let parse_result = parse
-                #(.arg(&mut #required_arg_names))*
-                .not_required()
-                #(.arg(&mut #optional_arg_names))*
+                #(.arg(&mut #arg_names))*
+                .required_args(__REQUIRED)
                 .parse();
             if parse_result.is_err() {
                 return;
             }
-            #(#required_arg_value_accessors)*
-            #(#optional_arg_value_accessors)*
+            #(#arg_value_accessors)*
             let result = this.#method_ident(#(#arg_names),*);
             #result_handling
         }
     };
 
     quote! {
-        (
+        ({
+            #required
             ::ext_php_rs::builders::FunctionBuilder::new(#php_name, {
                 ::ext_php_rs::zend_fastcall! {
                     extern fn handler(
@@ -427,10 +359,10 @@ fn generate_method_builder(
                 }
                 handler
             })
-            #(#required_arg_builders)*
-            .not_required()
-            #(#optional_arg_builders)*
-            #returns_call,
+            #(#arg_builders)*
+            .required_args(__REQUIRED)
+            #returns_call
+        },
             #flags
         )
     }
