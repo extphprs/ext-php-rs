@@ -33,7 +33,7 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
                         ::ext_php_rs::args::Arg::of::<i64>("times")
                             .default({
                                 let __default: i64 = (1).into();
-                                ::ext_php_rs::convert::IntoZvalDyn::stub_value(&__default)
+                                ::ext_php_rs::convert::StubLiteral::stub_literal(&__default)
                             }),
                     )
                     .required_args(__REQUIRED)

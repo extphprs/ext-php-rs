@@ -434,6 +434,114 @@ impl IntoZvalDyn for Zval {
     }
 }
 
+/// Renders a Rust value as PHP source, for the `default_value` of a parameter
+/// and for stub files.
+///
+/// The rendering never touches the engine, so it can run while the module
+/// entry is built, before the Zend allocator exists. PHP reads the text back
+/// with `zend_get_default_from_internal_arg_info`, which accepts `null`,
+/// `true`, `false`, integers, quoted strings, `[]` and constant expressions.
+pub trait StubLiteral {
+    /// The PHP source text of this value.
+    fn stub_literal(&self) -> String;
+}
+
+macro_rules! stub_literal_display {
+    ($($ty:ty),*) => {
+        $(
+            impl StubLiteral for $ty {
+                fn stub_literal(&self) -> String {
+                    self.to_string()
+                }
+            }
+        )*
+    };
+}
+
+stub_literal_display!(bool, i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
+
+macro_rules! stub_literal_float {
+    ($($ty:ty),*) => {
+        $(
+            impl StubLiteral for $ty {
+                fn stub_literal(&self) -> String {
+                    if self.is_nan() {
+                        "NAN".to_string()
+                    } else if self.is_infinite() {
+                        if *self > 0.0 { "INF" } else { "-INF" }.to_string()
+                    } else {
+                        format!("{self:?}")
+                    }
+                }
+            }
+        )*
+    };
+}
+
+stub_literal_float!(f32, f64);
+
+impl StubLiteral for str {
+    fn stub_literal(&self) -> String {
+        let escaped = self.replace('\\', "\\\\").replace('\'', "\\'");
+        format!("'{escaped}'")
+    }
+}
+
+impl StubLiteral for &str {
+    fn stub_literal(&self) -> String {
+        (**self).stub_literal()
+    }
+}
+
+impl StubLiteral for String {
+    fn stub_literal(&self) -> String {
+        self.as_str().stub_literal()
+    }
+}
+
+impl StubLiteral for std::borrow::Cow<'_, str> {
+    fn stub_literal(&self) -> String {
+        self.as_ref().stub_literal()
+    }
+}
+
+impl<T: StubLiteral> StubLiteral for Option<T> {
+    fn stub_literal(&self) -> String {
+        self.as_ref()
+            .map_or_else(|| "null".to_string(), StubLiteral::stub_literal)
+    }
+}
+
+impl<T: StubLiteral> StubLiteral for [T] {
+    fn stub_literal(&self) -> String {
+        let items: Vec<String> = self.iter().map(StubLiteral::stub_literal).collect();
+        format!("[{}]", items.join(", "))
+    }
+}
+
+impl<T: StubLiteral> StubLiteral for Vec<T> {
+    fn stub_literal(&self) -> String {
+        self.as_slice().stub_literal()
+    }
+}
+
+impl<T: StubLiteral, const N: usize> StubLiteral for [T; N] {
+    fn stub_literal(&self) -> String {
+        self.as_slice().stub_literal()
+    }
+}
+
+impl<K: StubLiteral, V: StubLiteral, S> StubLiteral for std::collections::HashMap<K, V, S> {
+    fn stub_literal(&self) -> String {
+        let mut entries: Vec<String> = self
+            .iter()
+            .map(|(key, value)| format!("{} => {}", key.stub_literal(), value.stub_literal()))
+            .collect();
+        entries.sort();
+        format!("[{}]", entries.join(", "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -452,6 +560,23 @@ mod tests {
         assert!(<&mut ZendHashTable as FromZvalMut>::BY_REF);
         assert!(!<&mut ZendObject as FromZvalMut>::BY_REF);
     };
+
+    #[test]
+    fn stub_literals_are_php_source() {
+        assert_eq!(42_i32.stub_literal(), "42");
+        assert_eq!(true.stub_literal(), "true");
+        assert_eq!(1.5_f64.stub_literal(), "1.5");
+        assert_eq!(3.0_f64.stub_literal(), "3.0");
+        assert_eq!(f64::INFINITY.stub_literal(), "INF");
+        assert_eq!("it's".stub_literal(), "'it\\'s'");
+        assert_eq!(String::from("a\\b").stub_literal(), "'a\\\\b'");
+        assert_eq!(None::<i64>.stub_literal(), "null");
+        assert_eq!(Some("x".to_string()).stub_literal(), "'x'");
+        assert_eq!(Vec::<i64>::new().stub_literal(), "[]");
+        assert_eq!(vec![1, 2].stub_literal(), "[1, 2]");
+        let map: std::collections::HashMap<&str, i64> = [("b", 2), ("a", 1)].into();
+        assert_eq!(map.stub_literal(), "['a' => 1, 'b' => 2]");
+    }
 
     #[test]
     fn omitted_argument_is_none_for_option_and_missing_otherwise() {

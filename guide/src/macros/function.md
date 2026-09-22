@@ -44,9 +44,10 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 Default parameter values can also be set for optional parameters. This is done
 through the `#[php(defaults)]` attribute option. When an optional parameter has a
 default, it does not need to be a variant of `Option`. The default expression is
-converted into the parameter type with `Into`, so the type must implement
-`IntoZval` and `Clone`. The module evaluates it once at load time and renders
-the value into the stub file and into `ReflectionParameter::getDefaultValue()`:
+converted into the parameter type with `Into`, and the type must implement
+`StubLiteral`, which every scalar, string, `Option`, `Vec` and `HashMap` does.
+The module renders the value once at load time into the stub file and into
+`ReflectionParameter::getDefaultValue()`:
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]

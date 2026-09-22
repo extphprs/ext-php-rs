@@ -899,7 +899,7 @@ impl TypedArg<'_> {
             quote! {
                 .default({
                     let __default: #ty = (#default).into();
-                    ::ext_php_rs::convert::IntoZvalDyn::stub_value(&__default)
+                    ::ext_php_rs::convert::StubLiteral::stub_literal(&__default)
                 })
             }
         });
