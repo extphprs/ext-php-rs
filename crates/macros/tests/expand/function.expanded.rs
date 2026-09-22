@@ -29,7 +29,13 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
                     )
                     .arg(::ext_php_rs::args::Arg::of::<String>("name"))
                     .arg(::ext_php_rs::args::Arg::of::<Option<i64>>("age"))
-                    .arg(::ext_php_rs::args::Arg::of::<i64>("times").default("1"))
+                    .arg(
+                        ::ext_php_rs::args::Arg::of::<i64>("times")
+                            .default({
+                                let __default: i64 = (1).into();
+                                ::ext_php_rs::convert::IntoZvalDyn::stub_value(&__default)
+                            }),
+                    )
                     .required_args(__REQUIRED)
                     .returns(
                         <String as ::ext_php_rs::convert::IntoZval>::TYPE,

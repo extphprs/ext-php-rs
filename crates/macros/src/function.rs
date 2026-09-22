@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use darling::{FromAttributes, ToTokens, util::SpannedValue};
+use darling::{FromAttributes, util::SpannedValue};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -895,10 +895,12 @@ impl TypedArg<'_> {
     fn arg_builder(&self) -> TokenStream {
         let name = ident_to_php_name(self.name);
         let ty = self.clean_ty();
-        let default = self.default.as_ref().map(|val| {
-            let val = expr_to_php_stub(val);
+        let default = self.default.as_ref().map(|default| {
             quote! {
-                .default(#val)
+                .default({
+                    let __default: #ty = (#default).into();
+                    ::ext_php_rs::convert::IntoZvalDyn::stub_value(&__default)
+                })
             }
         });
         let variadic = self.variadic.then(|| quote! { .is_variadic() });
@@ -967,120 +969,10 @@ impl TypedArg<'_> {
     }
 }
 
-/// Converts a Rust expression to a PHP stub-compatible default value string.
-///
-/// This function handles common Rust patterns and converts them to valid PHP
-/// syntax for use in generated stub files:
-///
-/// - `None` → `"null"`
-/// - `Some(expr)` → converts the inner expression
-/// - `42`, `3.14` → numeric literals as-is
-/// - `true`/`false` → as-is
-/// - `"string"` → `"string"`
-/// - `"string".to_string()` or `String::from("string")` → `"string"`
-fn expr_to_php_stub(expr: &Expr) -> String {
-    match expr {
-        // Handle None -> null
-        Expr::Path(path) => {
-            let path_str = path.path.to_token_stream().to_string();
-            if path_str == "None" {
-                "null".to_string()
-            } else if path_str == "true" || path_str == "false" {
-                path_str
-            } else {
-                // For other paths (constants, etc.), use the raw representation
-                path_str
-            }
-        }
-
-        // Handle Some(expr) -> convert inner expression
-        Expr::Call(call) => {
-            if let Expr::Path(func_path) = &*call.func {
-                let func_name = func_path.path.to_token_stream().to_string();
-
-                // Some(value) -> convert inner value
-                if func_name == "Some"
-                    && let Some(arg) = call.args.first()
-                {
-                    return expr_to_php_stub(arg);
-                }
-
-                // String::from("...") -> "..."
-                if (func_name == "String :: from" || func_name == "String::from")
-                    && let Some(arg) = call.args.first()
-                {
-                    return expr_to_php_stub(arg);
-                }
-            }
-
-            // Default: use raw representation
-            expr.to_token_stream().to_string()
-        }
-
-        // Handle method calls like "string".to_string()
-        Expr::MethodCall(method_call) => {
-            let method_name = method_call.method.to_string();
-
-            // "...".to_string() or "...".to_owned() or "...".into() -> "..."
-            if method_name == "to_string" || method_name == "to_owned" || method_name == "into" {
-                return expr_to_php_stub(&method_call.receiver);
-            }
-
-            // Default: use raw representation
-            expr.to_token_stream().to_string()
-        }
-
-        // String literals -> keep as-is (already valid PHP)
-        Expr::Lit(lit) => match &lit.lit {
-            syn::Lit::Str(s) => format!(
-                "\"{}\"",
-                s.value().replace('\\', "\\\\").replace('"', "\\\"")
-            ),
-            // Use base10_digits() to strip Rust type suffixes like _usize, _i32, etc.
-            syn::Lit::Int(i) => i.base10_digits().to_string(),
-            syn::Lit::Float(f) => f.base10_digits().to_string(),
-            syn::Lit::Bool(b) => if b.value { "true" } else { "false" }.to_string(),
-            syn::Lit::Char(c) => format!("\"{}\"", c.value()),
-            _ => expr.to_token_stream().to_string(),
-        },
-
-        // Handle arrays: [] or vec![]
-        Expr::Array(arr) => {
-            if arr.elems.is_empty() {
-                "[]".to_string()
-            } else {
-                let elems: Vec<String> = arr.elems.iter().map(expr_to_php_stub).collect();
-                format!("[{}]", elems.join(", "))
-            }
-        }
-
-        // Handle vec![] macro
-        Expr::Macro(m) => {
-            let macro_name = m.mac.path.to_token_stream().to_string();
-            if macro_name == "vec" {
-                let tokens = m.mac.tokens.to_string();
-                if tokens.trim().is_empty() {
-                    return "[]".to_string();
-                }
-            }
-            // Default: use raw representation
-            expr.to_token_stream().to_string()
-        }
-
-        // Handle unary expressions like -42
-        Expr::Unary(unary) => {
-            let inner = expr_to_php_stub(&unary.expr);
-            format!("{}{}", unary.op.to_token_stream(), inner)
-        }
-
-        // Default: use raw representation
-        _ => expr.to_token_stream().to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use darling::ToTokens;
 
     fn parse_args(sig: &str) -> Args<'static> {
         let sig: &'static syn::Signature =
@@ -1138,50 +1030,5 @@ mod tests {
         assert!(Args::parse_from_fnargs([&by_mut].into_iter(), HashMap::new()).is_ok());
         assert!(Args::parse_from_fnargs([&by_value].into_iter(), HashMap::new()).is_err());
         assert!(Args::parse_from_fnargs([&boxed].into_iter(), HashMap::new()).is_err());
-    }
-
-    #[test]
-    fn test_expr_to_php_stub_strips_numeric_suffixes() {
-        // Test integer suffixes are stripped (issue #492)
-        let expr: Expr = syn::parse_quote!(42_usize);
-        assert_eq!(expr_to_php_stub(&expr), "42");
-
-        let expr: Expr = syn::parse_quote!(42_i32);
-        assert_eq!(expr_to_php_stub(&expr), "42");
-
-        let expr: Expr = syn::parse_quote!(42_u64);
-        assert_eq!(expr_to_php_stub(&expr), "42");
-
-        // Test float suffixes are stripped
-        let expr: Expr = syn::parse_quote!(3.14_f64);
-        assert_eq!(expr_to_php_stub(&expr), "3.14");
-
-        let expr: Expr = syn::parse_quote!(3.14_f32);
-        assert_eq!(expr_to_php_stub(&expr), "3.14");
-
-        // Test literals without suffixes still work
-        let expr: Expr = syn::parse_quote!(42);
-        assert_eq!(expr_to_php_stub(&expr), "42");
-
-        let expr: Expr = syn::parse_quote!(3.14);
-        assert_eq!(expr_to_php_stub(&expr), "3.14");
-    }
-
-    #[test]
-    fn test_expr_to_php_stub_negative_numbers() {
-        let expr: Expr = syn::parse_quote!(-42_i32);
-        assert_eq!(expr_to_php_stub(&expr), "-42");
-
-        let expr: Expr = syn::parse_quote!(-3.14_f64);
-        assert_eq!(expr_to_php_stub(&expr), "-3.14");
-    }
-
-    #[test]
-    fn test_expr_to_php_stub_none_and_some() {
-        let expr: Expr = syn::parse_quote!(None);
-        assert_eq!(expr_to_php_stub(&expr), "null");
-
-        let expr: Expr = syn::parse_quote!(Some(42_usize));
-        assert_eq!(expr_to_php_stub(&expr), "42");
     }
 }

@@ -28,8 +28,22 @@ pub fn test_defaults_nullable_with_some_default(a: Option<String>) -> Option<Str
     a
 }
 
+#[php_function]
+#[php(defaults(greeting = "\"hi\""))]
+pub fn test_defaults_str(greeting: &str) -> String {
+    greeting.to_uppercase()
+}
+
+#[php_function]
+#[php(defaults(ratio = 1.5))]
+pub fn test_defaults_float(ratio: f64) -> f64 {
+    ratio * 2.0
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
+        .function(wrap_function!(test_defaults_str))
+        .function(wrap_function!(test_defaults_float))
         .function(wrap_function!(test_defaults_integer))
         .function(wrap_function!(test_defaults_nullable_string))
         .function(wrap_function!(test_defaults_multiple_option_arguments))
