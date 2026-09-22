@@ -11,7 +11,7 @@ You can rename the const with options:
 - `name` - Allows you to rename the property, e.g.
   `#[php(name = "new_name")]`
 - `change_case` - Allows you to rename the property using rename rules, e.g.
-  `#[php(change_case = PascalCase)]`
+  `#[php(change_case = "PascalCase")]`
 
 A global constant has no visibility. `#[php(vis = "...")]` on a `#[php_const]`
 is a compile error. Use `vis` on constants inside a `#[php_impl]` block.

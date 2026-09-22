@@ -71,13 +71,17 @@ Trait methods inside `#[php_interface]` accept `name`, `change_case`,
 
 ## `name` and `change_case`
 
-`name` and `change_case` are mutually exclusive. The `name` attribute is used to set the name of
-an item to a string literal. The `change_case` attribute is used to change the case of the name.
+The `name` option sets the PHP name of an item to a string literal. The
+`change_case` option converts the Rust name to a different case. You can use
+only one of the two on an item. If you use both, the macro gives a compile
+error.
 
 ```rs
 #[php(name = "NEW_NAME")]
-#[php(change_case = snake_case)]]
+#[php(change_case = "snake_case")]
 ```
+
+The case is a string literal.
 
 Available cases are:
 - `snake_case`

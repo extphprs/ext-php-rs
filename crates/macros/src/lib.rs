@@ -70,7 +70,7 @@ extern crate proc_macro;
 /// - `name` - Allows you to rename the property, e.g. `#[php(prop, name =
 ///   "new_name")]`
 /// - `change_case` - Allows you to rename the property using rename rules, e.g.
-///   `#[php(prop, change_case = PascalCase)]`
+///   `#[php(prop, change_case = "PascalCase")]`
 /// - `static` - Makes the property static (shared across all instances), e.g.
 ///   `#[php(prop, static)]`
 /// - `flags` - Sets property visibility flags, e.g. `#[php(prop, flags =
@@ -1655,7 +1655,7 @@ fn php_function_internal(args: TokenStream2, input: TokenStream2) -> TokenStream
 /// - `name` - Allows you to rename the property, e.g. `#[php(name =
 ///   "new_name")]`
 /// - `change_case` - Allows you to rename the property using rename rules, e.g.
-///   `#[php(change_case = PascalCase)]`
+///   `#[php(change_case = "PascalCase")]`
 ///
 /// A global constant has no visibility. `#[php(vis = "...")]` on a
 /// `#[php_const]` is a compile error. Use `vis` on constants inside a
