@@ -8,20 +8,21 @@
 //! resolution issues at binary load time.
 
 use darling::FromMeta;
+use darling::util::SpannedValue;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{FnArg, ImplItem, ItemImpl, Pat, ReturnType};
 
-use crate::parsing::{MethodRename, RenameRule, ident_to_php_name, reject_php_attrs};
+use crate::interface::method_name_const;
+use crate::parsing::{RenameRule, ident_to_php_name, reject_php_attrs};
 use crate::prelude::*;
 
 /// Attributes for the `#[php_impl_interface]` macro.
-#[derive(FromMeta, Default, Debug, Copy, Clone)]
+#[derive(FromMeta, Default, Debug)]
 #[darling(default)]
 pub struct PhpImplInterfaceArgs {
-    /// Rename methods to match the given rule. Should match the interface's
-    /// `change_method_case` if specified.
-    change_method_case: Option<RenameRule>,
+    /// Removed: method names come from the `#[php_interface]` trait.
+    change_method_case: Option<SpannedValue<RenameRule>>,
 }
 
 const INTERNAL_INTERFACE_NAME_PREFIX: &str = "PhpInterface";
@@ -31,7 +32,7 @@ const INTERNAL_INTERFACE_NAME_PREFIX: &str = "PhpInterface";
 ///
 /// # Arguments
 ///
-/// * `args` - The macro arguments (e.g., `change_method_case = "snake_case"`)
+/// * `args` - The macro arguments. None are accepted.
 /// * `input` - The trait impl block (e.g., `impl SomeTrait for SomeStruct { ...
 ///   }`)
 ///
@@ -48,8 +49,10 @@ const INTERNAL_INTERFACE_NAME_PREFIX: &str = "PhpInterface";
 /// The macro preserves the full module path of the trait, so
 /// `impl other::MyTrait for Foo` will correctly reference
 /// `other::PhpInterfaceMyTrait`.
-pub fn parser(args: PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStream> {
-    let change_method_case = args.change_method_case.unwrap_or(RenameRule::Camel);
+pub fn parser(args: &PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStream> {
+    if let Some(change_method_case) = &args.change_method_case {
+        bail!(change_method_case.span() => "`change_method_case` is not accepted here; method names come from the `#[php_interface]` trait.");
+    }
     // Extract the trait being implemented
     let Some((trait_path, _)) = &input.trait_ else {
         bail!(input => "`#[php_impl_interface]` can only be used on trait implementations (e.g., `impl SomeTrait for SomeStruct`)");
@@ -89,8 +92,8 @@ pub fn parser(args: PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStrea
             continue;
         };
         let method_ident = &method.sig.ident;
-        let php_name = ident_to_php_name(method_ident);
-        let php_name = php_name.rename_method(change_method_case);
+        let name_const = method_name_const(method_ident);
+        let php_name = quote! { <#interface_struct_path>::#name_const };
 
         // Check if this is a static method (no self receiver)
         let has_self = method
@@ -150,7 +153,7 @@ pub fn parser(args: PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStrea
 /// only instantiated when `get_interface_methods()` is called at runtime.
 #[allow(clippy::too_many_lines)]
 fn generate_method_builder(
-    php_name: &str,
+    php_name: &TokenStream,
     struct_ty: &syn::Type,
     method_ident: &syn::Ident,
     inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,

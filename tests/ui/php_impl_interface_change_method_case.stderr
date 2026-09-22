@@ -1,0 +1,5 @@
+error: `change_method_case` is not accepted here; method names come from the `#[php_interface]` trait.
+  --> tests/ui/php_impl_interface_change_method_case.rs:12:43
+   |
+12 | #[php_impl_interface(change_method_case = "snake_case")]
+   |                                           ^^^^^^^^^^^^

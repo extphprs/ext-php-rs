@@ -10,6 +10,11 @@ trait MyInterface {
     fn my_method(&self, arg: i32) -> String;
 }
 pub struct PhpInterfaceMyInterface;
+impl PhpInterfaceMyInterface {
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_method_my_method: &'static str = "myMethod";
+}
 impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
     const CLASS_NAME: &'static str = "MyInterface";
     const BUILDER_MODIFIER: Option<
@@ -171,6 +176,17 @@ trait MyInterface2 {
     fn static_method() -> i32;
 }
 pub struct PhpInterfaceMyInterface2;
+impl PhpInterfaceMyInterface2 {
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_method_my_method: &'static str = "MY_METHOD";
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_method_anotherMethod: &'static str = "AnotherMethod";
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_method_static_method: &'static str = "STATIC_METHOD";
+}
 impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
     const CLASS_NAME: &'static str = "MyInterface2";
     const BUILDER_MODIFIER: Option<
@@ -484,7 +500,7 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                 &[<i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new(
-                                    "myMethod",
+                                    <PhpInterfaceMyInterface>::__php_method_my_method,
                                     {
                                         (/*ERROR*/);
                                         handler
