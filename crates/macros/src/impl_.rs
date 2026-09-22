@@ -158,6 +158,20 @@ impl MethodArgs {
         } else {
             MethodTy::Normal
         };
+        if let Some(kind) = match ty {
+            MethodTy::Getter => Some("Getters"),
+            MethodTy::Setter => Some("Setters"),
+            _ => None,
+        } {
+            let mut keys: Vec<&Ident> = attr.defaults.keys().collect();
+            keys.sort();
+            if let Some(key) = keys.first() {
+                bail!(key => "{kind} cannot have `defaults`; they map to a PHP property.");
+            }
+            if let Some(optional) = &attr.optional {
+                bail!(optional => "{kind} cannot have `optional`; they map to a PHP property.");
+            }
+        }
 
         Ok(Self {
             name,

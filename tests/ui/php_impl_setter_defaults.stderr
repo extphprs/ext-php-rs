@@ -1,0 +1,5 @@
+error: Setters cannot have `defaults`; they map to a PHP property.
+  --> tests/ui/php_impl_setter_defaults.rs:10:28
+   |
+10 |     #[php(setter, defaults(age = 0))]
+   |                            ^^^
