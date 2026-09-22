@@ -1,0 +1,5 @@
+error: PHP method `Area` is already declared as `area` in this interface. PHP method names ignore case. Rename one of them with `#[php(name = "...")]`.
+ --> tests/ui/php_interface_duplicate_method.rs:7:8
+  |
+7 |     fn surface(&self) -> f64;
+  |        ^^^^^^^

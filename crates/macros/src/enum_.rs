@@ -12,7 +12,8 @@ use syn::{Fields, Ident, ItemEnum, Lit};
 use crate::{
     helpers::get_docs,
     parsing::{
-        PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, validate_php_name,
+        NameSet, PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name,
+        validate_php_name,
     },
     prelude::*,
 };
@@ -52,6 +53,7 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
 
     let docs = get_docs(&php_attr.attrs)?;
     let mut cases = vec![];
+    let mut case_names = NameSet::case_sensitive();
     let mut discriminant_type = DiscriminantType::None;
 
     for variant in &mut input.variants {
@@ -97,6 +99,9 @@ pub fn parser(mut input: ItemEnum) -> Result<TokenStream> {
             php_attr.change_cases_case.unwrap_or(RenameRule::Pascal),
         );
         validate_php_name(&case_name, PhpNameContext::EnumCase, variant.ident.span())?;
+        if case_names.insert(&case_name).is_err() {
+            bail!(variant.ident => "Enum case `{case_name}` is already declared. Rename one of them with `#[php(name = \"...\")]`.");
+        }
 
         cases.push(EnumCase {
             ident: variant.ident.clone(),

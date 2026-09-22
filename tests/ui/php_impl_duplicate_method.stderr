@@ -1,0 +1,5 @@
+error: PHP method `GETCOUNT` is already declared as `getCount` in this block. PHP method names ignore case. Rename one of them with `#[php(name = "...")]`.
+  --> tests/ui/php_impl_duplicate_method.rs:13:12
+   |
+13 |     pub fn count_again(&self) -> i64 {
+   |            ^^^^^^^^^^^

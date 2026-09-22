@@ -9,8 +9,8 @@ use crate::constant::PhpConstAttribute;
 use crate::function::{Args, CallType, Function, MethodReceiver};
 use crate::helpers::get_docs;
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
-    validate_php_name,
+    NameSet, PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name,
+    reject_php_attrs, validate_php_name,
 };
 use crate::prelude::*;
 
@@ -196,6 +196,8 @@ struct ParsedImpl<'a> {
     has_abstract_methods: bool,
     /// Properties backed by getter/setter methods, in declaration order.
     properties: Vec<PropGroup<'a>>,
+    method_names: NameSet,
+    constant_names: NameSet,
 }
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -256,6 +258,8 @@ impl<'a> ParsedImpl<'a> {
             constants: Vec::default(),
             has_abstract_methods: false,
             properties: Vec::default(),
+            method_names: NameSet::case_insensitive(),
+            constant_names: NameSet::case_sensitive(),
         }
     }
 
@@ -337,6 +341,9 @@ impl<'a> ParsedImpl<'a> {
                         .rename
                         .rename(ident_to_php_name(&c.ident), self.change_constant_case);
                     validate_php_name(&name, PhpNameContext::Constant, c.ident.span())?;
+                    if self.constant_names.insert(&name).is_err() {
+                        bail!(c.ident => "PHP constant `{name}` is already declared in this block. Rename one of them with `#[php(name = \"...\")]`.");
+                    }
                     let docs = get_docs(&attr.attrs)?;
                     c.attrs.retain(|attr| !attr.path().is_ident("php"));
 
@@ -364,6 +371,15 @@ impl<'a> ParsedImpl<'a> {
                     if matches!(opts.ty, MethodTy::Getter | MethodTy::Setter) {
                         self.parse_property_method(method, &opts, &rename, docs)?;
                         continue;
+                    }
+
+                    let php_name = if matches!(opts.ty, MethodTy::Constructor) {
+                        "__construct"
+                    } else {
+                        opts.name.as_str()
+                    };
+                    if let Err(earlier) = self.method_names.insert(php_name) {
+                        bail!(method.sig.ident => "PHP method `{php_name}` is already declared as `{earlier}` in this block. PHP method names ignore case. Rename one of them with `#[php(name = \"...\")]`.");
                     }
 
                     let args = Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;

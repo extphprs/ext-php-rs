@@ -1,0 +1,5 @@
+error: PHP constant `MAX_SIZE` is already declared in this block. Rename one of them with `#[php(name = "...")]`.
+  --> tests/ui/php_impl_duplicate_constant.rs:10:15
+   |
+10 |     pub const LARGEST: i64 = 20;
+   |               ^^^^^^^

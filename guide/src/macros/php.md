@@ -89,3 +89,10 @@ Available cases are:
 - `camelCase`
 - `UPPER_CASE`
 - `none` - No change
+
+Two items can get the same PHP name after renaming. For example, `fn get_count`
+and `#[php(name = "GETCOUNT")] fn count_again` both give the PHP method
+`getCount`, because PHP method names ignore case. If two methods, two constants
+or two enum cases of one block get the same PHP name, the macro gives a compile
+error at the second item. Method names are compared without case. Constant and
+enum case names are compared with case.

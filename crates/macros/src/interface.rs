@@ -12,8 +12,8 @@ use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn, 
 
 use crate::impl_::{FnBuilder, MethodModifier};
 use crate::parsing::{
-    PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name, reject_php_attrs,
-    validate_php_name,
+    NameSet, PhpNameContext, PhpRename, RenameRule, Visibility, ident_to_php_name,
+    reject_php_attrs, validate_php_name,
 };
 use crate::prelude::*;
 
@@ -251,16 +251,26 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
             docs,
         };
 
+        let mut method_names = NameSet::case_insensitive();
+        let mut constant_names = NameSet::case_sensitive();
         for item in &mut self.items {
             match item {
                 TraitItem::Fn(f) => {
                     let (method, name) = parse_trait_item_fn(f, attrs.change_method_case)?;
+                    if let Err(earlier) = method_names.insert(&name) {
+                        bail!(f.sig.ident => "PHP method `{name}` is already declared as `{earlier}` in this interface. PHP method names ignore case. Rename one of them with `#[php(name = \"...\")]`.");
+                    }
                     data.methods.push(method);
                     data.method_names.push((f.sig.ident.clone(), name));
                 }
-                TraitItem::Const(c) => data
-                    .constants
-                    .push(parse_trait_item_const(c, attrs.change_constant_case)?),
+                TraitItem::Const(c) => {
+                    let span = c.ident.span();
+                    let constant = parse_trait_item_const(c, attrs.change_constant_case)?;
+                    if constant_names.insert(&constant.name).is_err() {
+                        bail!(span => "PHP constant `{}` is already declared in this interface. Rename one of them with `#[php(name = \"...\")]`.", constant.name);
+                    }
+                    data.constants.push(constant);
+                }
                 TraitItem::Type(t) => reject_php_attrs(&t.attrs, "associated types")?,
                 _ => {}
             }

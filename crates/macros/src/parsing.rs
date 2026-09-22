@@ -289,6 +289,47 @@ pub fn validate_php_name(
     Ok(())
 }
 
+/// The PHP names already declared in one item, compared the way the engine
+/// keys its tables: methods and functions with ASCII case folding, constants
+/// and enum cases exactly.
+#[derive(Debug)]
+pub struct NameSet {
+    fold_ascii_case: bool,
+    names: Vec<String>,
+}
+
+impl NameSet {
+    pub fn case_insensitive() -> Self {
+        Self {
+            fold_ascii_case: true,
+            names: Vec::new(),
+        }
+    }
+
+    pub fn case_sensitive() -> Self {
+        Self {
+            fold_ascii_case: false,
+            names: Vec::new(),
+        }
+    }
+
+    /// Records `name`, or returns the earlier name it collides with.
+    pub fn insert(&mut self, name: &str) -> std::result::Result<(), String> {
+        let same = |earlier: &&String| {
+            if self.fold_ascii_case {
+                earlier.eq_ignore_ascii_case(name)
+            } else {
+                *earlier == name
+            }
+        };
+        if let Some(earlier) = self.names.iter().find(same) {
+            return Err(earlier.clone());
+        }
+        self.names.push(name.to_owned());
+        Ok(())
+    }
+}
+
 const MAGIC_METHOD: [&str; 17] = [
     "__construct",
     "__destruct",
@@ -464,6 +505,23 @@ mod tests {
     use proc_macro2::Span;
 
     use super::{PhpRename, RenameRule};
+
+    #[test]
+    fn name_set_folds_ascii_case_for_methods() {
+        let mut methods = super::NameSet::case_insensitive();
+        assert_eq!(methods.insert("fooBar"), Ok(()));
+        assert_eq!(methods.insert("other"), Ok(()));
+        assert_eq!(methods.insert("FOOBAR"), Err("fooBar".to_string()));
+        assert_eq!(methods.insert("fooBär"), Ok(()));
+    }
+
+    #[test]
+    fn name_set_compares_constants_exactly() {
+        let mut constants = super::NameSet::case_sensitive();
+        assert_eq!(constants.insert("FOO"), Ok(()));
+        assert_eq!(constants.insert("foo"), Ok(()));
+        assert_eq!(constants.insert("FOO"), Err("FOO".to_string()));
+    }
 
     #[test]
     fn php_rename() {
