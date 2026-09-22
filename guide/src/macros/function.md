@@ -47,7 +47,8 @@ default, it does not need to be a variant of `Option`. The default expression is
 converted into the parameter type with `Into`, and the type must implement
 `StubLiteral`, which every scalar, string, `Option`, `Vec` and `HashMap` does.
 The module renders the value once at load time into the stub file and into
-`ReflectionParameter::getDefaultValue()`:
+`ReflectionParameter::getDefaultValue()`. Each key in `defaults` must name a
+parameter of the function. If a key names no parameter, the build fails:
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -98,8 +99,12 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 ```
 
 You can also specify the optional arguments if you want to have nullable
-arguments before optional arguments. This is done through an attribute
-parameter:
+arguments before optional arguments. This is done through the `optional`
+attribute option, which names the first optional parameter. PHP callers can
+omit that parameter and every parameter after it. Each of these parameters
+must be an `Option<T>`, have a default, or be the variadic `&[T]` tail.
+Otherwise the build fails with an error on the type of that parameter. If
+`optional` names no parameter, the build also fails:
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]

@@ -42,10 +42,11 @@ be named `self_`. This can also be used to return a reference to `$this`.
 
 The rest of the options are passed as separate attributes:
 
-- `#[php(defaults(i = 5, b = "hello"))]` - Sets the default value for parameter(s).
+- `#[php(defaults(i = 5, b = "\"hello\""))]` - Sets the default value for parameter(s).
+  Each key must name a parameter.
 - `#[php(optional = i)]` - Sets the first optional parameter. Note that this also sets
-  the remaining parameters as optional, so all optional parameters must be a
-  variant of `Option<T>`.
+  the remaining parameters as optional, so each of them must be an `Option<T>`
+  or have a default. Otherwise the build fails.
 - `#[php(vis = "public")]`, `#[php(vis = "protected")]` and `#[php(vis = "private")]` - Sets the visibility of the
   method.
 - `#[php(name = "method_name")]` - Renames the PHP method to a different identifier,
@@ -55,7 +56,9 @@ The rest of the options are passed as separate attributes:
   Can only be used in abstract classes.
 
 The `#[php(defaults)]` and `#[php(optional)]` attributes operate the same as the
-equivalent function attribute parameters.
+equivalent function attribute parameters. A `self_` parameter is the PHP object,
+not a PHP parameter, so `defaults` and `optional` cannot name it. A `getter` or
+`setter` method accepts neither option.
 
 ### Static Methods
 

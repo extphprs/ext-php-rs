@@ -64,6 +64,7 @@ names the item where the option is valid. The proc macros themselves take no
 arguments: write `#[php_class]` and `#[php(name = "Foo")]`, not
 `#[php_class(name = "Foo")]`.
 
+A method with `getter` or `setter` does not accept `defaults` or `optional`.
 Trait methods inside `#[php_interface]` accept `name`, `change_case`,
 `defaults`, `optional` and `vis`. Trait constants accept `name` and
 `change_case`. Methods inside `#[php_impl_interface]` and items under

@@ -54,6 +54,10 @@ Enums can also be backed by either `i64` or `&'static str`. Those values can be 
 
 All variants must have a value of the same type, either all `i64` or all `&'static str`.
 
+A backed enum converts to and from its value. The macro implements
+`From<Enum>` for the value type, and `TryFrom<i64>` or `TryFrom<&str>` for the
+enum. `TryFrom` returns `Error::InvalidEnumCase` when no case has the value.
+
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
 # extern crate ext_php_rs;
