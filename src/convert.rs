@@ -34,6 +34,9 @@ pub trait FromZval<'a>: Sized {
 
     /// The value to use when a PHP argument of this type was omitted by the
     /// caller. `None` means the argument is required.
+    ///
+    /// It must return `Some` exactly when `NULLABLE` is `true`. The macros
+    /// decide from `NULLABLE` alone which parameters PHP callers may omit.
     #[must_use]
     fn from_missing() -> Option<Self> {
         None
@@ -89,6 +92,9 @@ pub trait FromZvalMut<'a>: Sized {
 
     /// The value to use when a PHP argument of this type was omitted by the
     /// caller. `None` means the argument is required.
+    ///
+    /// It must return `Some` exactly when `NULLABLE` is `true`. The macros
+    /// decide from `NULLABLE` alone which parameters PHP callers may omit.
     #[must_use]
     fn from_missing() -> Option<Self> {
         None

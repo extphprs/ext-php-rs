@@ -1,0 +1,5 @@
+error[E0080]: evaluation panicked: `city` comes after `optional = age`, so PHP callers may omit it: make it `Option<T>` or give it a default.
+ --> tests/ui/php_function_optional_required_after.rs:5:55
+  |
+5 | pub fn describe(name: String, age: Option<i64>, city: String) -> String {
+  |                                                       ^^^^^^ evaluation of `<_internal_describe as ext_php_rs::internal::function::PhpFunction>::FUNCTION_ENTRY::entry::_` failed here

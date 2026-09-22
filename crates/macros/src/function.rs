@@ -858,7 +858,26 @@ impl<'a> Args<'a> {
     /// not its spelling. A variadic parameter is counted by the runtime.
     pub fn required_count(&self, optional: Option<usize>) -> TokenStream {
         if let Some(index) = optional {
-            return quote! { const __REQUIRED: usize = #index; };
+            let first = self.typed[index].name;
+            let checks = self.typed[index..]
+                .iter()
+                .filter(|arg| !arg.variadic && arg.default.is_none())
+                .map(|arg| {
+                    let ty = arg.clean_ty();
+                    let name = arg.name;
+                    let message = if name == first {
+                        format!("`{name}` is marked `optional`, so PHP callers may omit it: make it `Option<T>` or give it a default.")
+                    } else {
+                        format!("`{name}` comes after `optional = {first}`, so PHP callers may omit it: make it `Option<T>` or give it a default.")
+                    };
+                    quote_spanned! { arg.ty.span() =>
+                        const _: () = assert!(<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE, #message);
+                    }
+                });
+            return quote! {
+                const __REQUIRED: usize = #index;
+                #(#checks)*
+            };
         }
         let omittable = self.typed.iter().map(|arg| {
             if arg.variadic {
@@ -1044,7 +1063,19 @@ mod tests {
             by_type.contains("MaybeAge as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
         );
         let explicit = args.required_count(Some(1)).to_string();
-        assert_eq!(explicit, "const __REQUIRED : usize = 1usize ;");
+        assert!(explicit.starts_with("const __REQUIRED : usize = 1usize ;"));
+    }
+
+    #[test]
+    fn parameters_from_optional_on_must_be_nullable_unless_defaulted_or_variadic() {
+        let args =
+            parse_with_defaults("fn f(a: i64, b: Maybe, c: i64, rest: &[i64])", &["c"]).unwrap();
+        let tokens = args.required_count(Some(1)).to_string();
+        assert_eq!(tokens.matches("const _ : () = assert !").count(), 1);
+        assert!(
+            tokens.contains("< Maybe as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
+        );
+        assert!(tokens.contains("`b` is marked `optional`"));
     }
 
     #[test]

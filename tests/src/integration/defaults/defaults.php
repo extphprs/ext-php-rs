@@ -47,3 +47,16 @@ assert(test_defaults_str('yo') === 'YO');
 assert(default_of('test_defaults_str') === 'hi');
 assert(test_defaults_float() === 3.0);
 assert(default_of('test_defaults_float') === 1.5);
+
+function required_of(string $method): int
+{
+    return ( new ReflectionMethod(OptionalArgs::class, $method) )->getNumberOfRequiredParameters();
+}
+
+assert(required_of('__construct') === 1);
+assert(required_of('repeat') === 0);
+assert(required_of('pick') === 1);
+$args = new OptionalArgs('a');
+assert($args->repeat() === 'aa');
+assert($args->repeat(2, 3) === 'aaaaaa');
+assert(( new OptionalArgs('a', 'b') )->pick(1) === 'abSome(1)None');
