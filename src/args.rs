@@ -359,39 +359,32 @@ mod tests {
         assert!(arg.as_ref);
     }
 
+    fn default_of(arg: &Arg<'_>, optional: bool) -> Option<String> {
+        let info = arg.as_arg_info(optional).unwrap();
+        unsafe { drop(CString::from_raw(info.name.cast_mut())) };
+        if info.default_value.is_null() {
+            return None;
+        }
+        let default = unsafe { CString::from_raw(info.default_value.cast_mut()) };
+        Some(default.to_str().unwrap().to_string())
+    }
+
     #[test]
     fn optional_nullable_arg_reports_a_null_default() {
-        let info = Arg::of::<Option<i64>>("a").as_arg_info(true).unwrap();
-        let default = unsafe { std::ffi::CStr::from_ptr(info.default_value) };
-        assert_eq!(default.to_str().unwrap(), "null");
-        assert!(
-            Arg::of::<Option<i64>>("a")
-                .as_arg_info(false)
-                .unwrap()
-                .default_value
-                .is_null()
+        assert_eq!(
+            default_of(&Arg::of::<Option<i64>>("a"), true).as_deref(),
+            Some("null")
         );
-        assert!(
-            Arg::of::<i64>("a")
-                .as_arg_info(true)
-                .unwrap()
-                .default_value
-                .is_null()
+        assert_eq!(default_of(&Arg::of::<Option<i64>>("a"), false), None);
+        assert_eq!(default_of(&Arg::of::<i64>("a"), true), None);
+        assert_eq!(
+            default_of(&Arg::of::<Option<i64>>("a").is_variadic(), true),
+            None
         );
-        assert!(
-            Arg::of::<Option<i64>>("a")
-                .is_variadic()
-                .as_arg_info(true)
-                .unwrap()
-                .default_value
-                .is_null()
+        assert_eq!(
+            default_of(&Arg::of::<Option<i64>>("a").default("5"), true).as_deref(),
+            Some("5")
         );
-        let info = Arg::of::<Option<i64>>("a")
-            .default("5")
-            .as_arg_info(true)
-            .unwrap();
-        let default = unsafe { std::ffi::CStr::from_ptr(info.default_value) };
-        assert_eq!(default.to_str().unwrap(), "5");
     }
 
     #[test]
