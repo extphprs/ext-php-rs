@@ -368,7 +368,7 @@ fn parse_trait_item_fn(
         args,
         php_attr.optional,
         docs,
-    );
+    )?;
 
     Ok((
         FnBuilder {

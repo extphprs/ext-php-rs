@@ -392,7 +392,7 @@ impl<'a> ParsedImpl<'a> {
                     } else {
                         MethodReceiver::Static
                     };
-                    let func = Function::new(&method.sig, opts.name, args, opts.optional, docs);
+                    let func = Function::new(&method.sig, opts.name, args, opts.optional, docs)?;
 
                     let mut modifiers: BTreeSet<MethodModifier> = BTreeSet::new();
 

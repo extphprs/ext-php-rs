@@ -85,7 +85,7 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
         .rename
         .rename(ident_to_php_name(&input.sig.ident), RenameRule::Snake);
     validate_php_name(&func_name, PhpNameContext::Function, input.sig.ident.span())?;
-    let func = Function::new(&input.sig, func_name, args, php_attr.optional, docs);
+    let func = Function::new(&input.sig, func_name, args, php_attr.optional, docs)?;
     let function_impl = func.php_function_impl();
 
     Ok(quote! {
@@ -104,8 +104,8 @@ pub struct Function<'a> {
     pub args: Args<'a>,
     /// Function outputs.
     pub output: Option<&'a Type>,
-    /// The first optional argument of the function.
-    pub optional: Option<Ident>,
+    /// Position of the first optional argument of the function.
+    pub optional: Option<usize>,
     /// Doc comments for the function.
     pub docs: Vec<String>,
 }
@@ -145,8 +145,11 @@ impl<'a> Function<'a> {
         args: Args<'a>,
         optional: Option<Ident>,
         docs: Vec<String>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let optional = optional
+            .map(|optional| args.position(&optional))
+            .transpose()?;
+        Ok(Self {
             ident: &sig.ident,
             name,
             args,
@@ -156,7 +159,7 @@ impl<'a> Function<'a> {
             },
             optional,
             docs,
-        }
+        })
     }
 
     /// Generates an internal identifier for the function.
@@ -166,7 +169,7 @@ impl<'a> Function<'a> {
 
     pub fn abstract_function_builder(&self) -> TokenStream {
         let name = &self.name;
-        let required = self.args.required_count(self.optional.as_ref());
+        let required = self.args.required_count(self.optional);
         let args = self
             .args
             .typed
@@ -197,7 +200,7 @@ impl<'a> Function<'a> {
     /// Generates the function builder for the function.
     pub fn function_builder(&self, call_type: &CallType) -> TokenStream {
         let name = &self.name;
-        let required = self.args.required_count(self.optional.as_ref());
+        let required = self.args.required_count(self.optional);
 
         // `handler` impl
         let arg_declarations = self
@@ -693,7 +696,7 @@ impl<'a> Function<'a> {
         visibility: Option<&Visibility>,
     ) -> TokenStream {
         let ident = self.ident;
-        let required = self.args.required_count(self.optional.as_ref());
+        let required = self.args.required_count(self.optional);
         let args = self
             .args
             .typed
@@ -826,6 +829,15 @@ impl<'a> Args<'a> {
         Ok(result)
     }
 
+    fn position(&self, optional: &Ident) -> Result<usize> {
+        match self.typed.iter().position(|arg| arg.name == optional) {
+            Some(index) => Ok(index),
+            None => {
+                bail!(optional => "`optional` names `{optional}`, which is not a parameter of this function.")
+            }
+        }
+    }
+
     pub fn take_self_object(&mut self) -> Result<bool> {
         if self.typed.first().is_none_or(|arg| arg.name != "self_") {
             return Ok(false);
@@ -844,10 +856,8 @@ impl<'a> Args<'a> {
     /// computed by `ext_php_rs::args::required_count` from each parameter's
     /// `FromZvalMut::NULLABLE` and default, so the rule follows the type and
     /// not its spelling. A variadic parameter is counted by the runtime.
-    pub fn required_count(&self, optional: Option<&Ident>) -> TokenStream {
-        if let Some(optional) = optional
-            && let Some(index) = self.typed.iter().position(|arg| arg.name == optional)
-        {
+    pub fn required_count(&self, optional: Option<usize>) -> TokenStream {
+        if let Some(index) = optional {
             return quote! { const __REQUIRED: usize = #index; };
         }
         let omittable = self.typed.iter().map(|arg| {
@@ -1033,7 +1043,7 @@ mod tests {
         assert!(
             by_type.contains("MaybeAge as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
         );
-        let explicit = args.required_count(Some(&format_ident!("b"))).to_string();
+        let explicit = args.required_count(Some(1)).to_string();
         assert_eq!(explicit, "const __REQUIRED : usize = 1usize ;");
     }
 
@@ -1093,6 +1103,30 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "`self_` is the PHP object itself and cannot have a default."
+        );
+    }
+
+    #[test]
+    fn optional_resolves_to_the_parameter_position() {
+        let sig: &'static syn::Signature = Box::leak(Box::new(
+            syn::parse_str("fn f(a: i64, b: Option<i64>)").unwrap(),
+        ));
+        let args = Args::parse_from_fnargs(sig.inputs.iter(), HashMap::new()).unwrap();
+        let func = Function::new(sig, "f".into(), args, Some(format_ident!("b")), vec![]).unwrap();
+        assert_eq!(func.optional, Some(1));
+    }
+
+    #[test]
+    fn optional_naming_no_parameter_is_rejected() {
+        let sig: &'static syn::Signature = Box::leak(Box::new(
+            syn::parse_str("fn f(a: i64, b: Option<i64>)").unwrap(),
+        ));
+        let args = Args::parse_from_fnargs(sig.inputs.iter(), HashMap::new()).unwrap();
+        let err =
+            Function::new(sig, "f".into(), args, Some(format_ident!("c")), vec![]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "`optional` names `c`, which is not a parameter of this function."
         );
     }
 

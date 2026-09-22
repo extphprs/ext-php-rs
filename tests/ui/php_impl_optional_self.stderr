@@ -1,0 +1,5 @@
+error: `optional` names `self_`, which is not a parameter of this function.
+ --> tests/ui/php_impl_optional_self.rs:8:22
+  |
+8 |     #[php(optional = self_)]
+  |                      ^^^^^
