@@ -2,7 +2,7 @@ use darling::FromAttributes;
 use darling::util::{Flag, SpannedValue};
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use syn::{Expr, Ident, ItemImpl};
 
 use crate::constant::PhpConstAttribute;
@@ -198,7 +198,7 @@ struct ParsedImpl<'a> {
     properties: Vec<PropGroup<'a>>,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MethodModifier {
     Abstract,
     Static,
@@ -223,7 +223,7 @@ pub struct FnBuilder {
     /// The visibility of this method.
     pub vis: Visibility,
     /// Whether this method is abstract.
-    pub modifiers: HashSet<MethodModifier>,
+    pub modifiers: BTreeSet<MethodModifier>,
 }
 
 #[derive(Debug)]
@@ -369,7 +369,7 @@ impl<'a> ParsedImpl<'a> {
                     let args = Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
                     let mut func = Function::new(&method.sig, opts.name, args, opts.optional, docs);
 
-                    let mut modifiers: HashSet<MethodModifier> = HashSet::new();
+                    let mut modifiers: BTreeSet<MethodModifier> = BTreeSet::new();
 
                     if matches!(opts.ty, MethodTy::Constructor) {
                         if self.constructor.replace((func, opts.vis.into())).is_some() {
@@ -632,5 +632,41 @@ impl quote::ToTokens for FnBuilder {
             (#builder, #(#flags)|*)
         }
         .to_tokens(tokens);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::{ToTokens, quote};
+
+    use super::{BTreeSet, FnBuilder, MethodModifier};
+    use crate::parsing::Visibility;
+
+    #[test]
+    fn modifiers_render_in_a_fixed_order() {
+        let render = |inserted: [MethodModifier; 2]| {
+            FnBuilder {
+                builder: quote! { b },
+                vis: Visibility::Public,
+                modifiers: inserted.into_iter().collect::<BTreeSet<_>>(),
+            }
+            .to_token_stream()
+            .to_string()
+        };
+        let expected = quote! {
+            (b, ::ext_php_rs::flags::MethodFlags::Public
+                | ::ext_php_rs::flags::MethodFlags::Abstract
+                | ::ext_php_rs::flags::MethodFlags::Static)
+        }
+        .to_string();
+
+        assert_eq!(
+            render([MethodModifier::Static, MethodModifier::Abstract]),
+            expected
+        );
+        assert_eq!(
+            render([MethodModifier::Abstract, MethodModifier::Static]),
+            expected
+        );
     }
 }

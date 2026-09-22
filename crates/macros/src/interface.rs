@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::class::ClassEntryAttribute;
 use crate::constant::PhpConstAttribute;
@@ -313,7 +313,7 @@ fn parse_trait_item_fn(
 
     let docs = get_docs(&php_attr.attrs)?;
 
-    let mut modifiers: HashSet<MethodModifier> = HashSet::new();
+    let mut modifiers: BTreeSet<MethodModifier> = BTreeSet::new();
     modifiers.insert(MethodModifier::Abstract);
 
     if args.typed.first().is_some_and(|arg| arg.name == "self_") {

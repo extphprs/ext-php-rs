@@ -168,6 +168,7 @@ trait MyInterface2 {
     const ANOTHER_CONST: &'static str = "Hello";
     fn my_method(&self, arg: i32) -> String;
     fn anotherMethod(&self) -> i32;
+    fn static_method() -> i32;
 }
 pub struct PhpInterfaceMyInterface2;
 impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
@@ -234,6 +235,25 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
                         },
                         ::ext_php_rs::flags::MethodFlags::Public
                             | ::ext_php_rs::flags::MethodFlags::Abstract,
+                    ),
+                    (
+                        {
+                            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                                &[],
+                            );
+                            ::ext_php_rs::builders::FunctionBuilder::new_abstract(
+                                    "STATIC_METHOD",
+                                )
+                                .required_args(__REQUIRED)
+                                .returns(
+                                    <i32 as ::ext_php_rs::convert::IntoZval>::TYPE,
+                                    false,
+                                    <i32 as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                                )
+                        },
+                        ::ext_php_rs::flags::MethodFlags::Public
+                            | ::ext_php_rs::flags::MethodFlags::Abstract
+                            | ::ext_php_rs::flags::MethodFlags::Static,
                     ),
                 ],
             ),
