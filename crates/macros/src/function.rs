@@ -826,6 +826,17 @@ impl<'a> Args<'a> {
         Ok(result)
     }
 
+    pub fn take_self_object(&mut self) -> Result<bool> {
+        if self.typed.first().is_none_or(|arg| arg.name != "self_") {
+            return Ok(false);
+        }
+        let self_object = self.typed.remove(0);
+        if let Some(default) = &self_object.default {
+            bail!(default => "`self_` is the PHP object itself and cannot have a default.");
+        }
+        Ok(true)
+    }
+
     /// Emits `const __REQUIRED: usize`, the number of leading required
     /// parameters.
     ///
@@ -1060,6 +1071,28 @@ mod tests {
                 "no parameter named `bee`; `defaults` keys must match a parameter name",
                 "no parameter named `zed`; `defaults` keys must match a parameter name",
             ]
+        );
+    }
+
+    #[test]
+    fn take_self_object_removes_only_a_leading_self_() {
+        let mut args = parse_args("fn f(self_: &mut Obj, a: i64, b: i64)");
+        assert!(args.take_self_object().unwrap());
+        let names: Vec<String> = args.typed.iter().map(|arg| arg.name.to_string()).collect();
+        assert_eq!(names, ["a", "b"]);
+
+        let mut args = parse_args("fn f(a: i64, self_: &mut Obj)");
+        assert!(!args.take_self_object().unwrap());
+        assert_eq!(args.typed.len(), 2);
+    }
+
+    #[test]
+    fn self_object_cannot_have_a_default() {
+        let mut args = parse_with_defaults("fn f(self_: &mut Obj, a: i64)", &["self_"]).unwrap();
+        let err = args.take_self_object().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "`self_` is the PHP object itself and cannot have a default."
         );
     }
 

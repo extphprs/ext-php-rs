@@ -1,0 +1,5 @@
+error: `self_` is the PHP object itself and cannot have a default.
+ --> tests/ui/php_impl_self_default.rs:8:28
+  |
+8 |     #[php(defaults(self_ = 0))]
+  |                            ^
