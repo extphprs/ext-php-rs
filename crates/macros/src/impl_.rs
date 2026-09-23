@@ -158,6 +158,20 @@ impl MethodArgs {
         } else {
             MethodTy::Normal
         };
+        if let Some(kind) = match ty {
+            MethodTy::Getter => Some("Getters"),
+            MethodTy::Setter => Some("Setters"),
+            _ => None,
+        } {
+            let mut keys: Vec<&Ident> = attr.defaults.keys().collect();
+            keys.sort();
+            if let Some(key) = keys.first() {
+                bail!(key => "{kind} cannot have `defaults`; they map to a PHP property.");
+            }
+            if let Some(optional) = &attr.optional {
+                bail!(optional => "{kind} cannot have `optional`; they map to a PHP property.");
+            }
+        }
 
         Ok(Self {
             name,
@@ -382,36 +396,31 @@ impl<'a> ParsedImpl<'a> {
                         bail!(method.sig.ident => "PHP method `{php_name}` is already declared as `{earlier}` in this block. PHP method names ignore case. Rename one of them with `#[php(name = \"...\")]`.");
                     }
 
-                    let args = Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
-                    let mut func = Function::new(&method.sig, opts.name, args, opts.optional, docs);
+                    let is_constructor = matches!(opts.ty, MethodTy::Constructor);
+                    let mut args =
+                        Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
+                    let receiver = if args.receiver.is_some() {
+                        MethodReceiver::Class
+                    } else if !is_constructor && args.take_self_object()? {
+                        MethodReceiver::ZendClassObject
+                    } else {
+                        MethodReceiver::Static
+                    };
+                    let func = Function::new(&method.sig, opts.name, args, opts.optional, docs)?;
 
                     let mut modifiers: BTreeSet<MethodModifier> = BTreeSet::new();
 
-                    if matches!(opts.ty, MethodTy::Constructor) {
+                    if is_constructor {
                         if self.constructor.replace((func, opts.vis.into())).is_some() {
                             bail!(method => "Only one constructor can be provided per class.");
                         }
                     } else {
+                        if matches!(receiver, MethodReceiver::Static) {
+                            modifiers.insert(MethodModifier::Static);
+                        }
                         let call_type = CallType::Method {
                             class: self.path,
-                            receiver: if func.args.receiver.is_some() {
-                                // `&self` or `&mut self`
-                                MethodReceiver::Class
-                            } else if func
-                                .args
-                                .typed
-                                .first()
-                                .is_some_and(|arg| arg.name == "self_")
-                            {
-                                // `self_: &[mut] ZendClassObject<Self>`
-                                // Need to remove arg from argument list
-                                func.args.typed.remove(0);
-                                MethodReceiver::ZendClassObject
-                            } else {
-                                modifiers.insert(MethodModifier::Static);
-                                // Static method
-                                MethodReceiver::Static
-                            },
+                            receiver,
                         };
                         let is_abstract = matches!(opts.ty, MethodTy::Abstract);
                         if is_abstract {

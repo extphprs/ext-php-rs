@@ -1,4 +1,5 @@
 use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendClassObject;
 
 #[php_function]
 #[php(defaults(a = 42))]
@@ -40,8 +41,39 @@ pub fn test_defaults_float(ratio: f64) -> f64 {
     ratio * 2.0
 }
 
+#[php_class]
+pub struct OptionalArgs {
+    prefix: String,
+}
+
+#[php_impl]
+impl OptionalArgs {
+    #[php(optional = suffix)]
+    pub fn __construct(prefix: String, suffix: Option<String>) -> Self {
+        Self {
+            prefix: format!("{prefix}{}", suffix.unwrap_or_default()),
+        }
+    }
+
+    #[php(optional = count, defaults(times = 2))]
+    pub fn repeat(&self, count: Option<i64>, times: i64) -> String {
+        let total = count.unwrap_or(1) * times;
+        self.prefix.repeat(usize::try_from(total).unwrap_or(0))
+    }
+
+    #[php(optional = second)]
+    pub fn pick(
+        self_: &mut ZendClassObject<OptionalArgs>,
+        first: Option<i64>,
+        second: Option<i64>,
+    ) -> String {
+        format!("{}{:?}{:?}", self_.prefix, first, second)
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
+        .class::<OptionalArgs>()
         .function(wrap_function!(test_defaults_str))
         .function(wrap_function!(test_defaults_float))
         .function(wrap_function!(test_defaults_integer))

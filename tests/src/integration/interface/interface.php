@@ -27,6 +27,11 @@ final class Test extends Exception implements ExtPhpRs\Interface\EmptyObjectInte
     public function setValue(int $value = 0): void
     {
     }
+
+    public function scale(float $factor): float
+    {
+        return $factor;
+    }
 }
 
 $f = new Test();
@@ -45,11 +50,14 @@ $ownMethods = array_filter(
 );
 $methods = array_map(static fn(ReflectionMethod $m): string => $m->getName(), $ownMethods);
 sort($methods);
-assert($methods === ['nonStatic', 'refToLikeThisClass', 'setValue', 'void'], implode(',', $methods));
+assert($methods === ['nonStatic', 'refToLikeThisClass', 'scale', 'setValue', 'void'], implode(',', $methods));
 foreach ($ownMethods as $method) {
     assert($method->isPublic() && $method->isAbstract(), $method->getName());
 }
 assert($reflection->getMethod('void')->isStatic());
+$scale = $reflection->getMethod('scale');
+assert(!$scale->isStatic());
+assert(array_map(static fn(ReflectionParameter $p): string => $p->getName(), $scale->getParameters()) === ['factor']);
 assert($reflection->getConstructor() === null);
 assert($reflection->getProperties() === []);
 

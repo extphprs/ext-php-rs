@@ -70,8 +70,24 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
 
 #[cfg(test)]
 mod tests {
+    use super::{IntBackedEnum, StringBackedEnum};
+
     #[test]
     fn enum_works() {
         assert!(crate::integration::test::run_php("enum_/enum.php"));
+    }
+
+    #[test]
+    fn backed_enums_convert_to_and_from_their_value() {
+        assert_eq!(i64::from(IntBackedEnum::Variant2), 2);
+        assert_eq!(<&str>::from(StringBackedEnum::Variant1), "foo");
+        assert!(matches!(
+            IntBackedEnum::try_from(i64::from(IntBackedEnum::Variant1)),
+            Ok(IntBackedEnum::Variant1)
+        ));
+        assert!(matches!(
+            StringBackedEnum::try_from(<&str>::from(StringBackedEnum::Variant2)),
+            Ok(StringBackedEnum::Variant2)
+        ));
     }
 }

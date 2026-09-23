@@ -926,6 +926,11 @@ fn php_class_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// All variants must have a value of the same type, either all `i64` or all
 /// `&'static str`.
 ///
+/// A backed enum converts to and from its value. The macro implements
+/// `From<Enum>` for the value type, and `TryFrom<i64>` or `TryFrom<&str>` for
+/// the enum. `TryFrom` returns `Error::InvalidEnumCase` when no case has the
+/// value.
+///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
 /// # extern crate ext_php_rs;
@@ -1467,7 +1472,9 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// default expression is converted into the parameter type with `Into`, and the
 /// type must implement `StubLiteral`, which every scalar, string, `Option`,
 /// `Vec` and `HashMap` does. The module renders the value once at load time
-/// into the stub file and into `ReflectionParameter::getDefaultValue()`:
+/// into the stub file and into `ReflectionParameter::getDefaultValue()`. Each
+/// key in `defaults` must name a parameter of the function. If a key names no
+/// parameter, the build fails:
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1518,8 +1525,12 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// ```
 ///
 /// You can also specify the optional arguments if you want to have nullable
-/// arguments before optional arguments. This is done through an attribute
-/// parameter:
+/// arguments before optional arguments. This is done through the `optional`
+/// attribute option, which names the first optional parameter. PHP callers can
+/// omit that parameter and every parameter after it. Each of these parameters
+/// must be an `Option<T>`, have a default, or be the variadic `&[T]` tail.
+/// Otherwise the build fails with an error on the type of that parameter. If
+/// `optional` names no parameter, the build also fails:
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1879,11 +1890,11 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///
 /// The rest of the options are passed as separate attributes:
 ///
-/// - `#[php(defaults(i = 5, b = "hello"))]` - Sets the default value for
-///   parameter(s).
+/// - `#[php(defaults(i = 5, b = "\"hello\""))]` - Sets the default value for
+///   parameter(s). Each key must name a parameter.
 /// - `#[php(optional = i)]` - Sets the first optional parameter. Note that this
-///   also sets the remaining parameters as optional, so all optional parameters
-///   must be a variant of `Option<T>`.
+///   also sets the remaining parameters as optional, so each of them must be an
+///   `Option<T>` or have a default. Otherwise the build fails.
 /// - `#[php(vis = "public")]`, `#[php(vis = "protected")]` and `#[php(vis =
 ///   "private")]` - Sets the visibility of the method.
 /// - `#[php(name = "method_name")]` - Renames the PHP method to a different
@@ -1894,7 +1905,9 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///   subclasses). Can only be used in abstract classes.
 ///
 /// The `#[php(defaults)]` and `#[php(optional)]` attributes operate the same as
-/// the equivalent function attribute parameters.
+/// the equivalent function attribute parameters. A `self_` parameter is the PHP
+/// object, not a PHP parameter, so `defaults` and `optional` cannot name it. A
+/// `getter` or `setter` method accepts neither option.
 ///
 /// ### Static Methods
 ///

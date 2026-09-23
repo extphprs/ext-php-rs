@@ -1,0 +1,5 @@
+error: `optional` names `desc`, which is not a parameter of this function.
+ --> tests/ui/php_function_optional_unknown.rs:4:18
+  |
+4 | #[php(optional = desc)]
+  |                  ^^^^

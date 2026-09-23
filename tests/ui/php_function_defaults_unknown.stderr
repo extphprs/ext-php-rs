@@ -1,0 +1,11 @@
+error: no parameter named `count`; `defaults` keys must match a parameter name
+ --> tests/ui/php_function_defaults_unknown.rs:4:37
+  |
+4 | #[php(defaults(tims = 1, times = 2, count = 3))]
+  |                                     ^^^^^
+
+error: no parameter named `tims`; `defaults` keys must match a parameter name
+ --> tests/ui/php_function_defaults_unknown.rs:4:16
+  |
+4 | #[php(defaults(tims = 1, times = 2, count = 3))]
+  |                ^^^^

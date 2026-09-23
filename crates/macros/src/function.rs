@@ -85,7 +85,7 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
         .rename
         .rename(ident_to_php_name(&input.sig.ident), RenameRule::Snake);
     validate_php_name(&func_name, PhpNameContext::Function, input.sig.ident.span())?;
-    let func = Function::new(&input.sig, func_name, args, php_attr.optional, docs);
+    let func = Function::new(&input.sig, func_name, args, php_attr.optional, docs)?;
     let function_impl = func.php_function_impl();
 
     Ok(quote! {
@@ -104,8 +104,8 @@ pub struct Function<'a> {
     pub args: Args<'a>,
     /// Function outputs.
     pub output: Option<&'a Type>,
-    /// The first optional argument of the function.
-    pub optional: Option<Ident>,
+    /// Position of the first optional argument of the function.
+    pub optional: Option<usize>,
     /// Doc comments for the function.
     pub docs: Vec<String>,
 }
@@ -145,8 +145,11 @@ impl<'a> Function<'a> {
         args: Args<'a>,
         optional: Option<Ident>,
         docs: Vec<String>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let optional = optional
+            .map(|optional| args.position(&optional))
+            .transpose()?;
+        Ok(Self {
             ident: &sig.ident,
             name,
             args,
@@ -156,7 +159,7 @@ impl<'a> Function<'a> {
             },
             optional,
             docs,
-        }
+        })
     }
 
     /// Generates an internal identifier for the function.
@@ -166,7 +169,7 @@ impl<'a> Function<'a> {
 
     pub fn abstract_function_builder(&self) -> TokenStream {
         let name = &self.name;
-        let required = self.args.required_count(self.optional.as_ref());
+        let required = self.args.required_count(self.optional);
         let args = self
             .args
             .typed
@@ -197,7 +200,7 @@ impl<'a> Function<'a> {
     /// Generates the function builder for the function.
     pub fn function_builder(&self, call_type: &CallType) -> TokenStream {
         let name = &self.name;
-        let required = self.args.required_count(self.optional.as_ref());
+        let required = self.args.required_count(self.optional);
 
         // `handler` impl
         let arg_declarations = self
@@ -693,7 +696,7 @@ impl<'a> Function<'a> {
         visibility: Option<&Visibility>,
     ) -> TokenStream {
         let ident = self.ident;
-        let required = self.args.required_count(self.optional.as_ref());
+        let required = self.args.required_count(self.optional);
         let args = self
             .args
             .typed
@@ -822,7 +825,28 @@ impl<'a> Args<'a> {
                 }
             }
         }
+        reject_unknown_defaults(defaults)?;
         Ok(result)
+    }
+
+    fn position(&self, optional: &Ident) -> Result<usize> {
+        match self.typed.iter().position(|arg| arg.name == optional) {
+            Some(index) => Ok(index),
+            None => {
+                bail!(optional => "`optional` names `{optional}`, which is not a parameter of this function.")
+            }
+        }
+    }
+
+    pub fn take_self_object(&mut self) -> Result<bool> {
+        if self.typed.first().is_none_or(|arg| arg.name != "self_") {
+            return Ok(false);
+        }
+        let self_object = self.typed.remove(0);
+        if let Some(default) = &self_object.default {
+            bail!(default => "`self_` is the PHP object itself and cannot have a default.");
+        }
+        Ok(true)
     }
 
     /// Emits `const __REQUIRED: usize`, the number of leading required
@@ -832,11 +856,28 @@ impl<'a> Args<'a> {
     /// computed by `ext_php_rs::args::required_count` from each parameter's
     /// `FromZvalMut::NULLABLE` and default, so the rule follows the type and
     /// not its spelling. A variadic parameter is counted by the runtime.
-    pub fn required_count(&self, optional: Option<&Ident>) -> TokenStream {
-        if let Some(optional) = optional
-            && let Some(index) = self.typed.iter().position(|arg| arg.name == optional)
-        {
-            return quote! { const __REQUIRED: usize = #index; };
+    pub fn required_count(&self, optional: Option<usize>) -> TokenStream {
+        if let Some(index) = optional {
+            let first = self.typed[index].name;
+            let checks = self.typed[index..]
+                .iter()
+                .filter(|arg| !arg.variadic && arg.default.is_none())
+                .map(|arg| {
+                    let ty = arg.clean_ty();
+                    let name = arg.name;
+                    let message = if name == first {
+                        format!("`{name}` is marked `optional`, so PHP callers may omit it: make it `Option<T>` or give it a default.")
+                    } else {
+                        format!("`{name}` comes after `optional = {first}`, so PHP callers may omit it: make it `Option<T>` or give it a default.")
+                    };
+                    quote_spanned! { arg.ty.span() =>
+                        const _: () = assert!(<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE, #message);
+                    }
+                });
+            return quote! {
+                const __REQUIRED: usize = #index;
+                #(#checks)*
+            };
         }
         let omittable = self.typed.iter().map(|arg| {
             if arg.variadic {
@@ -850,6 +891,19 @@ impl<'a> Args<'a> {
             const __REQUIRED: usize = ::ext_php_rs::args::required_count(&[#(#omittable),*]);
         }
     }
+}
+
+fn reject_unknown_defaults(defaults: HashMap<Ident, Expr>) -> Result<()> {
+    let mut unknown: Vec<Ident> = defaults.into_keys().collect();
+    unknown.sort();
+    unknown
+        .into_iter()
+        .map(|name| err!(name => "no parameter named `{name}`; `defaults` keys must match a parameter name"))
+        .reduce(|mut all, next| {
+            all.combine(next);
+            all
+        })
+        .map_or(Ok(()), Err)
 }
 
 /// A `&[T]` parameter is the variadic tail. The element type decides the
@@ -1008,8 +1062,20 @@ mod tests {
         assert!(
             by_type.contains("MaybeAge as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
         );
-        let explicit = args.required_count(Some(&format_ident!("b"))).to_string();
-        assert_eq!(explicit, "const __REQUIRED : usize = 1usize ;");
+        let explicit = args.required_count(Some(1)).to_string();
+        assert!(explicit.starts_with("const __REQUIRED : usize = 1usize ;"));
+    }
+
+    #[test]
+    fn parameters_from_optional_on_must_be_nullable_unless_defaulted_or_variadic() {
+        let args =
+            parse_with_defaults("fn f(a: i64, b: Maybe, c: i64, rest: &[i64])", &["c"]).unwrap();
+        let tokens = args.required_count(Some(1)).to_string();
+        assert_eq!(tokens.matches("const _ : () = assert !").count(), 1);
+        assert!(
+            tokens.contains("< Maybe as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
+        );
+        assert!(tokens.contains("`b` is marked `optional`"));
     }
 
     #[test]
@@ -1017,6 +1083,82 @@ mod tests {
         let args = parse_args("fn f(a: i64, rest: &[i64])");
         let tokens = args.required_count(None).to_string();
         assert!(tokens.ends_with("|| false , false]) ;"));
+    }
+
+    fn parse_with_defaults(sig: &str, defaults: &[&str]) -> Result<Args<'static>> {
+        let sig: &'static syn::Signature =
+            Box::leak(Box::new(syn::parse_str::<syn::Signature>(sig).unwrap()));
+        let defaults = defaults
+            .iter()
+            .map(|name| (format_ident!("{name}"), syn::parse_quote!(0)))
+            .collect();
+        Args::parse_from_fnargs(sig.inputs.iter(), defaults)
+    }
+
+    #[test]
+    fn defaults_are_taken_by_their_parameter() {
+        let args = parse_with_defaults("fn f(a: i64, b: i64)", &["b"]).unwrap();
+        assert!(args.typed[0].default.is_none());
+        assert!(args.typed[1].default.is_some());
+    }
+
+    #[test]
+    fn defaults_for_unknown_parameters_are_rejected_in_name_order() {
+        let err = parse_with_defaults("fn f(a: i64)", &["zed", "a", "bee"]).unwrap_err();
+        let messages: Vec<String> = err.into_iter().map(|e| e.to_string()).collect();
+        assert_eq!(
+            messages,
+            [
+                "no parameter named `bee`; `defaults` keys must match a parameter name",
+                "no parameter named `zed`; `defaults` keys must match a parameter name",
+            ]
+        );
+    }
+
+    #[test]
+    fn take_self_object_removes_only_a_leading_self_() {
+        let mut args = parse_args("fn f(self_: &mut Obj, a: i64, b: i64)");
+        assert!(args.take_self_object().unwrap());
+        let names: Vec<String> = args.typed.iter().map(|arg| arg.name.to_string()).collect();
+        assert_eq!(names, ["a", "b"]);
+
+        let mut args = parse_args("fn f(a: i64, self_: &mut Obj)");
+        assert!(!args.take_self_object().unwrap());
+        assert_eq!(args.typed.len(), 2);
+    }
+
+    #[test]
+    fn self_object_cannot_have_a_default() {
+        let mut args = parse_with_defaults("fn f(self_: &mut Obj, a: i64)", &["self_"]).unwrap();
+        let err = args.take_self_object().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "`self_` is the PHP object itself and cannot have a default."
+        );
+    }
+
+    #[test]
+    fn optional_resolves_to_the_parameter_position() {
+        let sig: &'static syn::Signature = Box::leak(Box::new(
+            syn::parse_str("fn f(a: i64, b: Option<i64>)").unwrap(),
+        ));
+        let args = Args::parse_from_fnargs(sig.inputs.iter(), HashMap::new()).unwrap();
+        let func = Function::new(sig, "f".into(), args, Some(format_ident!("b")), vec![]).unwrap();
+        assert_eq!(func.optional, Some(1));
+    }
+
+    #[test]
+    fn optional_naming_no_parameter_is_rejected() {
+        let sig: &'static syn::Signature = Box::leak(Box::new(
+            syn::parse_str("fn f(a: i64, b: Option<i64>)").unwrap(),
+        ));
+        let args = Args::parse_from_fnargs(sig.inputs.iter(), HashMap::new()).unwrap();
+        let err =
+            Function::new(sig, "f".into(), args, Some(format_ident!("c")), vec![]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "`optional` names `c`, which is not a parameter of this function."
+        );
     }
 
     #[test]
