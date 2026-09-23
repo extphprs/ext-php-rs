@@ -6,7 +6,7 @@ homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["php", "ffi", "zend", "stubs"]
-version = "0.1.0"
+version = "0.2.0"
 authors = [
     "Pierre Tondereau <pierre.tondereau@protonmail.com>",
     "Xenira <xenira@php.rs>",
