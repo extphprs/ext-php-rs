@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="favicon-e3c560cd.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-bb297726.js";
+            window.path_to_searchindex_js = "searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-22bbee95.js"></script>
+        <script src="toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -201,6 +201,11 @@ during <code>sapi_activate</code> and will cause crashes if accessed at that poi
 </tbody>
 </table>
 </div>
+<p>Every accessor returns <code>Option&lt;&amp;ZendHashTable&gt;</code>: <code>None</code> means the global has
+not been populated as an array (yet), for example before request startup or in
+a SAPI that does not provide it. The exception is <code>http_request_vars()</code>, which
+returns <code>Result&lt;Option&lt;&amp;ZendHashTable&gt;&gt;</code> because building <code>$_REQUEST</code> involves
+the engine: <code>Err</code> reports an engine failure, <code>Ok(None)</code> means not populated.</p>
 <h3 id="basic-example"><a class="header" href="#basic-example">Basic Example</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
@@ -210,7 +215,7 @@ use ext_php_rs::zend::ProcessGlobals;
 #[php_function]
 pub fn get_cookie(name: String) -&gt; Option&lt;String&gt; {
     ProcessGlobals::get()
-        .http_cookie_vars()
+        .http_cookie_vars()?
         .get(name.as_str())
         .and_then(|zval| zval.string())
 }
@@ -218,7 +223,7 @@ pub fn get_cookie(name: String) -&gt; Option&lt;String&gt; {
 #[php_function]
 pub fn get_query_param(name: String) -&gt; Option&lt;String&gt; {
     ProcessGlobals::get()
-        .http_get_vars()
+        .http_get_vars()?
         .get(name.as_str())
         .and_then(|zval| zval.string())
 }
@@ -226,14 +231,14 @@ pub fn get_query_param(name: String) -&gt; Option&lt;String&gt; {
 #[php_function]
 pub fn get_post_param(name: String) -&gt; Option&lt;String&gt; {
     ProcessGlobals::get()
-        .http_post_vars()
+        .http_post_vars()?
         .get(name.as_str())
         .and_then(|zval| zval.string())
 }
 <span class="boring">fn main() {}</span></code></pre>
 <h3 id="accessing-_server"><a class="header" href="#accessing-_server">Accessing <code>$_SERVER</code></a></h3>
-<p>The <code>$_SERVER</code> superglobal is lazy-initialized in PHP, so <code>http_server_vars()</code>
-returns an <code>Option</code>:</p>
+<p>The <code>$_SERVER</code> superglobal is lazy-initialized in PHP; <code>http_server_vars()</code>
+triggers that initialization before reading it:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
@@ -272,7 +277,7 @@ use ext_php_rs::zend::ProcessGlobals;
 #[php_function]
 pub fn get_uploaded_file_name(field: String) -&gt; Option&lt;String&gt; {
     let globals = ProcessGlobals::get();
-    let files = globals.http_files_vars();
+    let files = globals.http_files_vars()?;
 
     // $_FILES structure: $_FILES['field']['name'], ['tmp_name'], ['size'], etc.
     files
@@ -285,7 +290,7 @@ pub fn get_uploaded_file_name(field: String) -&gt; Option&lt;String&gt; {
 #[php_function]
 pub fn get_uploaded_file_tmp_path(field: String) -&gt; Option&lt;String&gt; {
     let globals = ProcessGlobals::get();
-    let files = globals.http_files_vars();
+    let files = globals.http_files_vars()?;
 
     files
         .get(field.as_str())?
@@ -304,13 +309,13 @@ use ext_php_rs::types::ZendHashTable;
 use ext_php_rs::zend::ProcessGlobals;
 
 #[php_function]
-pub fn get_all_cookies() -&gt; ZBox&lt;ZendHashTable&gt; {
-    ProcessGlobals::get().http_cookie_vars().to_owned()
+pub fn get_all_cookies() -&gt; Option&lt;ZBox&lt;ZendHashTable&gt;&gt; {
+    Some(ProcessGlobals::get().http_cookie_vars()?.to_owned())
 }
 
 #[php_function]
-pub fn get_all_get_params() -&gt; ZBox&lt;ZendHashTable&gt; {
-    ProcessGlobals::get().http_get_vars().to_owned()
+pub fn get_all_get_params() -&gt; Option&lt;ZBox&lt;ZendHashTable&gt;&gt; {
+    Some(ProcessGlobals::get().http_get_vars()?.to_owned())
 }
 
 #[php_function]
@@ -533,11 +538,11 @@ access, and provide thread-safe access through guard types.</p>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

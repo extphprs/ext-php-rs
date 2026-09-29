@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -210,27 +210,44 @@ fn hello_world(a: i32, b: i32) -&gt; i32 {
 <tr><td>change_constant_case</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
 <tr><td>flags</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
 <tr><td>prop</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+<tr><td>static</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+<tr><td>default</td><td>❌</td><td>❌</td><td>❌</td><td>✅ (static)</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+<tr><td>readonly</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
 <tr><td>extends</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
 <tr><td>implements</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
 <tr><td>modifier</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
 <tr><td>defaults</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>optional</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
-<tr><td>vis</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>vis</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>getter</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>setter</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>constructor</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
-<tr><td>abstract_method</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>abstract</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>final</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>allow_native_discriminants</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td></tr>
-<tr><td>discriminant</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>value</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>change_cases_case</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td></tr>
 </tbody>
 </table>
 </div>
+<p>An option marked ❌ is a compile error. The error points at the option and
+names the item where the option is valid. The proc macros themselves take no
+arguments: write <code>#[php_class]</code> and <code>#[php(name = "Foo")]</code>, not
+<code>#[php_class(name = "Foo")]</code>.</p>
+<p>A method with <code>getter</code> or <code>setter</code> does not accept <code>defaults</code> or <code>optional</code>.
+Trait methods inside <code>#[php_interface]</code> accept <code>name</code>, <code>change_case</code>,
+<code>defaults</code>, <code>optional</code> and <code>vis</code>. Trait constants accept <code>name</code> and
+<code>change_case</code>. Methods inside <code>#[php_impl_interface]</code> and items under
+<code>#[derive(ZvalConvert)]</code> or <code>#[php_extern]</code> accept no <code>#[php]</code> option.</p>
 <h2 id="name-and-change_case"><a class="header" href="#name-and-change_case"><code>name</code> and <code>change_case</code></a></h2>
-<p><code>name</code> and <code>change_case</code> are mutually exclusive. The <code>name</code> attribute is used to set the name of
-an item to a string literal. The <code>change_case</code> attribute is used to change the case of the name.</p>
+<p>The <code>name</code> option sets the PHP name of an item to a string literal. The
+<code>change_case</code> option converts the Rust name to a different case. You can use
+only one of the two on an item. If you use both, the macro gives a compile
+error.</p>
 <pre><code class="language-rs">#[php(name = "NEW_NAME")]
-#[php(change_case = snake_case)]]
+#[php(change_case = "snake_case")]
 </code></pre>
+<p>The case is a string literal.</p>
 <p>Available cases are:</p>
 <ul>
 <li><code>snake_case</code></li>
@@ -239,6 +256,19 @@ an item to a string literal. The <code>change_case</code> attribute is used to c
 <li><code>UPPER_CASE</code></li>
 <li><code>none</code> - No change</li>
 </ul>
+<p>Two items can get the same PHP name after renaming. For example, <code>fn get_count</code>
+and <code>#[php(name = "GETCOUNT")] fn count_again</code> both give the PHP method
+<code>getCount</code>, because PHP method names ignore case. If two methods, two constants
+or two enum cases of one block get the same PHP name, the macro gives a compile
+error at the second item. Method names are compared without case. Constant and
+enum case names are compared with case.</p>
+<p>The macros cannot see a clash between two blocks, for example a method of
+<code>#[php_impl]</code> and a method of <code>#[php_impl_interface]</code> with the same PHP name.
+The builders check these at module startup. If two methods, two constants or
+two functions share a PHP name, or if a class with the same name is already
+registered, the extension does not start. The startup error names the item:
+<code>Error::DuplicateMethod</code>, <code>Error::DuplicateConstant</code>, <code>Error::DuplicateFunction</code>
+or <code>Error::DuplicateClass</code>.</p>
 
                     </main>
 
@@ -284,11 +314,11 @@ an item to a string literal. The <code>change_case</code> attribute is used to c
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

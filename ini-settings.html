@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="favicon-e3c560cd.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-bb297726.js";
+            window.path_to_searchindex_js = "searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-22bbee95.js"></script>
+        <script src="toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,18 +180,20 @@
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::prelude::*;
-</span><span class="boring">use ext_php_rs::zend::IniEntryDef;
+</span><span class="boring">use ext_php_rs::zend::{IniEntryDef, IniEntryDefs};
 </span><span class="boring">use ext_php_rs::flags::IniEntryPermission;
 </span>
+static INI_ENTRIES: IniEntryDefs&lt;2&gt; = IniEntryDefs::new([
+    IniEntryDef::new(
+        c"my_extension.display_emoji",
+        c"yes",
+        IniEntryPermission::All,
+    ),
+    IniEntryDef::end(),
+]);
+
 pub fn startup(ty: i32, mod_num: i32) -&gt; i32 {
-    let ini_entries: Vec&lt;IniEntryDef&gt; = vec![
-        IniEntryDef::new(
-            "my_extension.display_emoji".to_owned(),
-            "yes".to_owned(),
-            &amp;IniEntryPermission::All,
-        ),
-    ];
-    IniEntryDef::register(ini_entries, mod_num);
+    IniEntryDef::register(INI_ENTRIES.as_slice(), mod_num);
 
     0
 }
@@ -225,6 +227,24 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h2 id="memory"><a class="header" href="#memory">Memory</a></h2>
+<p><code>IniEntryDef::register</code> takes a <code>&amp;'static [IniEntryDef]</code> terminated by
+<code>IniEntryDef::end()</code>. The engine borrows the table for the life of the process:
+PHP 8.5 stores it as <code>zend_ini_entry.def</code> and the CLI SAPI dereferences
+<code>def-&gt;value</code> when printing <code>php --ini</code>. <code>IniEntryDef::new</code> is a <code>const fn</code>, so
+the table is a plain <code>static</code> — the same thing a C extension writes as
+<code>zend_ini_entry_def[]</code> in <code>.rodata</code>.</p>
+<pre><code class="language-rust ignore">use ext_php_rs::{flags::IniEntryPermission, zend::{IniEntryDef, IniEntryDefs}};
+
+static INI: IniEntryDefs&lt;2&gt; = IniEntryDefs::new([
+    IniEntryDef::new(c"my_extension.display_emoji", c"1", IniEntryPermission::All),
+    IniEntryDef::end(),
+]);
+
+pub fn startup(_ty: i32, mod_num: i32) -&gt; i32 {
+    IniEntryDef::register(INI.as_slice(), mod_num);
+    0
+}</code></pre>
 
                     </main>
 
@@ -270,11 +290,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

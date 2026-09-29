@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -207,20 +207,57 @@ Two forms are supported:
 </li>
 </ul>
 <p>You may also use the <code>#[php(prop)]</code> attribute on a struct field to use the field as a
-PHP property. By default, the field will be accessible from PHP publicly with
-the same name as the field. Property types must implement <code>IntoZval</code> and
-<code>FromZval</code>.</p>
+PHP property. By default, the property is public and its name is the field name
+converted to camelCase: the field <code>first_name</code> gives the property <code>firstName</code>.
+Property types must implement <code>IntoZval</code> and <code>FromZval</code>.</p>
 <p>You can customize properties with these options:</p>
 <ul>
 <li><code>name</code> - Allows you to rename the property, e.g.
 <code>#[php(prop, name = "new_name")]</code></li>
 <li><code>change_case</code> - Allows you to rename the property using rename rules, e.g.
-<code>#[php(prop, change_case = PascalCase)]</code></li>
+<code>#[php(prop, change_case = "PascalCase")]</code></li>
 <li><code>static</code> - Makes the property static (shared across all instances), e.g.
 <code>#[php(prop, static)]</code></li>
 <li><code>flags</code> - Sets property visibility flags, e.g.
 <code>#[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]</code></li>
 </ul>
+<h3 id="known-limitation-phpprop-on-owned-refcounted-types-accessed-via"><a class="header" href="#known-limitation-phpprop-on-owned-refcounted-types-accessed-via">Known limitation: <code>#[php(prop)]</code> on owned refcounted types accessed via</a></h3>
+<p><code>Exception::getMessage</code>-style C methods leaks one <code>zend_string</code> per call.</p>
+<p>The generated read-property handler writes a fresh <code>zend_string</code> with
+refcount=1 into the <code>rv</code> slot via <code>set_zval</code>. PHP’s <code>Exception::getMessage</code>
+(and siblings such as <code>getFile</code>) read this with <code>zval_get_string + RETURN_STR</code>,
+which addrefs to 2 and transfers the pointer to <code>return_value</code> without
+changing the refcount. The stack <code>rv</code> then goes out of scope without
+<code>zval_ptr_dtor</code>, orphaning one refcount per call.</p>
+<p>This affects any <code>#[php_class]</code> extending <code>\Exception</code> with a <code>#[php(prop)]</code>
+field whose type allocates a <code>zend_string</code> (e.g. <code>String</code>, <code>Vec&lt;u8&gt;</code> when
+converted to a binary string, or any <code>IntoZval</code> impl producing <code>IS_STRING_EX</code>)
+— most commonly when the field shadows the parent <code>\Exception::$message</code>.
+Direct property access (<code>$obj-&gt;field</code>) via the <code>FETCH_OBJ_R</code> opcode is
+<strong>not</strong> affected because the bytecode handler properly consumes the rv ref.</p>
+<p><strong>Workarounds, in order of preference:</strong></p>
+<ol>
+<li>
+<p><strong>Do not shadow the inherited property name.</strong> Rename the field
+(e.g. <code>payload</code> instead of <code>message</code>) and expose it through a
+<code>#[php_method]</code> getter. The method-return path is not affected by
+this leak.
+Note: <code>\Exception::getMessage</code> is <code>final</code> in PHP, so overriding it
+directly via <code>#[php_method] fn get_message(...)</code> is rejected at
+class registration.</p>
+</li>
+<li>
+<p><strong>Write the value into the parent’s real property slot via
+<code>zend_update_property_stringl</code></strong> (raw FFI). PHP’s <code>getMessage</code>
+then reads from real storage through <code>zend_std_read_property</code>,
+bypassing the leaky <code>rv</code> path entirely. This requires dropping
+<code>#[php(prop)]</code> from the shadow field and populating the parent
+slot at construction time. See <code>biscuit-php</code> (<code>src/errors.rs</code>)
+for a worked example.</p>
+</li>
+</ol>
+<p>Tracked by the
+<code>prop_string_field_does_not_leak_on_repeated_get_message</code> regression test.</p>
 <h2 id="restrictions"><a class="header" href="#restrictions">Restrictions</a></h2>
 <h3 id="no-lifetime-parameters"><a class="header" href="#no-lifetime-parameters">No lifetime parameters</a></h3>
 <p>Rust lifetimes are used by the Rust compiler to reason about a program’s memory safety.
@@ -660,8 +697,9 @@ pub struct MaybeReadonlyClass {
 <code>#[php(readonly)]</code> directly without any build script setup.</p>
 <h2 id="cloning"><a class="header" href="#cloning">Cloning</a></h2>
 <p>PHP’s native <code>clone</code> operator is supported for <code>#[php_class]</code> structs that
-derive <code>Clone</code>. Add <code>#[derive(Clone)]</code> to your struct and the cloned PHP object
-will contain a proper copy of the Rust data:</p>
+implement <code>Clone</code>. A derive or a hand-written <code>impl Clone</code> both work, and the
+spelling of the derive path does not matter. The cloned PHP object contains a
+copy of the Rust data:</p>
 <pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 
 #[php_class]
@@ -685,8 +723,8 @@ $copy = clone $style;
 $copy-&gt;fontSize = 16.0;
 echo $style-&gt;fontSize;  // 12.0 — original is unchanged
 </code></pre>
-<p>Structs that do <strong>not</strong> derive <code>Clone</code> will throw an error when cloned:</p>
-<pre><code class="language-php">// If MyClass doesn't #[derive(Clone)]:
+<p>Structs that do not implement <code>Clone</code> throw an error when cloned:</p>
+<pre><code class="language-php">// If MyClass does not implement Clone:
 $obj = new MyClass();
 $copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
 </code></pre>
@@ -882,11 +920,11 @@ foreach ($map as $key =&gt; $value) {
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

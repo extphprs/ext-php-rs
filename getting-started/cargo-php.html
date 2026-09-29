@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -196,39 +196,36 @@ may run into PHP exiting with <code>SIGKILL</code>. You can see the exact cause 
 in Console, however, generally this is due to a invalid code signature.
 Uninstalling the extension and then reinstalling generally fixes this problem.</p>
 <h2 id="installation"><a class="header" href="#installation">Installation</a></h2>
-<p>The subcommand is installed through composer like any other Rust CLI
-application:</p>
+<p>The subcommand is installed with Cargo like any other Rust CLI application:</p>
 <pre><code class="language-text">$ cargo install cargo-php --locked
 </code></pre>
+<p>Installing does not require PHP: <code>cargo-php</code> only depends on
+<code>ext-php-rs-introspection</code>, the crate that describes an extension for stub
+generation. PHP and <code>php-config</code> are needed at runtime by the <code>install</code> and
+<code>remove</code> subcommands, which copy the extension into your PHP installation.</p>
 <p>You can then call the application via <code>cargo php</code> (assuming the cargo
 installation directory is in your PATH):</p>
 <pre><code class="language-text">$ cargo php --help
-cargo-php 0.1.0
-
-David Cole &lt;david.cole1340@gmail.com&gt;
-
 Installs extensions and generates stub files for PHP extensions generated with `ext-php-rs`.
 
-USAGE:
-    cargo-php &lt;SUBCOMMAND&gt;
+Usage: cargo-php &lt;COMMAND&gt;
 
-OPTIONS:
-    -h, --help
-            Print help information
+Commands:
+  install      Installs the extension in the current PHP installation
+  remove       Removes the extension in the current PHP installation
+  stubs        Generates stub PHP files for the extension
+  static-glue  Generates the C glue required to statically link the extension into php-src
+  help         Print this message or the help of the given subcommand(s)
 
-    -V, --version
-            Print version information
-
-SUBCOMMANDS:
-    help
-            Print this message or the help of the given subcommand(s)
-    install
-            Installs the extension in the current PHP installation
-    remove
-            Removes the extension in the current PHP installation
-    stubs
-            Generates stub PHP files for the extension
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
 </code></pre>
+<p><code>cargo php --version</code> prints the <code>ext-php-rs-introspection</code> version the CLI was
+built with. Stub generation refuses an extension whose version of that crate
+is not semver compatible, because the <code>#[repr(C)]</code> layout it reads can have
+changed. Every layout change of that crate bumps the version that this check
+compares, so rebuild <code>cargo-php</code> or the extension until both versions match.</p>
 <p>The command should always be executed from within your extensions manifest
 directory (the directory with your <code>Cargo.toml</code>).</p>
 <h2 id="stubs"><a class="header" href="#stubs">Stubs</a></h2>
@@ -414,11 +411,11 @@ OPTIONS:
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

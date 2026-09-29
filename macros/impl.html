@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -206,10 +206,11 @@ consuming <code>self</code> parameter. Static methods can omit this <code>self</
 be named <code>self_</code>. This can also be used to return a reference to <code>$this</code>.</p>
 <p>The rest of the options are passed as separate attributes:</p>
 <ul>
-<li><code>#[php(defaults(i = 5, b = "hello"))]</code> - Sets the default value for parameter(s).</li>
+<li><code>#[php(defaults(i = 5, b = "\"hello\""))]</code> - Sets the default value for parameter(s).
+Each key must name a parameter.</li>
 <li><code>#[php(optional = i)]</code> - Sets the first optional parameter. Note that this also sets
-the remaining parameters as optional, so all optional parameters must be a
-variant of <code>Option&lt;T&gt;</code>.</li>
+the remaining parameters as optional, so each of them must be an <code>Option&lt;T&gt;</code>
+or have a default. Otherwise the build fails.</li>
 <li><code>#[php(vis = "public")]</code>, <code>#[php(vis = "protected")]</code> and <code>#[php(vis = "private")]</code> - Sets the visibility of the
 method.</li>
 <li><code>#[php(name = "method_name")]</code> - Renames the PHP method to a different identifier,
@@ -219,7 +220,9 @@ without renaming the Rust method name.</li>
 Can only be used in abstract classes.</li>
 </ul>
 <p>The <code>#[php(defaults)]</code> and <code>#[php(optional)]</code> attributes operate the same as the
-equivalent function attribute parameters.</p>
+equivalent function attribute parameters. A <code>self_</code> parameter is the PHP object,
+not a PHP parameter, so <code>defaults</code> and <code>optional</code> cannot name it. A <code>getter</code> or
+<code>setter</code> method accepts neither option.</p>
 <h3 id="static-methods"><a class="header" href="#static-methods">Static Methods</a></h3>
 <p>Methods that do not take a <code>&amp;self</code> or <code>&amp;mut self</code> parameter are automatically
 exported as static methods. These can be called on the class itself without
@@ -313,53 +316,55 @@ the attribute, the function is not exported to PHP like a regular method.</p>
 <p>Constructors cannot use the visibility or rename attributes listed above.</p>
 <h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
 <p>Constants are defined as regular Rust <code>impl</code> constants. Any type that implements
-<code>IntoZval</code> can be used as a constant. Constant visibility is not supported at
-the moment, and therefore no attributes are valid on constants.</p>
-<h2 id="property-getters-and-setters"><a class="header" href="#property-getters-and-setters">Property getters and setters</a></h2>
-<p>You can add properties to classes which use Rust functions as getters and/or
-setters. This is done with the <code>#[php(getter)]</code> and <code>#[php(setter)]</code> attributes. By
-default, the <code>get_</code> or <code>set_</code> prefix is trimmed from the start of the function
-name, and the remainder is used as the property name.</p>
-<p>If you want to use a different name for the property, you can pass a <code>name</code> or
-<code>change_case</code> option to the <code>#[php]</code> attribute which will change the property name.</p>
-<p>Properties do not necessarily have to have both a getter and a setter, if the
-property is immutable the setter can be omitted, and vice versa for getters.</p>
-<p>The <code>#[php(getter)]</code> and <code>#[php(setter)]</code> attributes are mutually exclusive on methods.
-Properties cannot have multiple getters or setters, and the property name cannot
-conflict with field properties defined on the struct.</p>
-<p>As the same as field properties, method property types must implement both
-<code>IntoZval</code> and <code>FromZval</code>.</p>
-<h3 id="overriding-field-properties-with-getterssetters"><a class="header" href="#overriding-field-properties-with-getterssetters">Overriding field properties with getters/setters</a></h3>
-<p>If you have a field property defined with <code>#[php(prop)]</code> on your struct, you can
-override its access by defining a getter or setter method with the same property
-name. The method-based property will take precedence:</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-
-#[php_class]
-pub struct Book {
-    #[php(prop)]
-    pub title: String,  // Direct field access
-}
+<code>IntoZval</code> can be used as a constant. A constant accepts the <code>name</code>,
+<code>change_case</code> and <code>vis</code> options. The default visibility is <code>public</code>.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span><span class="boring">use ext_php_rs::prelude::*;
+</span>#[php_class]
+pub struct Limits;
 
 #[php_impl]
-impl Book {
-    pub fn __construct(title: String) -&gt; Self {
-        Self { title }
-    }
+impl Limits {
+    const MAX_USERS: i64 = 100;
 
-    // This getter overrides $book-&gt;title access
-    #[php(getter)]
-    pub fn get_title(&amp;self) -&gt; String {
-        format!("Title: {}", self.title)
-    }
-}</code></pre>
-<p>In PHP, accessing <code>$book-&gt;title</code> will now call the <code>get_title()</code> method instead
-of directly accessing the field:</p>
-<pre><code class="language-php">$book = new Book("The Rust Book");
-echo $book-&gt;title; // Output: "Title: The Rust Book"
+    #[php(vis = "protected")]
+    const MAX_RETRIES: i64 = 3;
+
+    #[php(vis = "private", name = "SEED")]
+    const RANDOM_SEED: i64 = 42;
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>PHP sees <code>public const MAX_USERS</code>, <code>protected const MAX_RETRIES</code> and
+<code>private const SEED</code>. Reflection reports the same visibility, and the generated
+stubs print it.</p>
+<h2 id="property-getters-and-setters"><a class="header" href="#property-getters-and-setters">Property getters and setters</a></h2>
+<p>A class can expose a property whose value comes from Rust methods. Mark the
+method that reads the value with <code>#[php(getter)]</code> and the method that writes it
+with <code>#[php(setter)]</code>. The property name is the method name without its <code>get_</code>
+or <code>set_</code> prefix, converted to camelCase. This is the same rule as for
+<code>#[php(prop)]</code> fields: <code>get_first_name</code> gives the property <code>firstName</code>.
+Properties are declared in the order in which their first
+getter or setter appears in the <code>impl</code> block, after the <code>#[php(prop)]</code> field
+properties of the struct.</p>
+<p>If you want a different property name, pass a <code>name</code> or <code>change_case</code> option to
+the <code>#[php]</code> attribute: <code>#[php(getter, name = "first_name")]</code> or
+<code>#[php(getter, change_case = "snake_case")]</code>.</p>
+<p>A property does not need both methods. A property with only a getter is
+read-only. A property with only a setter is write-only.</p>
+<p>One method cannot be both a getter and a setter. A property cannot have two
+getters or two setters. The getter and the setter of one property must have the
+same visibility. Each of these cases is a compile error.</p>
+<p>A method property cannot have the same name as a <code>#[php(prop)]</code> field of the
+struct. The two macros are expanded separately, so this is not a compile error.
+The extension fails to load with this error:</p>
+<pre><code class="language-text">property `Book::$title` is declared twice
 </code></pre>
-<p>This is useful when you need to add validation, transformation, or side effects
-to property access while still having the convenience of a public field in Rust.</p>
+<p>The PHP type of the property comes from the return type of the getter. If the
+property has no getter, the type comes from the argument of the setter. The
+documentation of the property comes from the getter, or from the setter when
+the getter has none. Like field properties, the type must implement <code>IntoZval</code>
+and <code>FromZval</code>.</p>
 <h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p>Continuing on from our <code>Human</code> example in the structs section, we will define a
 constructor, as well as getters for the properties. We will also define a
@@ -440,7 +445,7 @@ var_dump(Human::MAX_AGE); // int(100)
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../macros/constant.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../macros/enum.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -454,7 +459,7 @@ var_dump(Human::MAX_AGE); // int(100)
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../macros/constant.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../macros/enum.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -476,11 +481,11 @@ var_dump(Human::MAX_AGE); // int(100)
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

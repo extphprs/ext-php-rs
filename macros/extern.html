@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -191,6 +191,8 @@ case).</p>
 <li>The actual function call failed internally.</li>
 <li>The output <a href="crate::types::Zval"><code>Zval</code></a> could not be parsed into the output type.</li>
 </ul>
+<p>Inside a function that PHP calls, these panics become a PHP <code>Error</code>. The
+process does not abort. See <a href="../exceptions.html#panics">Exceptions</a>.</p>
 <p>The last point can be important when interacting with functions that return
 unions, such as <a href="https://www.php.net/manual/en/function.strpos.php"><code>strpos</code></a> which can return an integer or a boolean. In this
 case, a <a href="crate::types::Zval"><code>Zval</code></a> should be returned as parsing a boolean to an integer is
@@ -267,11 +269,11 @@ pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,8 +180,14 @@ name, version, functions and extra initialization functions. Regardless if you
 use this macro, your extension requires a <code>extern "C" fn get_module()</code> so that
 PHP can get this information.</p>
 <p>The function is renamed to <code>get_module</code> if you have used another name. The
-function is passed an instance of <code>ModuleBuilder</code> which allows you to register
-the following (if required):</p>
+macro also exports a crate-prefixed <code>&lt;crate_name&gt;_get_module</code> alias, used when
+<a href="../advanced/static_linking.html">statically linking the extension into php-src</a>.
+Building with <code>EXT_PHP_RS_STATIC_EXT=1</code> removes the unmangled <code>get_module</code>
+export (the function itself stays callable from Rust) so a statically linked
+extension cannot collide with another extension exporting <code>get_module</code>.
+Dynamic builds (<code>extension=</code> / <code>dl()</code>) must not set the variable.</p>
+<p>The function is passed an instance of <code>ModuleBuilder</code> which allows you to
+register the following (if required):</p>
 <ul>
 <li>Functions, classes, and constants</li>
 <li>Extension and request startup and shutdown functions.
@@ -198,6 +204,20 @@ the following (if required):</p>
 </ul>
 <p>Classes and constants are not registered with PHP in the <code>get_module</code> function. These are
 registered inside the extension startup function.</p>
+<h2 id="startup-failures"><a class="header" href="#startup-failures">Startup failures</a></h2>
+<p>If a constant, an interface, a class or an enum cannot be registered, the
+generated startup function logs the cause as an <code>E_CORE_WARNING</code> and returns
+<code>FAILURE</code>. PHP then reports <code>Unable to start &lt;extension&gt; module</code>. At engine
+startup PHP exits. From <code>dl()</code> the request fails. A panic during registration
+gets the same treatment. The process does not abort in either case.</p>
+<p><code>get_module</code> cannot report a failure, because PHP reads the returned entry
+without a check. If the <code>ModuleBuilder</code> cannot become a module entry, for
+example because a function name, an argument name or the module name contains a
+NUL byte, the macro returns a placeholder entry with the name of the crate. The
+startup function of that entry logs the build error and fails as described
+above.</p>
+<p>The <code>startup</code> function that you name in <code>#[php_module(startup = ...)]</code> is your
+own <code>extern "C"</code> function. A panic inside it is not caught.</p>
 <h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
@@ -284,11 +304,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

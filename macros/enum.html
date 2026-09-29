@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Observer API - ext-php-rs</title>
+        <title>Enums - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -173,423 +173,109 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="observer-api"><a class="header" href="#observer-api">Observer API</a></h1>
-<p>The Observer API allows you to build profilers, tracers, and instrumentation tools
-that observe PHP function calls and errors. This is useful for:</p>
+                        <h1 id="php_enum-attribute"><a class="header" href="#php_enum-attribute"><code>#[php_enum]</code> Attribute</a></h1>
+<p>Enums can be exported to PHP as enums with the <code>#[php_enum]</code> attribute macro.
+This attribute derives the <code>RegisteredClass</code> and <code>PhpEnum</code> traits on your enum.
+To register the enum use the <code>enumeration::&lt;EnumName&gt;()</code> method on the <code>ModuleBuilder</code>
+in the <code>#[php_module]</code> macro.</p>
+<h2 id="options"><a class="header" href="#options">Options</a></h2>
+<p>The <code>#[php_enum]</code> attribute can be configured with the following options:</p>
 <ul>
-<li>Performance profiling</li>
-<li>Request tracing (APM)</li>
-<li>Error monitoring</li>
-<li>Code coverage tools</li>
-<li>Debugging tools</li>
+<li><code>#[php(name = "EnumName")]</code> or <code>#[php(change_case = "snake_case")]</code>: Sets the name of the enum in PHP.
+The default is the <code>PascalCase</code> name of the enum.</li>
+<li><code>#[php(allow_native_discriminants)]</code>: Allows the use of native Rust discriminants (e.g., <code>Hearts = 1</code>).</li>
+<li><code>#[php(change_cases_case = "snake_case")]</code>: Sets the rename rule for every case that has no <code>name</code> or
+<code>change_case</code> of its own. The old name of this option, <code>rename_cases</code>, is a compile error.</li>
 </ul>
-<h2 id="enabling-the-feature"><a class="header" href="#enabling-the-feature">Enabling the Feature</a></h2>
-<p>The Observer API is behind a feature flag. Add it to your <code>Cargo.toml</code>:</p>
-<pre><code class="language-toml">[dependencies]
-ext-php-rs = { version = "0.15", features = ["observer"] }
-</code></pre>
-<h2 id="function-call-observer"><a class="header" href="#function-call-observer">Function Call Observer</a></h2>
-<p>Implement the <code>FcallObserver</code> trait to observe function calls:</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::types::Zval;
-use ext_php_rs::zend::ExecuteData;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-struct CallCounter {
-    count: AtomicU64,
-}
-
-impl CallCounter {
-    fn new() -&gt; Self {
-        Self {
-            count: AtomicU64::new(0),
-        }
-    }
-}
-
-impl FcallObserver for CallCounter {
-    fn should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool {
-        !info.is_internal
-    }
-
-    fn begin(&amp;self, _execute_data: &amp;ExecuteData) {
-        self.count.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn end(&amp;self, _execute_data: &amp;ExecuteData, _retval: Option&lt;&amp;Zval&gt;) {}
-}
-
-#[php_module]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module.fcall_observer(CallCounter::new)
-}</code></pre>
-<h3 id="the-fcallobserver-trait"><a class="header" href="#the-fcallobserver-trait">The <code>FcallObserver</code> Trait</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>should_observe(&amp;self, info: &amp;FcallInfo) -&gt; bool</code></td><td>Called once per function definition. Result is cached by PHP.</td></tr>
-<tr><td><code>begin(&amp;self, execute_data: &amp;ExecuteData)</code></td><td>Called when function begins execution.</td></tr>
-<tr><td><code>end(&amp;self, execute_data: &amp;ExecuteData, retval: Option&lt;&amp;Zval&gt;)</code></td><td>Called when function ends (even on exceptions).</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="fcallinfo---function-metadata"><a class="header" href="#fcallinfo---function-metadata"><code>FcallInfo</code> - Function Metadata</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Type</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>function_name</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Function name (None for anonymous/main)</td></tr>
-<tr><td><code>class_name</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Class name for methods</td></tr>
-<tr><td><code>filename</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Source file (None for internal functions)</td></tr>
-<tr><td><code>lineno</code></td><td><code>u32</code></td><td>Line number (0 for internal functions)</td></tr>
-<tr><td><code>is_internal</code></td><td><code>bool</code></td><td>True for built-in PHP functions</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="error-observer"><a class="header" href="#error-observer">Error Observer</a></h2>
-<p>Implement the <code>ErrorObserver</code> trait to observe PHP errors:</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-struct ErrorTracker {
-    fatal_count: AtomicU64,
-    warning_count: AtomicU64,
-}
-
-impl ErrorTracker {
-    fn new() -&gt; Self {
-        Self {
-            fatal_count: AtomicU64::new(0),
-            warning_count: AtomicU64::new(0),
-        }
-    }
-}
-
-impl ErrorObserver for ErrorTracker {
-    fn should_observe(&amp;self, error_type: ErrorType) -&gt; bool {
-        (ErrorType::Fatal | ErrorType::Warning).contains(error_type)
-    }
-
-    fn on_error(&amp;self, error: &amp;ErrorInfo) {
-        if ErrorType::Fatal.contains(error.error_type) {
-            self.fatal_count.fetch_add(1, Ordering::Relaxed);
-
-            if let Some(trace) = error.backtrace() {
-                for frame in trace {
-                    eprintln!("  at {}:{}",
-                        frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
-                        frame.line
-                    );
-                }
-            }
-        } else {
-            self.warning_count.fetch_add(1, Ordering::Relaxed);
-        }
-    }
-}
-
-#[php_module]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module.error_observer(ErrorTracker::new)
-}</code></pre>
-<h3 id="the-errorobserver-trait"><a class="header" href="#the-errorobserver-trait">The <code>ErrorObserver</code> Trait</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>should_observe(&amp;self, error_type: ErrorType) -&gt; bool</code></td><td>Filter which error types to observe.</td></tr>
-<tr><td><code>on_error(&amp;self, error: &amp;ErrorInfo)</code></td><td>Called when an observed error occurs.</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="errortype---error-level-bitflags"><a class="header" href="#errortype---error-level-bitflags"><code>ErrorType</code> - Error Level Bitflags</a></h3>
-<pre><code class="language-rust ignore">ErrorType::Error            // E_ERROR
-ErrorType::Warning          // E_WARNING
-ErrorType::Parse            // E_PARSE
-ErrorType::Notice           // E_NOTICE
-ErrorType::CoreError        // E_CORE_ERROR
-ErrorType::CoreWarning      // E_CORE_WARNING
-ErrorType::CompileError     // E_COMPILE_ERROR
-ErrorType::CompileWarning   // E_COMPILE_WARNING
-ErrorType::UserError        // E_USER_ERROR (deprecated since PHP 8.4)
-ErrorType::UserWarning      // E_USER_WARNING
-ErrorType::UserNotice       // E_USER_NOTICE
-ErrorType::Strict           // E_STRICT (deprecated since PHP 8.4)
-ErrorType::RecoverableError // E_RECOVERABLE_ERROR
-ErrorType::Deprecated       // E_DEPRECATED
-ErrorType::UserDeprecated   // E_USER_DEPRECATED
-
-// Convenience groups, with the values of the PHP headers you build against
-ErrorType::All   // E_ALL, contains Strict before PHP 8.4
-ErrorType::Fatal // E_FATAL_ERRORS: Error | CoreError | CompileError | UserError | RecoverableError | Parse
-ErrorType::Core  // E_CORE: CoreError | CoreWarning</code></pre>
-<h3 id="errorinfo---error-metadata"><a class="header" href="#errorinfo---error-metadata"><code>ErrorInfo</code> - Error Metadata</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Type</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>error_type</code></td><td><code>ErrorType</code></td><td>The error level/severity</td></tr>
-<tr><td><code>filename</code></td><td><code>Option&lt;&amp;str&gt;</code></td><td>Source file where error occurred</td></tr>
-<tr><td><code>lineno</code></td><td><code>u32</code></td><td>Line number</td></tr>
-<tr><td><code>message</code></td><td><code>&amp;str</code></td><td>The error message</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="lazy-backtrace"><a class="header" href="#lazy-backtrace">Lazy Backtrace</a></h3>
-<p>The <code>backtrace()</code> method captures the PHP call stack on demand:</p>
-<pre><code class="language-rust ignore">fn on_error(&amp;self, error: &amp;ErrorInfo) {
-    if let Some(trace) = error.backtrace() {
-        for frame in trace {
-            println!("{}::{}() at {}:{}",
-                frame.class.as_deref().unwrap_or(""),
-                frame.function.as_deref().unwrap_or("&lt;main&gt;"),
-                frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
-                frame.line
-            );
-        }
-    }
-}</code></pre>
-<p>The backtrace is only captured when called, so there’s zero cost if unused.</p>
-<h2 id="exception-observer"><a class="header" href="#exception-observer">Exception Observer</a></h2>
-<p>Implement the <code>ExceptionObserver</code> trait to observe thrown PHP exceptions:</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-struct ExceptionTracker {
-    exception_count: AtomicU64,
-}
-
-impl ExceptionTracker {
-    fn new() -&gt; Self {
-        Self {
-            exception_count: AtomicU64::new(0),
-        }
-    }
-}
-
-impl ExceptionObserver for ExceptionTracker {
-    fn on_exception(&amp;self, exception: &amp;ExceptionInfo) {
-        self.exception_count.fetch_add(1, Ordering::Relaxed);
-        eprintln!("[EXCEPTION] {}: {} at {}:{}",
-            exception.class_name,
-            exception.message.as_deref().unwrap_or("&lt;no message&gt;"),
-            exception.file.as_deref().unwrap_or("&lt;unknown&gt;"),
-            exception.line
-        );
-    }
-}
-
-#[php_module]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module.exception_observer(ExceptionTracker::new)
-}</code></pre>
-<h3 id="the-exceptionobserver-trait"><a class="header" href="#the-exceptionobserver-trait">The <code>ExceptionObserver</code> Trait</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>on_exception(&amp;self, exception: &amp;ExceptionInfo)</code></td><td>Called when an exception is thrown, before any catch blocks.</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="exceptioninfo---exception-metadata"><a class="header" href="#exceptioninfo---exception-metadata"><code>ExceptionInfo</code> - Exception Metadata</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Type</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>class_name</code></td><td><code>String</code></td><td>Exception class name (e.g., “RuntimeException”)</td></tr>
-<tr><td><code>message</code></td><td><code>Option&lt;String&gt;</code></td><td>The exception message</td></tr>
-<tr><td><code>code</code></td><td><code>i64</code></td><td>The exception code</td></tr>
-<tr><td><code>file</code></td><td><code>Option&lt;String&gt;</code></td><td>Source file where thrown</td></tr>
-<tr><td><code>line</code></td><td><code>u32</code></td><td>Line number where thrown</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="exception-backtrace"><a class="header" href="#exception-backtrace">Exception Backtrace</a></h3>
-<p>The <code>backtrace()</code> method captures the PHP call stack at exception throw time:</p>
-<pre><code class="language-rust ignore">impl ExceptionObserver for MyObserver {
-    fn on_exception(&amp;self, exception: &amp;ExceptionInfo) {
-        eprintln!("[EXCEPTION] {}: {}",
-            exception.class_name,
-            exception.message.as_deref().unwrap_or("&lt;no message&gt;")
-        );
-
-        if let Some(trace) = exception.backtrace() {
-            for frame in trace {
-                eprintln!("  at {}::{}() in {}:{}",
-                    frame.class.as_deref().unwrap_or(""),
-                    frame.function.as_deref().unwrap_or("&lt;main&gt;"),
-                    frame.file.as_deref().unwrap_or("&lt;internal&gt;"),
-                    frame.line
-                );
-            }
-        }
-    }
-}</code></pre>
-<p>The backtrace is lazy - only captured when called, so there’s zero cost if unused.</p>
-<h3 id="backtraceframe---stack-frame-metadata"><a class="header" href="#backtraceframe---stack-frame-metadata"><code>BacktraceFrame</code> - Stack Frame Metadata</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Type</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>function</code></td><td><code>Option&lt;String&gt;</code></td><td>Function name (None for main script)</td></tr>
-<tr><td><code>class</code></td><td><code>Option&lt;String&gt;</code></td><td>Class name for method calls</td></tr>
-<tr><td><code>file</code></td><td><code>Option&lt;String&gt;</code></td><td>Source file</td></tr>
-<tr><td><code>line</code></td><td><code>u32</code></td><td>Line number</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="zend-extension-handler"><a class="header" href="#zend-extension-handler">Zend Extension Handler</a></h2>
-<p>For low-level engine hooks beyond the Observer API – per-statement profiling,
-bytecode instrumentation, or <code>op_array</code> lifecycle tracking – register a
-<code>ZendExtensionHandler</code>. This registers your extension as a <code>zend_extension</code>
-alongside the regular PHP extension, the same mechanism used by OPcache,
-Xdebug, and dd-trace-php.</p>
-<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
-use ext_php_rs::ffi::zend_op_array;
-use ext_php_rs::zend::ExecuteData;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-struct StatementProfiler { count: AtomicU64 }
-
-impl ZendExtensionHandler for StatementProfiler {
-    fn on_statement(&amp;self, _execute_data: &amp;ExecuteData) {
-        self.count.fetch_add(1, Ordering::Relaxed);
-    }
-    fn on_activate(&amp;self) {
-        self.count.store(0, Ordering::Relaxed);
-    }
-}
-
-#[php_module]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
-        .zend_extension(|| StatementProfiler { count: AtomicU64::new(0) })
-        .hook_statements()
-        .finish()
-}</code></pre>
-<h3 id="opt-in-hooks"><a class="header" href="#opt-in-hooks">Opt-in hooks</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Enables</th><th>Cost when enabled</th></tr>
-</thead>
-<tbody>
-<tr><td><code>hook_op_array_compile()</code></td><td><code>on_op_array_compiled</code></td><td>One callback per compiled function</td></tr>
-<tr><td><code>hook_statements()</code></td><td><code>on_statement</code></td><td>Extra <code>ZEND_EXT_STMT</code> opcode on every statement of every compiled script</td></tr>
-<tr><td><code>hook_fcalls()</code></td><td><code>on_fcall_begin</code> / <code>on_fcall_end</code></td><td>Extra <code>ZEND_EXT_FCALL_BEGIN</code>/<code>END</code> opcodes around every call site</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="why-opt-in"><a class="header" href="#why-opt-in">Why opt in?</a></h3>
-<p><code>hook_statements()</code> and <code>hook_fcalls()</code> tell the PHP engine to emit extra
-opcodes in every compiled script. Paying that tax by default would slow every
-PHP script, even when your profiler doesn’t need the data. The builder makes
-the trade-off explicit.</p>
-<p><code>hook_op_array_compile()</code> has no compile-time cost: PHP’s default
-<code>CG(compiler_options)</code> already includes <code>ZEND_COMPILE_HANDLE_OP_ARRAY</code>. Opting
-in only registers the dispatcher, so enabling it just adds one callback per
-compiled function.</p>
-<p>The other hooks – <code>on_activate</code>, <code>on_deactivate</code>, <code>on_message</code>,
-<code>on_op_array_ctor</code>, <code>on_op_array_dtor</code> – are always wired when you register
-an extension; they don’t need opt-in because they’re cold-path.</p>
-<h3 id="zts-note"><a class="header" href="#zts-note">ZTS note</a></h3>
-<p>Flags are re-asserted in <code>on_activate</code> so worker threads created after MINIT
-get them on their first request. Scripts pre-compiled by opcache before a
-thread’s first activation may miss hooks – for full coverage in ZTS with
-opcache, load the extension via <code>zend_extension=...</code> in <code>php.ini</code>.</p>
-<h3 id="zend-extension-vs-observer-api"><a class="header" href="#zend-extension-vs-observer-api">Zend Extension vs Observer API</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Feature</th><th>Observer API (<code>FcallObserver</code>)</th><th>Zend Extension (<code>ZendExtensionHandler</code>)</th></tr>
-</thead>
-<tbody>
-<tr><td>Function call hooks</td><td><code>begin</code> / <code>end</code> with return value</td><td><code>on_fcall_begin</code> / <code>on_fcall_end</code> (legacy)</td></tr>
-<tr><td>Filtering</td><td><code>should_observe</code> (cached per function)</td><td>No built-in filtering</td></tr>
-<tr><td>Statement-level hooks</td><td>Not available</td><td><code>on_statement</code></td></tr>
-<tr><td>Bytecode access</td><td>Not available</td><td><code>on_op_array_compiled</code>, <code>on_op_array_ctor</code>, <code>on_op_array_dtor</code></td></tr>
-<tr><td>Request lifecycle</td><td>Not available</td><td><code>on_activate</code> / <code>on_deactivate</code></td></tr>
-<tr><td>Best for</td><td>Function-level profiling, tracing</td><td>Statement-level profiling, code coverage, bytecode instrumentation</td></tr>
-</tbody>
-</table>
-</div>
-<p>Both can be registered on the same module simultaneously.</p>
-<h2 id="using-all-observers"><a class="header" href="#using-all-observers">Using All Observers</a></h2>
-<p>You can register all observers on the same module:</p>
-<pre><code class="language-rust ignore">#[php_module]
-pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
-    module
-        .fcall_observer(MyProfiler::new)
-        .error_observer(MyErrorTracker::new)
-        .exception_observer(MyExceptionTracker::new)
-        .zend_extension(MyStatementProfiler::new)
-        .hook_statements()
-        .finish()
-}</code></pre>
-<h2 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h2>
-<p>Observers are created once during MINIT and stored as global singletons.
-They must implement <code>Send + Sync</code> because:</p>
+<p>PHP enums are always public. <code>#[php(vis = "...")]</code> on an enum is a compile
+error, and so is any argument passed to the macro itself, such as
+<code>#[php_enum(name = "Suit")]</code>.</p>
+<p>The cases of the enum can be configured with the following options:</p>
 <ul>
-<li><strong>NTS</strong>: A single instance handles all requests</li>
-<li><strong>ZTS</strong>: The same instance may be called from different threads</li>
+<li><code>#[php(name = "CaseName")]</code> or <code>#[php(change_case = "snake_case")]</code>: Sets the name of the enum case in PHP.
+The default is the <code>PascalCase</code> name of the case.</li>
+<li><code>#[php(value = "value")]</code> or <code>#[php(value = 123)]</code>: Sets the discriminant value for the enum case.
+This can be a string or an integer. If not set, the case will be exported as a simple enum case without a discriminant.</li>
 </ul>
-<p>Use thread-safe primitives like <code>AtomicU64</code>, <code>Mutex</code>, or <code>RwLock</code> for mutable state.</p>
-<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
-<ol>
-<li>
-<p><strong>Keep observers lightweight</strong>: Observer methods are called frequently.
-Avoid heavy computations or I/O.</p>
-</li>
-<li>
-<p><strong>Use filtering wisely</strong>: <code>should_observe</code> results are cached for fcall observers.
-For error observers, filter early to avoid unnecessary processing.</p>
-</li>
-<li>
-<p><strong>Handle errors gracefully</strong>: Don’t panic in observer methods.</p>
-</li>
-<li>
-<p><strong>Consider memory usage</strong>: Implement limits or periodic flushing to avoid
-unbounded memory growth.</p>
-</li>
-<li>
-<p><strong>Use lazy backtrace</strong>: Only call <code>backtrace()</code> when needed. Both <code>ErrorInfo</code>
-and <code>ExceptionInfo</code> support lazy backtrace capture.</p>
-</li>
-</ol>
-<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
-<ul>
-<li>Only one fcall observer can be registered per extension</li>
-<li>Only one error observer can be registered per extension</li>
-<li>Only one exception observer can be registered per extension</li>
-<li>Only one zend extension handler can be registered per extension</li>
-<li>Observers and handlers are registered globally for the entire PHP process</li>
-</ul>
+<h3 id="example"><a class="header" href="#example">Example</a></h3>
+<p>This example creates a PHP enum <code>Suit</code>.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_enum]
+pub enum Suit {
+    Hearts,
+    Diamonds,
+    Clubs,
+    Spades,
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.enumeration::&lt;Suit&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="backed-enums"><a class="header" href="#backed-enums">Backed Enums</a></h2>
+<p>Enums can also be backed by either <code>i64</code> or <code>&amp;'static str</code>. Those values can be set using the
+<code>#[php(value = "value")]</code> or <code>#[php(value = 123)]</code> attributes on the enum variants.</p>
+<p>All variants must have a value of the same type, either all <code>i64</code> or all <code>&amp;'static str</code>.</p>
+<p>A backed enum converts to and from its value. The macro implements
+<code>From&lt;Enum&gt;</code> for the value type, and <code>TryFrom&lt;i64&gt;</code> or <code>TryFrom&lt;&amp;str&gt;</code> for the
+enum. <code>TryFrom</code> returns <code>Error::InvalidEnumCase</code> when no case has the value.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_enum]
+pub enum Suit {
+    #[php(value = "hearts")]
+    Hearts,
+    #[php(value = "diamonds")]
+    Diamonds,
+    #[php(value = "clubs")]
+    Clubs,
+    #[php(value = "spades")]
+    Spades,
+}
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.enumeration::&lt;Suit&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h3 id="native-discriminators"><a class="header" href="#native-discriminators">‘Native’ Discriminators</a></h3>
+<p>Native rust discriminants are currently not supported and will not be exported to PHP.</p>
+<p>To avoid confusion a compiler error will be raised if you try to use a native discriminant.
+You can ignore this error by adding the <code>#[php(allow_native_discriminants)]</code> attribute to your enum.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_enum]
+#[php(allow_native_discriminants)]
+pub enum Suit {
+    Hearts = 1,
+    Diamonds = 2,
+    Clubs = 3,
+    Spades = 4,
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.enumeration::&lt;Suit&gt;()
+}
+<span class="boring">fn main() {}</span></code></pre>
+<p>TODO: Add backed enums example</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/bailout_guard.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../macros/impl.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/embedded_php.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../macros/constant.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -599,11 +285,11 @@ and <code>ExceptionInfo</code> support lazy backtrace capture.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/bailout_guard.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../macros/impl.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/embedded_php.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../macros/constant.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

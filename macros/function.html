@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,11 +178,15 @@
 should not be used on class methods - see the <code>#[php_impl]</code> macro for that.</p>
 <p>See the <a href="../types/index.html">list of types</a> that are valid as parameter and
 return types.</p>
+<p>A function accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code> and <code>optional</code>
+options. PHP functions have no visibility, so <code>#[php(vis = "...")]</code> is a
+compile error on a function.</p>
 <h2 id="optional-parameters"><a class="header" href="#optional-parameters">Optional parameters</a></h2>
-<p>Optional parameters can be used by setting the Rust parameter type to a variant
-of <code>Option&lt;T&gt;</code>. The macro will then figure out which parameters are optional by
-using the last consecutive arguments that are a variant of <code>Option&lt;T&gt;</code> or have a
-default value.</p>
+<p>An <code>Option&lt;T&gt;</code> parameter accepts <code>null</code> and can be omitted. The macro reads this
+from the type through <code>FromZvalMut::NULLABLE</code>, so a type alias such as
+<code>type MaybeAge = Option&lt;i64&gt;</code> or the qualified path <code>std::option::Option&lt;i64&gt;</code>
+behaves like <code>Option&lt;i64&gt;</code>. The trailing run of parameters that are nullable or
+have a default value is optional.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
@@ -205,7 +209,12 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
 <span class="boring">fn main() {}</span></code></pre>
 <p>Default parameter values can also be set for optional parameters. This is done
 through the <code>#[php(defaults)]</code> attribute option. When an optional parameter has a
-default, it does not need to be a variant of <code>Option</code>:</p>
+default, it does not need to be a variant of <code>Option</code>. The default expression is
+converted into the parameter type with <code>Into</code>, and the type must implement
+<code>StubLiteral</code>, which every scalar, string, <code>Option</code>, <code>Vec</code> and <code>HashMap</code> does.
+The module renders the value once at load time into the stub file and into
+<code>ReflectionParameter::getDefaultValue()</code>. Each key in <code>defaults</code> must name a
+parameter of the function. If a key names no parameter, the build fails:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
@@ -248,8 +257,12 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
 }
 <span class="boring">fn main() {}</span></code></pre>
 <p>You can also specify the optional arguments if you want to have nullable
-arguments before optional arguments. This is done through an attribute
-parameter:</p>
+arguments before optional arguments. This is done through the <code>optional</code>
+attribute option, which names the first optional parameter. PHP callers can
+omit that parameter and every parameter after it. Each of these parameters
+must be an <code>Option&lt;T&gt;</code>, have a default, or be the variadic <code>&amp;[T]</code> tail.
+Otherwise the build fails with an error on the type of that parameter. If
+<code>optional</code> names no parameter, the build also fails:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::prelude::*;
@@ -278,9 +291,11 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
 }
 <span class="boring">fn main() {}</span></code></pre>
 <h2 id="variadic-functions"><a class="header" href="#variadic-functions">Variadic Functions</a></h2>
-<p>Variadic functions can be implemented by specifying the last argument in the Rust
-function to the type <code>&amp;[&amp;Zval]</code>. This is the equivalent of a PHP function using
-the <code>...$args</code> syntax.</p>
+<p>A slice parameter <code>&amp;[T]</code> in last position is variadic, the equivalent of the PHP
+<code>...$args</code> syntax. <code>T</code> is any argument type: <code>&amp;[&amp;Zval]</code> receives the raw values,
+<code>&amp;[i64]</code> receives converted integers. A variadic parameter that is not the last
+parameter is a compile error. The slice must be spelled in the signature; a type
+alias that hides the slice is not detected.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span>use ext_php_rs::{prelude::*, types::Zval};
@@ -324,7 +339,7 @@ impl MyClass {
     pub fn get_value(&amp;self, offset: i32) -&gt; i32 { /* ... */ }
 }</code></pre>
 <p>The only case that falls back to the runtime argument parser is when using
-variadic arguments (<code>&amp;[&amp;Zval]</code>, the Rust equivalent of PHP’s <code>...$args</code>):</p>
+variadic arguments (<code>&amp;[T]</code>, the Rust equivalent of PHP’s <code>...$args</code>):</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
 </span><span class="boring">use ext_php_rs::{prelude::*, types::Zval};
@@ -381,11 +396,11 @@ translated into an exception and thrown. See the section on
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

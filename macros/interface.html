@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -187,10 +187,17 @@ implementations, as these are not supported in PHP interfaces.</p>
 </ul>
 <p>See the <a href="./php.html#name-and-change_case"><code>name</code> and <code>change_case</code></a> section for a list of all
 available cases.</p>
+<p>The macro itself takes no arguments: <code>#[php_interface(name = "Foo")]</code> is a
+compile error. Put the options in <code>#[php(...)]</code> on the trait.</p>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
-<p>See the <a href="./impl.html#"><code>php_impl</code></a></p>
+<p>A trait method accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code> and
+<code>vis</code> options. Interfaces cannot declare property accessors or constructors, so
+<code>getter</code>, <code>setter</code> and <code>constructor</code> are compile errors here. See
+<a href="./impl.html#"><code>php_impl</code></a> for how each accepted option behaves.</p>
 <h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
-<p>See the <a href="./impl.html#"><code>php_impl</code></a></p>
+<p>A trait constant accepts the <code>name</code> and <code>change_case</code> options. Interface
+constants are always public, so <code>vis</code> is a compile error here. See
+<a href="./impl.html#constants"><code>php_impl</code></a> for the value types.</p>
 <h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p>Define an example trait with methods and constant:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
@@ -494,6 +501,11 @@ function using <code>.interface::&lt;PhpInterfaceName&gt;()</code>.</p>
 interface discovery, so all implementations are automatically discovered when the
 final binary is linked.</p>
 </li>
+<li>
+<p><strong>Method names</strong>: Each method gets the PHP name that <code>#[php_interface]</code> declared
+for it. The trait’s <code>change_method_case</code> and the <code>name</code> or <code>change_case</code> of a
+trait method apply to the class too. <code>#[php_impl_interface]</code> takes no arguments.</p>
+</li>
 </ol>
 
                     </main>
@@ -540,11 +552,11 @@ final binary is linked.</p>
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

@@ -3,8 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Page not found - ext-php-rs</title>
-        <base href="/">
+        <title>Static Linking into php-src - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -13,32 +12,32 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="shortcut icon" href="favicon-e3c560cd.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="shortcut icon" href="../favicon-e3c560cd.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-31a31a08.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +104,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +139,7 @@
                     <h1 class="menu-title">ext-php-rs</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -174,14 +173,147 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="document-not-found-404"><a class="header" href="#document-not-found-404">Document not found (404)</a></h1>
-<p>This URL is invalid, sorry. Please use the navigation bar or search to continue.</p>
+                        <h1 id="static-linking-into-php-src"><a class="header" href="#static-linking-into-php-src">Static Linking into php-src</a></h1>
+<p>Extensions built with <code>ext-php-rs</code> are normally compiled as a <code>cdylib</code> and
+loaded at runtime with an <code>extension=</code> ini line. PHP also supports compiling
+extensions directly into the <code>php</code> binary. This is how fully static PHP
+builds work, for example <a href="https://frankenphp.dev/">FrankenPHP</a> static binaries
+built with <a href="https://github.com/crazywhalecc/static-php-cli">static-php-cli</a>:
+there is no <code>.so</code> and no ini line, the extension is part of the binary.</p>
+<p>This page describes how to build an <code>ext-php-rs</code> extension as a static library
+and link it into php-src. Note that this is an advanced use-case; if in doubt
+prefer loading your extension(s) dynamically and make sure to read the
+Caveats section below if you go the static route.</p>
+<h2 id="how-php-src-registers-builtin-extensions"><a class="header" href="#how-php-src-registers-builtin-extensions">How php-src registers builtin extensions</a></h2>
+<p>Every builtin extension lives in <code>php-src/ext/&lt;name&gt;/</code> with a <code>config.m4</code>.
+During <code>./buildconf</code>, php-src scans the headers of enabled extensions for the
+token <code>phpext_</code> and collects <code>phpext_&lt;name&gt;_ptr</code> pointers into the
+<code>php_builtin_extensions[]</code> array in <code>main/internal_functions.c</code>. That array
+is registered during <code>php_module_startup()</code>.</p>
+<p>The array needs a link-time-constant address, conventionally
+<code>&amp;&lt;name&gt;_module_entry</code>. An <code>ext-php-rs</code> extension builds its
+<code>zend_module_entry</code> at runtime inside <code>get_module()</code>, so a small C shim
+bridges the two: it defines the <code>&lt;name&gt;_module_entry</code> symbol and fills it
+from the crate-prefixed <code>&lt;crate_name&gt;_get_module()</code> export in a constructor,
+which runs before <code>php_module_startup()</code>.</p>
+<h2 id="crate-setup"><a class="header" href="#crate-setup">Crate setup</a></h2>
+<p>Add <code>staticlib</code> to your crate type, keeping <code>cdylib</code> for regular builds:</p>
+<pre><code class="language-toml">[lib]
+crate-type = ["staticlib", "cdylib"]
+</code></pre>
+<p>Static builds must be compiled with <code>EXT_PHP_RS_STATIC_EXT=1</code>:</p>
+<pre><code class="language-sh">EXT_PHP_RS_STATIC_EXT=1 cargo build --release
+</code></pre>
+<p>The variable does two things. It removes the unmangled <code>get_module</code> export
+(the crate-prefixed <code>&lt;crate_name&gt;_get_module</code> remains), so the binary can also
+contain C extensions that export <code>get_module</code>, for example ones missing the
+<code>#ifdef COMPILE_DL_&lt;EXT&gt;</code> guard around <code>ZEND_GET_MODULE</code>. It also defines
+<code>ZEND_ENABLE_STATIC_TSRMLS_CACHE</code>, which makes the extension read the main
+binary’s <code>_tsrm_ls_cache</code> thread-local directly instead of calling
+<code>tsrm_get_ls_cache()</code> on every globals access; php-src compiles all builtin
+extensions this way. The TSRMLS part only matters on ZTS targets and is
+harmless on NTS. Dynamic builds (<code>extension=</code> / <code>dl()</code>) must not set the
+variable, since PHP resolves the unprefixed <code>get_module</code> symbol.</p>
+<p>Note that a static library built in this mode can only be linked into a PHP
+binary. It cannot be loaded with <code>extension=</code> or linked against a prebuilt
+<code>libphp</code>, because <code>_tsrm_ls_cache</code> only resolves inside php-src itself.</p>
+<h2 id="generating-the-glue"><a class="header" href="#generating-the-glue">Generating the glue</a></h2>
+<p>The <a href="https://crates.io/crates/cargo-php"><code>cargo-php</code></a> CLI generates the three
+files php-src needs:</p>
+<pre><code class="language-sh">cargo php static-glue
+</code></pre>
+<p>This writes a directory named after your extension containing:</p>
+<ul>
+<li><code>config.m4</code>: enables the extension with <code>--enable-&lt;name&gt;</code> and links the
+prebuilt <code>lib&lt;name&gt;.a</code>.</li>
+<li><code>php_&lt;name&gt;.h</code>: declares <code>&lt;name&gt;_module_entry</code> and the
+<code>phpext_&lt;name&gt;_ptr</code> define that php-src scans for.</li>
+<li><code>&lt;name&gt;_glue.c</code>: the constructor shim copying <code>*&lt;crate_name&gt;_get_module()</code>
+into <code>&lt;name&gt;_module_entry</code>.</li>
+</ul>
+<p>The extension name defaults to the library target name with dashes replaced
+by underscores; override it with <code>--ext-name</code>. The override only affects file
+and configure naming; the Rust symbols come from the library target name;
+override it with <code>--lib-name</code> if <code>cargo metadata</code> is not available.</p>
+<h2 id="the-two-pass-build"><a class="header" href="#the-two-pass-build">The two-pass build</a></h2>
+<p>Building the Rust library requires <code>php-config</code> and the PHP headers, which do
+not exist yet when you are building the very PHP you want to link into. The
+solution is two passes:</p>
+<ol>
+<li>
+<p>Build (or install) a PHP with the exact same version, ZTS mode and debug
+mode as your final binary. Only its <code>php-config</code> and headers are needed.</p>
+<pre><code class="language-sh">cd php-src
+./buildconf
+./configure --enable-zts --disable-all --enable-cli --prefix=$HOME/php-pass1
+make -j$(nproc) &amp;&amp; make install
+</code></pre>
+</li>
+<li>
+<p>Build the Rust static library against pass 1:</p>
+<pre><code class="language-sh">PHP_CONFIG=$HOME/php-pass1/bin/php-config \
+EXT_PHP_RS_STATIC_EXT=1 \
+cargo build --release
+</code></pre>
+</li>
+<li>
+<p>Copy the glue and the static library into php-src:</p>
+<pre><code class="language-sh">cargo php static-glue
+cp -r my_ext php-src/ext/my_ext
+cp target/release/libmy_ext.a php-src/ext/my_ext/
+</code></pre>
+</li>
+<li>
+<p>Build the final PHP:</p>
+<pre><code class="language-sh">cd php-src
+./buildconf --force
+./configure --enable-zts --enable-my_ext &lt;other flags&gt;
+make -j$(nproc)
+</code></pre>
+<p>Alternatively, <code>./config.nice --enable-my_ext</code> reruns <code>configure</code> with the
+flags of the previous invocation plus the new one.</p>
+</li>
+<li>
+<p>Verify:</p>
+<pre><code class="language-sh">sapi/cli/php -m | grep my_ext
+sapi/cli/php -r 'var_dump(my_function());'
+</code></pre>
+</li>
+</ol>
+<p>The module is listed without any <code>extension=</code> ini line. Note that <code>php -m</code>
+prints the module name from your crate’s <code>Cargo.toml</code> package name, which can
+differ from the C extension name when the package name contains dashes.</p>
+<p>For FrankenPHP and static-php-cli the integration point is identical: drop
+the glue directory and the <code>.a</code> into the php-src tree those tools build from
+and add <code>--enable-&lt;name&gt;</code> to the configure flags.</p>
+<h2 id="caveats"><a class="header" href="#caveats">Caveats</a></h2>
+<ul>
+<li><strong>One Rust extension per PHP binary.</strong> The <code>ext_php_rs_*</code> symbols have
+fixed names, and two Rust static libraries collide on the Rust standard
+library symbols. Bundle all your Rust functionality into a single extension
+crate. Co-linking with C extensions is fine, including ones that export an
+unguarded <code>get_module</code>, as long as the Rust library is built with
+<code>EXT_PHP_RS_STATIC_EXT=1</code>.</li>
+<li><strong>gcc/clang only.</strong> The shim relies on <code>__attribute__((constructor))</code>.
+Statically linking into a Windows PHP build is not supported.</li>
+<li><strong>Keep the <code>.a</code> in sync.</strong> The static library embeds bindings generated
+from the pass-1 PHP headers. Rebuild it whenever the target PHP version
+changes.</li>
+<li><code>--enable-&lt;name&gt;=shared</code> is rejected by the generated <code>config.m4</code>: for
+shared builds, use the regular <code>cdylib</code> workflow instead.</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../advanced/custom_sapi.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
+                            <a rel="next prefetch" href="../advanced/module_globals.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -189,7 +321,13 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../advanced/custom_sapi.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
+                    <a rel="next prefetch" href="../advanced/module_globals.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
             </nav>
 
         </div>
@@ -207,13 +345,13 @@
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

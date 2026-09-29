@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="favicon-e3c560cd.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-bb297726.js";
+            window.path_to_searchindex_js = "searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-22bbee95.js"></script>
+        <script src="toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -180,7 +180,7 @@ in Rust) is currently being worked on.</p>
 <p><a href="https://docs.rs/ext-php-rs/0.5.0/ext_php_rs/php/exceptions/struct.PhpException.html"><code>PhpException</code></a> is the type that represents an exception. It contains the
 message contained in the exception, the type of exception and a status code to
 go along with the exception.</p>
-<p>You can create a new exception with the <code>new()</code>, <code>default()</code>, or
+<p>You can create a new exception with the <code>new()</code>, <code>from_message()</code>, or
 <code>from_class::&lt;T&gt;()</code> methods. <code>Into&lt;PhpException&gt;</code> is implemented for <code>String</code>
 and <code>&amp;str</code>, which creates an exception of the type <code>Exception</code> with a code of 0.
 It may be useful to implement <code>Into&lt;PhpException&gt;</code> for your error type.</p>
@@ -188,6 +188,20 @@ It may be useful to implement <code>Into&lt;PhpException&gt;</code> for your err
 in PHP. This function can fail if the type of exception is invalid (i.e. does
 not implement <code>Exception</code> or <code>Throwable</code>). Upon success, nothing will be
 returned.</p>
+<p><code>throw()</code> does nothing when an exception is already pending in the engine: that
+one keeps propagating with its own class and stack trace. This is what lets a
+PHP exception caught by <code>ZendCallable::try_call</code> reach the caller unchanged even
+though the Rust side reports it as <code>Error::ExceptionPending</code>.</p>
+<p>To look at the pending exception from Rust, read its class with
+<code>ExecutorGlobals::pending_exception_class()</code>, or borrow the object through the
+globals guard, which must outlive the borrow:</p>
+<pre><code class="language-rust ignore">let globals = ExecutorGlobals::get();
+if let Some(exception) = globals.exception() {
+    // inspect it; it stays owned by the engine
+}</code></pre>
+<p>To handle it yourself, take ownership with <code>ExecutorGlobals::take_exception()</code>:
+the engine then stops propagating it and rethrowing becomes your
+responsibility.</p>
 <p><code>IntoZval</code> is also implemented for <code>Result&lt;T, E&gt;</code>, where <code>T: IntoZval</code> and
 <code>E: Into&lt;PhpException&gt;</code>. If the result contains the error variant, the exception
 is thrown. This allows you to return a result from a PHP function annotated with
@@ -211,6 +225,59 @@ pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h2 id="panics"><a class="header" href="#panics">Panics</a></h2>
+<p>A Rust panic never crosses the <code>extern "C"</code> boundary into PHP. The crate catches
+it at every entry point that it generates or installs:</p>
+<ul>
+<li>Functions, methods, static methods, constructors and <code>#[php_impl_interface]</code>
+methods, through <code>zend::run_handler</code>.</li>
+<li><code>Closure</code> calls.</li>
+<li>Property getters and setters, <code>isset()</code>, the <code>(array)</code> cast, <code>var_export</code> on a
+Rust-backed object, and <code>clone</code>.</li>
+</ul>
+<p>When the panic reaches the boundary, the unwind already ran the destructors of
+every Rust frame inside the handler. The crate then throws a PHP <code>Error</code>
+exception and the handler returns normally. The message starts with
+<code>Rust panic: </code> and continues with the panic message. When the payload is not a
+string, for example after <code>panic_any(42)</code>, the message continues with
+<code>non-string panic payload</code>. A <code>catch (\Exception $e)</code> block does not catch this
+<code>Error</code>. A <code>catch (\Error $e)</code> or <code>catch (\Throwable $e)</code> block does. The
+process does not stop, and the default panic hook still writes the location and
+the message to stderr.</p>
+<p>If an exception is already pending when the panic happens, that exception
+continues to propagate. The panic then only reaches the panic hook. This is the
+rule that <code>throw()</code> also follows.</p>
+<p>If <code>Drop</code> of a Rust-backed object panics, the crate reports an <code>E_WARNING</code> with
+the message <code>Rust panic in Drop for &lt;Class&gt;: ...</code> and frees the object. No
+exception is possible there, because the destructor also runs from the garbage
+collector and at request shutdown.</p>
+<p>The following cases still stop the process:</p>
+<ul>
+<li>A second panic while the first one unwinds, for example a <code>Drop</code> that panics.
+Rust turns this into an abort.</li>
+<li>A build profile with <code>panic = "abort"</code>. Nothing is caught.</li>
+<li>The hooks that the crate installs outside of a PHP call: the observer, the
+zend extension, the error and exception observers, the module globals
+constructor and destructor, and the embed <code>Sapi</code> trampolines. The engine is in
+the middle of an operation there, so an exception or a bailout is not safe.</li>
+<li>An <code>extern "C"</code> function that you give to the engine yourself: <code>info_function</code>,
+the request startup and shutdown functions, <code>post_deactivate_function</code>, the
+<code>startup</code> function of <code>#[php_module]</code>, stream wrapper operations, and a
+handler that you write by hand for <code>FunctionBuilder::new</code>.</li>
+</ul>
+<p>If you write a request-time handler by hand, run its body through
+<code>zend::run_handler</code>. The handler then behaves like generated code:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::zend::{ExecuteData, run_handler};
+use ext_php_rs::types::Zval;
+use std::panic::AssertUnwindSafe;
+
+extern "C" fn my_handler(ex: &amp;mut ExecuteData, retval: &amp;mut Zval) {
+    run_handler(AssertUnwindSafe(|| {
+        // This code can panic, bail out or throw.
+    }));
+}</code></pre>
+<p>A <code>Mutex</code> in your own statics stays poisoned after a caught panic, as in any
+Rust program.</p>
 
                     </main>
 
@@ -256,11 +323,11 @@ pub fn module(module: ModuleBuilder) -&gt; ModuleBuilder {
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

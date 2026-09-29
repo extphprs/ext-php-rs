@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -174,73 +174,57 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="bailout-guard"><a class="header" href="#bailout-guard">Bailout Guard</a></h1>
-<p>When PHP triggers a “bailout” (via <code>exit()</code>, <code>die()</code>, or a fatal error), it uses
-<code>longjmp</code> to unwind the stack. This bypasses Rust’s normal drop semantics,
-meaning destructors for stack-allocated values won’t run. This can lead to
-resource leaks for things like file handles, network connections, or locks.</p>
-<h2 id="the-problem"><a class="header" href="#the-problem">The Problem</a></h2>
-<p>Consider this code:</p>
+<p>A bailout is a jump that the engine makes with <code>longjmp</code> when it cannot continue.
+A fatal error, <code>memory_limit</code> exhaustion, or <code>E_USER_ERROR</code> cause a bailout. The
+jump skips the Rust frames between the error and the catch point. Rust does not
+run the destructors of the values in those frames. File handles, connections, and
+locks leak.</p>
+<p>On Windows, the MSVC <code>longjmp</code> unwinds the Rust frames and their destructors
+run. Do not rely on this. Linux and macOS skip them.</p>
+<p><code>exit()</code> and <code>die()</code> do not cause a bailout on PHP 8. They throw an internal
+exception. The handler returns normally and Rust runs the destructors.</p>
+<h2 id="the-problem"><a class="header" href="#the-problem">The problem</a></h2>
 <pre><code class="language-rust ignore">#[php_function]
 pub fn process_file(callback: ZendCallable) {
     let file = File::open("data.txt").unwrap();
 
-    // If callback calls exit(), the file handle leaks!
+    // A fatal error in the callback leaks the file handle
     callback.try_call(vec![]);
-
-    // file.drop() never runs
 }</code></pre>
-<p>If the PHP callback triggers <code>exit()</code>, the <code>File</code> handle is never closed because
-<code>longjmp</code> skips Rust’s destructor calls.</p>
-<h2 id="solution-1-using-try_call"><a class="header" href="#solution-1-using-try_call">Solution 1: Using <code>try_call</code></a></h2>
-<p>The simplest solution is to use <code>try_call</code> for PHP callbacks. It catches bailouts
-internally and returns normally, allowing Rust destructors to run:</p>
-<pre><code class="language-rust ignore">#[php_function]
-pub fn process_file(callback: ZendCallable) {
-    let file = File::open("data.txt").unwrap();
-
-    // try_call catches bailout, function returns, file is dropped
-    let result = callback.try_call(vec![]);
-
-    if result.is_err() {
-        // Bailout occurred, but file will still be closed
-        // when this function returns
-    }
-}</code></pre>
-<h2 id="solution-2-using-bailoutguard"><a class="header" href="#solution-2-using-bailoutguard">Solution 2: Using <code>BailoutGuard</code></a></h2>
-<p>For cases where you need guaranteed cleanup even if bailout occurs directly
-(not through <code>try_call</code>), use <code>BailoutGuard</code>:</p>
+<p><code>try_call</code> does not catch a bailout. The jump crosses <code>process_file</code> and stops
+at the <code>try_catch</code> that wraps every exported function. Rust never drops <code>file</code>.</p>
+<h2 id="using-bailoutguard"><a class="header" href="#using-bailoutguard">Using <code>BailoutGuard</code></a></h2>
 <pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
 use std::fs::File;
 
 #[php_function]
 pub fn process_file(callback: ZendCallable) {
-    // Wrap the file handle in BailoutGuard
     let file = BailoutGuard::new(File::open("data.txt").unwrap());
 
-    // Even if bailout occurs, the file will be closed
+    // The file is closed even if a bailout occurs
     callback.try_call(vec![]);
 
     // Use the file via Deref
     // file.read_to_string(...);
 }</code></pre>
-<h3 id="how-bailoutguard-works"><a class="header" href="#how-bailoutguard-works">How <code>BailoutGuard</code> Works</a></h3>
+<h3 id="how-bailoutguard-works"><a class="header" href="#how-bailoutguard-works">How <code>BailoutGuard</code> works</a></h3>
+<p>A <code>try_catch</code> frame is a call to <code>ext_php_rs::zend::try_catch</code>. Every exported
+PHP function runs inside one. <code>Embed::run</code> and <code>Embed::eval</code> open one too.</p>
 <ol>
-<li>
-<p><strong>Heap allocation</strong>: The wrapped value is heap-allocated so it survives
-the <code>longjmp</code> stack unwinding.</p>
-</li>
-<li>
-<p><strong>Cleanup registration</strong>: A cleanup callback is registered in thread-local
-storage when the guard is created.</p>
-</li>
-<li>
-<p><strong>On normal drop</strong>: The cleanup is cancelled and the value is dropped normally.</p>
-</li>
-<li>
-<p><strong>On bailout</strong>: Before re-triggering the bailout, all registered cleanup
-callbacks are executed, dropping the guarded values.</p>
-</li>
+<li><code>BailoutGuard::new</code> moves the value to the heap. The value survives the
+<code>longjmp</code>.</li>
+<li><code>BailoutGuard::new</code> registers a cleanup entry with the innermost <code>try_catch</code>
+frame.</li>
+<li>When you drop the guard, the guard releases the entry and drops the value.</li>
+<li>When a bailout occurs, the <code>try_catch</code> frame that catches it drops the guards
+that were created inside its closure, newest first. Then it returns
+<code>Err(CatchError::Bailout)</code>. The guards that were created before that frame
+are not changed. You can still use them.</li>
 </ol>
+<p><code>BailoutGuard</code> is <code>!Send</code>. The guard belongs to the thread that created it.</p>
+<p>Do not move a guard out of a <code>try_catch</code> closure through shared mutable state.
+If that closure bails out, the frame drops the value and the moved guard points
+at freed memory.</p>
 <h3 id="api"><a class="header" href="#api">API</a></h3>
 <pre><code class="language-rust ignore">// Create a guard
 let guard = BailoutGuard::new(value);
@@ -254,11 +238,11 @@ let inner_mut: &amp;mut T = &amp;mut *guard;
 let inner: &amp;T = guard.get();
 let inner_mut: &amp;mut T = guard.get_mut();
 
-// Extract the value, cancelling cleanup
+// Extract the value and release the cleanup entry
 let value: T = guard.into_inner();</code></pre>
-<h3 id="performance-note"><a class="header" href="#performance-note">Performance Note</a></h3>
-<p><code>BailoutGuard</code> incurs a heap allocation. Only use it for values that absolutely
-must be cleaned up, such as:</p>
+<h3 id="performance"><a class="header" href="#performance">Performance</a></h3>
+<p><code>BailoutGuard::new</code> makes one heap allocation. Use it only for values that must
+be released:</p>
 <ul>
 <li>File handles</li>
 <li>Network connections</li>
@@ -266,10 +250,10 @@ must be cleaned up, such as:</p>
 <li>Locks and mutexes</li>
 <li>Other system resources</li>
 </ul>
-<p>For simple values without cleanup requirements, the overhead isn’t worth it.</p>
-<h2 id="nested-calls"><a class="header" href="#nested-calls">Nested Calls</a></h2>
-<p><code>BailoutGuard</code> works correctly with nested function calls. Guards at all
-nesting levels are cleaned up when bailout occurs:</p>
+<p>Do not wrap simple values. The allocation costs more than the leak.</p>
+<h2 id="nested-calls"><a class="header" href="#nested-calls">Nested calls</a></h2>
+<p>The catching <code>try_catch</code> drops the guards of every Rust call level between the
+bailout and itself:</p>
 <pre><code class="language-rust ignore">#[php_function]
 pub fn outer_function(callback: ZendCallable) {
     let _outer_resource = BailoutGuard::new(Resource::new());
@@ -280,28 +264,29 @@ pub fn outer_function(callback: ZendCallable) {
 fn inner_function(callback: &amp;ZendCallable) {
     let _inner_resource = BailoutGuard::new(Resource::new());
 
-    // If bailout occurs here, both inner and outer resources are cleaned up
+    // On bailout, the try_catch of outer_function drops both resources
     callback.try_call(vec![]);
 }</code></pre>
-<h2 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h2>
-<ol>
-<li>
-<p><strong>Prefer <code>try_call</code></strong>: For most cases, using <code>try_call</code> and handling the
-error result is simpler and doesn’t require heap allocation.</p>
-</li>
-<li>
-<p><strong>Use <code>BailoutGuard</code> for critical resources</strong>: Only wrap values that
-absolutely must be cleaned up (connections, locks, etc.).</p>
-</li>
-<li>
-<p><strong>Don’t overuse</strong>: Not every value needs to be wrapped. Simple data
-structures without cleanup requirements don’t need <code>BailoutGuard</code>.</p>
-</li>
-<li>
-<p><strong>Combine approaches</strong>: Use <code>try_call</code> where possible and <code>BailoutGuard</code>
-for critical resources that must be cleaned up regardless.</p>
-</li>
-</ol>
+<p>PHP code that <code>outer_function</code> calls can call a second exported Rust function.
+If that function bails out, its own <code>try_catch</code> drops only its own guards. Then
+it triggers the bailout again. The frame of <code>outer_function</code> drops
+<code>_outer_resource</code>.</p>
+<h2 id="catching-a-bailout-yourself"><a class="header" href="#catching-a-bailout-yourself">Catching a bailout yourself</a></h2>
+<p>If you must continue after a failed engine call, open your own <code>try_catch</code>:</p>
+<pre><code class="language-rust ignore">use ext_php_rs::zend::try_catch;
+
+let connection = BailoutGuard::new(Connection::open());
+
+let result = try_catch(|| {
+    let _tmp = BailoutGuard::new(TempFile::create());
+    risky_engine_call();
+});
+
+// On Err, try_catch dropped _tmp. connection is still valid here.
+connection.query("...");</code></pre>
+<p><code>try_catch</code> also catches a panic inside the closure and returns
+<code>Err(CatchError::Panic(message))</code>. It does not resume the panic. If you want the
+panic to continue, call <code>std::panic::resume_unwind</code> with your own payload.</p>
 
                     </main>
 
@@ -347,11 +332,11 @@ for critical resources that must be cleaned up regardless.</p>
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

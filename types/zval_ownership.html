@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,11 +175,14 @@
                     <main>
                         <h1 id="zval-ownership-separated--phpref"><a class="header" href="#zval-ownership-separated--phpref">Zval Ownership: <code>Separated</code> &amp; <code>PhpRef</code></a></h1>
 <p>In PHP, there is a distinction between passing a value normally (<code>$x</code>) and
-passing it by reference (<code>&amp;$x</code>). In ext-php-rs, using <code>&amp;mut Zval</code> in a function
-signature sets PHP’s <code>ZEND_SEND_BY_REF</code> flag, which forces callers to pass by
-reference — meaning literals like <code>foo([1, 2, 3])</code> are rejected at runtime.</p>
-<p><code>Separated</code> and <code>PhpRef</code> fix this by decoupling Rust mutability from PHP’s
-pass-by-reference semantics.</p>
+passing it by reference (<code>&amp;$x</code>). In ext-php-rs, a parameter type declares
+pass-by-reference through <code>FromZvalMut::BY_REF</code>. <code>&amp;mut Zval</code>, <code>PhpRef</code> and
+<code>&amp;mut ZendHashTable</code> set PHP’s <code>ZEND_SEND_BY_REF</code> flag. The flag forces callers
+to pass a variable, so a literal like <code>foo([1, 2, 3])</code> is rejected at runtime.</p>
+<p>Object parameters (<code>&amp;mut ZendObject</code>, <code>&amp;mut MyClass</code>) are passed by value. PHP
+objects are handles, so the caller sees every mutation without the flag.</p>
+<p><code>Separated</code> and <code>PhpRef</code> decouple Rust mutability from PHP’s pass-by-reference
+semantics.</p>
 <h2 id="when-to-use-which"><a class="header" href="#when-to-use-which">When to use which</a></h2>
 <div class="table-wrapper">
 <table>
@@ -190,7 +193,9 @@ pass-by-reference semantics.</p>
 <tr><td><code>Separated</code></td><td><code>foo($x)</code> or <code>foo([1,2])</code></td><td>No</td><td>Mutate a local copy (COW)</td></tr>
 <tr><td><code>PhpRef</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Modify the caller’s variable</td></tr>
 <tr><td><code>&amp;Zval</code></td><td><code>foo($x)</code></td><td>No</td><td>Read-only access</td></tr>
-<tr><td><code>&amp;mut Zval</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Legacy — prefer <code>PhpRef</code></td></tr>
+<tr><td><code>&amp;mut Zval</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Legacy, prefer <code>PhpRef</code></td></tr>
+<tr><td><code>&amp;mut ZendHashTable</code></td><td><code>foo(&amp;$x)</code></td><td>Yes</td><td>Mutate the caller’s array in place</td></tr>
+<tr><td><code>&amp;mut MyClass</code></td><td><code>foo($x)</code> or <code>foo(new MyClass)</code></td><td>Yes</td><td>Objects are handles</td></tr>
 </tbody>
 </table>
 </div>
@@ -238,11 +243,10 @@ increment($x);
 </code></pre>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
 <p>Both types are <code>#[repr(transparent)]</code> newtypes over <code>&amp;mut Zval</code> with zero
-runtime overhead. The difference is purely in the proc macro:</p>
-<ul>
-<li><code>Separated</code> → macro emits <code>Arg::new(...)</code> (no pass-by-ref flag)</li>
-<li><code>PhpRef</code> → macro emits <code>Arg::new(...).as_ref()</code> (sets pass-by-ref flag)</li>
-</ul>
+runtime overhead. The difference is one constant on their <code>FromZvalMut</code>
+implementation: <code>PhpRef</code> sets <code>BY_REF = true</code>, <code>Separated</code> keeps the default
+<code>false</code>. The macro emits <code>Arg::of::&lt;T&gt;(name)</code>, which reads that constant, so a
+type alias of <code>PhpRef</code> is also passed by reference.</p>
 <p>The <code>Zval::array_mut()</code> method already implements PHP’s <code>SEPARATE_ARRAY()</code>
 semantics — it duplicates the underlying hashtable when the refcount is greater
 than 1. This is what makes <code>Separated</code> safe: the caller’s original value is
@@ -292,11 +296,11 @@ never modified.</p>
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

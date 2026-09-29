@@ -14,8 +14,8 @@
 
         <link rel="shortcut icon" href="../favicon-e3c560cd.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -34,10 +34,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bb297726.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-22bbee95.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -174,15 +174,54 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="migrating-to-v016"><a class="header" href="#migrating-to-v016">Migrating to <code>v0.16</code></a></h1>
+<h2 id="zvalset_resource-requires-an-unsafe-block"><a class="header" href="#zvalset_resource-requires-an-unsafe-block"><code>Zval::set_resource</code> Requires an Unsafe Block</a></h2>
+<p><code>Zval::set_resource</code> accepts a raw <code>zend_resource</code> pointer and transfers one
+owned Zend reference into the zval, so callers must now uphold its safety
+contract explicitly.</p>
+<h3 id="before-v015"><a class="header" href="#before-v015">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">zval.set_resource(resource);</code></pre>
+<h3 id="after-v016"><a class="header" href="#after-v016">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">// SAFETY: `resource` is a valid Zend-managed resource whose owned reference is
+// transferred into `zval`.
+unsafe { zval.set_resource(resource) };</code></pre>
+<p>The pointer must be non-null and valid until Zend releases the transferred
+reference. <code>set_resource</code> does not increment the resource refcount, so the
+caller must relinquish that reference after the call. Replacing a zval with the
+same resource requires a separate incoming reference.</p>
+<h2 id="sapi-header-raw-constructors-removed"><a class="header" href="#sapi-header-raw-constructors-removed">SAPI Header Raw Constructors Removed</a></h2>
+<p><code>SapiHeader::from_raw</code> and <code>SapiHeaders::from_raw</code> have been removed. These
+constructors accepted unchecked Zend pointers through safe Rust.</p>
+<p>ext-php-rs now copies the header data into owned snapshots before invoking the
+<code>Sapi::send_header</code> and <code>Sapi::send_headers</code> callbacks.</p>
+<h3 id="before-v015-1"><a class="header" href="#before-v015-1">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let header = SapiHeader::from_raw(raw_header);
+let headers = SapiHeaders::from_raw(raw_headers);</code></pre>
+<h3 id="after-v016-1"><a class="header" href="#after-v016-1">After (v0.16)</a></h3>
+<p>Read header data from the snapshots supplied to your <code>Sapi</code> implementation:</p>
+<pre><code class="language-rust ignore">fn send_header(_ctx: &amp;mut MyContext, header: &amp;SapiHeader) {
+    if let Some((name, value)) = header.as_name_value() {
+        // Send the header to the client.
+    }
+}
+
+fn send_headers(
+    _ctx: &amp;mut MyContext,
+    headers: &amp;SapiHeaders,
+) -&gt; SendHeadersResult {
+    let response_code = headers.http_response_code();
+    SendHeadersResult::DoSend
+}</code></pre>
+<p>Code that needs direct access to <code>sapi_header_struct</code> must use the raw FFI API
+and uphold Zend’s pointer validity and lifetime requirements itself.</p>
 <h2 id="void-return-type-for-functions-without-explicit-return"><a class="header" href="#void-return-type-for-functions-without-explicit-return">Void Return Type for Functions Without Explicit Return</a></h2>
 <p>Functions and methods without an explicit Rust return type now declare <code>void</code> as their PHP return type.</p>
-<h3 id="before-v015"><a class="header" href="#before-v015">Before (v0.15)</a></h3>
+<h3 id="before-v015-2"><a class="header" href="#before-v015-2">Before (v0.15)</a></h3>
 <pre><code class="language-rust ignore">#[php_function]
 pub fn do_something() {
     println!("Hello");
 }</code></pre>
 <p>Generated PHP signature: <code>function do_something()</code> (implicit <code>mixed</code> return)</p>
-<h3 id="after-v016"><a class="header" href="#after-v016">After (v0.16)</a></h3>
+<h3 id="after-v016-2"><a class="header" href="#after-v016-2">After (v0.16)</a></h3>
 <p>The same Rust code now generates: <code>function do_something(): void</code></p>
 <h3 id="migration"><a class="header" href="#migration">Migration</a></h3>
 <p>If your function actually returns a value but didn’t declare it, you must now add the return type:</p>
@@ -199,6 +238,844 @@ pub fn get_value() -&gt; i32 {
 }</code></pre>
 <h3 id="exceptions"><a class="header" href="#exceptions">Exceptions</a></h3>
 <p>The magic methods <code>__destruct</code> and <code>__clone</code> are excluded from this change, as PHP forbids return type declarations on them.</p>
+<h2 id="mutable-accessors-require-mut"><a class="header" href="#mutable-accessors-require-mut">Mutable Accessors Require <code>&amp;mut</code></a></h2>
+<p>This closes <a href="https://github.com/extphprs/ext-php-rs/issues/461">#461</a>.</p>
+<p>Several safe functions used to hand out a <code>&amp;mut</code> derived from a shared <code>&amp;</code>. That
+let ordinary safe code hold two mutable references to the same zval at once,
+which is undefined behaviour under Rust’s aliasing rules. The signatures below
+now require a mutable borrow so the compiler rejects that.</p>
+<p>The affected functions are <code>ZendHashTable::get_mut</code>,
+<code>ZendHashTable::get_index_mut</code>, <code>Zval::indirect_mut</code>,
+<code>ExecutorGlobals::function_table_mut</code>, <code>Zval::traversable</code>, <code>Zval::iterable</code>,
+<code>ClassEntry::get_iterator</code>, and <code>StreamWrapper::get</code> / <code>StreamWrapper::get_mut</code>.</p>
+<h3 id="mutable-hashtable-access"><a class="header" href="#mutable-hashtable-access">Mutable Hashtable Access</a></h3>
+<p><code>get_mut</code> and <code>get_index_mut</code> take <code>&amp;mut self</code>, so the binding must be mutable.</p>
+<h4 id="before-v015-3"><a class="header" href="#before-v015-3">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">fn bump(ht: &amp;ZendHashTable) {
+    if let Some(zv) = ht.get_mut("counter") {
+        zv.set_long(1);
+    }
+}</code></pre>
+<h4 id="after-v016-3"><a class="header" href="#after-v016-3">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">fn bump(ht: &amp;mut ZendHashTable) {
+    if let Some(zv) = ht.get_mut("counter") {
+        zv.set_long(1);
+    }
+}</code></pre>
+<p>The following no longer compiles, which is the point of the change:</p>
+<pre><code class="language-rust ignore">let first = ht.get_mut("test").unwrap();
+let second = ht.get_mut("test").unwrap();  // error[E0499]
+first.set_long(2);</code></pre>
+<p>If you need to read two entries at once, take the second as a shared reference
+with <code>get</code>, or finish with the first before requesting the second.</p>
+<h3 id="executor-globals"><a class="header" href="#executor-globals">Executor Globals</a></h3>
+<p><code>function_table_mut</code> takes <code>&amp;mut self</code>, so acquire the write guard rather than
+the read guard.</p>
+<h4 id="before-v015-4"><a class="header" href="#before-v015-4">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let table = ExecutorGlobals::get().function_table_mut();</code></pre>
+<h4 id="after-v016-4"><a class="header" href="#after-v016-4">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">let mut globals = ExecutorGlobals::get_mut();
+let table = globals.function_table_mut();</code></pre>
+<p><code>GlobalWriteGuard</code> already implements <code>DerefMut</code>, so no other change is needed.
+Bind the guard to a variable, as the guard must outlive the borrow.</p>
+<h3 id="iterables-and-traversables"><a class="header" href="#iterables-and-traversables">Iterables and Traversables</a></h3>
+<p><code>Zval::traversable</code> and <code>Zval::iterable</code> take <code>&amp;mut self</code>, and <code>Iterable</code> is now
+extracted through <code>FromZvalMut</code> instead of <code>FromZval</code>. Resolving the
+<code>Traversable</code> variant invokes the Zend <code>get_iterator</code> handler, which mutates the
+object, so a shared borrow was never sound.</p>
+<p>Function signatures using <code>Iterable</code> as a parameter are <strong>unchanged</strong> and keep
+working, because the macro already extracts arguments through <code>FromZvalMut</code>:</p>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn count_items(mut iterable: Iterable) -&gt; usize {
+    iterable.iter().map_or(0, Iterator::count)
+}</code></pre>
+<p>Only hand-written extraction needs updating.</p>
+<h4 id="before-v015-5"><a class="header" href="#before-v015-5">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let iterable = Iterable::from_zval(zval);
+let iterator = zval.traversable();</code></pre>
+<h4 id="after-v016-5"><a class="header" href="#after-v016-5">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">let iterable = Iterable::from_zval_mut(zval);
+let iterator = zval.traversable();</code></pre>
+<p>where <code>zval</code> is now a <code>&amp;mut Zval</code>. <code>ClassEntry::get_iterator</code> likewise takes
+<code>&amp;'a mut Zval</code> and ties the returned iterator’s lifetime to it.</p>
+<h3 id="stream-wrappers"><a class="header" href="#stream-wrappers">Stream Wrappers</a></h3>
+<p><code>StreamWrapper::get</code> and <code>StreamWrapper::get_mut</code> are now <code>unsafe</code>. They return a
+reference into PHP’s per-request stream wrapper table with a lifetime that is not
+constrained by their arguments, and <code>get_mut</code> cannot verify that no other
+reference to the same wrapper is live. This is the same class of change as
+<code>Zval::set_resource</code> above.</p>
+<h4 id="before-v015-6"><a class="header" href="#before-v015-6">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let wrapper = StreamWrapper::get_mut("http").unwrap();</code></pre>
+<h4 id="after-v016-6"><a class="header" href="#after-v016-6">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">// SAFETY: used within the current request, and no other reference to the
+// `http` wrapper is live for the duration of this borrow.
+let wrapper = unsafe { StreamWrapper::get_mut("http") }.unwrap();</code></pre>
+<p>Both functions also copy the name into a NUL-terminated C string before calling
+into PHP. Previously they passed the bytes of a <code>&amp;str</code> directly, and
+<code>php_stream_locate_url_wrapper</code> scans the path until it reaches a character
+outside <code>[A-Za-z0-9+-.]</code>, so it could read past the end of the string slice and
+resolve the wrong wrapper.</p>
+<h3 id="threading-mut-through-a-handler"><a class="header" href="#threading-mut-through-a-handler">Threading <code>&amp;mut</code> Through a Handler</a></h3>
+<p>The requirement can propagate up several frames. A realistic case: a function
+that mutates entries of an array argument.</p>
+<h4 id="before-v015-7"><a class="header" href="#before-v015-7">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn normalise(ht: &amp;ZendHashTable) {
+    rescale(ht);
+}
+
+fn rescale(ht: &amp;ZendHashTable) {
+    for key in ["width", "height"] {
+        if let Some(zv) = ht.get_mut(key) {
+            if let Some(value) = zv.long() {
+                zv.set_long(value * 2);
+            }
+        }
+    }
+}</code></pre>
+<h4 id="after-v016-7"><a class="header" href="#after-v016-7">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">#[php_function]
+pub fn normalise(ht: &amp;mut ZendHashTable) {
+    rescale(ht);
+}
+
+fn rescale(ht: &amp;mut ZendHashTable) {
+    for key in ["width", "height"] {
+        if let Some(zv) = ht.get_mut(key) {
+            if let Some(value) = zv.long() {
+                zv.set_long(value * 2);
+            }
+        }
+    }
+}</code></pre>
+<p><code>&amp;mut ZendHashTable</code> is accepted as a <code>#[php_function]</code> parameter type, so the
+PHP-facing signature does not change. If you cannot obtain a mutable borrow at
+the outermost frame, the array is genuinely shared and mutating it was unsound
+before this release.</p>
+<h2 id="engine-input-accessors-return-option-instead-of-panicking"><a class="header" href="#engine-input-accessors-return-option-instead-of-panicking">Engine-Input Accessors Return <code>Option</code> Instead of Panicking</a></h2>
+<p>Accessors that read data controlled by the engine or the request used to
+<code>panic!</code>, which aborts the process inside an <code>extern "C"</code> frame. They now
+return <code>Option</code> and align with <code>http_server_vars</code>, which already did.</p>
+<p>Affected signatures:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Before (v0.15)</th><th>After (v0.16)</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ProcessGlobals::http_get_vars() -&gt; &amp;ZendHashTable</code></td><td><code>-&gt; Option&lt;&amp;ZendHashTable&gt;</code></td></tr>
+<tr><td><code>ProcessGlobals::http_post_vars() -&gt; &amp;ZendHashTable</code></td><td><code>-&gt; Option&lt;&amp;ZendHashTable&gt;</code></td></tr>
+<tr><td><code>ProcessGlobals::http_cookie_vars() -&gt; &amp;ZendHashTable</code></td><td><code>-&gt; Option&lt;&amp;ZendHashTable&gt;</code></td></tr>
+<tr><td><code>ProcessGlobals::http_env_vars() -&gt; &amp;ZendHashTable</code></td><td><code>-&gt; Option&lt;&amp;ZendHashTable&gt;</code></td></tr>
+<tr><td><code>ProcessGlobals::http_files_vars() -&gt; &amp;ZendHashTable</code></td><td><code>-&gt; Option&lt;&amp;ZendHashTable&gt;</code></td></tr>
+<tr><td><code>ProcessGlobals::http_request_vars() -&gt; Option&lt;&amp;ZendHashTable&gt;</code></td><td><code>-&gt; Result&lt;Option&lt;&amp;ZendHashTable&gt;&gt;</code></td></tr>
+<tr><td><code>SapiHeader::as_str() -&gt; &amp;str</code></td><td><code>-&gt; Option&lt;&amp;str&gt;</code></td></tr>
+<tr><td><code>SapiHeader::name() -&gt; &amp;str</code></td><td><code>-&gt; Option&lt;&amp;str&gt;</code></td></tr>
+<tr><td><code>zend::php_sapi_name() -&gt; String</code></td><td><code>-&gt; Option&lt;String&gt;</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>http_request_vars</code> distinguishes engine failures from absence: <code>Err</code> carries
+<code>Error::AutoGlobalLoadFailed("_REQUEST")</code> or <code>Error::ZvalConversion</code> where it
+previously panicked, and <code>Ok(None)</code> means the global is not populated.
+<code>SapiHeader::value</code> keeps its <code>Option</code> signature but returns <code>None</code> where it
+previously panicked (non-UTF-8 header).</p>
+<h3 id="before-v015-8"><a class="header" href="#before-v015-8">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let get = ProcessGlobals::get().http_get_vars().to_owned();
+let name = header.name();</code></pre>
+<h3 id="after-v016-8"><a class="header" href="#after-v016-8">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">let get = ProcessGlobals::get().http_get_vars()?.to_owned();
+let name = header.name()?;</code></pre>
+<p><code>None</code> means the global has not been populated as an array (yet) or, for
+headers, that the bytes are not valid UTF-8. In a regular request context the
+superglobals are populated and unwrapping stays reasonable; before request
+startup or in exotic SAPIs it no longer aborts the process.</p>
+<h2 id="describe-types-moved-to-ext-php-rs-introspection"><a class="header" href="#describe-types-moved-to-ext-php-rs-introspection"><code>describe</code> Types Moved to <code>ext-php-rs-introspection</code></a></h2>
+<p>The types behind <code>ext_php_rs::describe</code> now live in the
+<code>ext-php-rs-introspection</code> crate, which has no dependency on the Zend engine.
+<code>cargo-php</code> depends on that crate alone, so installing it no longer needs PHP.
+The paths under <code>ext_php_rs::describe</code> are unchanged re-exports. Three details
+of the ABI changed with the move.</p>
+<h3 id="datatype-zend-conversions-moved-to-datatypeext"><a class="header" href="#datatype-zend-conversions-moved-to-datatypeext"><code>DataType</code> Zend Conversions Moved to <code>DataTypeExt</code></a></h3>
+<p><code>DataType</code> is defined in the new crate, so the conversions that need the Zend
+<code>IS_*</code> constants moved to the <code>DataTypeExt</code> trait, exported from the prelude.</p>
+<h4 id="before-v015-9"><a class="header" href="#before-v015-9">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let raw = DataType::Long.as_u32();
+let ty = DataType::from(raw);</code></pre>
+<h4 id="after-v016-9"><a class="header" href="#after-v016-9">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">use ext_php_rs::prelude::*;
+
+let raw = DataType::Long.as_u32();
+let ty = DataType::from_u32(raw);</code></pre>
+<h3 id="describeclassflags-replaced-by-is_interface"><a class="header" href="#describeclassflags-replaced-by-is_interface"><code>describe::Class::flags</code> Replaced by <code>is_interface</code></a></h3>
+<p><code>Class</code> carried the raw <code>ce_flags</code> word. It now carries the only bit stub
+generation needs.</p>
+<h4 id="before-v015-10"><a class="header" href="#before-v015-10">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let is_interface = ClassFlags::from_bits(class.flags)
+    .unwrap_or(ClassFlags::empty())
+    .contains(ClassFlags::Interface);</code></pre>
+<h4 id="after-v016-10"><a class="header" href="#after-v016-10">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">let is_interface = class.is_interface;</code></pre>
+<h3 id="tuple-from-impls-for-method-and-constant-removed"><a class="header" href="#tuple-from-impls-for-method-and-constant-removed">Tuple <code>From</code> Impls for <code>Method</code> and <code>Constant</code> Removed</a></h3>
+<p><code>describe::Method</code> and <code>describe::Constant</code> are now defined outside
+<code>ext-php-rs</code>, and Rust forbids implementing <code>From&lt;(A, B)&gt;</code> for a foreign type,
+so these conversions are gone: <code>From&lt;(FunctionBuilder, MethodFlags)&gt; for Method</code>, <code>From&lt;(String, Box&lt;dyn IntoConst + Send&gt;, DocComments)&gt; for Constant</code>
+and <code>From&lt;(String, DocComments)&gt; for Constant</code>. <code>ext-php-rs</code> uses private
+helpers internally. Downstream code that built these values by hand can fill
+the structs directly, every field is public.</p>
+<h4 id="before-v015-11"><a class="header" href="#before-v015-11">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let constant: Constant = ("MY_CONST".to_string(), docs).into();</code></pre>
+<h4 id="after-v016-11"><a class="header" href="#after-v016-11">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">let constant = Constant {
+    name: "MY_CONST".into(),
+    docs: docs.into(),
+    value: abi::Option::None,
+};</code></pre>
+<h3 id="descriptionversion-is-the-introspection-version"><a class="header" href="#descriptionversion-is-the-introspection-version"><code>Description::version</code> Is the Introspection Version</a></h3>
+<p><code>Description::version</code> was a <code>&amp;'static str</code> holding the <code>ext-php-rs</code> version.
+It is now the first field, an <code>abi::Str</code> holding the <code>ext-php-rs-introspection</code>
+version. The entry point is renamed <code>ext_php_rs_describe_module_v2</code> and returns
+<code>*mut Description</code> allocated with <code>Box::into_raw</code> instead of a <code>Description</code> by
+value; the new name keeps a v0.15 extension and a v0.16 <code>cargo-php</code> (or the
+reverse) from calling each other with the wrong calling convention. Only the
+<code>#[php_module]</code> macro emits that symbol, so this matters solely if you
+implement it by hand. <code>cargo php stubs</code> reads the version through the pointer
+before touching anything else, and
+<code>cargo php stubs</code> accepts an extension whose version is semver compatible with
+the one the CLI was built with. <code>Module::enums</code> is always present and
+<code>Class::closure()</code> is always available; the <code>enum</code> and <code>closure</code> features only
+decide whether <code>ext-php-rs</code> fills them.</p>
+<h3 id="datatypeobject-holds-an-abistr"><a class="header" href="#datatypeobject-holds-an-abistr"><code>DataType::Object</code> Holds an <code>abi::Str</code></a></h3>
+<p><code>DataType::Object</code> carried an <code>Option&lt;&amp;'static str&gt;</code>. That payload has a Rust
+layout inside a <code>#[repr(C)]</code> enum, so an extension and a <code>cargo-php</code> built with
+different Rust versions could read it differently. It now holds an <code>abi::Str</code>.
+An empty name means any object. <code>DataType</code> no longer implements <code>PartialOrd</code>
+and <code>Ord</code>.</p>
+<p>Build the type with the two constructors and read it with <code>class_name()</code>.
+The <code>#[php_class]</code>, <code>#[php_interface]</code> and <code>#[derive(ZvalConvert)]</code> macros
+already use them. Only hand-written <code>IntoZval</code> and <code>FromZval</code> implementations
+have to change.</p>
+<h4 id="before-v015-12"><a class="header" href="#before-v015-12">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">const TYPE: DataType = DataType::Object(Some(MyClass::CLASS_NAME));
+const TYPE: DataType = DataType::Object(None);
+
+if let DataType::Object(Some(name)) = ty {
+    println!("{name}");
+}</code></pre>
+<h4 id="after-v016-12"><a class="header" href="#after-v016-12">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">const TYPE: DataType = DataType::object(MyClass::CLASS_NAME);
+const TYPE: DataType = DataType::ANY_OBJECT;
+
+if let Some(name) = ty.class_name() {
+    println!("{name}");
+}</code></pre>
+<h2 id="packsliceunpack_into-requires-an-unsafe-block"><a class="header" href="#packsliceunpack_into-requires-an-unsafe-block"><code>PackSlice::unpack_into</code> Requires an Unsafe Block</a></h2>
+<p><code>PackSlice::unpack_into</code> builds a <code>&amp;[T]</code> over the bytes of a <code>zend_string</code>, so
+its length and alignment preconditions are now part of the signature.
+<code>Zval::binary_slice</code> checks both and stays safe. <code>Pack::unpack_into</code> stays safe
+as well: it now reads unaligned and never relied on alignment.</p>
+<h3 id="before-v015-13"><a class="header" href="#before-v015-13">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let values: &amp;[u64] = u64::unpack_into(zend_str);</code></pre>
+<h3 id="after-v016-13"><a class="header" href="#after-v016-13">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">// Preferred: the checked entry point.
+let values: &amp;[u64] = zval.binary_slice::&lt;u64&gt;()?;
+
+// Or, when the checks are done by hand:
+// SAFETY: `zend_str.len` is a multiple of 8 and `val` is 8-byte aligned.
+let values: &amp;[u64] = unsafe { u64::unpack_into(zend_str) };</code></pre>
+<p><code>Zval::binary_slice</code> also returns <code>None</code> when the string bytes are not aligned
+for <code>T</code>. Zend allocates every string on an 8-byte boundary, so this only fires
+for types wider than 8 bytes or strings from a foreign allocator.</p>
+<h2 id="zvalset_ptr-requires-an-unsafe-block"><a class="header" href="#zvalset_ptr-requires-an-unsafe-block"><code>Zval::set_ptr</code> Requires an Unsafe Block</a></h2>
+<p><code>Zval::set_ptr</code> stores a raw pointer in an <code>IS_PTR</code> zval. The engine reads
+<code>IS_PTR</code> entries with a fixed type in several of its tables (property tables as
+<code>zend_property_info *</code>, constant tables as <code>zend_class_constant *</code>, INI
+directives as <code>zend_ini_entry *</code>), so storing an arbitrary pointer and letting
+the zval reach one of those tables is undefined behaviour.</p>
+<h3 id="before-v015-14"><a class="header" href="#before-v015-14">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">zval.set_ptr(ptr);</code></pre>
+<h3 id="after-v016-14"><a class="header" href="#after-v016-14">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">// SAFETY: `ptr` outlives the zval and the zval never reaches an engine table.
+unsafe { zval.set_ptr(ptr) };</code></pre>
+<p><code>set_ptr</code> now also releases the previous value of the zval instead of
+overwriting it in place.</p>
+<h2 id="iterators-yield-owned-values"><a class="header" href="#iterators-yield-owned-values">Iterators Yield Owned Values</a></h2>
+<p><code>ZendIterator::get_current_data</code> returned <code>&amp;'a Zval</code> with an unconstrained
+<code>'a</code>, so callers could keep the reference past the next <code>move_forward</code>. Zend
+releases that zval on every step (<code>zend_user_it_invalidate_current</code> runs
+<code>zval_ptr_dtor</code> on it), so the reference dangled. The reference is now tied to
+the <code>&amp;mut self</code> borrow, and both <code>ZendIterator</code>’s and <code>Iterable</code>’s <code>Iter</code> yield
+<code>(Zval, Zval)</code>: the value is a shallow clone, the same copy <code>foreach</code> makes in
+<code>ZEND_FE_FETCH_R</code>.</p>
+<h3 id="before-v015-15"><a class="header" href="#before-v015-15">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let values: Vec&lt;&amp;Zval&gt; = iterator.iter()?.map(|(_, v)| v).collect();</code></pre>
+<h3 id="after-v016-15"><a class="header" href="#after-v016-15">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">let values: Vec&lt;Zval&gt; = iterator.iter()?.map(|(_, v)| v).collect();</code></pre>
+<p>Destructuring <code>for (k, v) in iterator.iter()?</code> keeps working; <code>v</code> is a <code>Zval</code>
+instead of a <code>&amp;Zval</code>, so drop the explicit <code>&amp;</code> where you spelled the type.</p>
+<h2 id="zboxinto_raw-returns-mut-t"><a class="header" href="#zboxinto_raw-returns-mut-t"><code>ZBox::into_raw</code> Returns <code>*mut T</code></a></h2>
+<p><code>ZBox::into_raw</code> fabricated a <code>&amp;'static mut T</code>. It now mirrors <code>Box::into_raw</code>
+and returns <code>*mut T</code>, which <code>ZBox::from_raw</code> accepts back unchanged.</p>
+<h3 id="before-v015-16"><a class="header" href="#before-v015-16">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let obj: &amp;'static mut ZendObject = zbox.into_raw();
+zval.set_object(obj);</code></pre>
+<h3 id="after-v016-16"><a class="header" href="#after-v016-16">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">let obj: *mut ZendObject = zbox.into_raw();
+// SAFETY: `into_raw` yields a valid, exclusively owned object.
+zval.set_object(unsafe { &amp;mut *obj });</code></pre>
+<h2 id="heap-leaking-into_raw-constructors-removed"><a class="header" href="#heap-leaking-into_raw-constructors-removed">Heap-Leaking <code>into_raw</code> Constructors Removed</a></h2>
+<p><code>FunctionEntry::into_raw</code>, <code>IniEntryDef::into_raw</code>, <code>SapiModule::into_raw</code> and
+the deprecated <code>ModuleEntry::into_raw</code> boxed a value and returned the pointer
+with no owner. None of them was needed: <code>ModuleBuilder</code> and <code>ClassBuilder</code> hand
+function tables to the engine themselves, <code>IniEntryDef::register</code> takes a
+<code>Vec</code>, and <code>sapi_startup</code>/<code>php_module_startup</code> copy the <code>sapi_module_struct</code>
+by value (<code>sapi_module = *sf</code>), so a local is enough.</p>
+<h3 id="before-v015-17"><a class="header" href="#before-v015-17">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let sapi = builder.build()?.into_raw();
+unsafe { sapi_startup(sapi) };
+// ...
+unsafe { cleanup_sapi_allocations(sapi); drop(Box::from_raw(sapi)) };</code></pre>
+<h3 id="after-v016-17"><a class="header" href="#after-v016-17">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">let mut sapi = builder.build()?;
+unsafe { sapi_startup(&amp;raw mut sapi) };
+// ...
+unsafe { cleanup_sapi_allocations(&amp;raw mut sapi) };</code></pre>
+<p>Keep the <code>SapiModule</code> alive until <code>sapi_shutdown()</code> has returned: the engine
+copies the struct but keeps reading the strings it points to.</p>
+<h2 id="phprc-removed"><a class="header" href="#phprc-removed"><code>PhpRc</code> Removed</a></h2>
+<p>The <code>rc</code> module and its <code>PhpRc</code> trait are removed. <code>inc_count</code>, <code>dec_count</code> and
+<code>get_rc_mut</code> changed the reference count from safe code. A wrong count lets the
+engine free an object that PHP still uses. <code>ZendObject</code> and <code>ZendStr</code> now have
+a read-only <code>ref_count</code> method.</p>
+<h3 id="before-v015-18"><a class="header" href="#before-v015-18">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">use ext_php_rs::rc::PhpRc;
+
+let count = obj.get_count();</code></pre>
+<h3 id="after-v016-18"><a class="header" href="#after-v016-18">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">let count = obj.ref_count();</code></pre>
+<p>The crate has no public method to change the reference count. Use these
+wrappers instead:</p>
+<ul>
+<li>To keep one more reference to a value, use <code>Zval::shallow_clone</code>.</li>
+<li>To move an owned object into a zval, use the <code>IntoZval</code> impl of
+<code>ZBox&lt;ZendObject&gt;</code> or <code>ZBox&lt;ZendClassObject&lt;T&gt;&gt;</code>. Do not call <code>dec_count</code>
+and then <code>Zval::set_object</code>.</li>
+</ul>
+<p><code>ZendStr::ref_count</code> returns 1 for an interned string, like
+<code>zend_string_refcount</code> in PHP.</p>
+<h2 id="observer-errortype-merged-into-flagserrortype"><a class="header" href="#observer-errortype-merged-into-flagserrortype">Observer <code>ErrorType</code> Merged Into <code>flags::ErrorType</code></a></h2>
+<p>Two types had the name <code>ErrorType</code>. The observer type is removed.
+<code>ErrorObserver</code>, <code>ErrorInfo</code> and <code>php_error</code> now use <code>flags::ErrorType</code>.
+The prelude exports <code>flags::ErrorType</code> without the <code>observer</code> feature, and
+<code>observer::ErrorType</code> is a re-export of it.</p>
+<p>The constants use CamelCase, like every other type in <code>flags</code>.</p>
+<h3 id="before-v015-19"><a class="header" href="#before-v015-19">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">fn should_observe(&amp;self, error_type: ErrorType) -&gt; bool {
+    (ErrorType::FATAL | ErrorType::USER_WARNING).contains(error_type)
+}</code></pre>
+<h3 id="after-v016-19"><a class="header" href="#after-v016-19">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">fn should_observe(&amp;self, error_type: ErrorType) -&gt; bool {
+    (ErrorType::Fatal | ErrorType::UserWarning).contains(error_type)
+}</code></pre>
+<p>Other changes:</p>
+<ul>
+<li><code>ErrorType::All</code> is <code>E_ALL</code> of the PHP version that you build against.
+Before PHP 8.4, it contains <code>ErrorType::Strict</code>. The old observer <code>ALL</code>
+never contained it.</li>
+<li><code>ErrorType::Strict</code> and <code>ErrorType::UserError</code> are deprecated on PHP 8.4
+and later. The old observer <code>USER_ERROR</code> was not deprecated.</li>
+<li>The type holds a <code>u32</code>, not an <code>i32</code>. <code>bits()</code> returns a <code>u32</code>, and
+<code>from_bits</code> and <code>from_bits_truncate</code> take a <code>u32</code>.</li>
+</ul>
+<h2 id="globalconstantflagscasesensitive-removed"><a class="header" href="#globalconstantflagscasesensitive-removed"><code>GlobalConstantFlags::CaseSensitive</code> Removed</a></h2>
+<p>The flag was deprecated and had no effect since PHP 8.0, where constants are
+always case-sensitive. Remove it from any flag set you build.</p>
+<h2 id="allocemalloc-honours-layoutalign"><a class="header" href="#allocemalloc-honours-layoutalign"><code>alloc::emalloc</code> Honours <code>Layout::align</code></a></h2>
+<p><code>emalloc</code> ignored the alignment of the <code>Layout</code> it was given. The Zend allocator
+guarantees <code>ZEND_MM_ALIGNMENT</code> (8 bytes) and has no aligned-allocation entry
+point, so <code>emalloc</code> now returns a null pointer for any <code>Layout</code> whose alignment
+exceeds 8 instead of handing back under-aligned memory.</p>
+<h2 id="zendcleanup_module_allocations-removed"><a class="header" href="#zendcleanup_module_allocations-removed"><code>zend::cleanup_module_allocations</code> Removed</a></h2>
+<p>The helper freed the module’s function table, argument info and strings during
+MSHUTDOWN. That is unsound on every supported PHP version:</p>
+<ul>
+<li>For a <code>dl()</code>-loaded extension, <code>module_destructor</code> calls
+<code>zend_unregister_functions(module-&gt;functions, …)</code> <strong>after</strong> the shutdown
+function returns, and that walks the table reading <code>fname</code>.</li>
+<li><code>zend_register_functions</code> copies the <code>arg_info</code> array only shallowly, so
+<code>arg_info[i].name</code> and <code>.default_value</code> stay borrowed by the engine and are
+read at runtime by <code>ReflectionParameter</code>. A function with neither parameters
+nor a return type keeps the array itself.</li>
+</ul>
+<p>There is no replacement, and nothing to call. ext-php-rs now reclaims class and
+enum method tables as soon as the engine has interned them, and owns the tables
+the engine borrows for the life of the process. Extensions must not free
+anything they pass to <code>zend_register_*</code>.</p>
+<h3 id="before-v015-20"><a class="header" href="#before-v015-20">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">unsafe { ext_php_rs::zend::cleanup_module_allocations(entry) };</code></pre>
+<h3 id="after-v016-20"><a class="header" href="#after-v016-20">After (v0.16)</a></h3>
+<p>Delete the call. If you set <code>module_shutdown_func</code> through
+<code>ModuleBuilder::shutdown_function</code>, it is no longer wrapped and runs exactly as
+you wrote it.</p>
+<h2 id="registration-tables-are-owned-per-extension"><a class="header" href="#registration-tables-are-owned-per-extension">Registration Tables Are Owned Per Extension</a></h2>
+<p>ext-php-rs no longer keeps a crate-wide list of the tables the Zend engine
+borrows for the life of the process. Each table is owned by a <code>static</code> belonging
+to the extension, the way a C extension owns its <code>zend_module_entry</code>,
+<code>zend_function_entry[]</code> and <code>zend_internal_arg_info[]</code>.</p>
+<p>Three signatures changed.</p>
+<h3 id="functionbuilderbuild"><a class="header" href="#functionbuilderbuild"><code>FunctionBuilder::build</code></a></h3>
+<p>Returns the argument info table alongside the entry, so the caller decides where
+it lives. Dropping it dangles every registered function.</p>
+<pre><code class="language-rust ignore">// v0.15
+let entry = builder.build()?;
+
+// v0.16
+let (entry, arg_info) = builder.build()?;</code></pre>
+<p><code>ClassBuilder</code> and <code>EnumBuilder</code> do this for you: <code>registration</code> now receives the
+tables alongside the class entry, and <code>ModuleBuilder::class::&lt;T&gt;()</code> wires it to
+<code>ClassMetadata&lt;T&gt;</code>. A class built by hand must park them:</p>
+<pre><code class="language-rust ignore">// v0.15
+.registration(|ce| MY_META.set_ce(ce))
+
+// v0.16
+.registration(|ce, arg_info| {
+    MY_META.set_ce(ce);
+    MY_META.set_arg_info(arg_info);
+})</code></pre>
+<h3 id="tryfrommodulebuilder"><a class="header" href="#tryfrommodulebuilder"><code>TryFrom&lt;ModuleBuilder&gt;</code></a></h3>
+<p>Yields a third element, the allocations the <code>ModuleEntry</code> points into. The
+<code>#[php_module]</code> macro stores it in the extension’s <code>StaticModuleEntry</code>; only
+code that calls <code>try_into()</code> by hand is affected.</p>
+<pre><code class="language-rust ignore">// v0.15
+let (entry, startup): (ModuleEntry, ModuleStartup) = builder.try_into()?;
+
+// v0.16
+let (entry, startup, owned): (ModuleEntry, ModuleStartup, ModuleAllocations) =
+    builder.try_into()?;</code></pre>
+<h3 id="inientrydefregister"><a class="header" href="#inientrydefregister"><code>IniEntryDef::register</code></a></h3>
+<p>Takes a <code>&amp;'static [IniEntryDef]</code> terminated by <code>IniEntryDef::end()</code> instead of a
+<code>Vec</code>, because PHP 8.5 keeps the table as <code>zend_ini_entry.def</code> and the CLI SAPI
+reads <code>def-&gt;value</code> at runtime. <code>IniEntryDef::new</code> is now a <code>const fn</code> taking
+<code>&amp;'static CStr</code>, so the table is a plain <code>static</code>.</p>
+<h4 id="before-v015-21"><a class="header" href="#before-v015-21">Before (v0.15)</a></h4>
+<pre><code class="language-rust ignore">let entries = vec![IniEntryDef::new(
+    "my_ext.enabled".to_owned(),
+    "1".to_owned(),
+    &amp;IniEntryPermission::All,
+)];
+IniEntryDef::register(entries, mod_num);</code></pre>
+<h4 id="after-v016-21"><a class="header" href="#after-v016-21">After (v0.16)</a></h4>
+<pre><code class="language-rust ignore">static INI: IniEntryDefs&lt;2&gt; = IniEntryDefs::new([
+    IniEntryDef::new(c"my_ext.enabled", c"1", IniEntryPermission::All),
+    IniEntryDef::end(),
+]);
+
+IniEntryDef::register(INI.as_slice(), mod_num);</code></pre>
+<p><code>IniEntryDefs&lt;N&gt;</code> exists because <code>IniEntryDef</code> holds raw pointers and an array of
+them is not <code>Sync</code> on its own.</p>
+<h3 id="fromarg-for-zendexpectedtype-removed"><a class="header" href="#fromarg-for-zendexpectedtype-removed"><code>From&lt;Arg&gt; for ZendExpectedType</code> removed</a></h3>
+<p><code>impl From&lt;Arg&lt;'_&gt;&gt; for _zend_expected_type</code> is gone. It existed only to feed
+<code>zend_wrong_parameter_type_error</code>, which ext-php-rs never calls: argument
+mismatches go through <code>ArgParser</code>, which raises the error itself. Call
+<code>zend_wrong_parameter_type_error</code> through <code>ext_php_rs::ffi</code> if you relied on it.</p>
+<h3 id="the-static-feature-is-now-_static"><a class="header" href="#the-static-feature-is-now-_static">The <code>static</code> feature is now <code>_static</code></a></h3>
+<p>Linking libclang statically moved from <code>static</code> to <code>_static</code>. It still pairs with
+<code>runtime</code> the same way: the two are mutually exclusive, because clang-sys refuses
+to build them together.</p>
+<pre><code class="language-toml"># v0.15
+ext-php-rs = { version = "0.15", default-features = false, features = ["enum", "static"] }
+
+# v0.16
+ext-php-rs = { version = "0.16", default-features = false, features = ["enum", "_static"] }
+</code></pre>
+<p>The underscore is what keeps <code>cargo-semver-checks</code> from selecting the feature on
+its own. It enables every feature it does not consider unstable, so with the old
+name it turned on both halves of the pair and could never build the crate, which
+in turn blocked the release tooling that runs it.</p>
+<p><code>runtime</code> is unchanged and stays the default.</p>
+<h2 id="the-error-model"><a class="header" href="#the-error-model">The Error Model</a></h2>
+<h3 id="error-is-now-send--sync"><a class="header" href="#error-is-now-send--sync"><code>Error</code> is now <code>Send + Sync</code></a></h3>
+<p><code>Error::Exception(ZBox&lt;ZendObject&gt;)</code> is gone. It was the only variant holding
+engine memory, and it made the crate-wide <code>Result</code> unusable with threads or
+<code>anyhow</code>, which requires <code>Send + Sync + 'static</code>.</p>
+<p><code>ZendCallable::try_call</code> and friends keep their signatures. When the callable
+throws, the exception stays in the executor globals and the call returns
+<code>Error::ExceptionPending { class }</code>. Returning to PHP propagates the original
+exception with its class, message and stack trace; a Rust caller that wants to
+handle it takes ownership with <code>ExecutorGlobals::take_exception()</code>.</p>
+<pre><code class="language-rust ignore">// v0.15
+match callable.try_call(vec![]) {
+    Err(Error::Exception(obj)) =&gt; { /* the exception object */ }
+    _ =&gt; {}
+}
+
+// v0.16
+match callable.try_call(vec![]) {
+    Err(Error::ExceptionPending { class }) =&gt; {
+        let obj = ExecutorGlobals::take_exception();
+    }
+    _ =&gt; {}
+}</code></pre>
+<p><code>PhpException::throw</code> is now a no-op when an exception is already pending, so a
+Rust error can never bury the PHP exception that caused it.</p>
+<h3 id="error-messages-are-lowercase-fragments"><a class="header" href="#error-messages-are-lowercase-fragments">Error messages are lowercase fragments</a></h3>
+<p>Every <code>Display</code> implementation follows the Rust convention: lowercase, no
+trailing period. <code>Error::InvalidScope</code> prints <code>invalid scope</code>, not
+<code>Invalid scope.</code>. Exception messages produced from an <code>Error</code> change to match.</p>
+<h3 id="variants-that-carry-context"><a class="header" href="#variants-that-carry-context">Variants that carry context</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>v0.15</th><th>v0.16</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Error::InvalidProperty</code></td><td><code>Error::InvalidProperty { property: String }</code></td></tr>
+<tr><td><code>Error::InvalidCString</code></td><td><code>Error::InvalidCString { position: usize }</code></td></tr>
+<tr><td><code>Error::InvalidProperty</code> (enum case lookup)</td><td><code>Error::InvalidEnumCase { case: String }</code></td></tr>
+<tr><td><code>Error::InvalidProperty</code> (array key conversion)</td><td><code>Error::ZvalConversion(DataType::String)</code></td></tr>
+<tr><td><code>Error::InvalidProperty</code> (<code>ArrayKey::ZendString</code> that is not UTF-8)</td><td><code>Error::InvalidUtf8</code></td></tr>
+<tr><td><code>Error::InvalidProperty</code> (object passed to an enum conversion is not an enum)</td><td><code>Error::ZvalConversion(DataType::ANY_OBJECT)</code></td></tr>
+<tr><td><code>Error::UnknownDatatype(0)</code> from <code>TryFrom&lt;ZvalTypeFlags&gt;</code></td><td><code>Error::InvalidTypeToDatatype(flags)</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>Error::UnknownDatatype</code> is removed. It only ever appeared with a hardcoded <code>0</code>
+from the conversion above, which discarded the real flag bits.</p>
+<p><code>Error::Catch(CatchError)</code> is new: <code>try_catch</code> failures convert into it with
+<code>?</code>, and <code>source()</code> reports whether the engine bailed out or the result pointer
+was null.</p>
+<h3 id="catcherror-and-embederror-are-printable"><a class="header" href="#catcherror-and-embederror-are-printable"><code>CatchError</code> and <code>EmbedError</code> are printable</a></h3>
+<p>Both now implement <code>Display</code> and <code>std::error::Error</code>. <code>CatchError</code> is an enum
+with <code>Bailout</code> and <code>NullPanicPtr</code> instead of a unit struct that meant either.
+<code>EmbedError::InitError</code>, which was never constructed, is gone, and
+<code>EmbedError::CatchError</code> went from a unit variant to one carrying the
+<code>CatchError</code> that caused it:</p>
+<pre><code class="language-rust ignore">// v0.15
+Err(EmbedError::CatchError) =&gt; { /* was it a bailout? no way to tell */ }
+
+// v0.16
+Err(EmbedError::CatchError(CatchError::Bailout)) =&gt; { /* ... */ }</code></pre>
+<p><code>CatchError</code>, <code>EmbedError</code> and <code>PhpEvalError</code> are now <code>#[non_exhaustive]</code>, so a
+downstream <code>match</code> on any of them needs a wildcard arm. <code>WorkerError</code> already
+was.</p>
+<h3 id="phpexceptiondefault-is-now-from_message"><a class="header" href="#phpexceptiondefault-is-now-from_message"><code>PhpException::default</code> is now <code>from_message</code></a></h3>
+<p>The inherent <code>default</code> shadowed <code>Default::default</code> while taking an argument.</p>
+<pre><code class="language-rust ignore">// v0.15
+PhpException::default("something went wrong".into());
+
+// v0.16
+PhpException::from_message("something went wrong".into());</code></pre>
+<p><code>throw_object</code> now validates that the zval holds an object and returns
+<code>Err(Error::Object)</code> otherwise, instead of letting the engine raise a fatal
+error.</p>
+<h3 id="argument-and-return-type-builders-report-a-conversion-error"><a class="header" href="#argument-and-return-type-builders-report-a-conversion-error">Argument and return-type builders report a conversion error</a></h3>
+<p><code>Arg::as_arg_info</code> and <code>FunctionBuilder</code>’s return-type path returned
+<code>Error::InvalidCString</code> when <code>ZendType::empty_from_type</code> could not represent a
+type, which had nothing to do with C strings. They now return
+<code>Error::ZvalConversion(ty)</code> naming the type that could not be represented.</p>
+<h3 id="executorglobalsthrow_if_exception-builds-the-exception-directly"><a class="header" href="#executorglobalsthrow_if_exception-builds-the-exception-directly"><code>ExecutorGlobals::throw_if_exception</code> builds the exception directly</a></h3>
+<p>It used to go through <code>Error::Exception</code> and <code>From&lt;Error&gt; for PhpException</code>. It
+now takes the exception and attaches it to the <code>PhpException</code> itself, so the
+class and stack trace survive without a round trip through <code>Error</code>. The
+signature, <code>PhpResult&lt;()&gt;</code>, is unchanged.</p>
+<h3 id="functionfunction_type-returns-a-result"><a class="header" href="#functionfunction_type-returns-a-result"><code>Function::function_type</code> returns a <code>Result</code></a></h3>
+<p><code>From&lt;u8&gt; for FunctionType</code> panicked on a value read straight out of
+<code>zend_function</code>. It is now <code>TryFrom&lt;u8&gt;</code>, and <code>function_type()</code> returns
+<code>Result&lt;FunctionType&gt;</code> with <code>Error::UnknownFunctionType</code>.</p>
+<h3 id="zendhashtableremove-returns-the-removed-value"><a class="header" href="#zendhashtableremove-returns-the-removed-value"><code>ZendHashTable::remove</code> returns the removed value</a></h3>
+<p><code>remove</code> and <code>remove_index</code> returned <code>Option&lt;()&gt;</code>, a boolean in costume. They
+now return <code>Option&lt;Zval&gt;</code>, matching <code>OccupiedEntry::remove</code>.</p>
+<pre><code class="language-rust ignore">// v0.15
+ht.remove("key");
+
+// v0.16
+let removed: Option&lt;Zval&gt; = ht.remove("key");</code></pre>
+<h3 id="streamwrapperregister-no-longer-panics-on-a-nul-byte"><a class="header" href="#streamwrapperregister-no-longer-panics-on-a-nul-byte"><code>StreamWrapper::register</code> no longer panics on a NUL byte</a></h3>
+<p><code>register</code> and <code>unregister</code> returned a <code>Result</code> but panicked when the wrapper
+name contained a NUL byte. They now return <code>Error::InvalidCString</code>.</p>
+<h2 id="bailoutguard-cleanup-belongs-to-the-try_catch-frame"><a class="header" href="#bailoutguard-cleanup-belongs-to-the-try_catch-frame"><code>BailoutGuard</code> Cleanup Belongs to the <code>try_catch</code> Frame</a></h2>
+<p>A <code>try_catch</code> frame now drops the <code>BailoutGuard</code>s that were created inside its
+closure when it catches a bailout. Guards created before the frame are not
+changed. The old thread-wide cleanup ran later, in the generated handler, and
+could free a guard that an outer frame still used.</p>
+<h3 id="before-v015-22"><a class="header" href="#before-v015-22">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">let file = BailoutGuard::new(File::open("data.txt")?);
+let result = try_catch(|| {
+    let _tmp = BailoutGuard::new(TempFile::create());
+    risky_engine_call();
+});
+// On Err, _tmp is still allocated here. The exported handler frees both
+// _tmp and file later, and file dangles.</code></pre>
+<h3 id="after-v016-22"><a class="header" href="#after-v016-22">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">let file = BailoutGuard::new(File::open("data.txt")?);
+let result = try_catch(|| {
+    let _tmp = BailoutGuard::new(TempFile::create());
+    risky_engine_call();
+});
+// On Err, try_catch already dropped _tmp. file is still valid.</code></pre>
+<p><code>BailoutGuard</code> is no longer <code>Send</code>. Code that moves a guard to another thread
+does not compile anymore. Keep the guard on the thread that created it, or call
+<code>into_inner</code> before you send the value.</p>
+<p><code>zend::run_bailout_cleanups</code> is removed. <code>try_catch</code> runs the cleanup itself.</p>
+<h2 id="panics-stay-on-the-rust-side-of-the-ffi-boundary"><a class="header" href="#panics-stay-on-the-rust-side-of-the-ffi-boundary">Panics Stay on the Rust Side of the FFI Boundary</a></h2>
+<p>A panic that unwinds out of an <code>extern "C"</code> function aborts the process. In
+v0.15 every generated handler let a panic do exactly that, because <code>try_catch</code>
+caught the panic only to resume it. v0.16 keeps every panic on the Rust side.
+See <a href="../exceptions.html#panics">Panics</a> for the full policy.</p>
+<h3 id="try_catch-reports-a-panic-instead-of-resuming-it"><a class="header" href="#try_catch-reports-a-panic-instead-of-resuming-it"><code>try_catch</code> reports a panic instead of resuming it</a></h3>
+<p><code>try_catch</code> and <code>try_catch_first</code> return <code>Err(CatchError::Panic(message))</code> when
+the closure panics. <code>CatchError::Panic</code> is a new variant, and <code>Error::Catch</code>
+prints its message.</p>
+<pre><code class="language-rust ignore">// v0.15: the panic continued past this line
+let result = try_catch(|| risky());
+
+// v0.16
+match try_catch(|| risky()) {
+    Err(CatchError::Panic(message)) =&gt; std::panic::resume_unwind(Box::new(message)),
+    Err(CatchError::Bailout) =&gt; { /* ... */ }
+    Err(_) =&gt; { /* ... */ }
+    Ok(value) =&gt; { /* ... */ }
+}</code></pre>
+<p>A test that asserts inside a <code>try_catch</code> closure and ignores the result now
+passes even when the assertion fails. Assert on the result of <code>try_catch</code>.</p>
+<p><code>Embed::eval</code> and <code>Embed::run_script</code> return
+<code>EmbedError::CatchError(CatchError::Panic(..))</code> in that case. <code>PhpEvalError</code>
+gained a <code>Panic(String)</code> variant. <code>Embed::run</code> still resumes a panic, so a test
+that panics inside <code>Embed::run</code> still fails.</p>
+<h3 id="a-panic-in-a-handler-throws-a-php-error"><a class="header" href="#a-panic-in-a-handler-throws-a-php-error">A panic in a handler throws a PHP <code>Error</code></a></h3>
+<p>A panic in a generated function, method, constructor, <code>#[php_impl_interface]</code>
+method, <code>Closure</code>, property getter or setter, or <code>clone</code> throws a PHP <code>Error</code>
+with the message <code>Rust panic: &lt;message&gt;</code> and returns normally. A panic in
+<code>Drop</code> of a Rust-backed object reports an <code>E_WARNING</code> and frees the object.
+Before v0.16 each of these aborted the PHP process.</p>
+<p>A handler that you write by hand for <code>FunctionBuilder::new</code> does not get this
+behaviour on its own. Run its body through the new <code>zend::run_handler</code>.</p>
+<h3 id="phpexceptionthrow-returns-"><a class="header" href="#phpexceptionthrow-returns-"><code>PhpException::throw</code> returns <code>()</code></a></h3>
+<p><code>throw()</code> no longer returns a <code>Result</code>. If the exception cannot be thrown, for
+example because the class is an interface or the message contains a NUL byte,
+<code>throw()</code> throws a plain <code>Error</code> whose message names the cause and contains the
+original message.</p>
+<pre><code class="language-rust ignore">// v0.15
+exception.throw()?;
+exception.throw().expect("Failed to throw PHP exception.");
+
+// v0.16
+exception.throw();</code></pre>
+<p><code>IntoZval for Result&lt;T, E&gt;</code> throws the error as before and now returns
+<code>Err(Error::ExceptionPending { class })</code> instead of the conversion error.</p>
+<h3 id="minit-fails-instead-of-panicking"><a class="header" href="#minit-fails-instead-of-panicking">MINIT fails instead of panicking</a></h3>
+<p><code>ModuleStartup::startup</code> returns an <code>Err</code> when a class, an interface or an enum
+cannot be registered. The generated startup function logs the cause as an
+<code>E_CORE_WARNING</code> and returns <code>FAILURE</code>, and PHP reports
+<code>Unable to start &lt;extension&gt; module</code>. A panic during registration gets the same
+treatment. In v0.15 a failed constant registration made the startup function
+return <code>1</code>, which is not <code>FAILURE</code> (<code>-1</code>), so PHP started the module anyway.</p>
+<p><code>get_module</code> never panics. If the module cannot be built, the macro returns a
+placeholder entry whose startup function logs the build error and fails as
+above.</p>
+<h3 id="new-items"><a class="header" href="#new-items">New items</a></h3>
+<p><code>zend::run_handler</code> runs the body of a hand-written handler with the panic and
+bailout behaviour of generated code. <code>zend::ce::error</code> returns the <code>Error</code> class
+entry.</p>
+<h3 id="what-still-aborts"><a class="header" href="#what-still-aborts">What still aborts</a></h3>
+<p>The observer, zend extension, error observer and exception observer hooks, the
+module globals constructor and destructor, the embed <code>Sapi</code> trampolines, and
+every <code>extern "C"</code> function that you give to the engine yourself still abort on
+a panic. This includes the <code>startup</code> function of <code>#[php_module]</code>.
+<code>BailoutGuard</code> semantics do not change.</p>
+<h2 id="macro-options-that-did-nothing-are-now-compile-errors"><a class="header" href="#macro-options-that-did-nothing-are-now-compile-errors">Macro Options That Did Nothing Are Now Compile Errors</a></h2>
+<p>Several attribute options parsed and then had no effect. Each one is now a
+compile error that points at the option. The generated PHP API did not change
+for code that compiled without them.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Before (compiled, no effect)</th><th>After</th></tr>
+</thead>
+<tbody>
+<tr><td><code>#[php_enum(name = "Suit")]</code>, <code>#[php_interface(...)]</code>, <code>#[php_extern(...)]</code></td><td>Error. Write <code>#[php(name = "Suit")]</code> on the item. <code>#[php_extern]</code> takes no options.</td></tr>
+<tr><td><code>#[php_function]</code> + <code>#[php(vis = "private")]</code></td><td>Error. PHP functions have no visibility. Remove <code>vis</code>.</td></tr>
+<tr><td><code>#[php_enum]</code> + <code>#[php(vis = "protected")]</code></td><td>Error. PHP enums are always public. Remove <code>vis</code>.</td></tr>
+<tr><td><code>#[php(getter)]</code> or <code>#[php(setter)]</code> on a trait method</td><td>Error. Declare a plain method.</td></tr>
+<tr><td><code>#[php(constructor)]</code> on a trait method</td><td>Error. This option removed the method from the interface. Declare a plain method.</td></tr>
+<tr><td><code>#[php(prop, default = 0)]</code> on a non-static field</td><td>Error. <code>default</code> applies to <code>static</code> properties only. Set the value in the constructor.</td></tr>
+<tr><td><code>#[php(name = "x")]</code> on a field without <code>prop</code></td><td>Error. Add <code>prop</code>, or remove the attribute.</td></tr>
+<tr><td><code>#[php(...)]</code> on a <code>#[php_impl_interface]</code> method, a <code>#[php_extern]</code> function or a <code>#[derive(ZvalConvert)]</code> item</td><td>Error. These macros accept no <code>#[php]</code> option.</td></tr>
+<tr><td><code>#[php(getter, setter)]</code> on one method</td><td>Error. Declare one method for each.</td></tr>
+<tr><td>Two <code>#[php(getter)]</code> methods, or two <code>#[php(setter)]</code> methods, for one property name</td><td>Error. Keep one getter and one setter for each property.</td></tr>
+<tr><td><code>#[php(getter)]</code> and <code>#[php(setter)]</code> of one property with a different <code>vis</code></td><td>Error. Give both methods the same <code>vis</code>. The property took the most permissive visibility before.</td></tr>
+<tr><td><code>#[php(defaults(x = 1))]</code> where no parameter is named <code>x</code></td><td>Error on <code>x</code>. Each key of <code>defaults</code> must name a parameter.</td></tr>
+<tr><td><code>#[php(optional = x)]</code> where no parameter is named <code>x</code></td><td>Error on <code>x</code>. The required count came from the parameter types before.</td></tr>
+<tr><td><code>#[php(defaults(self_ = ...))]</code> or <code>#[php(optional = self_)]</code> on a method that takes <code>self_: &amp;mut ZendClassObject&lt;T&gt;</code></td><td>Error. <code>self_</code> is the PHP object, not a PHP parameter.</td></tr>
+<tr><td><code>#[php(defaults(...))]</code> or <code>#[php(optional = ...)]</code> on a <code>getter</code> or <code>setter</code> method</td><td>Error. The method maps to a PHP property, which has no parameters.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Existing diagnostics now point at the offending attribute or item instead of
+the whole macro call.</p>
+<h2 id="getter-and-setter-property-names-are-camelcase"><a class="header" href="#getter-and-setter-property-names-are-camelcase">Getter and Setter Property Names Are camelCase</a></h2>
+<p>A property declared with <code>#[php(getter)]</code> or <code>#[php(setter)]</code> now follows the
+same naming rule as a <code>#[php(prop)]</code> field. The macro removes the <code>get_</code> or
+<code>set_</code> prefix from the method name and converts the rest to camelCase. Before,
+the rest of the method name was used as is. The <code>name</code> and <code>change_case</code>
+options on a getter or setter were ignored before. They now rename the property.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Rust method</th><th>Before</th><th>After</th></tr>
+</thead>
+<tbody>
+<tr><td><code>get_name</code></td><td><code>$obj-&gt;name</code></td><td><code>$obj-&gt;name</code></td></tr>
+<tr><td><code>get_first_name</code></td><td><code>$obj-&gt;first_name</code></td><td><code>$obj-&gt;firstName</code></td></tr>
+<tr><td><code>#[php(getter, name = "first_name")] fn get_first_name</code></td><td><code>$obj-&gt;first_name</code></td><td><code>$obj-&gt;first_name</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>To keep the old name, add <code>#[php(name = "first_name")]</code> or
+<code>#[php(change_case = "snake_case")]</code> to the getter and to the setter.</p>
+<h2 id="a-field-property-and-a-method-property-cannot-share-a-name"><a class="header" href="#a-field-property-and-a-method-property-cannot-share-a-name">A Field Property and a Method Property Cannot Share a Name</a></h2>
+<p>Before, a <code>#[php(getter)]</code> method with the same property name as a
+<code>#[php(prop)]</code> field was registered a second time, and reads used the field.
+The guide said that the method took precedence. Now <code>ClassBuilder::register</code>
+returns <code>Error::DuplicateProperty</code> and the extension does not load. Remove the
+<code>#[php(prop)]</code> attribute from the field, or rename one of the two properties
+with <code>#[php(name = "...")]</code>.</p>
+<h2 id="class-constant-visibility"><a class="header" href="#class-constant-visibility">Class Constant Visibility</a></h2>
+<p>Constants inside a <code>#[php_impl]</code> block accept <code>#[php(vis = "public" | "protected" | "private")]</code>.
+The default stays <code>public</code>. <code>vis</code> on a <code>#[php_const]</code> or on an interface
+constant is a compile error.</p>
+<p>The manual registration API carries the visibility:</p>
+<h3 id="before-v015-23"><a class="header" href="#before-v015-23">Before (v0.15)</a></h3>
+<pre><code class="language-rust ignore">builder.constant("MAX", 10, &amp;[])?;
+builder.dyn_constant("MAX", &amp;10, &amp;[])?;
+
+fn constants() -&gt; &amp;'static [(&amp;'static str, &amp;'static dyn IntoZvalDyn, DocComments)] {
+    &amp;[("MAX", &amp;10, &amp;[])]
+}</code></pre>
+<h3 id="after-v016-23"><a class="header" href="#after-v016-23">After (v0.16)</a></h3>
+<pre><code class="language-rust ignore">use ext_php_rs::flags::ConstantFlags;
+
+builder.constant("MAX", 10, &amp;[], ConstantFlags::Public)?;
+builder.dyn_constant("MAX", &amp;10, &amp;[], ConstantFlags::Public)?;
+
+fn constants() -&gt; &amp;'static [(&amp;'static str, &amp;'static dyn IntoZvalDyn, DocComments, ConstantFlags)] {
+    &amp;[("MAX", &amp;10, &amp;[], ConstantFlags::Public)]
+}</code></pre>
+<p><code>ConstantFlags::Promoted</code> is removed. <code>ZEND_ACC_PROMOTED</code> is a property flag,
+and on PHP 8.1 to 8.4 its bit means <code>final</code> in the constant column.</p>
+<p><code>ext_php_rs_introspection::Constant</code> gains a <code>visibility</code> field, and the crate
+moves to <code>0.2.0</code>. Stubs print <code>public const</code> for class constants. Rebuild
+<code>cargo-php</code> with <code>cargo install cargo-php --force</code>, because the <code>0.1</code> binary
+refuses an extension built with <code>0.2</code>.</p>
+<h2 id="optional-nullable-arguments-report-a-null-default"><a class="header" href="#optional-nullable-arguments-report-a-null-default">Optional Nullable Arguments Report a <code>null</code> Default</a></h2>
+<p>An <code>Option&lt;T&gt;</code> argument in trailing position is optional and nullable. Before
+v0.16, the extension registered it without a default value.
+<code>ReflectionParameter::isOptional()</code> returned <code>true</code> and
+<code>isDefaultValueAvailable()</code> returned <code>false</code>. PHP code cannot produce this
+combination, and the generated stub already printed <code>= null</code>.</p>
+<p>The argument info now carries <code>null</code> as the default value. This is what PHP
+declares for <code>?int $x = null</code>. An explicit <code>#[php(defaults(x = ...))]</code> does not
+change.</p>
+<h2 id="argument-metadata-comes-from-the-type"><a class="header" href="#argument-metadata-comes-from-the-type">Argument Metadata Comes From the Type</a></h2>
+<p>The macros decided nullability, pass-by-reference and variadics by comparing
+type names as text. <code>Option</code> was matched by its last path segment, the
+variadic slice by the exact spelling <code>&amp;[&amp;Zval]</code>, and <code>PhpRef</code> by its name. A type
+alias or a qualified path produced a wrong PHP signature.</p>
+<p>The metadata now comes from constants on the extraction traits.
+<code>FromZval</code> and <code>FromZvalMut</code> have <code>NULLABLE</code>, <code>FromZvalMut</code> has <code>BY_REF</code>, and
+both have <code>from_missing()</code>, the value used when the caller omits the argument.
+Custom implementations do not have to change: the constants default to <code>false</code>
+and <code>from_missing()</code> defaults to <code>None</code>. <code>Arg::of::&lt;T&gt;(name)</code> builds an <code>Arg</code>
+from those constants. <code>FunctionBuilder::required_args(n)</code> and
+<code>ArgParser::required_args(n)</code> set the required count directly; the generated
+code computes it with <code>args::required_count</code>.</p>
+<h3 id="type-aliases-are-honored"><a class="header" href="#type-aliases-are-honored">Type aliases are honored</a></h3>
+<p>A parameter declared with <code>type MaybeAge = Option&lt;i64&gt;</code> or with
+<code>std::option::Option&lt;i64&gt;</code> is now nullable and optional. Before, it was a
+required <code>int</code>, and a debug build of PHP stopped with
+“Arginfo / zpp mismatch” when the caller passed <code>null</code>. If you relied on the old
+signature, spell the type without <code>Option</code>.</p>
+<h3 id="object-arguments-are-passed-by-value"><a class="header" href="#object-arguments-are-passed-by-value">Object arguments are passed by value</a></h3>
+<p><code>&amp;mut T</code> for a registered class, <code>&amp;mut ZendClassObject&lt;T&gt;</code> and
+<code>&amp;mut ZendObject</code> no longer set <code>ZEND_SEND_BY_REF</code>. PHP objects are handles, so
+the callee still mutates the caller’s object. Callers can now write
+<code>process(new Foo())</code>, which used to fail with “could not be passed by
+reference”. <code>ReflectionParameter::isPassedByReference()</code> returns <code>false</code> for
+these parameters. <code>&amp;mut Zval</code>, <code>PhpRef</code> and <code>&amp;mut ZendHashTable</code> keep the flag.</p>
+<h3 id="optionmut-t-object-arguments"><a class="header" href="#optionmut-t-object-arguments"><code>Option&lt;&amp;mut T&gt;</code> object arguments</a></h3>
+<p><code>Option&lt;&amp;mut T&gt;</code> for a class type does not compile any more. Use <code>&amp;mut T</code>: the
+argument is a handle, and a nullable object argument that is also
+pass-by-reference has no meaning. <code>Option&lt;&amp;mut ZendHashTable&gt;</code> keeps working as
+a nullable pass-by-reference array.</p>
+<h3 id="variadic-parameters-accept-any-element-type"><a class="header" href="#variadic-parameters-accept-any-element-type">Variadic parameters accept any element type</a></h3>
+<p>The variadic tail is any <code>&amp;[T]</code> slice in last position, for example <code>&amp;[i64]</code>.
+A variadic parameter followed by another parameter is a compile error.</p>
+<h3 id="default-values-are-rendered-from-the-value"><a class="header" href="#default-values-are-rendered-from-the-value">Default values are rendered from the value</a></h3>
+<p>The stub text of a <code>#[php(defaults(...))]</code> value was produced by matching the
+Rust expression as text, so <code>String::from("x")</code> and <code>std::string::String::from("x")</code>
+rendered differently. The generated code now converts the expression into the
+parameter type at module load and renders it with the new <code>StubLiteral</code> trait,
+without touching the engine. The parameter type must implement <code>StubLiteral</code>
+when it has a default. Scalars, strings, <code>Option&lt;T&gt;</code>, <code>Vec&lt;T&gt;</code>, arrays and
+<code>HashMap&lt;K, V&gt;</code> implement it. Strings render with single quotes, which PHP
+reflection reads back as the string value.</p>
+<h3 id="default-and-clone-are-detected-through-the-type-system"><a class="header" href="#default-and-clone-are-detected-through-the-type-system"><code>Default</code> and <code>Clone</code> are detected through the type system</a></h3>
+<p>The class macro looked for the words <code>Default</code> and <code>Clone</code> inside <code>#[derive(...)]</code>
+attributes. A qualified path such as <code>#[derive(std::default::Default)]</code> or a
+hand-written <code>impl Clone</code> was not seen, so <code>default_init()</code> returned <code>None</code> and
+<code>clone</code> failed. The generated <code>RegisteredClass</code> implementation now probes the
+trait bounds at compile time. Every <code>Default</code> or <code>Clone</code> implementation counts,
+whatever its spelling.</p>
+<h2 id="parameters-after-optional-must-accept-a-missing-value"><a class="header" href="#parameters-after-optional-must-accept-a-missing-value">Parameters After <code>optional</code> Must Accept a Missing Value</a></h2>
+<p><code>#[php(optional = x)]</code> lets PHP callers omit <code>x</code> and every parameter after it.
+Before v0.16, a parameter in that range could have a type such as <code>i64</code> with
+no default. The function compiled, and PHP showed the parameter as optional.
+When a caller omitted it, the call threw “Invalid value given for argument”.</p>
+<p>Each parameter from <code>x</code> to the end must now be an <code>Option&lt;T&gt;</code>, have a default
+in <code>#[php(defaults(...))]</code>, or be the variadic <code>&amp;[T]</code> tail. Otherwise the build
+fails with an error on the type of that parameter. The macro reads this rule
+from <code>FromZvalMut::NULLABLE</code>. If you implement <code>FromZval</code> or <code>FromZvalMut</code>,
+<code>from_missing()</code> must return <code>Some</code> exactly when <code>NULLABLE</code> is <code>true</code>.</p>
+<pre><code class="language-rust ignore">// Before: compiled, `describe("Ann")` threw at run time.
+#[php_function]
+#[php(optional = age)]
+pub fn describe(name: String, age: Option&lt;i64&gt;, city: String) -&gt; String
+
+// After: `city` has a default, or is `Option&lt;String&gt;`.
+#[php_function]
+#[php(optional = age, defaults(city = "\"Paris\""))]
+pub fn describe(name: String, age: Option&lt;i64&gt;, city: String) -&gt; String</code></pre>
+<h2 id="interface-methods-keep-their-parameters-after-self_"><a class="header" href="#interface-methods-keep-their-parameters-after-self_">Interface Methods Keep Their Parameters After <code>self_</code></a></h2>
+<p>A <code>#[php_interface]</code> method whose first parameter is
+<code>self_: &amp;mut ZendClassObject&lt;T&gt;</code> lost its last parameter instead of <code>self_</code>.
+PHP declared <code>scale(self_)</code> for <code>fn scale(self_: ..., factor: f64)</code>, and a PHP
+class that implemented <code>scale(float $factor)</code> did not load. The interface now
+declares <code>scale(float $factor)</code>, like <code>#[php_impl]</code> does for methods.</p>
+<h2 id="backed-enums-implement-from"><a class="header" href="#backed-enums-implement-from">Backed Enums Implement <code>From</code></a></h2>
+<p><code>#[php_enum]</code> generated <code>impl Into&lt;i64&gt; for E</code> and
+<code>impl Into&lt;&amp;'static str&gt; for E</code>. It now generates <code>impl From&lt;E&gt; for i64</code> and
+<code>impl From&lt;E&gt; for &amp;'static str</code>. Calls to <code>.into()</code> do not change. You can also
+write <code>i64::from(e)</code>.</p>
+<h2 id="renaming-options-are-consistent"><a class="header" href="#renaming-options-are-consistent">Renaming Options Are Consistent</a></h2>
+<p>The options that set a PHP name now follow one set of rules. Code that used
+them in a way the guide did not describe is now a compile error or a different
+PHP name.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Before (v0.15)</th><th>After (v0.16)</th></tr>
+</thead>
+<tbody>
+<tr><td><code>#[php(name = "x", change_case = "snake_case")]</code> compiled and <code>change_case</code> had no effect</td><td>Compile error. Keep one of the two options.</td></tr>
+<tr><td><code>#[php(rename_cases = "snake_case")]</code> on a <code>#[php_enum]</code></td><td>Compile error. Write <code>#[php(change_cases_case = "snake_case")]</code>, like <code>change_method_case</code> and <code>change_constant_case</code>.</td></tr>
+<tr><td><code>#[php_impl_interface(change_method_case = "snake_case")]</code> repeated the rule of the trait</td><td>Compile error. Remove the argument. The class takes each method name from <code>#[php_interface]</code>.</td></tr>
+<tr><td><code>#[php_impl_interface]</code> ignored the <code>name</code> or <code>change_case</code> of a trait method, and the trait’s <code>change_method_case</code>. The class registered the method under another name, and <code>new</code> failed with “Cannot instantiate abstract class”</td><td>The class registers each method under the name of the interface.</td></tr>
+<tr><td>A trait method named <code>__to_string</code> in <code>#[php_interface]</code> was declared as <code>toString</code></td><td>It is declared as <code>__toString</code>, like in <code>#[php_impl]</code>. The other magic method names follow the same rule.</td></tr>
+<tr><td>Two methods, two constants or two enum cases of one <code>#[php_impl]</code>, <code>#[php_interface]</code> or <code>#[php_enum]</code> got the same PHP name. PHP then dropped every method of the class, or stopped at startup with “Cannot redefine class constant”</td><td>Compile error at the second item. Rename one of them.</td></tr>
+<tr><td>Two methods of one class from different blocks, two module functions, or two classes got the same PHP name. PHP dropped the methods of the class, did not load the extension, or replaced the first class without a message</td><td><code>ClassBuilder::register</code>, <code>EnumBuilder::register</code> and the module build return <code>Error::DuplicateMethod</code>, <code>Error::DuplicateConstant</code>, <code>Error::DuplicateFunction</code> or <code>Error::DuplicateClass</code>, and the extension does not start. Rename one of them.</td></tr>
+</tbody>
+</table>
+</div>
 
                     </main>
 
@@ -244,11 +1121,11 @@ pub fn get_value() -&gt; i32 {
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

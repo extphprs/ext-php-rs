@@ -3,8 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Page not found - ext-php-rs</title>
-        <base href="/">
+        <title>Memory Model at MINIT - ext-php-rs</title>
 
 
         <!-- Custom HTML head -->
@@ -13,32 +12,32 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="shortcut icon" href="favicon-e3c560cd.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="shortcut icon" href="../favicon-e3c560cd.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-04540a14.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-31a31a08.js"></script>
+        <script src="../toc-31a31a08.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +104,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +139,7 @@
                     <h1 class="menu-title">ext-php-rs</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -174,14 +173,66 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="document-not-found-404"><a class="header" href="#document-not-found-404">Document not found (404)</a></h1>
-<p>This URL is invalid, sorry. Please use the navigation bar or search to continue.</p>
+                        <h1 id="memory-model-at-minit"><a class="header" href="#memory-model-at-minit">Memory Model at MINIT</a></h1>
+<p>Registering classes, functions, INI entries and constants builds C tables that
+the Zend engine reads. A C extension puts those tables in <code>.rodata</code>, so the
+linker owns them for the whole process and the question never comes up.
+ext-php-rs builds them on the heap at MINIT, so ownership has to be decided.</p>
+<p>Each table falls into one of two buckets. Nothing sits in between, which is why
+ext-php-rs has no shutdown cleanup hook.</p>
+<h2 id="reclaimed-as-soon-as-the-engine-has-consumed-them"><a class="header" href="#reclaimed-as-soon-as-the-engine-has-consumed-them">Reclaimed as soon as the engine has consumed them</a></h2>
+<p>Class and enum method tables. <code>zend_register_functions</code> interns every function
+name into a <code>zend_string</code>, and <code>do_register_internal_class</code> reads
+<code>zend_class_entry.info.internal.builtin_functions</code> exactly once and never frees
+it. The table is dead the moment registration returns, and ext-php-rs frees it
+there.</p>
+<h2 id="owned-for-the-life-of-the-process"><a class="header" href="#owned-for-the-life-of-the-process">Owned for the life of the process</a></h2>
+<p>Everything the engine keeps a pointer into:</p>
+<ul>
+<li><strong>Argument info</strong>, including argument names, default values and class names in
+types. <code>zend_register_functions</code> copies the array only when the types it
+carries make the engine derive <code>ZEND_ACC_HAS_RETURN_TYPE</code> or
+<code>ZEND_ACC_HAS_TYPE_HINTS</code>, and that copy is shallow: <code>name</code> and
+<code>default_value</code> stay borrowed and are read at runtime by
+<code>ReflectionParameter</code>. A function with neither parameters nor a return type
+keeps the original array.</li>
+<li><strong>The module function table</strong>, its function names, and the module <code>name</code> and
+<code>version</code>. <code>module_destructor</code> walks the table reading <code>fname</code> after
+MSHUTDOWN for <code>dl()</code>-loaded extensions, <code>get_extension_funcs()</code> walks it
+during a request, and a second <code>php_module_startup</code> in the same process is
+handed the same static entry.</li>
+<li><strong>The INI definition table</strong> and its strings. PHP 8.5 stores it as
+<code>zend_ini_entry.def</code> and the CLI SAPI reads <code>def-&gt;value</code> for
+<code>php --ini=diff</code>.</li>
+</ul>
+<p>Each of these is owned by a per-extension <code>static</code>, never by a crate-wide one:
+the module’s tables live in <code>StaticModuleEntry</code>, a class’s argument info lives in
+that class’s <code>ClassMetadata&lt;T&gt;</code>, and an INI table is a <code>static</code> you pass to
+<code>IniEntryDef::register</code>. That is the same shape a C extension gets from its own
+data segment, and it is what makes a leak detector report them as
+still-reachable instead of lost. ext-php-rs holds no global mutable state for
+registration.</p>
+<h2 id="what-this-means-for-extension-authors"><a class="header" href="#what-this-means-for-extension-authors">What this means for extension authors</a></h2>
+<p>Do not free anything you hand to a <code>zend_register_*</code> function, and do not free a
+<code>ModuleEntry</code> field. There is no cleanup entry point to call: <code>#[php_module]</code>
+leaves <code>module_shutdown_func</code> exactly as you set it.</p>
+<p>Class constants and enum case discriminants are the one place to be careful when
+building tables by hand. <code>zend_declare_class_constant</code> and <code>zend_enum_add_case</code>
+take the zval payload with <code>ZVAL_COPY_VALUE</code> and no reference bump, so the
+engine owns any refcounted value afterwards and the Rust <code>Zval</code> must not run its
+destructor.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../advanced/worker_mode.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
+                            <a rel="next prefetch" href="../advanced/allowed_bindings.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -189,7 +240,13 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../advanced/worker_mode.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
+                    <a rel="next prefetch" href="../advanced/allowed_bindings.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
             </nav>
 
         </div>
@@ -207,13 +264,13 @@
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 
