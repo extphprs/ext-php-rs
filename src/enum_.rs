@@ -10,7 +10,6 @@ use crate::{
     error::{Error, Result},
     ffi::zend_enum_get_case,
     flags::{ClassFlags, DataType},
-    rc::PhpRc,
     types::{ZendObject, ZendStr, Zval},
 };
 
@@ -76,7 +75,7 @@ where
         // The class constant table keeps its own reference, so the box takes a
         // reference of its own before assuming ownership of the pointer.
         unsafe {
-            (*case).inc_count();
+            (*case).add_ref();
             Ok(ZBox::from_raw(case))
         }
     }
@@ -103,7 +102,7 @@ where
 ///
 /// The object is owned by the class constant table and stays alive until the
 /// end of the request. The pointer is borrowed: whoever stores it must take a
-/// reference of its own with [`PhpRc::inc_count`].
+/// reference of its own with `add_ref`.
 fn zend_case<T: RegisteredEnum + RegisteredClass>(case: &T) -> *mut ZendObject {
     let mut name = ZendStr::new(T::to_name(case), false);
     // SAFETY: the class entry is registered and `to_name` only produces names

@@ -59,7 +59,6 @@ use crate::{
         zend_function, zend_hash_str_find_ptr_lc, zend_object, zend_objects_new,
     },
     flags::DataType,
-    rc::PhpRc,
     types::{ZendClassObject, ZendStr, Zval},
     zend::{ClassEntry, ZendObjectHandlers, ce},
 };
@@ -137,6 +136,38 @@ impl ZendObject {
         // SAFETY: This will be `NULL` until it is initialized. `as_ref()` checks for
         // null, so we can panic if it's null.
         Self::new(ce::stdclass())
+    }
+
+    /// Returns the number of references to the object.
+    ///
+    /// ```
+    /// use ext_php_rs::types::ZendObject;
+    ///
+    /// fn count(obj: &ZendObject) -> u32 {
+    ///     obj.ref_count()
+    /// }
+    /// ```
+    ///
+    /// No public method changes the reference count:
+    ///
+    /// ```compile_fail,E0624
+    /// use ext_php_rs::types::ZendObject;
+    ///
+    /// fn release(obj: &mut ZendObject) {
+    ///     obj.del_ref();
+    /// }
+    /// ```
+    #[must_use]
+    pub fn ref_count(&self) -> u32 {
+        self.gc.refcount
+    }
+
+    pub(crate) fn add_ref(&mut self) {
+        self.gc.refcount += 1;
+    }
+
+    pub(crate) fn del_ref(&mut self) {
+        self.gc.refcount -= 1;
     }
 
     /// Converts a class object into an owned [`ZendObject`]. This removes any
@@ -758,7 +789,7 @@ impl IntoZval for ZBox<ZendObject> {
     fn set_zval(mut self, zv: &mut Zval, _: bool) -> Result<()> {
         // `set_object` is `ZVAL_OBJ_COPY` and increments the refcount; the box
         // already owns one reference, so drop it first to keep the net count at 1.
-        self.dec_count();
+        self.del_ref();
         let obj = self.into_raw();
         // SAFETY: `into_raw` yields a valid, exclusively owned object whose
         // reference is transferred to the zval.
@@ -873,5 +904,17 @@ mod embed_tests {
             other => panic!("expected NotStringable, got {other:?}"),
         });
         assert_eq!(class, "NotStringableAtAll");
+    }
+
+    #[test]
+    fn test_set_object_adds_a_reference() {
+        let counts = Embed::run(|| {
+            let mut obj = ZendObject::new_stdclass();
+            let before = obj.ref_count();
+            let mut zv = Zval::new();
+            zv.set_object(&mut obj);
+            (before, obj.ref_count())
+        });
+        assert_eq!(counts, (1, 2));
     }
 }

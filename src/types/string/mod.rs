@@ -21,7 +21,7 @@ use crate::{
     convert::{FromZval, IntoZval},
     error::{Error, Result},
     ffi::{
-        ext_php_rs_is_known_valid_utf8, ext_php_rs_set_known_valid_utf8,
+        GC_IMMUTABLE, ext_php_rs_is_known_valid_utf8, ext_php_rs_set_known_valid_utf8,
         ext_php_rs_zend_string_init, ext_php_rs_zend_string_release, zend_string,
         zend_string_init_interned,
     },
@@ -263,6 +263,27 @@ impl ZendStr {
     #[must_use]
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    /// Returns the number of references to the string. Interned strings are
+    /// shared and always report 1, like `zend_string_refcount`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use ext_php_rs::types::ZendStr;
+    ///
+    /// let s = ZendStr::new_interned("hello", false);
+    /// assert_eq!(s.ref_count(), 1);
+    /// ```
+    #[must_use]
+    pub fn ref_count(&self) -> u32 {
+        // SAFETY: `type_info` is the only view of the `u` union.
+        if unsafe { self.gc.u.type_info } & GC_IMMUTABLE != 0 {
+            1
+        } else {
+            self.gc.refcount
+        }
     }
 
     /// Returns true if the string is empty, false otherwise.

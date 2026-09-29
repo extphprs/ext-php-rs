@@ -20,7 +20,6 @@ use crate::{
         zend_is_iterable, zend_is_true, zend_resource, zend_value, zval, zval_ptr_dtor,
     },
     flags::{DataType, DataTypeExt, ZvalTypeFlags},
-    rc::PhpRc,
     types::{ZendCallable, ZendHashTable, ZendLong, ZendObject, ZendStr},
 };
 
@@ -1052,15 +1051,15 @@ impl Zval {
     ///
     /// This is `ZVAL_OBJ_COPY`: the object refcount is incremented because the
     /// zval now holds its own reference, which Zend releases when the zval is
-    /// destroyed. Callers that already own a reference (e.g. a
-    /// `ZBox<ZendObject>`) must `dec_count()` before handing the object over.
+    /// destroyed. To hand over a reference you already own, use the
+    /// [`IntoZval`] impl of `ZBox<ZendObject>` instead.
     ///
     /// # Parameters
     ///
     /// * `val` - The value to set the zval as.
     pub fn set_object(&mut self, val: &mut ZendObject) {
         self.change_type(ZvalTypeFlags::ObjectEx);
-        val.inc_count();
+        val.add_ref();
         self.value.obj = ptr::from_ref(val).cast_mut();
     }
 
