@@ -65,11 +65,11 @@ impl ErrorTracker {
 
 impl ErrorObserver for ErrorTracker {
     fn should_observe(&self, error_type: ErrorType) -> bool {
-        (ErrorType::FATAL | ErrorType::WARNING | ErrorType::USER_WARNING).contains(error_type)
+        (ErrorType::Fatal | ErrorType::Warning | ErrorType::UserWarning).contains(error_type)
     }
 
     fn on_error(&self, error: &ErrorInfo) {
-        if ErrorType::FATAL.contains(error.error_type) {
+        if ErrorType::Fatal.contains(error.error_type) {
             self.fatal_count.fetch_add(1, Ordering::Relaxed);
             eprintln!(
                 "[FATAL] {}:{} - {}",

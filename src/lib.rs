@@ -63,7 +63,7 @@ pub mod prelude {
     #[cfg_attr(docs, doc(cfg(feature = "closure")))]
     pub use crate::closure::Closure;
     pub use crate::exception::{PhpException, PhpResult};
-    pub use crate::flags::DataTypeExt;
+    pub use crate::flags::{DataTypeExt, ErrorType};
     #[cfg(feature = "enum")]
     pub use crate::php_enum;
     pub use crate::php_print;
@@ -72,8 +72,8 @@ pub mod prelude {
     pub use crate::types::ZendCallable;
     #[cfg(feature = "observer")]
     pub use crate::zend::{
-        BacktraceFrame, ErrorInfo, ErrorObserver, ErrorType, ExceptionInfo, ExceptionObserver,
-        FcallInfo, FcallObserver, ZendExtensionHandler,
+        BacktraceFrame, ErrorInfo, ErrorObserver, ExceptionInfo, ExceptionObserver, FcallInfo,
+        FcallObserver, ZendExtensionHandler,
     };
     pub use crate::zend::{BailoutGuard, ModuleGlobal, ModuleGlobals};
     pub use crate::{

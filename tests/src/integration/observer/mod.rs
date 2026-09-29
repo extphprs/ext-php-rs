@@ -148,13 +148,12 @@ impl TestErrorObserver {
 
 impl ErrorObserver for TestErrorObserver {
     fn should_observe(&self, error_type: ErrorType) -> bool {
-        // Observe warnings and user errors/warnings
-        (ErrorType::WARNING | ErrorType::USER_WARNING | ErrorType::USER_ERROR).contains(error_type)
+        (ErrorType::Warning | ErrorType::UserWarning).contains(error_type)
     }
 
     fn on_error(&self, error: &ErrorInfo) {
-        if ErrorType::WARNING.contains(error.error_type)
-            || ErrorType::USER_WARNING.contains(error.error_type)
+        if ErrorType::Warning.contains(error.error_type)
+            || ErrorType::UserWarning.contains(error.error_type)
         {
             self.warning_count.fetch_add(1, Ordering::Relaxed);
         } else {

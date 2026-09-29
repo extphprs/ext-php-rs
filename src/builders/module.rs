@@ -313,7 +313,7 @@ impl ModuleBuilder<'_> {
     ///
     /// impl ErrorObserver for MyErrorLogger {
     ///     fn should_observe(&self, error_type: ErrorType) -> bool {
-    ///         ErrorType::FATAL.contains(error_type)
+    ///         ErrorType::Fatal.contains(error_type)
     ///     }
     ///
     ///     fn on_error(&self, error: &ErrorInfo) {

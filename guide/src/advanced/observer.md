@@ -100,11 +100,11 @@ impl ErrorTracker {
 
 impl ErrorObserver for ErrorTracker {
     fn should_observe(&self, error_type: ErrorType) -> bool {
-        (ErrorType::FATAL | ErrorType::WARNING).contains(error_type)
+        (ErrorType::Fatal | ErrorType::Warning).contains(error_type)
     }
 
     fn on_error(&self, error: &ErrorInfo) {
-        if ErrorType::FATAL.contains(error.error_type) {
+        if ErrorType::Fatal.contains(error.error_type) {
             self.fatal_count.fetch_add(1, Ordering::Relaxed);
 
             if let Some(trace) = error.backtrace() {
@@ -137,25 +137,26 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 ### `ErrorType` - Error Level Bitflags
 
 ```rust,ignore
-ErrorType::ERROR           // E_ERROR
-ErrorType::WARNING         // E_WARNING
-ErrorType::PARSE           // E_PARSE
-ErrorType::NOTICE          // E_NOTICE
-ErrorType::CORE_ERROR      // E_CORE_ERROR
-ErrorType::CORE_WARNING    // E_CORE_WARNING
-ErrorType::COMPILE_ERROR   // E_COMPILE_ERROR
-ErrorType::COMPILE_WARNING // E_COMPILE_WARNING
-ErrorType::USER_ERROR      // E_USER_ERROR
-ErrorType::USER_WARNING    // E_USER_WARNING
-ErrorType::USER_NOTICE     // E_USER_NOTICE
-ErrorType::RECOVERABLE_ERROR // E_RECOVERABLE_ERROR
-ErrorType::DEPRECATED      // E_DEPRECATED
-ErrorType::USER_DEPRECATED // E_USER_DEPRECATED
+ErrorType::Error            // E_ERROR
+ErrorType::Warning          // E_WARNING
+ErrorType::Parse            // E_PARSE
+ErrorType::Notice           // E_NOTICE
+ErrorType::CoreError        // E_CORE_ERROR
+ErrorType::CoreWarning      // E_CORE_WARNING
+ErrorType::CompileError     // E_COMPILE_ERROR
+ErrorType::CompileWarning   // E_COMPILE_WARNING
+ErrorType::UserError        // E_USER_ERROR (deprecated since PHP 8.4)
+ErrorType::UserWarning      // E_USER_WARNING
+ErrorType::UserNotice       // E_USER_NOTICE
+ErrorType::Strict           // E_STRICT (deprecated since PHP 8.4)
+ErrorType::RecoverableError // E_RECOVERABLE_ERROR
+ErrorType::Deprecated       // E_DEPRECATED
+ErrorType::UserDeprecated   // E_USER_DEPRECATED
 
-// Convenience groups
-ErrorType::ALL   // All error types
-ErrorType::FATAL // ERROR | CORE_ERROR | COMPILE_ERROR | USER_ERROR | RECOVERABLE_ERROR | PARSE
-ErrorType::CORE  // CORE_ERROR | CORE_WARNING
+// Convenience groups, with the values of the PHP headers you build against
+ErrorType::All   // E_ALL, contains Strict before PHP 8.4
+ErrorType::Fatal // E_FATAL_ERRORS: Error | CoreError | CompileError | UserError | RecoverableError | Parse
+ErrorType::Core  // E_CORE: CoreError | CoreWarning
 ```
 
 ### `ErrorInfo` - Error Metadata

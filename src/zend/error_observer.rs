@@ -11,7 +11,7 @@
 //!
 //! impl ErrorObserver for MyErrorLogger {
 //!     fn should_observe(&self, error_type: ErrorType) -> bool {
-//!         ErrorType::FATAL.contains(error_type)
+//!         ErrorType::Fatal.contains(error_type)
 //!     }
 //!
 //!     fn on_error(&self, error: &ErrorInfo) {
@@ -26,75 +26,8 @@
 
 use std::sync::OnceLock;
 
-use bitflags::bitflags;
-
 use crate::ffi;
-
-bitflags! {
-    /// PHP error types as bitflags for filtering.
-    ///
-    /// These map directly to PHP's E_* constants and can be combined
-    /// for filtering in [`ErrorObserver::should_observe`].
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Observe only fatal errors
-    /// ErrorType::FATAL.contains(error_type)
-    ///
-    /// // Observe errors and warnings
-    /// (ErrorType::FATAL | ErrorType::WARNING).contains(error_type)
-    /// ```
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct ErrorType: i32 {
-        /// Fatal run-time errors (E_ERROR)
-        const ERROR             = 1 << 0;
-        /// Run-time warnings (E_WARNING)
-        const WARNING           = 1 << 1;
-        /// Compile-time parse errors (E_PARSE)
-        const PARSE             = 1 << 2;
-        /// Run-time notices (E_NOTICE)
-        const NOTICE            = 1 << 3;
-        /// Fatal errors during PHP startup (E_CORE_ERROR)
-        const CORE_ERROR        = 1 << 4;
-        /// Warnings during PHP startup (E_CORE_WARNING)
-        const CORE_WARNING      = 1 << 5;
-        /// Fatal compile-time errors (E_COMPILE_ERROR)
-        const COMPILE_ERROR     = 1 << 6;
-        /// Compile-time warnings (E_COMPILE_WARNING)
-        const COMPILE_WARNING   = 1 << 7;
-        /// User-generated error (E_USER_ERROR)
-        const USER_ERROR        = 1 << 8;
-        /// User-generated warning (E_USER_WARNING)
-        const USER_WARNING      = 1 << 9;
-        /// User-generated notice (E_USER_NOTICE)
-        const USER_NOTICE       = 1 << 10;
-        /// Strict standards suggestions (E_STRICT)
-        #[deprecated = "E_STRICT removed in PHP 8.4, will be removed in PHP 9.0"]
-        const STRICT            = 1 << 11;
-        /// Catchable fatal error (E_RECOVERABLE_ERROR)
-        const RECOVERABLE_ERROR = 1 << 12;
-        /// Run-time deprecation notices (E_DEPRECATED)
-        const DEPRECATED        = 1 << 13;
-        /// User-generated deprecation (E_USER_DEPRECATED)
-        const USER_DEPRECATED   = 1 << 14;
-
-        /// All error types (E_ALL, excluding E_STRICT in PHP 8.4+)
-        const ALL = Self::ERROR.bits() | Self::WARNING.bits() | Self::PARSE.bits()
-                  | Self::NOTICE.bits() | Self::CORE_ERROR.bits() | Self::CORE_WARNING.bits()
-                  | Self::COMPILE_ERROR.bits() | Self::COMPILE_WARNING.bits()
-                  | Self::USER_ERROR.bits() | Self::USER_WARNING.bits() | Self::USER_NOTICE.bits()
-                  | Self::RECOVERABLE_ERROR.bits() | Self::DEPRECATED.bits() | Self::USER_DEPRECATED.bits();
-
-        /// Core errors and warnings (E_CORE)
-        const CORE = Self::CORE_ERROR.bits() | Self::CORE_WARNING.bits();
-
-        /// All fatal error types (E_FATAL_ERRORS)
-        const FATAL = Self::ERROR.bits() | Self::CORE_ERROR.bits()
-                    | Self::COMPILE_ERROR.bits() | Self::USER_ERROR.bits()
-                    | Self::RECOVERABLE_ERROR.bits() | Self::PARSE.bits();
-    }
-}
+pub use crate::flags::ErrorType;
 
 /// A single frame in a PHP backtrace.
 #[derive(Debug, Clone)]
@@ -257,7 +190,7 @@ impl ErrorInfo<'_> {
 ///
 /// impl ErrorObserver for ErrorCounter {
 ///     fn should_observe(&self, error_type: ErrorType) -> bool {
-///         ErrorType::FATAL.contains(error_type)
+///         ErrorType::Fatal.contains(error_type)
 ///     }
 ///
 ///     fn on_error(&self, error: &ErrorInfo) {
@@ -320,7 +253,7 @@ unsafe extern "C" fn error_observer_callback(
         return;
     };
 
-    let error_type = ErrorType::from_bits_truncate(error_type);
+    let error_type = ErrorType::from_bits_truncate(error_type.cast_unsigned());
 
     if !observer.should_observe(error_type) {
         return;
@@ -382,39 +315,45 @@ mod tests {
 
     #[test]
     fn test_error_type_bitflags() {
-        assert!(ErrorType::FATAL.contains(ErrorType::ERROR));
-        assert!(ErrorType::FATAL.contains(ErrorType::PARSE));
-        assert!(!ErrorType::FATAL.contains(ErrorType::WARNING));
-        assert!(!ErrorType::FATAL.contains(ErrorType::NOTICE));
+        assert!(ErrorType::Fatal.contains(ErrorType::Error));
+        assert!(ErrorType::Fatal.contains(ErrorType::Parse));
+        assert!(!ErrorType::Fatal.contains(ErrorType::Warning));
+        assert!(!ErrorType::Fatal.contains(ErrorType::Notice));
     }
 
     #[test]
     fn test_error_type_all() {
-        assert!(ErrorType::ALL.contains(ErrorType::ERROR));
-        assert!(ErrorType::ALL.contains(ErrorType::WARNING));
-        assert!(ErrorType::ALL.contains(ErrorType::NOTICE));
-        assert!(ErrorType::ALL.contains(ErrorType::DEPRECATED));
+        assert!(ErrorType::All.contains(ErrorType::Error));
+        assert!(ErrorType::All.contains(ErrorType::Warning));
+        assert!(ErrorType::All.contains(ErrorType::Notice));
+        assert!(ErrorType::All.contains(ErrorType::Deprecated));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_error_type_all_matches_php_e_all() {
+        assert_eq!(ErrorType::All.contains(ErrorType::Strict), !cfg!(php84));
     }
 
     #[test]
     fn test_observer_trait_impl() {
         let observer = TestErrorObserver { observe_all: true };
-        assert!(observer.should_observe(ErrorType::ERROR));
+        assert!(observer.should_observe(ErrorType::Error));
 
         let observer = TestErrorObserver { observe_all: false };
-        assert!(!observer.should_observe(ErrorType::ERROR));
+        assert!(!observer.should_observe(ErrorType::Error));
     }
 
     #[test]
     fn test_error_type_from_bits() {
         let error_type = ErrorType::from_bits_truncate(1); // E_ERROR
-        assert_eq!(error_type, ErrorType::ERROR);
+        assert_eq!(error_type, ErrorType::Error);
 
         let error_type = ErrorType::from_bits_truncate(2); // E_WARNING
-        assert_eq!(error_type, ErrorType::WARNING);
+        assert_eq!(error_type, ErrorType::Warning);
 
         let error_type = ErrorType::from_bits_truncate(3); // E_ERROR | E_WARNING
-        assert!(error_type.contains(ErrorType::ERROR));
-        assert!(error_type.contains(ErrorType::WARNING));
+        assert!(error_type.contains(ErrorType::Error));
+        assert!(error_type.contains(ErrorType::Warning));
     }
 }
