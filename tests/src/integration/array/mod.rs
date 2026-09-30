@@ -30,6 +30,11 @@ pub fn test_btree_map(a: BTreeMap<ArrayKey, String>) -> BTreeMap<ArrayKey, Strin
 }
 
 #[php_function]
+pub fn test_btree_map_string_keys(a: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    a
+}
+
+#[php_function]
 pub fn test_array_keys() -> Zval {
     let mut ht = HashTable::new();
     ht.insert(-42, "foo").unwrap();
@@ -140,6 +145,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(test_array_assoc))
         .function(wrap_function!(test_array_assoc_array_keys))
         .function(wrap_function!(test_btree_map))
+        .function(wrap_function!(test_btree_map_string_keys))
         .function(wrap_function!(test_array_keys))
         .function(wrap_function!(test_optional_array_ref))
         .function(wrap_function!(test_optional_array_mut_ref))

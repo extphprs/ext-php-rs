@@ -301,4 +301,41 @@ mod tests {
             assert_eq!(map.get(&ArrayKey::Long(3)).unwrap(), "value3");
         });
     }
+
+    #[test]
+    fn test_btree_map_string_keys_round_trip() {
+        Embed::run(|| {
+            let zval = Embed::eval(
+                "['+1' => 'plus', '-0' => 'negative zero', '-01' => 'negative leading zero', \
+                 '1' => 'one', '-1' => 'negative one'];",
+            )
+            .unwrap();
+
+            let map = BTreeMap::<String, String>::from_zval(&zval).unwrap();
+            let zval = map.into_zval(false).unwrap();
+            let ht = zval.array().unwrap();
+            assert_eq!(ht.len(), 5);
+            for (key, expected) in [
+                ("+1", "plus"),
+                ("-0", "negative zero"),
+                ("-01", "negative leading zero"),
+            ] {
+                assert_eq!(
+                    ht.get(ArrayKey::Str(key)).and_then(Zval::str),
+                    Some(expected),
+                    "{key:?} should stay a string key"
+                );
+            }
+            assert_eq!(ht.get_index(1).and_then(Zval::str), Some("one"));
+            assert_eq!(ht.get_index(-1).and_then(Zval::str), Some("negative one"));
+        });
+    }
+
+    #[test]
+    fn test_btree_map_i64_rejects_non_canonical_string_keys() {
+        Embed::run(|| {
+            let zval = Embed::eval("['+1' => 'a', 1 => 'b', '01' => 'c'];").unwrap();
+            assert!(BTreeMap::<i64, String>::from_zval(&zval).is_none());
+        });
+    }
 }

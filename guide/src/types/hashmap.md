@@ -135,8 +135,8 @@ where the keys can be strings or integers.
 
 If using `String` or `&str` as the key type, only string keys will be accepted.
 
-For `i64` keys, string keys that can be parsed as integers will be accepted, and
-converted to `i64`.
+For `i64` keys, string keys are only accepted if PHP would treat them as integer
+keys, e.g. `"42"` or `"-1"` but not `"+1"` or `"01"`.
 
 If you need to accept both string and integer keys, use `ArrayKey` as the key type.
 

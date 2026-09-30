@@ -88,6 +88,23 @@ assert($leading_zeros['007'] === 'bond', 'Value at key "007" should be "bond"');
 assert(array_key_exists('00', $leading_zeros), '"00" should stay as string key');
 assert($leading_zeros['00'] === 'zerozero', 'Value at key "00" should be "zerozero"');
 
+// Keys PHP keeps as strings must not be coerced to integers on the way back from Rust.
+// Listed in byte order, which is the order `BTreeMap<String, _>` returns them in.
+$non_canonical = [
+    '+1' => 'plus one',
+    '-0' => 'negative zero',
+    '-01' => 'negative leading zero',
+    '-1' => 'negative one',
+    '1' => 'one'
+];
+$from_hash_map = test_array_assoc($non_canonical);
+ksort($from_hash_map, SORT_STRING);
+assert($from_hash_map === $non_canonical, 'HashMap<String, _> should preserve string keys');
+assert(
+    test_btree_map_string_keys($non_canonical) === $non_canonical,
+    'BTreeMap<String, _> should preserve string keys'
+);
+
 // Test Option<&ZendHashTable> with literal array (issue #515)
 // This should work without "could not be passed by reference" error
 assert(test_optional_array_ref([1, 2, 3]) === 3, 'Option<&ZendHashTable> should accept literal array');

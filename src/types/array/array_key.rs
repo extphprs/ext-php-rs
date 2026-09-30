@@ -1,7 +1,6 @@
 use crate::{
     boxed::ZBox, convert::FromZval, error::Error, flags::DataType, types::ZendStr, types::Zval,
 };
-use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display};
 
 /// Represents the key of a PHP array, which can be either a long or a string.
@@ -21,16 +20,27 @@ pub enum ArrayKey<'a> {
     ZendString(&'a ZendStr),
 }
 
+/// Parses a string array key as an integer the same way PHP does
+/// (`ZEND_HANDLE_NUMERIC_STR`).
+///
+/// Only canonical decimal integers are numeric: an optional `-` followed by
+/// digits without leading zeros, within range. Strings such as `"+1"`, `"-0"`
+/// or `"01"` stay string keys.
+fn parse_numeric_key(key: &str) -> Option<i64> {
+    let digits = key.strip_prefix('-').unwrap_or(key);
+    let canonical = match digits.as_bytes() {
+        [b'0'] => key == "0",
+        [b'1'..=b'9', rest @ ..] => rest.iter().all(u8::is_ascii_digit),
+        _ => false,
+    };
+    if canonical { key.parse().ok() } else { None }
+}
+
 impl From<String> for ArrayKey<'_> {
     fn from(value: String) -> Self {
-        if let Ok(index) = i64::from_str(value.as_str()) {
-            if value == "0" || !value.starts_with('0') {
-                Self::Long(index)
-            } else {
-                Self::String(value)
-            }
-        } else {
-            Self::String(value)
+        match parse_numeric_key(&value) {
+            Some(index) => Self::Long(index),
+            None => Self::String(value),
         }
     }
 }
@@ -59,8 +69,7 @@ impl TryFrom<ArrayKey<'_>> for i64 {
             ArrayKey::ZendString(s) => s.as_str().map_err(|_| Error::InvalidUtf8)?,
         };
 
-        key.parse::<i64>()
-            .map_err(|_| Error::ZvalConversion(DataType::String))
+        parse_numeric_key(key).ok_or(Error::ZvalConversion(DataType::String))
     }
 }
 
@@ -95,14 +104,9 @@ impl Display for ArrayKey<'_> {
 
 impl<'a> From<&'a str> for ArrayKey<'a> {
     fn from(value: &'a str) -> ArrayKey<'a> {
-        if let Ok(index) = i64::from_str(value) {
-            if value == "0" || !value.starts_with('0') {
-                ArrayKey::Long(index)
-            } else {
-                ArrayKey::Str(value)
-            }
-        } else {
-            ArrayKey::Str(value)
+        match parse_numeric_key(value) {
+            Some(index) => ArrayKey::Long(index),
+            None => ArrayKey::Str(value),
         }
     }
 }
@@ -148,8 +152,7 @@ impl<'a> From<&'a ZBox<ZendStr>> for ArrayKey<'a> {
 impl<'a> From<&'a ZendStr> for ArrayKey<'a> {
     fn from(value: &'a ZendStr) -> Self {
         if let Ok(text) = value.as_str()
-            && let Ok(index) = i64::from_str(text)
-            && (text == "0" || !text.starts_with('0'))
+            && let Some(index) = parse_numeric_key(text)
         {
             return ArrayKey::Long(index);
         }
@@ -226,6 +229,14 @@ mod tests {
         let result: crate::error::Result<i64, _> = key.try_into();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), Error::ZvalConversion(_)));
+
+        for key in ["+1", "01", "-0", "-01"] {
+            let result: crate::error::Result<i64, _> = ArrayKey::Str(key).try_into();
+            assert!(
+                matches!(result, Err(Error::ZvalConversion(_))),
+                "{key:?} should not convert to i64"
+            );
+        }
     }
 
     #[test]
@@ -236,6 +247,44 @@ mod tests {
         assert_eq!(key, ArrayKey::Str("071"));
         let key: ArrayKey = "0".into();
         assert_eq!(key, ArrayKey::Long(0));
+    }
+
+    #[test]
+    fn test_from_str_matches_php_numeric_keys() {
+        for (key, expected) in [
+            ("1", 1),
+            ("-1", -1),
+            ("0", 0),
+            ("9223372036854775807", i64::MAX),
+            ("-9223372036854775808", i64::MIN),
+        ] {
+            assert_eq!(ArrayKey::from(key), ArrayKey::Long(expected), "{key:?}");
+            assert_eq!(
+                ArrayKey::from(key.to_string()),
+                ArrayKey::Long(expected),
+                "{key:?}"
+            );
+        }
+
+        for key in [
+            "+1",
+            "+0",
+            "-0",
+            "-01",
+            "-",
+            "",
+            " 1",
+            "1 ",
+            "9223372036854775808",
+            "-9223372036854775809",
+        ] {
+            assert_eq!(ArrayKey::from(key), ArrayKey::Str(key), "{key:?}");
+            assert_eq!(
+                ArrayKey::from(key.to_string()),
+                ArrayKey::String(key.to_string()),
+                "{key:?}"
+            );
+        }
     }
 
     #[test]
