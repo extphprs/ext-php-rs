@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.16.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.0...ext-php-rs-v0.16.1) - 2026-10-01
+
+### Fixed
+- *(array)* Don't coerce non-canonical numeric strings to integer keys ([#798](https://github.com/extphprs/ext-php-rs/pull/798)) (by @TobiasBengtsson) [[#798](https://github.com/extphprs/ext-php-rs/issues/798)] 
+- *(stubs)* Fully qualify extends and implements references ([#799](https://github.com/extphprs/ext-php-rs/pull/799)) (by @ptondereau) [[#799](https://github.com/extphprs/ext-php-rs/issues/799)] 
+
+### Other
+- *(release-plz)* Re-enable semver checks ([#796](https://github.com/extphprs/ext-php-rs/pull/796)) (by @ptondereau) [[#796](https://github.com/extphprs/ext-php-rs/issues/796)] 
 ## [0.16.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.15...ext-php-rs-v0.16.0) - 2026-09-29
 
 ### BREAKING CHANGES
