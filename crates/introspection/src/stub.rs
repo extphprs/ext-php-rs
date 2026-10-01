@@ -11,7 +11,7 @@ use std::{
 use super::{
     Class, Constant, DocBlock, Function, Method, MethodType, Module, Parameter, Property, Retval,
     Visibility,
-    abi::{Option, RString, Str},
+    abi::{Option, Str},
 };
 
 use crate::{DataType, Enum, EnumCase};
@@ -331,7 +331,8 @@ fn datatype_to_phpdoc(ty: &DataType, nullable: bool) -> String {
     }
 }
 
-/// Format a class type for `PHPDoc` (with backslash prefix).
+/// Formats a fully qualified class reference, adding the leading backslash
+/// only when it is missing.
 fn format_class_type(name: &str, nullable: bool) -> String {
     let class_name = if name.starts_with('\\') {
         name.to_string()
@@ -555,7 +556,7 @@ impl ToStub for Parameter {
 
 impl ToStub for DataType {
     fn fmt_stub(&self, buf: &mut String) -> FmtResult {
-        let mut fqdn = "\\".to_owned();
+        let qualified;
         write!(
             buf,
             "{}",
@@ -567,8 +568,8 @@ impl ToStub for DataType {
                 DataType::Array => "array",
                 DataType::Object(_) => match self.class_name() {
                     Some(name) => {
-                        fqdn.push_str(name);
-                        fqdn.as_str()
+                        qualified = format_class_type(name, false);
+                        qualified.as_str()
                     }
                     None => "object",
                 },
@@ -613,31 +614,26 @@ impl ToStub for Class {
         }
 
         if let Option::Some(extends) = &self.extends {
-            write!(buf, "extends {extends} ")?;
-        }
-
-        if !self.implements.is_empty() && !self.is_interface {
-            write!(
-                buf,
-                "implements {} ",
-                self.implements
-                    .iter()
-                    .map(RString::as_str)
-                    .collect::<StdVec<_>>()
-                    .join(", ")
-            )?;
-        }
-
-        if !self.implements.is_empty() && self.is_interface {
             write!(
                 buf,
                 "extends {} ",
-                self.implements
-                    .iter()
-                    .map(RString::as_str)
-                    .collect::<StdVec<_>>()
-                    .join(", ")
+                format_class_type(extends.as_str(), false)
             )?;
+        }
+
+        if !self.implements.is_empty() {
+            let keyword = if self.is_interface {
+                "extends"
+            } else {
+                "implements"
+            };
+            let interfaces = self
+                .implements
+                .iter()
+                .map(|interface| format_class_type(interface.as_str(), false))
+                .collect::<StdVec<_>>()
+                .join(", ");
+            write!(buf, "{keyword} {interfaces} ")?;
         }
 
         writeln!(buf, "{{")?;
@@ -904,8 +900,8 @@ fn indent(s: &str, depth: usize) -> String {
 
 #[cfg(test)]
 mod test {
-    use super::{ToStub, split_namespace};
-    use crate::DataType;
+    use super::{StdOption, StdVec, ToStub, split_namespace};
+    use crate::{Class, DataType, DocBlock, Module};
 
     #[test]
     pub fn test_split_ns() {
@@ -1332,5 +1328,109 @@ mod test {
         // Should NOT contain rustdoc section headers
         assert!(!buf.contains("# Arguments"));
         assert!(!buf.contains("# Returns"));
+    }
+
+    fn class(name: &str, extends: StdOption<&str>, implements: &[&str]) -> Class {
+        Class {
+            name: name.into(),
+            docs: DocBlock(vec![].into()),
+            extends: extends.map(Into::into).into(),
+            implements: implements
+                .iter()
+                .map(|&i| i.into())
+                .collect::<StdVec<_>>()
+                .into(),
+            properties: vec![].into(),
+            methods: vec![].into(),
+            constants: vec![].into(),
+            is_interface: false,
+        }
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn namespaced_parent_resolves_from_global_namespace() {
+        let module = Module {
+            name: "ext".into(),
+            functions: vec![].into(),
+            classes: vec![
+                class("Ns\\Error", Some("\\Exception"), &[]),
+                class("Ns\\NotFoundError", Some("Ns\\Error"), &[]),
+            ]
+            .into(),
+            enums: vec![].into(),
+            constants: vec![].into(),
+        };
+
+        let stub = module.to_stub().unwrap();
+
+        assert!(
+            stub.contains("class NotFoundError extends \\Ns\\Error {"),
+            "{stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn qualified_parent_keeps_single_leading_backslash() {
+        let stub = class("Ns\\Error", Some("\\Exception"), &[])
+            .to_stub()
+            .unwrap();
+
+        assert!(
+            stub.starts_with("class Error extends \\Exception {"),
+            "{stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn unqualified_global_parent_is_qualified() {
+        let stub = class("Ns\\Error", Some("Exception"), &[])
+            .to_stub()
+            .unwrap();
+
+        assert!(
+            stub.starts_with("class Error extends \\Exception {"),
+            "{stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn class_interfaces_are_qualified() {
+        let stub = class("Ns\\Item", None, &["Ns\\Countable", "\\Stringable"])
+            .to_stub()
+            .unwrap();
+
+        assert!(
+            stub.starts_with("class Item implements \\Ns\\Countable, \\Stringable {"),
+            "{stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn interface_parents_are_qualified() {
+        let stub = Class {
+            is_interface: true,
+            ..class("Ns\\Child", None, &["Ns\\Parent", "\\Countable"])
+        }
+        .to_stub()
+        .unwrap();
+
+        assert!(
+            stub.starts_with("interface Child extends \\Ns\\Parent, \\Countable {"),
+            "{stub}"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn qualified_object_type_keeps_single_leading_backslash() {
+        assert_eq!(
+            DataType::object("\\Foo\\Bar").to_stub().unwrap(),
+            "\\Foo\\Bar"
+        );
     }
 }

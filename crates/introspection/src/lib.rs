@@ -142,10 +142,11 @@ pub struct Class {
     pub name: RString,
     /// Documentation comments for the class.
     pub docs: DocBlock,
-    /// Name of the class the exported class extends. (Not implemented #326)
+    /// Name of the class the exported class extends. Stubs render it fully
+    /// qualified.
     pub extends: Option<RString>,
-    /// Names of the interfaces the exported class implements. (Not implemented
-    /// #326)
+    /// Names of the interfaces the exported class implements, or the parent
+    /// interfaces of an exported interface. Stubs render them fully qualified.
     pub implements: Vec<RString>,
     /// Properties of the class.
     pub properties: Vec<Property>,
