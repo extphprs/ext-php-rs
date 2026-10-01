@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.0...cargo-php-v0.2.1) - 2026-10-01
+
+### Fixed
+- *(stubs)* Fully qualify extends and implements references ([#799](https://github.com/extphprs/ext-php-rs/pull/799)) (by @ptondereau) [[#799](https://github.com/extphprs/ext-php-rs/issues/799)] 
 ## [0.2.0](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.1.21...cargo-php-v0.2.0) - 2026-09-29
 
 ### BREAKING CHANGES

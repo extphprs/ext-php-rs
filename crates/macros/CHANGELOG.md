@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.12.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.0...ext-php-rs-derive-v0.12.1) - 2026-10-01
+
+### Fixed
+- *(stubs)* Fully qualify extends and implements references ([#799](https://github.com/extphprs/ext-php-rs/pull/799)) (by @ptondereau) [[#799](https://github.com/extphprs/ext-php-rs/issues/799)] 
 ## [0.12.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.11.14...ext-php-rs-derive-v0.12.0) - 2026-09-29
 
 ### BREAKING CHANGES
