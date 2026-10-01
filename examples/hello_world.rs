@@ -1,6 +1,6 @@
 #![allow(missing_docs, clippy::must_use_candidate)]
 #![cfg_attr(windows, feature(abi_vectorcall))]
-use ext_php_rs::{constant::IntoConst, prelude::*, types::ZendClassObject};
+use ext_php_rs::{constant::IntoConst, prelude::*, types::ZendClassObject, zend::ce};
 
 #[derive(Debug)]
 #[php_class]
@@ -56,6 +56,18 @@ impl TestClass {
     }
 }
 
+#[php_class]
+#[php(name = "HelloWorld\\BaseError")]
+#[php(extends(ce = ce::exception, stub = "Exception"))]
+#[derive(Default)]
+pub struct BaseError;
+
+#[php_class]
+#[php(name = "HelloWorld\\NotFoundError")]
+#[php(extends(BaseError))]
+#[derive(Default)]
+pub struct NotFoundError;
+
 #[php_function]
 pub fn new_class() -> TestClass {
     TestClass {
@@ -103,6 +115,8 @@ fn startup(_ty: i32, mod_num: i32) -> i32 {
 pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
     module
         .class::<TestClass>()
+        .class::<BaseError>()
+        .class::<NotFoundError>()
         .function(wrap_function!(hello_world))
         .function(wrap_function!(new_class))
         .function(wrap_function!(get_zval_convert))

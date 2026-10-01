@@ -6,6 +6,16 @@ expression: stubs
 
 // Stubs for ext-php-rs
 
+namespace HelloWorld {
+    class BaseError extends \Exception {
+        public function __construct() {}
+    }
+
+    class NotFoundError extends \HelloWorld\BaseError {
+        public function __construct() {}
+    }
+}
+
 namespace {
     const CONST_NAME = 100;
 

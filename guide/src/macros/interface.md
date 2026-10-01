@@ -87,6 +87,8 @@ PHP interfaces can extend other interfaces. You can achieve this in two ways:
 ### Using `#[php(extends(...))]`
 
 Use the `extends` attribute to extend a built-in PHP interface or another Rust-defined interface.
+Generated stubs write each parent interface name as a fully qualified name, with a leading `\`.
+A leading `\` in `stub = "..."` is optional.
 
 For built-in PHP interfaces, use the explicit form:
 

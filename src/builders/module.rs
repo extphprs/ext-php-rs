@@ -824,8 +824,8 @@ mod tests {
         assert_eq!(builder.version, "1.0");
         assert!(builder.functions.is_empty());
         assert!(builder.constants.is_empty());
-        assert!(builder.classes.is_empty());
-        assert!(builder.interfaces.is_empty());
+        assert_eq!(builder.classes.len(), 0);
+        assert_eq!(builder.interfaces.len(), 0);
         assert!(builder.startup_func.is_none());
         assert!(builder.shutdown_func.is_none());
         assert!(builder.request_startup_func.is_none());
@@ -833,7 +833,7 @@ mod tests {
         assert!(builder.post_deactivate_func.is_none());
         assert!(builder.info_func.is_none());
         #[cfg(feature = "enum")]
-        assert!(builder.enums.is_empty());
+        assert_eq!(builder.enums.len(), 0);
     }
 
     #[test]

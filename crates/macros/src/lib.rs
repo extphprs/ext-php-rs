@@ -58,6 +58,9 @@ extern crate proc_macro;
 ///   - Explicit form: `#[php(implements(ce = ce_fn, stub = "InterfaceName"))]`
 ///     — For built-in PHP interfaces. `ce_fn` must be a valid function with the
 ///     signature `fn() -> &'static ClassEntry`.
+/// - Generated stubs write each parent class and interface name as a fully
+///   qualified name, with a leading `\`. A leading `\` in `stub = "..."` is
+///   optional.
 ///
 /// You may also use the `#[php(prop)]` attribute on a struct field to use the
 /// field as a PHP property. By default, the property is public and its name is
@@ -1094,7 +1097,9 @@ fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// ### Using `#[php(extends(...))]`
 ///
 /// Use the `extends` attribute to extend a built-in PHP interface or another
-/// Rust-defined interface.
+/// Rust-defined interface. Generated stubs write each parent interface name as
+/// a fully qualified name, with a leading `\`. A leading `\` in `stub = "..."`
+/// is optional.
 ///
 /// For built-in PHP interfaces, use the explicit form:
 ///
