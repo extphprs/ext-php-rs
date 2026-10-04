@@ -5,7 +5,7 @@ use std::{fmt::Debug, ptr};
 use crate::{
     class::RegisteredClass,
     error::{Error, Result},
-    ffi::zend_throw_exception_ex,
+    ffi::zend_throw_exception,
     ffi::zend_throw_exception_object,
     flags::ClassFlags,
     types::{ZendStr, Zval},
@@ -112,14 +112,14 @@ impl PhpException {
             return;
         }
 
-        let class = self.ex.name().unwrap_or_default();
-        let message = self.message.replace('\0', "\\0");
         let result = match self.object {
             Some(object) => throw_object(object),
             None => throw_with_code(self.ex, self.code, &self.message),
         };
 
         if let Err(err) = result {
+            let class = self.ex.name().unwrap_or_default();
+            let message = self.message.replace('\0', "\\0");
             let fallback = format!("cannot throw {class}: {err}; original message: {message}");
             let _ = throw_with_code(ce::error(), 0, &fallback);
         }
@@ -213,14 +213,7 @@ pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> 
     // to a pointer it will be valid. `message` is NUL-terminated and outlives the
     // call; if the engine bails out here the Zend allocator reclaims it at request
     // shutdown, as php-src does for its own copy of the message.
-    unsafe {
-        zend_throw_exception_ex(
-            ptr::from_ref(ex).cast_mut(),
-            code.into(),
-            c"%s".as_ptr(),
-            message_ptr,
-        )
-    };
+    unsafe { zend_throw_exception(ptr::from_ref(ex).cast_mut(), message_ptr, code.into()) };
     Ok(())
 }
 
