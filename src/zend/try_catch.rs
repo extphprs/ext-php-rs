@@ -73,6 +73,7 @@ pub(crate) fn catch_panic<R>(func: impl FnOnce() -> PhpResult<R>) -> PhpResult<R
     }
 }
 
+/// On a bailout the closure is never dropped, so the values it captured leak.
 pub(crate) struct CatchFrame<R, F> {
     func: ManuallyDrop<F>,
     result: MaybeUninit<std::thread::Result<R>>,
