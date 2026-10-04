@@ -170,38 +170,42 @@ pub fn throw_class_object_exception_with_prop() -> PhpResult<i32> {
     Err(PhpException::from_class::<TestClassExtendsWithProp>("ignored".into()).with_object(zval))
 }
 
-/// Regression coverage for a refcount leak in the `#[php(prop)]` field getter
-/// when the field is an owned refcounted type (here `String`) AND the property
-/// is read via a C-level method that uses `zval_get_string` + `RETURN_STR`
-/// (e.g. `Exception::getMessage`).
-///
-/// The generated getter writes a fresh `zend_string` with refcount=1 into the
-/// `rv` slot. PHP's `getMessage` then calls `zval_get_string(prop)` which
-/// addrefs (→2) and `RETURN_STR` transfers the pointer to `return_value`
-/// without changing the refcount. When the method returns, the stack `rv`
-/// goes out of scope without being dtor'd, orphaning one refcount per call.
-/// Each `$e->getMessage()` therefore leaks a `zend_string`.
-///
-/// Surfaced first in production by biscuit-php's `DatalogException` subclasses,
-/// which declare `#[php(prop, flags = Protected)] message: String` and shadow
-/// the parent `\Exception::$message`.
+/// A `#[php(prop)]` field shadowing `\Exception::$message`, read by C methods
+/// such as `Exception::getMessage` that never release the `rv` they pass to
+/// `read_property`.
 #[php_class]
 #[php(extends(ce = ce::exception, stub = "\\Exception"))]
 #[derive(Default)]
 pub struct TestExceptionMessageLeak {
-    /// Public to keep the test focused on the refcount leak rather than the
-    /// visibility-check path. The leak reproduces on any `#[php(prop)]` field
-    /// whose type allocates a `zend_string` via `IntoZval`; biscuit-php's
-    /// real-world trigger happens to use Protected, but the codegen bug is the
-    /// same shape regardless of visibility.
     #[php(prop)]
     pub message: String,
+}
+
+#[php_class]
+pub struct TestOptionalProp {
+    #[php(prop)]
+    pub opt: Option<String>,
+}
+
+#[php_impl]
+impl TestOptionalProp {
+    pub fn __construct(opt: Option<String>) -> Self {
+        Self { opt }
+    }
+
+    pub fn clear(&mut self) {
+        self.opt = None;
+    }
 }
 
 #[php_impl]
 impl TestExceptionMessageLeak {
     pub fn __construct() -> Self {
         Self::default()
+    }
+
+    pub fn set_message(&mut self, message: String) {
+        self.message = message;
     }
 }
 
@@ -766,6 +770,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestCloneableClass>()
         .class::<TestUncloneableClass>()
         .class::<TestExceptionMessageLeak>()
+        .class::<TestOptionalProp>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
         .function(wrap_function!(throw_class_object_exception_with_prop))
@@ -786,20 +791,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
 
 #[cfg(test)]
 mod tests {
-    /// Documents an outstanding bug in the `#[php(prop)]` field-property
-    /// getter codegen: when an owned refcounted field (e.g. `String`) is read
-    /// via the `Exception::getMessage` pattern (`zval_get_string` +
-    /// `RETURN_STR`), the getter orphans one refcount on the `rv` stack zval
-    /// per call. See the `#[php(prop)]` docs in `crates/macros/src/lib.rs`
-    /// for the full mechanic and the recommended `#[php_method]` workaround.
-    ///
-    /// Ignored because a proper fix requires either an upstream PHP patch
-    /// (`zval_ptr_dtor(&rv)` in `Exception::getMessage` when `retval == &rv`)
-    /// or mirroring `#[php(prop)]` shadow fields to the parent's real
-    /// property slot via `zend_update_property_stringl`. Run with
-    /// `cargo test -- --ignored` to reproduce.
     #[test]
-    #[ignore = "documents the #[php(prop)] String getter leak on the Exception::getMessage path; see crate-level docs"]
     fn prop_string_field_does_not_leak_on_repeated_get_message() {
         assert!(crate::integration::test::run_php(
             "class/prop_string_leak.php"

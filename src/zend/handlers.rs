@@ -8,10 +8,11 @@ use crate::{
     error::php_error,
     exception::PhpResult,
     ffi::{
-        ext_php_rs_executor_globals, instanceof_function_slow, std_object_handlers,
-        zend_class_entry, zend_is_true, zend_object_handlers, zend_object_std_dtor,
-        zend_objects_clone_members, zend_std_get_properties, zend_std_has_property,
-        zend_std_read_property, zend_std_write_property, zend_throw_error,
+        BP_VAR_IS, BP_VAR_R, ZEND_ACC_STATIC, ext_php_rs_executor_globals,
+        instanceof_function_slow, std_object_handlers, zend_class_entry, zend_hash_find,
+        zend_hash_str_find, zend_is_true, zend_object_handlers, zend_object_std_dtor,
+        zend_objects_clone_members, zend_property_info, zend_std_get_properties,
+        zend_std_has_property, zend_std_read_property, zend_std_write_property, zend_throw_error,
     },
     flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
@@ -76,9 +77,9 @@ impl ZendObjectHandlers {
     /// `gc_mark_grey`, restored in `gc_scan`). Merging Rust properties into a
     /// table in that state trips `HT_ASSERT_RC1` and, once `gc_collect_white`
     /// has dropped the children's counts, destroys zvals the collector still
-    /// walks. Rust-backed properties are produced by getters and own no zvals
-    /// of their own, so the collector only needs the engine-owned storage:
-    /// this is the standard-object branch of `zend_std_get_gc`.
+    /// walks. The last value produced by a Rust property getter is kept in the
+    /// property's declared slot, so the engine-owned storage covers it: this is
+    /// the standard-object branch of `zend_std_get_gc`.
     ///
     /// Not reported, as before this handler existed: zvals held inside the Rust
     /// struct itself, and the initializer or proxy instance of a lazy object
@@ -213,13 +214,12 @@ impl ZendObjectHandlers {
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
-            obj: &mut ZendClassObject<T>,
+            this: &T,
             member: *mut ZendStr,
             type_: c_int,
             cache_slot: *mut *mut c_void,
             rv: *mut Zval,
         ) -> PhpResult<*mut Zval> {
-            let self_ = &*obj;
             let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
 
             // retval needs to be treated as initialized, so we set the type to null
@@ -248,14 +248,30 @@ impl ZendObjectHandlers {
                     let getter = prop_info
                         .get
                         .ok_or("No getter available for this property.")?;
-                    getter(self_, rv_mut)?;
-                    rv
+                    getter(this, rv_mut)?;
+                    if !cache_slot.is_null()
+                        || !matches!(u32::try_from(type_), Ok(BP_VAR_R | BP_VAR_IS))
+                    {
+                        return Ok(rv);
+                    }
+                    let info = unsafe {
+                        zend_hash_find(&raw const T::get_metadata().ce().properties_info, member)
+                    };
+                    match unsafe { declared_slot(object, info) } {
+                        Some(slot) => {
+                            unsafe { store_in_slot(slot, rv_mut) };
+                            slot
+                        }
+                        None => rv,
+                    }
                 }
                 None => unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) },
             })
         }
 
-        match catch_panic(|| unsafe { internal::<T>(object, obj, member, type_, cache_slot, rv) }) {
+        match catch_panic(|| unsafe {
+            internal::<T>(object, &**obj, member, type_, cache_slot, rv)
+        }) {
             Ok(rv) => rv,
             Err(e) => {
                 e.throw();
@@ -341,50 +357,43 @@ impl ZendObjectHandlers {
         if props.is_null() {
             return props;
         }
-        // SAFETY: non-null, and owned by the object with a single reference: the
-        // engine only shares a property table for objects without declared
-        // properties on standard handlers (`zend_proptable_to_symtable` fast
-        // paths), and the collector no longer reaches this handler since `get_gc`
-        // is installed. Separating here with `zend_array_dup` would be wrong: it
-        // resolves the `IS_INDIRECT` slots of declared properties into a detached
-        // snapshot.
-        let props = unsafe { &mut *props };
 
         // If the object doesn't have a valid Rust backing (e.g., a mock or subclass
         // that didn't call the parent constructor), just return standard properties
         let Some(obj) = (unsafe {
             object
-                .as_mut()
-                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
         }) else {
             return props;
         };
 
         #[allow(clippy::inline_always)]
         #[inline(always)]
-        unsafe fn internal<T: RegisteredClass>(
-            obj: &mut ZendClassObject<T>,
-            props: &mut ZendHashTable,
-        ) -> PhpResult {
-            let self_ = &*obj;
+        unsafe fn internal<T: RegisteredClass>(object: *mut ZendObject, this: &T) {
             let metadata = T::get_metadata();
-            let mangled_names = metadata.mangled_names();
+            let properties_info = &raw const metadata.ce().properties_info;
 
-            for (desc, mangled) in metadata.all_properties().zip(mangled_names) {
+            for desc in metadata.all_properties() {
                 let Some(getter) = desc.get else { continue };
+                let info = unsafe {
+                    zend_hash_str_find(properties_info, desc.name.as_ptr().cast(), desc.name.len())
+                };
+                let Some(slot) = (unsafe { declared_slot(object, info) }) else {
+                    continue;
+                };
                 let mut zv = Zval::new();
-                if getter(self_, &mut zv).is_err() {
+                if getter(this, &mut zv).is_err() {
                     continue;
                 }
-                props.insert(&**mangled, zv).map_err(|e| {
-                    format!("Failed to insert value into properties hashtable: {e:?}")
-                })?;
+                unsafe { store_in_slot(slot, &mut zv) };
             }
-
-            Ok(())
         }
 
-        if let Err(e) = catch_panic(|| unsafe { internal::<T>(obj, props) }) {
+        if let Err(e) = catch_panic(|| {
+            unsafe { internal::<T>(object, &**obj) };
+            Ok(())
+        }) {
             e.throw();
         }
 
@@ -428,9 +437,7 @@ impl ZendObjectHandlers {
                         let getter = val.get.ok_or("No getter available for this property.")?;
                         let mut zv = Zval::new();
                         getter(self_, &mut zv)?;
-                        if !zv.is_null() {
-                            return Ok(1);
-                        }
+                        return Ok(c_int::from(!zv.is_null()));
                     }
                 }
                 //
@@ -444,16 +451,13 @@ impl ZendObjectHandlers {
                         cfg_if::cfg_if! {
                             if #[cfg(php84)] {
                                 #[allow(clippy::unnecessary_mut_passed)]
-                                if unsafe { zend_is_true(&raw mut zv) } {
-                                    return Ok(1);
-                                }
+                                let truthy = unsafe { zend_is_true(&raw mut zv) };
                             } else {
                                 #[allow(clippy::unnecessary_mut_passed)]
-                                if unsafe { zend_is_true(&raw mut zv) } == 1 {
-                                    return Ok(1);
-                                }
+                                let truthy = unsafe { zend_is_true(&raw mut zv) } == 1;
                             }
                         }
+                        return Ok(c_int::from(truthy));
                     }
                 }
                 //
@@ -530,6 +534,50 @@ unsafe fn resolve_property<T: RegisteredClass>(
     }
 
     Ok(Some(descriptor))
+}
+
+/// Returns the declared slot (`OBJ_PROP`) of `object` described by `info`, the
+/// `properties_info` entry of the class that declares the property.
+///
+/// # Safety
+///
+/// `object` must be a live object of that class or a subclass, and `info` null
+/// or an entry of that class's `properties_info`.
+unsafe fn declared_slot(object: *mut ZendObject, info: *const Zval) -> Option<*mut Zval> {
+    let info = unsafe {
+        info.as_ref()?
+            .value
+            .ptr
+            .cast::<zend_property_info>()
+            .as_ref()?
+    };
+    if info.flags & ZEND_ACC_STATIC != 0 {
+        return None;
+    }
+    let offset = usize::try_from(info.offset).ok()?;
+    Some(unsafe { object.byte_add(offset).cast::<Zval>() })
+}
+
+/// Moves `value` into `slot`, leaving `value` null, and releases the previous
+/// slot value. The property flags in `u2` are kept. The object owns the result,
+/// so a caller that never releases its `rv` (`Exception::getMessage`) cannot
+/// leak it.
+///
+/// # Safety
+///
+/// `slot` must come from [`declared_slot`]. Releasing the previous value can run
+/// a destructor; the slot is consistent before that. A C caller iterating the
+/// slot must not run user code that reads the same property with a null cache
+/// slot, as that store frees the value it iterates.
+unsafe fn store_in_slot(slot: *mut Zval, value: &mut Zval) {
+    let slot = unsafe { &mut *slot };
+    let mut previous = Zval::new();
+    previous.value = slot.value;
+    previous.u1 = slot.u1;
+    slot.value = value.value;
+    slot.u1 = value.u1;
+    value.u1.type_info = ZvalTypeFlags::Null.bits();
+    drop(previous);
 }
 
 /// Gets the current calling scope from the executor globals.

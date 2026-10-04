@@ -22,6 +22,8 @@
 //   https://docs.docker.com/engine/install/
 
 bind! {
+    BP_VAR_IS,
+    BP_VAR_R,
     HashTable,
     _Bucket,
     _call_user_function_impl,

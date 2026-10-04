@@ -257,6 +257,14 @@ assert(
     'Private property should appear with \0ClassName\0prop mangling'
 );
 assert(array_key_exists("\0*\0protectedStr", $arr), 'Protected property should appear with \0*\0prop mangling');
+assert(count($arr) === 3, 'Each property should appear once: ' . var_export($arr, true));
+assert($arr["\0TestPropertyVisibility\0privateStr"] === 'new_private');
+
+$optional = new TestOptionalProp('set');
+assert((array) $optional === ['opt' => 'set']);
+assert(isset($optional->opt));
+$optional->clear();
+assert(!isset($optional->opt), 'isset must follow the Rust value, not the last dumped one');
 
 // Test reserved keyword method names
 $keywordObj = new TestReservedKeywordMethods();
