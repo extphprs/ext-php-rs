@@ -15,9 +15,11 @@ use crate::{
     convert::{FromZval, FromZvalMut, IntoZval, IntoZvalDyn},
     error::{Error, Result},
     ffi::{
-        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, GC_IMMUTABLE, IS_NULL,
-        ext_php_rs_zend_string_release, zend_array_dup, zend_is_callable, zend_is_identical,
-        zend_is_iterable, zend_is_true, zend_resource, zend_value, zval, zval_ptr_dtor,
+        _zval_struct__bindgen_ty_1, _zval_struct__bindgen_ty_2, GC_IMMUTABLE, IS_ARRAY,
+        IS_CONSTANT_AST, IS_DOUBLE, IS_FALSE, IS_INDIRECT, IS_LONG, IS_NULL, IS_OBJECT, IS_PTR,
+        IS_REFERENCE, IS_RESOURCE, IS_STRING, IS_TRUE, ext_php_rs_zend_string_release,
+        zend_array_dup, zend_is_callable, zend_is_identical, zend_is_iterable, zend_is_true,
+        zend_resource, zend_value, zval, zval_ptr_dtor,
     },
     flags::{DataType, DataTypeExt, ZvalTypeFlags},
     types::{ZendCallable, ZendHashTable, ZendLong, ZendObject, ZendStr},
@@ -105,11 +107,11 @@ impl Zval {
     /// References are dereferenced transparently.
     #[must_use]
     pub fn long(&self) -> Option<ZendLong> {
-        if self.get_type() == DataType::Long {
+        if self.is_long() {
             return Some(unsafe { self.value.lval });
         }
         let zval = self.dereference();
-        if zval.get_type() == DataType::Long {
+        if zval.is_long() {
             Some(unsafe { zval.value.lval })
         } else {
             None
@@ -121,17 +123,11 @@ impl Zval {
     /// References are dereferenced transparently.
     #[must_use]
     pub fn bool(&self) -> Option<bool> {
-        match self.get_type() {
-            DataType::True => return Some(true),
-            DataType::False => return Some(false),
-            _ => {}
+        if self.is_bool() {
+            return Some(self.is_true());
         }
         let zval = self.dereference();
-        match zval.get_type() {
-            DataType::True => Some(true),
-            DataType::False => Some(false),
-            _ => None,
-        }
+        zval.is_bool().then_some(zval.is_true())
     }
 
     /// Returns the value of the zval if it is a double.
@@ -139,11 +135,11 @@ impl Zval {
     /// References are dereferenced transparently.
     #[must_use]
     pub fn double(&self) -> Option<f64> {
-        if self.get_type() == DataType::Double {
+        if self.is_double() {
             return Some(unsafe { self.value.dval });
         }
         let zval = self.dereference();
-        if zval.get_type() == DataType::Double {
+        if zval.is_double() {
             Some(unsafe { zval.value.dval })
         } else {
             None
@@ -159,11 +155,11 @@ impl Zval {
     /// convert other types into a [`String`].
     #[must_use]
     pub fn zend_str(&self) -> Option<&ZendStr> {
-        if self.get_type() == DataType::String {
+        if self.is_string() {
             return unsafe { self.value.str_.as_ref() };
         }
         let zval = self.dereference();
-        if zval.get_type() == DataType::String {
+        if zval.is_string() {
             unsafe { zval.value.str_.as_ref() }
         } else {
             None
@@ -255,11 +251,11 @@ impl Zval {
     /// References are dereferenced transparently.
     #[must_use]
     pub fn resource(&self) -> Option<*mut zend_resource> {
-        if self.get_type() == DataType::Resource {
+        if self.is_resource() {
             return Some(unsafe { self.value.res });
         }
         let zval = self.dereference();
-        if zval.get_type() == DataType::Resource {
+        if zval.is_resource() {
             Some(unsafe { zval.value.res })
         } else {
             None
@@ -272,11 +268,11 @@ impl Zval {
     /// References are dereferenced transparently.
     #[must_use]
     pub fn array(&self) -> Option<&ZendHashTable> {
-        if self.get_type() == DataType::Array {
+        if self.is_array() {
             return unsafe { self.value.arr.as_ref() };
         }
         let zval = self.dereference();
-        if zval.get_type() == DataType::Array {
+        if zval.is_array() {
             unsafe { zval.value.arr.as_ref() }
         } else {
             None
@@ -294,12 +290,12 @@ impl Zval {
     /// `SEPARATE_ARRAY()` macro and prevents the "Assertion failed:
     /// `zend_gc_refcount` == 1" error that occurs when modifying shared arrays.
     pub fn array_mut(&mut self) -> Option<&mut ZendHashTable> {
-        let zval = if self.get_type() == DataType::Array {
+        let zval = if self.is_array() {
             self
         } else {
             self.dereference_mut()
         };
-        if zval.get_type() == DataType::Array {
+        if zval.is_array() {
             unsafe {
                 let arr = zval.value.arr;
                 let ht = &*arr;
@@ -321,11 +317,11 @@ impl Zval {
     /// References are dereferenced transparently.
     #[must_use]
     pub fn object(&self) -> Option<&ZendObject> {
-        if matches!(self.get_type(), DataType::Object(_)) {
+        if self.is_object() {
             return unsafe { self.value.obj.as_ref() };
         }
         let zval = self.dereference();
-        if matches!(zval.get_type(), DataType::Object(_)) {
+        if zval.is_object() {
             unsafe { zval.value.obj.as_ref() }
         } else {
             None
@@ -337,11 +333,11 @@ impl Zval {
     ///
     /// References are dereferenced transparently.
     pub fn object_mut(&mut self) -> Option<&mut ZendObject> {
-        if matches!(self.get_type(), DataType::Object(_)) {
+        if self.is_object() {
             return unsafe { self.value.obj.as_mut() };
         }
         let zval = self.dereference_mut();
-        if matches!(zval.get_type(), DataType::Object(_)) {
+        if zval.is_object() {
             unsafe { zval.value.obj.as_mut() }
         } else {
             None
@@ -477,28 +473,32 @@ impl Zval {
         DataType::from_u32(u32::from(unsafe { self.u1.v.type_ }))
     }
 
+    fn has_type(&self, ty: u32) -> bool {
+        u32::from(unsafe { self.u1.v.type_ }) == ty
+    }
+
     /// Returns true if the zval is a long, false otherwise.
     #[must_use]
     pub fn is_long(&self) -> bool {
-        self.get_type() == DataType::Long
+        self.has_type(IS_LONG)
     }
 
     /// Returns true if the zval is null, false otherwise.
     #[must_use]
     pub fn is_null(&self) -> bool {
-        self.get_type() == DataType::Null
+        self.has_type(IS_NULL)
     }
 
     /// Returns true if the zval is true, false otherwise.
     #[must_use]
     pub fn is_true(&self) -> bool {
-        self.get_type() == DataType::True
+        self.has_type(IS_TRUE)
     }
 
     /// Returns true if the zval is false, false otherwise.
     #[must_use]
     pub fn is_false(&self) -> bool {
-        self.get_type() == DataType::False
+        self.has_type(IS_FALSE)
     }
 
     /// Returns true if the zval is a bool, false otherwise.
@@ -510,44 +510,44 @@ impl Zval {
     /// Returns true if the zval is a double, false otherwise.
     #[must_use]
     pub fn is_double(&self) -> bool {
-        self.get_type() == DataType::Double
+        self.has_type(IS_DOUBLE)
     }
 
     /// Returns true if the zval is a string, false otherwise.
     #[must_use]
     pub fn is_string(&self) -> bool {
-        self.get_type() == DataType::String
+        self.has_type(IS_STRING)
     }
 
     /// Returns true if the zval is a resource, false otherwise.
     #[must_use]
     pub fn is_resource(&self) -> bool {
-        self.get_type() == DataType::Resource
+        self.has_type(IS_RESOURCE)
     }
 
     /// Returns true if the zval is an array, false otherwise.
     #[must_use]
     pub fn is_array(&self) -> bool {
-        self.get_type() == DataType::Array
+        self.has_type(IS_ARRAY)
     }
 
     /// Returns true if the zval is an object, false otherwise.
     #[must_use]
     pub fn is_object(&self) -> bool {
-        matches!(self.get_type(), DataType::Object(_))
+        self.has_type(IS_OBJECT)
     }
 
     /// Returns true if the zval is a reference, false otherwise.
     #[inline]
     #[must_use]
     pub fn is_reference(&self) -> bool {
-        self.get_type() == DataType::Reference
+        self.has_type(IS_REFERENCE)
     }
 
     /// Returns true if the zval is a reference, false otherwise.
     #[must_use]
     pub fn is_indirect(&self) -> bool {
-        self.get_type() == DataType::Indirect
+        self.has_type(IS_INDIRECT)
     }
 
     /// Returns true if the zval is callable, false otherwise.
@@ -590,7 +590,7 @@ impl Zval {
     /// Returns true if the zval contains a pointer, false otherwise.
     #[must_use]
     pub fn is_ptr(&self) -> bool {
-        self.get_type() == DataType::Ptr
+        self.has_type(IS_PTR)
     }
 
     /// Returns true if the zval is a scalar value (integer, float, string, or
@@ -599,10 +599,7 @@ impl Zval {
     /// This is equivalent to PHP's `is_scalar()` function.
     #[must_use]
     pub fn is_scalar(&self) -> bool {
-        matches!(
-            self.get_type(),
-            DataType::Long | DataType::Double | DataType::String | DataType::True | DataType::False
-        )
+        self.is_long() || self.is_double() || self.is_string() || self.is_bool()
     }
 
     // =========================================================================
@@ -1184,7 +1181,7 @@ impl Zval {
             || self.is_object()
             || self.is_resource()
             || self.is_reference()
-            || self.get_type() == DataType::ConstantExpression
+            || self.has_type(IS_CONSTANT_AST)
         {
             // Only call zval_ptr_dtor for reference-counted types
             unsafe { zval_ptr_dtor(self) };
@@ -1497,6 +1494,55 @@ mod tests {
             let zval = Zval::null();
             assert!(zval.is_null());
         });
+    }
+
+    #[test]
+    fn type_predicates_match_from_u32_for_every_zval_type_byte() {
+        for byte in 0u8..=15 {
+            let mut zv = std::mem::ManuallyDrop::new(Zval::new());
+            zv.u1.type_info = u32::from(byte);
+            let ty = DataType::from_u32(u32::from(byte));
+            let actual = [
+                zv.is_long(),
+                zv.is_null(),
+                zv.is_true(),
+                zv.is_false(),
+                zv.is_bool(),
+                zv.is_double(),
+                zv.is_string(),
+                zv.is_resource(),
+                zv.is_array(),
+                zv.is_object(),
+                zv.is_reference(),
+                zv.is_indirect(),
+                zv.is_ptr(),
+                zv.is_scalar(),
+            ];
+            let expected = [
+                ty == DataType::Long,
+                ty == DataType::Null,
+                ty == DataType::True,
+                ty == DataType::False,
+                matches!(ty, DataType::True | DataType::False),
+                ty == DataType::Double,
+                ty == DataType::String,
+                ty == DataType::Resource,
+                ty == DataType::Array,
+                matches!(ty, DataType::Object(_)),
+                ty == DataType::Reference,
+                ty == DataType::Indirect,
+                ty == DataType::Ptr,
+                matches!(
+                    ty,
+                    DataType::Long
+                        | DataType::Double
+                        | DataType::String
+                        | DataType::True
+                        | DataType::False
+                ),
+            ];
+            assert_eq!(actual, expected, "type byte {byte}");
+        }
     }
 
     #[test]
