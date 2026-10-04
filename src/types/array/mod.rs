@@ -961,6 +961,7 @@ impl IntoZval for ZendEmptyArray {
     fn set_zval(self, zv: &mut Zval, _persistent: bool) -> Result<()> {
         // Set the zval to point to the immutable shared empty array.
         // This mirrors the ZVAL_EMPTY_ARRAY macro in PHP.
+        zv.set_null();
         zv.u1.type_info = ZvalTypeFlags::Array.bits();
         zv.value.arr = ptr::from_ref(self.as_hashtable()).cast_mut();
         Ok(())
@@ -973,6 +974,20 @@ mod tests {
     use super::*;
     use crate::embed::Embed;
     use crate::types::ZendStr;
+
+    #[test]
+    fn empty_array_set_zval_releases_previous_value() {
+        let refcount = Embed::run(|| {
+            let mut target = Zval::new();
+            target
+                .set_string("not an interned string value", false)
+                .ok()?;
+            let other = target.shallow_clone();
+            ZendEmptyArray.set_zval(&mut target, false).ok()?;
+            other.zend_str().map(|s| s.gc.refcount)
+        });
+        assert_eq!(refcount, Some(1));
+    }
 
     #[test]
     fn test_has_key_string() {
