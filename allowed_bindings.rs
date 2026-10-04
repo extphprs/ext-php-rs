@@ -22,6 +22,8 @@
 //   https://docs.docker.com/engine/install/
 
 bind! {
+    BP_VAR_IS,
+    BP_VAR_R,
     HashTable,
     _Bucket,
     _call_user_function_impl,
@@ -130,6 +132,7 @@ bind! {
     zend_object_handlers,
     zend_object_std_init,
     zend_objects_clone_members,
+    zend_property_info,
     zend_register_bool_constant,
     zend_register_double_constant,
     zend_register_ini_entries,
@@ -283,6 +286,9 @@ bind! {
     zend_std_write_property,
     zend_std_get_properties,
     zend_std_has_property,
+    zend_std_get_property_ptr_ptr,
+    zend_std_unset_property,
+    zend_std_compare_objects,
     zend_objects_new,
     zend_object_make_lazy,
     zend_lazy_object_init,

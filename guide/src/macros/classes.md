@@ -46,43 +46,30 @@ You can customize properties with these options:
 - `flags` - Sets property visibility flags, e.g.
   `#[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]`
 
-### Known limitation: `#[php(prop)]` on owned refcounted types accessed via
-`Exception::getMessage`-style C methods leaks one `zend_string` per call.
+### How PHP code uses a Rust property
 
-The generated read-property handler writes a fresh `zend_string` with
-refcount=1 into the `rv` slot via `set_zval`. PHP's `Exception::getMessage`
-(and siblings such as `getFile`) read this with `zval_get_string + RETURN_STR`,
-which addrefs to 2 and transfers the pointer to `return_value` without
-changing the refcount. The stack `rv` then goes out of scope without
-`zval_ptr_dtor`, orphaning one refcount per call.
+The value of a `#[php(prop)]` field is in the Rust struct. PHP reads the value
+with the getter and writes the value with the setter.
 
-This affects any `#[php_class]` extending `\Exception` with a `#[php(prop)]`
-field whose type allocates a `zend_string` (e.g. `String`, `Vec<u8>` when
-converted to a binary string, or any `IntoZval` impl producing `IS_STRING_EX`)
-— most commonly when the field shadows the parent `\Exception::$message`.
-Direct property access (`$obj->field`) via the `FETCH_OBJ_R` opcode is
-**not** affected because the bytecode handler properly consumes the rv ref.
+These operations use the getter and the setter:
 
-**Workarounds, in order of preference:**
+- `$obj->prop += 1`, `$obj->prop .= 'x'`, `$obj->prop++` and `$obj->prop ??= 1`.
+- `==` and `foreach`, which use the current Rust values. Thus `==` calls each
+  getter of the two objects.
 
-1. **Do not shadow the inherited property name.** Rename the field
-   (e.g. `payload` instead of `message`) and expose it through a
-   `#[php_method]` getter. The method-return path is not affected by
-   this leak.
-   Note: `\Exception::getMessage` is `final` in PHP, so overriding it
-   directly via `#[php_method] fn get_message(...)` is rejected at
-   class registration.
+These operations change only a copy, and the Rust value does not change:
 
-2. **Write the value into the parent's real property slot via
-   `zend_update_property_stringl`** (raw FFI). PHP's `getMessage`
-   then reads from real storage through `zend_std_read_property`,
-   bypassing the leaky `rv` path entirely. This requires dropping
-   `#[php(prop)]` from the shadow field and populating the parent
-   slot at construction time. See `biscuit-php` (`src/errors.rs`)
-   for a worked example.
+- `$obj->prop[] = 1`, `$obj->prop['key'] = 1` and `$r = &$obj->prop`. PHP gives
+  the notice "Indirect modification of overloaded property", as for `__get`.
+- `foreach ($obj as &$value)`.
 
-Tracked by the
-`prop_string_field_does_not_leak_on_repeated_get_message` regression test.
+These operations throw an `Error`:
+
+- `$obj->prop = &$value`.
+- `unset($obj->prop)`, because the Rust value cannot be removed.
+
+If a PHP subclass declares the property again with hooks, PHP uses the Rust
+getter and setter, not the hooks.
 
 ## Restrictions
 

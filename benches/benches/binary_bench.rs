@@ -113,6 +113,16 @@ fn property_dumps(cnt: usize) -> ExitStatus {
 }
 
 #[divan::bench(args = [1, 10, 100_000])]
+fn property_compound_ops(cnt: usize) -> ExitStatus {
+    run_php("property_compound.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn property_compares(cnt: usize) -> ExitStatus {
+    run_php("property_compare.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
 fn array_str_ref_keys(cnt: usize) -> ExitStatus {
     run_php("array_str_ref_keys.php", cnt)
 }

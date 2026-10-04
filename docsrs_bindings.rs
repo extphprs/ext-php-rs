@@ -602,6 +602,8 @@ pub const ZEND_ACC_GENERATOR: u32 = 16777216;
 pub const ZEND_ACC_DONE_PASS_TWO: u32 = 33554432;
 pub const ZEND_ACC_HEAP_RT_CACHE: u32 = 67108864;
 pub const ZEND_ACC_STRICT_TYPES: u32 = 2147483648;
+pub const BP_VAR_R: u32 = 0;
+pub const BP_VAR_IS: u32 = 3;
 pub const ZEND_INTERNAL_FUNCTION: u32 = 1;
 pub const ZEND_USER_FUNCTION: u32 = 2;
 pub const ZEND_EVAL_CODE: u32 = 4;
@@ -1836,6 +1838,14 @@ unsafe extern "C" {
     pub fn zend_std_get_properties(object: *mut zend_object) -> *mut HashTable;
 }
 unsafe extern "C" {
+    pub fn zend_std_get_property_ptr_ptr(
+        object: *mut zend_object,
+        member: *mut zend_string,
+        type_: ::std::os::raw::c_int,
+        cache_slot: *mut *mut ::std::os::raw::c_void,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
     pub fn zend_std_read_property(
         object: *mut zend_object,
         member: *mut zend_string,
@@ -1859,6 +1869,16 @@ unsafe extern "C" {
         has_set_exists: ::std::os::raw::c_int,
         cache_slot: *mut *mut ::std::os::raw::c_void,
     ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zend_std_unset_property(
+        object: *mut zend_object,
+        member: *mut zend_string,
+        cache_slot: *mut *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
+    pub fn zend_std_compare_objects(o1: *mut zval, o2: *mut zval) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug)]
