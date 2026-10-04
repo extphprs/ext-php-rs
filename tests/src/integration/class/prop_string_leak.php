@@ -36,6 +36,3 @@ foreach ($reads as $name => $read) {
 $e->setMessage('changed');
 assert($e->getMessage() === 'changed');
 assert($e->message === 'changed');
-
-unset($e->message);
-assert($e->getMessage() === 'changed');

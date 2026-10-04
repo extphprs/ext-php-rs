@@ -11,15 +11,20 @@ use crate::{
         BP_VAR_IS, BP_VAR_R, ZEND_ACC_STATIC, ext_php_rs_executor_globals,
         instanceof_function_slow, std_object_handlers, zend_class_entry, zend_hash_find,
         zend_hash_str_find, zend_is_true, zend_object_handlers, zend_object_std_dtor,
-        zend_objects_clone_members, zend_property_info, zend_std_get_properties,
-        zend_std_has_property, zend_std_read_property, zend_std_write_property, zend_throw_error,
+        zend_objects_clone_members, zend_property_info, zend_std_compare_objects,
+        zend_std_get_properties, zend_std_get_property_ptr_ptr, zend_std_has_property,
+        zend_std_read_property, zend_std_unset_property, zend_std_write_property, zend_throw_error,
     },
     flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
     internal::property::PropertyDescriptor,
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
-    zend::catch_panic,
+    zend::{ExecutorGlobals, catch_panic},
 };
+
+/// `ZEND_UNCOMPARABLE`, the `compare` handler's result for objects that cannot
+/// be ordered.
+const UNCOMPARABLE: c_int = 1;
 
 /// A set of functions associated with a PHP class.
 pub type ZendObjectHandlers = zend_object_handlers;
@@ -69,6 +74,9 @@ impl ZendObjectHandlers {
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
         unsafe { (*ptr).get_gc = Some(Self::get_gc) };
         unsafe { (*ptr).has_property = Some(Self::has_property::<T>) };
+        unsafe { (*ptr).get_property_ptr_ptr = Some(Self::get_property_ptr_ptr::<T>) };
+        unsafe { (*ptr).unset_property = Some(Self::unset_property::<T>) };
+        unsafe { (*ptr).compare = Some(Self::compare::<T>) };
     }
 
     /// `zend_std_get_gc` routes objects with a custom `get_properties` through
@@ -207,6 +215,7 @@ impl ZendObjectHandlers {
                 .as_mut()
                 .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
         }) else {
+            let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
             return unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) };
         };
 
@@ -219,7 +228,7 @@ impl ZendObjectHandlers {
             type_: c_int,
             cache_slot: *mut *mut c_void,
             rv: *mut Zval,
-        ) -> PhpResult<*mut Zval> {
+        ) -> PhpResult<(*mut Zval, Option<Zval>)> {
             let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
 
             // retval needs to be treated as initialized, so we set the type to null
@@ -243,36 +252,53 @@ impl ZendObjectHandlers {
                                 is_private,
                             );
                         }
-                        return Ok(rv);
+                        return Ok((rv, None));
                     }
                     let getter = prop_info
                         .get
                         .ok_or("No getter available for this property.")?;
                     getter(this, rv_mut)?;
-                    if !cache_slot.is_null()
-                        || !matches!(u32::try_from(type_), Ok(BP_VAR_R | BP_VAR_IS))
-                    {
-                        return Ok(rv);
+                    if !matches!(u32::try_from(type_), Ok(BP_VAR_R | BP_VAR_IS)) {
+                        if !rv_mut.is_object() && !rv_mut.is_reference() {
+                            let class = unsafe { (*object).ce.as_ref() }
+                                .and_then(|ce| ce.name())
+                                .unwrap_or(T::CLASS_NAME);
+                            let name = unsafe { member.as_ref().ok_or("Invalid property name")? };
+                            php_error(
+                                &ErrorType::Notice,
+                                &format!(
+                                    "Indirect modification of overloaded property {class}::${} has no effect",
+                                    name.as_str()?
+                                ),
+                            );
+                        }
+                        return Ok((rv, None));
+                    }
+                    if !cache_slot.is_null() {
+                        return Ok((rv, None));
                     }
                     let info = unsafe {
                         zend_hash_find(&raw const T::get_metadata().ce().properties_info, member)
                     };
                     match unsafe { declared_slot(object, info) } {
-                        Some(slot) => {
-                            unsafe { store_in_slot(slot, rv_mut) };
-                            slot
-                        }
-                        None => rv,
+                        Some(slot) => (slot, Some(unsafe { store_in_slot(slot, rv_mut) })),
+                        None => (rv, None),
                     }
                 }
-                None => unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) },
+                None => (
+                    unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) },
+                    None,
+                ),
             })
         }
 
         match catch_panic(|| unsafe {
             internal::<T>(object, &**obj, member, type_, cache_slot, rv)
         }) {
-            Ok(rv) => rv,
+            Ok((retval, released)) => {
+                drop(released);
+                retval
+            }
             Err(e) => {
                 e.throw();
                 unsafe { (*rv).set_null() };
@@ -295,6 +321,7 @@ impl ZendObjectHandlers {
                 .as_mut()
                 .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
         }) else {
+            let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
             return unsafe { zend_std_write_property(object, member, value, cache_slot) };
         };
 
@@ -368,36 +395,122 @@ impl ZendObjectHandlers {
             return props;
         };
 
-        #[allow(clippy::inline_always)]
-        #[inline(always)]
-        unsafe fn internal<T: RegisteredClass>(object: *mut ZendObject, this: &T) {
-            let metadata = T::get_metadata();
-            let properties_info = &raw const metadata.ce().properties_info;
-
-            for desc in metadata.all_properties() {
-                let Some(getter) = desc.get else { continue };
-                let info = unsafe {
-                    zend_hash_str_find(properties_info, desc.name.as_ptr().cast(), desc.name.len())
-                };
-                let Some(slot) = (unsafe { declared_slot(object, info) }) else {
-                    continue;
-                };
-                let mut zv = Zval::new();
-                if getter(this, &mut zv).is_err() {
-                    continue;
-                }
-                unsafe { store_in_slot(slot, &mut zv) };
-            }
-        }
-
+        let mut released = Vec::new();
         if let Err(e) = catch_panic(|| {
-            unsafe { internal::<T>(object, &**obj) };
+            let _ = unsafe { refresh_slots::<T>(object, &**obj, &mut released) };
             Ok(())
         }) {
             e.throw();
         }
+        drop(released);
 
         props
+    }
+
+    unsafe extern "C" fn get_property_ptr_ptr<T: RegisteredClass>(
+        object: *mut ZendObject,
+        member: *mut ZendStr,
+        type_: c_int,
+        cache_slot: *mut *mut c_void,
+    ) -> *mut Zval {
+        let backed = unsafe {
+            object
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
+        }
+        .is_some();
+        if !backed {
+            let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
+            return unsafe { zend_std_get_property_ptr_ptr(object, member, type_, cache_slot) };
+        }
+
+        match catch_panic(|| unsafe { resolve_property::<T>(member, cache_slot) }) {
+            Ok(Some(_)) => {
+                if !cache_slot.is_null() {
+                    unsafe { cache_slot.add(2).write(ptr::null_mut()) };
+                }
+                ptr::null_mut()
+            }
+            Ok(None) => unsafe { zend_std_get_property_ptr_ptr(object, member, type_, cache_slot) },
+            Err(e) => {
+                e.throw();
+                ptr::null_mut()
+            }
+        }
+    }
+
+    unsafe extern "C" fn unset_property<T: RegisteredClass>(
+        object: *mut ZendObject,
+        member: *mut ZendStr,
+        cache_slot: *mut *mut c_void,
+    ) {
+        let backed = unsafe {
+            object
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
+        }
+        .is_some();
+        if !backed {
+            let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
+            return unsafe { zend_std_unset_property(object, member, cache_slot) };
+        }
+
+        let refused = catch_panic(|| {
+            let Some(prop) = (unsafe { resolve_property::<T>(member, cache_slot)? }) else {
+                return Ok(false);
+            };
+            let name = unsafe { member.as_ref().ok_or("Invalid property name")? }.as_str()?;
+            if unsafe { check_property_access(prop.flags, (*object).ce) } {
+                unsafe { throw_unset_error(T::CLASS_NAME, name) };
+            } else {
+                let is_private = prop.flags.contains(PropertyFlags::Private);
+                unsafe { throw_property_access_error(T::CLASS_NAME, name, is_private) };
+            }
+            Ok(true)
+        });
+
+        match refused {
+            Ok(true) => {}
+            Ok(false) => unsafe { zend_std_unset_property(object, member, cache_slot) },
+            Err(e) => e.throw(),
+        }
+    }
+
+    unsafe extern "C" fn compare<T: RegisteredClass>(o1: *mut Zval, o2: *mut Zval) -> c_int {
+        let objects = unsafe { o1.as_ref().zip(o2.as_ref()) }
+            .filter(|(a, b)| a.is_object() && b.is_object())
+            .map(|(a, b)| unsafe { (a.value.obj, b.value.obj) })
+            .filter(|&(a, b)| a != b && unsafe { (*a).ce == (*b).ce });
+        let Some((a, b)) = objects else {
+            return unsafe { zend_std_compare_objects(o1, o2) };
+        };
+
+        let mut released = Vec::new();
+        let refreshed = catch_panic(|| {
+            for object in [a, b] {
+                let Some(obj) = (unsafe {
+                    object
+                        .as_ref()
+                        .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
+                }) else {
+                    continue;
+                };
+                unsafe { refresh_slots::<T>(object, &**obj, &mut released) }?;
+            }
+            Ok(())
+        });
+        drop(released);
+
+        match refreshed {
+            Ok(()) if !ExecutorGlobals::has_exception() => unsafe {
+                zend_std_compare_objects(o1, o2)
+            },
+            Ok(()) => UNCOMPARABLE,
+            Err(e) => {
+                e.throw();
+                UNCOMPARABLE
+            }
+        }
     }
 
     #[allow(clippy::items_after_statements)]
@@ -414,6 +527,7 @@ impl ZendObjectHandlers {
                 .as_mut()
                 .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
         }) else {
+            let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
             return unsafe { zend_std_has_property(object, member, has_set_exists, cache_slot) };
         };
 
@@ -558,18 +672,20 @@ unsafe fn declared_slot(object: *mut ZendObject, info: *const Zval) -> Option<*m
     Some(unsafe { object.byte_add(offset).cast::<Zval>() })
 }
 
-/// Moves `value` into `slot`, leaving `value` null, and releases the previous
+/// Moves `value` into `slot`, leaving `value` null, and returns the previous
 /// slot value. The property flags in `u2` are kept. The object owns the result,
 /// so a caller that never releases its `rv` (`Exception::getMessage`) cannot
 /// leak it.
 ///
 /// # Safety
 ///
-/// `slot` must come from [`declared_slot`]. Releasing the previous value can run
-/// a destructor; the slot is consistent before that. A C caller iterating the
-/// slot must not run user code that reads the same property with a null cache
-/// slot, as that store frees the value it iterates.
-unsafe fn store_in_slot(slot: *mut Zval, value: &mut Zval) {
+/// `slot` must come from [`declared_slot`]. Dropping the returned value can run
+/// a destructor that reaches the same object, so the caller drops it only once
+/// no `&T` into that object is alive. A C caller iterating the slot must not run
+/// user code that reads the same property with a null cache slot, as that store
+/// frees the value it iterates.
+#[must_use]
+unsafe fn store_in_slot(slot: *mut Zval, value: &mut Zval) -> Zval {
     let slot = unsafe { &mut *slot };
     let mut previous = Zval::new();
     previous.value = slot.value;
@@ -577,7 +693,78 @@ unsafe fn store_in_slot(slot: *mut Zval, value: &mut Zval) {
     slot.value = value.value;
     slot.u1 = value.u1;
     value.u1.type_info = ZvalTypeFlags::Null.bits();
-    drop(previous);
+    previous
+}
+
+/// Stores every Rust property's current value in its declared slot. Released
+/// values that can run user code on release go to `released`, for the caller
+/// to drop once `this` is no longer borrowed. Keeps going after a getter error
+/// and returns the first one.
+///
+/// # Safety
+///
+/// `object` must be the live object that `this` belongs to.
+unsafe fn refresh_slots<T: RegisteredClass>(
+    object: *mut ZendObject,
+    this: &T,
+    released: &mut Vec<Zval>,
+) -> PhpResult {
+    let metadata = T::get_metadata();
+    let properties_info = &raw const metadata.ce().properties_info;
+    let mut result = Ok(());
+
+    for desc in metadata.all_properties() {
+        let Some(getter) = desc.get else { continue };
+        let info = unsafe {
+            zend_hash_str_find(properties_info, desc.name.as_ptr().cast(), desc.name.len())
+        };
+        let Some(slot) = (unsafe { declared_slot(object, info) }) else {
+            continue;
+        };
+        let mut zv = Zval::new();
+        if let Err(e) = getter(this, &mut zv) {
+            if result.is_ok() {
+                result = Err(e);
+            }
+            continue;
+        }
+        let previous = unsafe { store_in_slot(slot, &mut zv) };
+        if ZvalTypeFlags::from_bits_truncate(unsafe { previous.u1.type_info })
+            .contains(ZvalTypeFlags::RefCounted)
+        {
+            released.push(previous);
+        }
+    }
+
+    result
+}
+
+/// The cache slot to hand to a `zend_std_*` handler for an object without Rust
+/// backing. For a Rust property name the engine must never cache `(ce, offset)`,
+/// or later objects of the class with a backing would read and write the slot
+/// directly. The slot is cleared (it can be the VM's stack copy on 8.4+), as the
+/// VM reads `cache_slot[2]` as property info after a non-null
+/// `get_property_ptr_ptr` (php-src GH-17736), and NULL is returned.
+///
+/// # Safety
+///
+/// `member` must be a valid `ZendStr` and `cache_slot` null or 3 writable slots.
+unsafe fn std_cache_slot<T: RegisteredClass>(
+    member: *mut ZendStr,
+    cache_slot: *mut *mut c_void,
+) -> *mut *mut c_void {
+    let is_rust_prop = unsafe { member.as_ref() }
+        .and_then(|name| name.as_str().ok())
+        .is_some_and(|name| T::get_metadata().find_property(name).is_some());
+    if !is_rust_prop {
+        return cache_slot;
+    }
+    if !cache_slot.is_null() {
+        for i in 0..3 {
+            unsafe { cache_slot.add(i).write(ptr::null_mut()) };
+        }
+    }
+    ptr::null_mut()
 }
 
 /// Gets the current calling scope from the executor globals.
@@ -666,6 +853,21 @@ unsafe fn throw_property_access_error(class_name: &str, prop_name: &str, is_priv
         "Cannot access {visibility} property {class_name}::${prop_name}"
     ))
     .unwrap_or_else(|_| c"Cannot access property".to_owned());
+
+    unsafe {
+        zend_throw_error(ptr::null_mut(), message.as_ptr());
+    }
+}
+
+/// Throws the error for `unset()` on a Rust property, whose value lives in
+/// Rust and cannot be removed.
+///
+/// # Safety
+///
+/// Must only be called during PHP execution.
+unsafe fn throw_unset_error(class_name: &str, prop_name: &str) {
+    let message = CString::new(format!("Cannot unset property {class_name}::${prop_name}"))
+        .unwrap_or_else(|_| c"Cannot unset property".to_owned());
 
     unsafe {
         zend_throw_error(ptr::null_mut(), message.as_ptr());

@@ -1838,6 +1838,14 @@ unsafe extern "C" {
     pub fn zend_std_get_properties(object: *mut zend_object) -> *mut HashTable;
 }
 unsafe extern "C" {
+    pub fn zend_std_get_property_ptr_ptr(
+        object: *mut zend_object,
+        member: *mut zend_string,
+        type_: ::std::os::raw::c_int,
+        cache_slot: *mut *mut ::std::os::raw::c_void,
+    ) -> *mut zval;
+}
+unsafe extern "C" {
     pub fn zend_std_read_property(
         object: *mut zend_object,
         member: *mut zend_string,
@@ -1861,6 +1869,16 @@ unsafe extern "C" {
         has_set_exists: ::std::os::raw::c_int,
         cache_slot: *mut *mut ::std::os::raw::c_void,
     ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zend_std_unset_property(
+        object: *mut zend_object,
+        member: *mut zend_string,
+        cache_slot: *mut *mut ::std::os::raw::c_void,
+    );
+}
+unsafe extern "C" {
+    pub fn zend_std_compare_objects(o1: *mut zval, o2: *mut zval) -> ::std::os::raw::c_int;
 }
 #[repr(C)]
 #[derive(Debug)]

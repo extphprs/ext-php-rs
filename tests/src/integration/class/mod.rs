@@ -182,6 +182,82 @@ pub struct TestExceptionMessageLeak {
 }
 
 #[php_class]
+#[derive(Clone)]
+pub struct TestPropSemantics {
+    #[php(prop)]
+    pub num: i64,
+    #[php(prop)]
+    pub label: String,
+    #[php(prop)]
+    pub list: Vec<i64>,
+    #[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]
+    pub secret: i64,
+}
+
+#[php_impl]
+impl TestPropSemantics {
+    pub fn __construct(num: i64) -> Self {
+        Self {
+            num,
+            label: String::new(),
+            list: Vec::new(),
+            secret: 0,
+        }
+    }
+
+    pub fn rust_num(&self) -> i64 {
+        self.num
+    }
+
+    pub fn rust_label(&self) -> String {
+        self.label.clone()
+    }
+
+    pub fn rust_list(&self) -> Vec<i64> {
+        self.list.clone()
+    }
+
+    pub fn bump(&mut self) {
+        self.num += 100;
+    }
+}
+
+#[php_class]
+pub struct TestPropReentry {
+    holder: Option<Zval>,
+    hits: i64,
+}
+
+#[php_impl]
+impl TestPropReentry {
+    pub fn __construct() -> Self {
+        Self {
+            holder: None,
+            hits: 0,
+        }
+    }
+
+    #[php(getter)]
+    pub fn get_holder(&self) -> Zval {
+        self.holder
+            .as_ref()
+            .map_or_else(Zval::new, Zval::shallow_clone)
+    }
+
+    pub fn replace_holder(&mut self, value: &Zval) {
+        self.holder = Some(value.shallow_clone());
+    }
+
+    pub fn touch(&mut self) {
+        self.hits += 1;
+    }
+
+    pub fn hits(&self) -> i64 {
+        self.hits
+    }
+}
+
+#[php_class]
 pub struct TestOptionalProp {
     #[php(prop)]
     pub opt: Option<String>,
@@ -771,6 +847,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestUncloneableClass>()
         .class::<TestExceptionMessageLeak>()
         .class::<TestOptionalProp>()
+        .class::<TestPropSemantics>()
+        .class::<TestPropReentry>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
         .function(wrap_function!(throw_class_object_exception_with_prop))
@@ -795,6 +873,13 @@ mod tests {
     fn prop_string_field_does_not_leak_on_repeated_get_message() {
         assert!(crate::integration::test::run_php(
             "class/prop_string_leak.php"
+        ));
+    }
+
+    #[test]
+    fn prop_semantics_route_through_rust() {
+        assert!(crate::integration::test::run_php(
+            "class/prop_semantics.php"
         ));
     }
 

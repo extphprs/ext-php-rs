@@ -46,6 +46,31 @@ You can customize properties with these options:
 - `flags` - Sets property visibility flags, e.g.
   `#[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]`
 
+### How PHP code uses a Rust property
+
+The value of a `#[php(prop)]` field is in the Rust struct. PHP reads the value
+with the getter and writes the value with the setter.
+
+These operations use the getter and the setter:
+
+- `$obj->prop += 1`, `$obj->prop .= 'x'`, `$obj->prop++` and `$obj->prop ??= 1`.
+- `==` and `foreach`, which use the current Rust values. Thus `==` calls each
+  getter of the two objects.
+
+These operations change only a copy, and the Rust value does not change:
+
+- `$obj->prop[] = 1`, `$obj->prop['key'] = 1` and `$r = &$obj->prop`. PHP gives
+  the notice "Indirect modification of overloaded property", as for `__get`.
+- `foreach ($obj as &$value)`.
+
+These operations throw an `Error`:
+
+- `$obj->prop = &$value`.
+- `unset($obj->prop)`, because the Rust value cannot be removed.
+
+If a PHP subclass declares the property again with hooks, PHP uses the Rust
+getter and setter, not the hooks.
+
 ## Restrictions
 
 ### No lifetime parameters
