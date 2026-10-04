@@ -30,8 +30,8 @@ pub fn bench_string(s: &str) -> String {
 }
 
 #[php_function]
-pub fn bench_throw(n: u64) -> PhpResult<u64> {
-    Err(format!("bench {n}").into())
+pub fn bench_throw() -> PhpResult<u64> {
+    Err("bench".into())
 }
 
 #[php_function]

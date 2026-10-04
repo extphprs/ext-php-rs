@@ -12,6 +12,28 @@ The harness is [divan](https://docs.rs/divan) through
 [`codspeed-divan-compat`](https://codspeed.io/docs/benchmarks/rust/divan), so
 plain `cargo bench` keeps working as a walltime run.
 
+## Benchmarks
+
+Each script in `benches/` calls the extension `<count>` times:
+
+| Script | Measured path |
+| --- | --- |
+| `function_call.php` | Call of a `#[php_function]` with an integer |
+| `method_call.php` | Call of an instance method |
+| `static_method_call.php` | Call of a static method |
+| `callback_call.php` | Call of a PHP closure from Rust |
+| `string_call.php` | `&str` argument and `String` return value |
+| `binary_slice.php` | `BinarySlice<u64>` argument |
+| `object_new.php` | `new` on a `#[php_class]` with a constructor |
+| `exception_throw.php` | `Err` from Rust, caught as `Exception` in PHP |
+| `property_read.php` | Read of Rust properties and a getter |
+| `property_write.php` | Write of Rust properties and a setter |
+| `property_compound.php` | `+=`, `++` and `.=` on Rust properties |
+| `property_compare.php` | `<=>` on two objects with Rust properties |
+| `property_dump.php` | `var_dump` of an object with Rust properties |
+| `array_str_ref_keys.php` | Array insert with `&str` keys |
+| `array_interned_keys.php` | Array insert with interned keys |
+
 ## Running locally
 
 Always from a nix dev shell, which provides `php` and `cargo-codspeed`:

@@ -1,4 +1,5 @@
 use std::{
+    env::consts::{DLL_PREFIX, DLL_SUFFIX},
     path::PathBuf,
     process::{Command, ExitStatus},
     sync::{LazyLock, Once},
@@ -11,7 +12,8 @@ static BENCH_ROOT: LazyLock<PathBuf> =
 
 static EXT_LIB: LazyLock<String> = LazyLock::new(|| {
     BENCH_ROOT
-        .join("ext/target/release/libbenches.so")
+        .join("ext/target/release")
+        .join(format!("{DLL_PREFIX}benches{DLL_SUFFIX}"))
         .display()
         .to_string()
 });

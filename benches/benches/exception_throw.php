@@ -6,7 +6,7 @@ $n = (int) $argv[1];
 
 for ($i = 1; $i <= $n; $i++) {
     try {
-        bench_throw($i);
+        bench_throw();
     } catch (Exception $e) {
         $_ = $e;
     }
