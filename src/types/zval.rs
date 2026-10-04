@@ -473,65 +473,76 @@ impl Zval {
         DataType::from_u32(u32::from(unsafe { self.u1.v.type_ }))
     }
 
+    #[inline]
     fn has_type(&self, ty: u32) -> bool {
         u32::from(unsafe { self.u1.v.type_ }) == ty
     }
 
     /// Returns true if the zval is a long, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_long(&self) -> bool {
         self.has_type(IS_LONG)
     }
 
     /// Returns true if the zval is null, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_null(&self) -> bool {
         self.has_type(IS_NULL)
     }
 
     /// Returns true if the zval is true, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_true(&self) -> bool {
         self.has_type(IS_TRUE)
     }
 
     /// Returns true if the zval is false, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_false(&self) -> bool {
         self.has_type(IS_FALSE)
     }
 
     /// Returns true if the zval is a bool, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_bool(&self) -> bool {
         self.is_true() || self.is_false()
     }
 
     /// Returns true if the zval is a double, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_double(&self) -> bool {
         self.has_type(IS_DOUBLE)
     }
 
     /// Returns true if the zval is a string, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_string(&self) -> bool {
         self.has_type(IS_STRING)
     }
 
     /// Returns true if the zval is a resource, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_resource(&self) -> bool {
         self.has_type(IS_RESOURCE)
     }
 
     /// Returns true if the zval is an array, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_array(&self) -> bool {
         self.has_type(IS_ARRAY)
     }
 
     /// Returns true if the zval is an object, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_object(&self) -> bool {
         self.has_type(IS_OBJECT)
@@ -544,7 +555,8 @@ impl Zval {
         self.has_type(IS_REFERENCE)
     }
 
-    /// Returns true if the zval is a reference, false otherwise.
+    /// Returns true if the zval is an indirect, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_indirect(&self) -> bool {
         self.has_type(IS_INDIRECT)
@@ -588,6 +600,7 @@ impl Zval {
     }
 
     /// Returns true if the zval contains a pointer, false otherwise.
+    #[inline]
     #[must_use]
     pub fn is_ptr(&self) -> bool {
         self.has_type(IS_PTR)
@@ -597,6 +610,7 @@ impl Zval {
     /// bool), false otherwise.
     ///
     /// This is equivalent to PHP's `is_scalar()` function.
+    #[inline]
     #[must_use]
     pub fn is_scalar(&self) -> bool {
         self.is_long() || self.is_double() || self.is_string() || self.is_bool()
@@ -1482,19 +1496,8 @@ fn parse_double_from_str(s: &str) -> f64 {
 }
 
 #[cfg(test)]
-#[cfg(feature = "embed")]
-#[allow(clippy::unwrap_used, clippy::approx_constant)]
-mod tests {
+mod type_byte_tests {
     use super::*;
-    use crate::embed::Embed;
-
-    #[test]
-    fn test_zval_null() {
-        Embed::run(|| {
-            let zval = Zval::null();
-            assert!(zval.is_null());
-        });
-    }
 
     #[test]
     fn type_predicates_match_from_u32_for_every_zval_type_byte() {
@@ -1543,6 +1546,22 @@ mod tests {
             ];
             assert_eq!(actual, expected, "type byte {byte}");
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "embed")]
+#[allow(clippy::unwrap_used, clippy::approx_constant)]
+mod tests {
+    use super::*;
+    use crate::embed::Embed;
+
+    #[test]
+    fn test_zval_null() {
+        Embed::run(|| {
+            let zval = Zval::null();
+            assert!(zval.is_null());
+        });
     }
 
     #[test]
