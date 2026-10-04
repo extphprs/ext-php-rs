@@ -1,7 +1,9 @@
 # Benchmarks
 
-Benchmarks spawn `php -dextension=ext/target/release/libbenches.so <script> <count>`
-for each PHP script in `benches/` and measure the whole PHP process. Results are
+Benchmarks spawn `php -n -dextension=ext/target/release/libbenches.so <script> <count>`
+for each PHP script in `benches/` and measure the whole PHP process. With `-n`,
+PHP does not read `php.ini` and does not load the shared extensions of the host.
+Thus, most of the measured instructions come from the extension. Results are
 tracked on [CodSpeed](https://codspeed.io/extphprs/ext-php-rs) by the
 `Benchmarks` workflow in `simulation` mode (instruction count, php child tracked
 through `simulation-track-subprocess`).

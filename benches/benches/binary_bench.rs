@@ -66,6 +66,7 @@ fn setup() {
 
 fn run_php(script: &str, cnt: usize) -> ExitStatus {
     let status = Command::new("php")
+        .arg("-n")
         .arg(format!("-dextension={}", *EXT_LIB))
         .arg(bench_script(script))
         .arg(cnt.to_string())
@@ -135,6 +136,21 @@ fn array_interned_keys(cnt: usize) -> ExitStatus {
 #[divan::bench(args = [1, 10, 100_000])]
 fn binary_slice_reads(cnt: usize) -> ExitStatus {
     run_php("binary_slice.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn string_calls(cnt: usize) -> ExitStatus {
+    run_php("string_call.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn object_news(cnt: usize) -> ExitStatus {
+    run_php("object_new.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn exception_throws(cnt: usize) -> ExitStatus {
+    run_php("exception_throw.php", cnt)
 }
 
 fn main() {

@@ -4,7 +4,9 @@ declare(strict_types = 1);
 
 $obj = new BenchProps(0, '');
 
-foreach (range(1, $argv[1]) as $i) {
+$n = (int) $argv[1];
+
+for ($i = 1; $i <= $n; $i++) {
     $obj->fieldA += 2;
     $obj->fieldA++;
     $obj->computed += 1;

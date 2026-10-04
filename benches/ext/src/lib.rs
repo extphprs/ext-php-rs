@@ -2,6 +2,7 @@
 #![allow(
     clippy::must_use_candidate,
     clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
     clippy::needless_pass_by_value,
     clippy::implicit_hasher
 )]
@@ -21,6 +22,16 @@ pub fn bench_binary_slice_sum(values: BinarySlice<u64>) -> u64 {
 #[php_function]
 pub fn bench_function(n: u64) -> u64 {
     n
+}
+
+#[php_function]
+pub fn bench_string(s: &str) -> String {
+    s.to_uppercase()
+}
+
+#[php_function]
+pub fn bench_throw(n: u64) -> PhpResult<u64> {
+    Err(format!("bench {n}").into())
 }
 
 #[php_function]
@@ -140,6 +151,8 @@ static INTERNED_KEYS: ModuleGlobals<InternedKeys> = ModuleGlobals::new();
 pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module
         .function(wrap_function!(bench_function))
+        .function(wrap_function!(bench_string))
+        .function(wrap_function!(bench_throw))
         .function(wrap_function!(bench_callback_function))
         .function(wrap_function!(bench_array_with_str_ref_keys))
         .function(wrap_function!(bench_array_with_interned_keys))
