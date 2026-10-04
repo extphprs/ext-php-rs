@@ -6,6 +6,7 @@ use crate::ffi::{
 use crate::zend::ce;
 use std::any::Any;
 use std::ffi::c_void;
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::panic::{AssertUnwindSafe, UnwindSafe, catch_unwind};
 use std::ptr::null_mut;
 
@@ -72,17 +73,39 @@ pub(crate) fn catch_panic<R>(func: impl FnOnce() -> PhpResult<R>) -> PhpResult<R
     }
 }
 
+pub(crate) struct CatchFrame<R, F> {
+    func: ManuallyDrop<F>,
+    result: MaybeUninit<std::thread::Result<R>>,
+}
+
+impl<R, F: FnOnce() -> R + UnwindSafe> CatchFrame<R, F> {
+    pub(crate) fn new(func: F) -> Self {
+        Self {
+            func: ManuallyDrop::new(func),
+            result: MaybeUninit::uninit(),
+        }
+    }
+
+    /// # Safety
+    ///
+    /// [`panic_wrapper`] must have returned for this frame.
+    pub(crate) unsafe fn into_result(self) -> std::thread::Result<R> {
+        unsafe { self.result.assume_init() }
+    }
+}
+
+/// # Safety
+///
+/// `ctx` must point to a live `CatchFrame<R, F>` whose closure was not taken.
 pub(crate) unsafe extern "C" fn panic_wrapper<R, F: FnOnce() -> R + UnwindSafe>(
     ctx: *const c_void,
 ) -> *const c_void {
-    // we try to catch panic here so we correctly shutdown php if it happens
-    // mandatory when we do assert on test as other test would not run correctly
-    // SAFETY: We read the closure from the pointer and consume it. This is safe because
-    // the closure is only called once.
-    let func = unsafe { std::ptr::read(ctx.cast::<F>()) };
-    let panic = catch_unwind(func);
-
-    Box::into_raw(Box::new(panic)).cast::<c_void>()
+    // SAFETY: `ctx` comes from `&raw mut` on a live `CatchFrame<R, F>`, and the
+    // engine calls this exactly once per frame, so `func` is taken only once.
+    let frame = unsafe { &mut *ctx.cast_mut().cast::<CatchFrame<R, F>>() };
+    let func = unsafe { ManuallyDrop::take(&mut frame.func) };
+    frame.result.write(catch_unwind(func));
+    ctx
 }
 
 /// PHP proposes a try catch mechanism in C using setjmp and longjmp (bailout)
@@ -135,39 +158,29 @@ pub fn try_catch_first<R, F: FnOnce() -> R + UnwindSafe>(func: F) -> Result<R, C
 }
 
 fn do_try_catch<R, F: FnOnce() -> R + UnwindSafe>(func: F, first: bool) -> Result<R, CatchError> {
-    let mut panic_ptr = null_mut();
+    let mut frame = CatchFrame::new(func);
+    let ctx = (&raw mut frame).cast::<c_void>().cast_const();
+    let mut done = null_mut();
     let depth = cleanup_depth();
     let has_bailout = unsafe {
         if first {
-            ext_php_rs_zend_first_try_catch(
-                panic_wrapper::<R, F>,
-                (&raw const func).cast::<c_void>(),
-                &raw mut panic_ptr,
-            )
+            ext_php_rs_zend_first_try_catch(panic_wrapper::<R, F>, ctx, &raw mut done)
         } else {
-            ext_php_rs_zend_try_catch(
-                panic_wrapper::<R, F>,
-                (&raw const func).cast::<c_void>(),
-                &raw mut panic_ptr,
-            )
+            ext_php_rs_zend_try_catch(panic_wrapper::<R, F>, ctx, &raw mut done)
         }
     };
-
-    // Prevent the closure from being dropped here since it was consumed in panic_wrapper
-    std::mem::forget(func);
-
-    let panic = panic_ptr.cast::<std::thread::Result<R>>();
 
     if has_bailout {
         run_cleanups_above(depth);
         return Err(CatchError::Bailout);
     }
 
-    if panic.is_null() {
+    if done.is_null() {
         return Err(CatchError::NullPanicPtr);
     }
 
-    match unsafe { *Box::from_raw(panic.cast::<std::thread::Result<R>>()) } {
+    // SAFETY: `done` is non-null, so `panic_wrapper` returned for this frame.
+    match unsafe { frame.into_result() } {
         Ok(r) => Ok(r),
         Err(payload) => Err(CatchError::Panic(panic_message(payload.as_ref()))),
     }

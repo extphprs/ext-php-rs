@@ -19,7 +19,7 @@ use crate::ffi::{
     zend_destroy_file_handle, zend_eval_string, zend_file_handle, zend_stream_init_filename,
 };
 use crate::types::{ZendObject, Zval};
-use crate::zend::{CatchError, ExecutorGlobals, panic_wrapper, try_catch};
+use crate::zend::{CatchError, CatchFrame, ExecutorGlobals, panic_wrapper, try_catch};
 use parking_lot::{RwLock, const_rwlock};
 use std::ffi::{CString, NulError, c_char, c_void};
 use std::panic::{AssertUnwindSafe, UnwindSafe, resume_unwind};
@@ -174,24 +174,23 @@ impl Embed {
         // avoid doing that in this case
         let _guard = RUN_FN_LOCK.write();
 
-        let panic = unsafe {
+        let mut frame = CatchFrame::new(func);
+        let done = unsafe {
             ext_php_rs_embed_callback(
                 0,
                 null_mut(),
                 panic_wrapper::<R, F>,
-                (&raw const func).cast::<c_void>(),
+                (&raw mut frame).cast::<c_void>().cast_const(),
             )
         };
 
-        // Prevent the closure from being dropped here since it was consumed in panic_wrapper
-        std::mem::forget(func);
-
         // This can happen if there is a bailout
-        if panic.is_null() {
+        if done.is_null() {
             return R::default();
         }
 
-        match unsafe { *Box::from_raw(panic.cast::<std::thread::Result<R>>()) } {
+        // SAFETY: `done` is non-null, so `panic_wrapper` returned for this frame.
+        match unsafe { frame.into_result() } {
             Ok(r) => r,
             Err(err) => {
                 // we resume the panic here so it can be caught correctly by the test framework

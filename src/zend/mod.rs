@@ -57,9 +57,9 @@ pub use module_globals::{ModuleGlobal, ModuleGlobals};
 pub use observer::{FcallInfo, FcallObserver};
 pub use streams::*;
 pub(crate) use try_catch::catch_panic;
-#[cfg(feature = "embed")]
-pub(crate) use try_catch::panic_wrapper;
 pub use try_catch::{CatchError, bailout, run_handler, try_catch, try_catch_first};
+#[cfg(feature = "embed")]
+pub(crate) use try_catch::{CatchFrame, panic_wrapper};
 #[cfg(feature = "observer")]
 pub use zend_extension::{ZendExtensionBuilder, ZendExtensionHandler};
 
