@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 $obj = new BenchClass();
 
-foreach (range(1, $argv[1]) as $i) {
+$n = (int) $argv[1];
+
+for ($i = 1; $i <= $n; $i++) {
     $obj->method($i);
 }

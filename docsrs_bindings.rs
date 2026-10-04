@@ -3658,6 +3658,13 @@ unsafe extern "C" {
     pub static mut zend_ce_unhandled_match_error: *mut zend_class_entry;
 }
 unsafe extern "C" {
+    pub fn zend_throw_exception(
+        exception_ce: *mut zend_class_entry,
+        message: *const ::std::os::raw::c_char,
+        code: zend_long,
+    ) -> *mut zend_object;
+}
+unsafe extern "C" {
     pub fn zend_throw_exception_ex(
         exception_ce: *mut zend_class_entry,
         code: zend_long,

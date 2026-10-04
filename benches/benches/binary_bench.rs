@@ -1,4 +1,5 @@
 use std::{
+    env::consts::{DLL_PREFIX, DLL_SUFFIX},
     path::PathBuf,
     process::{Command, ExitStatus},
     sync::{LazyLock, Once},
@@ -11,7 +12,8 @@ static BENCH_ROOT: LazyLock<PathBuf> =
 
 static EXT_LIB: LazyLock<String> = LazyLock::new(|| {
     BENCH_ROOT
-        .join("ext/target/release/libbenches.so")
+        .join("ext/target/release")
+        .join(format!("{DLL_PREFIX}benches{DLL_SUFFIX}"))
         .display()
         .to_string()
 });
@@ -66,6 +68,7 @@ fn setup() {
 
 fn run_php(script: &str, cnt: usize) -> ExitStatus {
     let status = Command::new("php")
+        .arg("-n")
         .arg(format!("-dextension={}", *EXT_LIB))
         .arg(bench_script(script))
         .arg(cnt.to_string())
@@ -135,6 +138,21 @@ fn array_interned_keys(cnt: usize) -> ExitStatus {
 #[divan::bench(args = [1, 10, 100_000])]
 fn binary_slice_reads(cnt: usize) -> ExitStatus {
     run_php("binary_slice.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn string_calls(cnt: usize) -> ExitStatus {
+    run_php("string_call.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn object_news(cnt: usize) -> ExitStatus {
+    run_php("object_new.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn exception_throws(cnt: usize) -> ExitStatus {
+    run_php("exception_throw.php", cnt)
 }
 
 fn main() {

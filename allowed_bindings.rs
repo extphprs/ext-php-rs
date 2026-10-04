@@ -146,6 +146,7 @@ bind! {
     zend_string,
     zend_string_init_interned,
     zend_throw_error,
+    zend_throw_exception,
     zend_throw_exception_ex,
     zend_throw_exception_object,
     zend_type,
