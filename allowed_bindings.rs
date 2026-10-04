@@ -132,6 +132,7 @@ bind! {
     zend_object_handlers,
     zend_object_std_init,
     zend_objects_clone_members,
+    zend_property_info,
     zend_register_bool_constant,
     zend_register_double_constant,
     zend_register_ini_entries,
