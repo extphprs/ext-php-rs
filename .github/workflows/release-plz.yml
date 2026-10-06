@@ -7,7 +7,9 @@ permissions:
 on:
   workflow_call:
     secrets:
-      RELEASE_PLZ_TOKEN:
+      APP_ID:
+        required: true
+      APP_PRIVATE_KEY:
         required: true
     outputs:
       release_created:
@@ -32,6 +34,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -61,13 +64,19 @@ jobs:
       - name: Authenticate to crates.io
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
+      - name: Generate GitHub token
+        uses: actions/create-github-app-token@v2
+        id: generate-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Run release-plz
         id: release-plz
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
   release-plz-pr:
     name: Release-plz PR
@@ -83,14 +92,21 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Authenticate to crates.io
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
+      - name: Generate GitHub token
+        uses: actions/create-github-app-token@v2
+        id: generate-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Run release-plz
         uses: release-plz/action@v0.5
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
