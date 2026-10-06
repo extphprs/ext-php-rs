@@ -18,7 +18,7 @@ jobs:
       pull-requests: write
     uses: ./.github/workflows/release-plz.yml
     secrets:
-      RELEASE_PLZ_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
   docs:
     name: Build and Deploy Documentation
     needs: [release]
