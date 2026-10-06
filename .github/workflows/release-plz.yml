@@ -7,8 +7,6 @@ permissions:
 on:
   workflow_call:
     secrets:
-      APP_ID:
-        required: true
       APP_PRIVATE_KEY:
         required: true
     outputs:
@@ -65,10 +63,10 @@ jobs:
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         id: generate-token
         with:
-          app-id: ${{ secrets.APP_ID }}
+          client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Run release-plz
         id: release-plz
@@ -99,10 +97,10 @@ jobs:
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         id: generate-token
         with:
-          app-id: ${{ secrets.APP_ID }}
+          client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Run release-plz
         uses: release-plz/action@v0.5
