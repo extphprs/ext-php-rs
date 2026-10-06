@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [0.16.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.0...ext-php-rs-v0.16.1) - 2026-10-06
+
+### Fixed
+- *(array)* Release the previous value in ZendEmptyArray::set_zval ([#804](https://github.com/extphprs/ext-php-rs/pull/804)) (by @ptondereau) [[#804](https://github.com/extphprs/ext-php-rs/issues/804)] 
+- *(array)* Don't coerce non-canonical numeric strings to integer keys ([#798](https://github.com/extphprs/ext-php-rs/pull/798)) (by @TobiasBengtsson) [[#798](https://github.com/extphprs/ext-php-rs/issues/798)] 
+- *(class)* Route Rust prop access through the declared slot and the getter/setter ([#801](https://github.com/extphprs/ext-php-rs/pull/801)) (by @ptondereau) [[#801](https://github.com/extphprs/ext-php-rs/issues/801)] 
+- *(stubs)* Fully qualify extends and implements references ([#799](https://github.com/extphprs/ext-php-rs/pull/799)) (by @ptondereau) [[#799](https://github.com/extphprs/ext-php-rs/issues/799)] 
+
+### Other
+- *(release)* Use a GitHub App token for release-plz ([#805](https://github.com/extphprs/ext-php-rs/pull/805)) (by @ptondereau) [[#805](https://github.com/extphprs/ext-php-rs/issues/805)] 
+- *(release-plz)* Re-enable semver checks ([#796](https://github.com/extphprs/ext-php-rs/pull/796)) (by @ptondereau) [[#796](https://github.com/extphprs/ext-php-rs/issues/796)] 
+- *(zval)* Compare the type byte in is_* predicates ([#803](https://github.com/extphprs/ext-php-rs/pull/803)) (by @ptondereau) [[#803](https://github.com/extphprs/ext-php-rs/issues/803)] 
+- Cheaper calls and throws, sharper benches ([#802](https://github.com/extphprs/ext-php-rs/pull/802)) (by @ptondereau) [[#802](https://github.com/extphprs/ext-php-rs/issues/802)] 
 ## [0.16.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.15.15...ext-php-rs-v0.16.0) - 2026-09-29
 
 ### BREAKING CHANGES
