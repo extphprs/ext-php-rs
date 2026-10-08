@@ -17,6 +17,7 @@ pub const MODULE_STARTUP_INIT: ModuleStartupMutex = const_mutex(None);
 
 /// Called by startup functions registered with the [`#[php_startup]`] macro.
 /// Initializes all classes that are defined by ext-php-rs (i.e. `Closure`).
+/// Runs once per MINIT: call it from the module startup function only.
 ///
 /// [`#[php_startup]`]: `crate::php_startup`
 // TODO: Measure this

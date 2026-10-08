@@ -118,6 +118,11 @@ name = "sapi_tests"
 path = "tests/sapi.rs"
 
 [[test]]
+name = "module_restart"
+path = "tests/module_restart.rs"
+required-features = ["embed", "closure"]
+
+[[test]]
 name = "sapi_header_safety"
 path = "tests/sapi_header_safety.rs"
 required-features = ["embed"]

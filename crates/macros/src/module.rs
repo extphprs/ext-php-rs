@@ -81,10 +81,11 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
             extern "C" fn ext_php_rs_startup(ty: i32, mod_num: i32) -> i32 {
                 let a = unsafe { #startup };
                 let b = ::ext_php_rs::internal::startup_guard(|| {
-                    // ext_php_rs_startup is idempotent (Closure::build early-returns once
-                    // built), so it runs whether or not this is the first startup.
+                    // The startup is kept, not taken: a SAPI can shut the module down and
+                    // start it again in the same process (FrankenPHP worker restarts), and
+                    // every MINIT must register the classes, interfaces, enums and constants.
                     ::ext_php_rs::internal::ext_php_rs_startup();
-                    match __EXT_PHP_RS_MODULE_STARTUP.lock().take() {
+                    match __EXT_PHP_RS_MODULE_STARTUP.lock().as_ref() {
                         Some(startup) => startup.startup(ty, mod_num),
                         None => Ok(()),
                     }
