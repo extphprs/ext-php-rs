@@ -1,5 +1,5 @@
 {
-	admin localhost:2019
+	admin localhost:9019
 	frankenphp {
 		num_threads 2
 		worker {
@@ -9,7 +9,7 @@
 	}
 }
 
-http://localhost:8080 {
+http://localhost:9080 {
 	root * .
 	php_server
 }

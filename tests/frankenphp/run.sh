@@ -5,7 +5,7 @@ shopt -s inherit_errexit
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
 readonly RESTARTS=3
-readonly URL=http://localhost:8080/worker.php
+readonly URL=http://localhost:9080/worker.php
 
 _tmpdir=""
 _server=""
@@ -56,7 +56,7 @@ main() {
   local restart
   for ((restart = 1; restart <= RESTARTS; restart++)); do
     printf 'restart %d\n' "${restart}"
-    curl -fsS --max-time 60 -X POST http://localhost:2019/frankenphp/workers/restart
+    curl -fsS --max-time 60 -X POST http://localhost:9019/frankenphp/workers/restart
     curl -fsS --max-time 10 "${URL}"
   done
 }
