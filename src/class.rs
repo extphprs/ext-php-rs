@@ -245,7 +245,7 @@ impl<T: RegisteredClass> ClassMetadata<T> {
 
     /// Checks if the class entry has been stored, returning a boolean.
     pub fn has_ce(&self) -> bool {
-        !self.ce.load(Ordering::SeqCst).is_null()
+        !self.ce.load(Ordering::Acquire).is_null()
     }
 
     /// Retrieves a reference to the stored class entry.
@@ -261,7 +261,7 @@ impl<T: RegisteredClass> ClassMetadata<T> {
         // SAFETY: There are only two values that can be stored in the atomic
         // ptr: null or a static reference to a class entry. On the null case,
         // `as_ref()` will return `None` and the function will panic.
-        unsafe { self.ce.load(Ordering::SeqCst).as_ref() }
+        unsafe { self.ce.load(Ordering::Acquire).as_ref() }
             .expect("Attempted to retrieve class entry before it has been stored.")
     }
 
@@ -272,7 +272,7 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     /// a worker restart or `opcache_reset()`): MINIT then registers the class
     /// again, and the new entry replaces the one freed with the old module.
     pub fn set_ce(&self, ce: &'static mut ClassEntry) {
-        self.ce.store(ce, Ordering::SeqCst);
+        self.ce.store(ce, Ordering::Release);
     }
 
     /// Takes ownership of the argument info tables of this class's methods.
