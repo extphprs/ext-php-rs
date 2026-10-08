@@ -362,6 +362,7 @@ jobs:
     name: Test with FrankenPHP (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         php: ["8.2", "8.3", "8.4", "8.5"]
     env:
@@ -382,7 +383,10 @@ jobs:
           sudo curl -fsSL "https://pkg.henderkes.com/api/packages/${PHP_VERSION}/debian/repository.key" -o "${KEY_FILE}"
           echo "${REPO_LINE}" | sudo tee "/etc/apt/sources.list.d/static-php${PHP_VERSION}.list" > /dev/null
           sudo apt update -y
-          sudo apt install -y php-zts-cli php-zts-devel "frankenphp=${{ env.frankenphp }}+php${PHP_VERSION}-1"
+          sudo apt install -y php-zts-cli php-zts-devel \
+            "frankenphp=${{ env.frankenphp }}+php${PHP_VERSION}-1" \
+            "frankenphp-debuginfo=${{ env.frankenphp }}+php${PHP_VERSION}-1" \
+            php-zts-embed-debuginfo gdb
           {
             echo "PHP=/usr/bin/php-zts"
             echo "PHP_CONFIG=/usr/bin/php-config-zts"

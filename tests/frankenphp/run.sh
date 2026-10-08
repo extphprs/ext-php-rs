@@ -12,7 +12,7 @@ _server=""
 
 cleanup() {
   if [[ -n "${_server}" ]]; then
-    kill "${_server}" 2>/dev/null || true
+    pkill -TERM -P "${_server}" -x frankenphp 2>/dev/null || kill "${_server}" 2>/dev/null || true
     wait "${_server}" 2>/dev/null || true
   fi
   rm -rf -- "${_tmpdir}"
@@ -39,7 +39,16 @@ main() {
   export PHP_INI_SCAN_DIR=":${_tmpdir}"
 
   cd -- "${SCRIPT_DIR}"
-  frankenphp run --config Caddyfile &
+  local -a server=(frankenphp run --config Caddyfile)
+  if command -v gdb >/dev/null; then
+    server=(gdb -q -batch
+      -iex 'set debug-file-directory /usr/lib/debug:/usr/lib/debug/usr'
+      -ex 'handle all nostop noprint pass'
+      -ex 'handle SIGSEGV SIGBUS SIGFPE SIGABRT stop print'
+      -ex run -ex bt
+      --args "${server[@]}")
+  fi
+  "${server[@]}" &
   _server=$!
 
   curl -fsS --max-time 10 --retry 30 --retry-connrefused --retry-delay 1 "${URL}"
