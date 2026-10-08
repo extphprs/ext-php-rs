@@ -1,0 +1,15 @@
+{
+	admin localhost:9019
+	frankenphp {
+		num_threads 2
+		worker {
+			file worker.php
+			num 1
+		}
+	}
+}
+
+http://localhost:9080 {
+	root * .
+	php_server
+}
