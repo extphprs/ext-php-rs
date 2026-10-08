@@ -123,6 +123,11 @@ path = "tests/module_restart.rs"
 required-features = ["embed", "closure"]
 
 [[test]]
+name = "observer_restart"
+path = "tests/observer_restart.rs"
+required-features = ["embed", "observer"]
+
+[[test]]
 name = "sapi_header_safety"
 path = "tests/sapi_header_safety.rs"
 required-features = ["embed"]

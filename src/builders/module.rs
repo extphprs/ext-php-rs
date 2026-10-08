@@ -246,8 +246,10 @@ impl ModuleBuilder<'_> {
 
     /// Registers a function call observer for profiling or tracing.
     ///
-    /// The factory function is called once globally during MINIT to create
+    /// The factory function is called once, at the first MINIT, to create
     /// a singleton observer instance shared across all requests and threads.
+    /// When the SAPI starts the module again in the same process, the hook is
+    /// registered again with the same instance.
     /// The observer must be `Send + Sync` as it may be accessed concurrently
     /// in ZTS builds.
     ///
@@ -296,8 +298,10 @@ impl ModuleBuilder<'_> {
 
     /// Registers an error observer for monitoring PHP errors.
     ///
-    /// The factory function is called once during MINIT to create
+    /// The factory function is called once, at the first MINIT, to create
     /// a singleton observer instance shared across all requests.
+    /// When the SAPI starts the module again in the same process, the hook is
+    /// registered again with the same instance.
     /// The observer must be `Send + Sync` for ZTS builds.
     ///
     /// # Arguments
@@ -349,8 +353,10 @@ impl ModuleBuilder<'_> {
 
     /// Registers an exception observer for monitoring thrown PHP exceptions.
     ///
-    /// The factory function is called once during MINIT to create
+    /// The factory function is called once, at the first MINIT, to create
     /// a singleton observer instance shared across all requests.
+    /// When the SAPI starts the module again in the same process, the hook is
+    /// registered again with the same instance.
     /// The observer must be `Send + Sync` for ZTS builds.
     ///
     /// The observer is called at throw time, before any catch blocks are

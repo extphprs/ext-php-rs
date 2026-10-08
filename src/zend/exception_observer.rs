@@ -20,6 +20,7 @@
 //! ```
 
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 use crate::ffi;
 
@@ -253,8 +254,9 @@ static EXCEPTION_OBSERVER_FACTORY: OnceLock<ExceptionObserverFactory> = OnceLock
 static EXCEPTION_OBSERVER_INSTANCE: OnceLock<Box<dyn ExceptionObserver + Send + Sync>> =
     OnceLock::new();
 
-static PREVIOUS_HOOK: OnceLock<Option<unsafe extern "C" fn(*mut ffi::zend_object)>> =
-    OnceLock::new();
+type ThrowHook = unsafe extern "C" fn(*mut ffi::zend_object);
+
+static PREVIOUS_HOOK: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
 
 fn get_exception_observer() -> Option<&'static (dyn ExceptionObserver + Send + Sync)> {
     EXCEPTION_OBSERVER_INSTANCE
@@ -272,7 +274,11 @@ unsafe extern "C" fn exception_observer_callback(exception: *mut ffi::zend_objec
         observer.on_exception(&info);
     }
 
-    if let Some(Some(prev)) = PREVIOUS_HOOK.get() {
+    let prev = PREVIOUS_HOOK.load(Ordering::Acquire);
+    if !prev.is_null() {
+        // SAFETY: `PREVIOUS_HOOK` only ever holds null or a `ThrowHook` stored by
+        // `exception_observer_startup`, and function pointers are pointer-sized.
+        let prev = unsafe { std::mem::transmute::<*mut (), ThrowHook>(prev) };
         unsafe { prev(exception) };
     }
 }
@@ -291,17 +297,19 @@ pub(crate) fn register_exception_observer_factory(factory: ExceptionObserverFact
 ///
 /// Must be called during MINIT phase only.
 pub(crate) unsafe fn exception_observer_startup() {
-    if let Some(factory) = EXCEPTION_OBSERVER_FACTORY.get() {
-        if EXCEPTION_OBSERVER_INSTANCE.set(factory()).is_err() {
-            return;
-        }
+    let Some(factory) = EXCEPTION_OBSERVER_FACTORY.get() else {
+        return;
+    };
+    EXCEPTION_OBSERVER_INSTANCE.get_or_init(factory);
 
-        let prev = unsafe { ffi::zend_throw_exception_hook };
-        let _ = PREVIOUS_HOOK.set(prev);
+    let ours: ThrowHook = exception_observer_callback;
+    let prev = unsafe { ffi::zend_throw_exception_hook }
+        .filter(|&prev| !std::ptr::fn_addr_eq(prev, ours))
+        .map_or(std::ptr::null_mut(), |prev| prev as *mut ());
+    PREVIOUS_HOOK.store(prev, Ordering::Release);
 
-        unsafe {
-            ffi::zend_throw_exception_hook = Some(exception_observer_callback);
-        }
+    unsafe {
+        ffi::zend_throw_exception_hook = Some(ours);
     }
 }
 

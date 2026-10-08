@@ -377,8 +377,10 @@ pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
 
 ## Thread Safety
 
-Observers are created once during MINIT and stored as global singletons.
-They must implement `Send + Sync` because:
+Observers are created once, at the first MINIT, and stored as global singletons.
+When a SAPI stops the module and starts it again in the same process (for example
+a FrankenPHP worker restart), every MINIT registers the hooks again with the same
+instance, so its state is kept. They must implement `Send + Sync` because:
 
 - **NTS**: A single instance handles all requests
 - **ZTS**: The same instance may be called from different threads

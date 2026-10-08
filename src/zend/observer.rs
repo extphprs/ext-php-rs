@@ -227,12 +227,11 @@ pub(crate) fn register_fcall_observer_factory(factory: ObserverFactory) {
 ///
 /// Must be called during MINIT phase only.
 pub(crate) unsafe fn observer_startup() {
-    if let Some(factory) = OBSERVER_FACTORY.get() {
-        if OBSERVER_INSTANCE.set(factory()).is_err() {
-            return;
-        }
-        unsafe { ffi::zend_observer_fcall_register(Some(observer_fcall_init)) };
-    }
+    let Some(factory) = OBSERVER_FACTORY.get() else {
+        return;
+    };
+    OBSERVER_INSTANCE.get_or_init(factory);
+    unsafe { ffi::zend_observer_fcall_register(Some(observer_fcall_init)) };
 }
 
 #[cfg(test)]
