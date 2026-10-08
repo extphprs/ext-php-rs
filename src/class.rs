@@ -2,11 +2,13 @@
 
 use std::{
     marker::PhantomData,
-    sync::atomic::{AtomicPtr, Ordering},
+    sync::{
+        Mutex, PoisonError,
+        atomic::{AtomicPtr, Ordering},
+    },
 };
 
 use once_cell::sync::OnceCell;
-use parking_lot::Mutex;
 
 use crate::{
     args::ArgInfoTables as OwnedArgInfo,
@@ -288,7 +290,8 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     /// the SAPI starts the module again in the same process, the new tables
     /// replace those of the class freed with the old module.
     pub fn set_arg_info(&self, arg_info: OwnedArgInfo) {
-        *self.arg_info.lock() = Some(ArgInfoTables(arg_info));
+        *self.arg_info.lock().unwrap_or_else(PoisonError::into_inner) =
+            Some(ArgInfoTables(arg_info));
     }
 
     /// Finds a property descriptor by name.
@@ -349,5 +352,19 @@ impl<T: RegisteredClass> ClassMetadata<T> {
                 })
                 .collect()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic::{RefUnwindSafe, UnwindSafe};
+
+    use super::ClassMetadata;
+
+    fn assert_unwind_safe<T: RefUnwindSafe + UnwindSafe>() {}
+
+    #[test]
+    fn class_metadata_is_unwind_safe() {
+        assert_unwind_safe::<ClassMetadata<()>>();
     }
 }
