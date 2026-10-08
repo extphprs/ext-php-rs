@@ -73,6 +73,18 @@ expanded code is correct and that it matches the expected output. Commit the exp
 
 If creating a new macro it needs to be added to the test contained at the bottom of the `crates/macros/src/lib.rs` file.
 
+### Testing module restarts
+
+Some SAPIs, such as [FrankenPHP](https://frankenphp.dev), stop the module and start it again in the same
+process. MINIT then runs more than once. The `test-frankenphp` CI job checks this: it loads the `tests`
+extension in FrankenPHP worker mode, restarts the workers three times, and checks the classes, interfaces,
+enums and closures after each restart. To run it on a machine with FrankenPHP installed:
+
+```sh
+cargo build --release -p tests
+tests/frankenphp/run.sh target/release/libtests.so
+```
+
 ### State of unit tests
 There are still large parts of the library that are not covered by unit tests. We strive to cover
 as much as possible, but this is a work in progress. If you make changes to untested code, we would
