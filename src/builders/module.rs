@@ -639,29 +639,29 @@ pub struct ModuleStartup {
 
 impl ModuleStartup {
     /// Completes startup of the module. Should only be called inside the module
-    /// startup function.
+    /// startup function, which runs again when the SAPI starts the module again
+    /// in the same process (e.g. a `FrankenPHP` worker restart): everything is
+    /// registered anew each time.
     ///
     /// # Errors
     ///
     /// * Returns an error if a constant, interface, class or enum could not be
     ///   registered. The generated MINIT then returns `FAILURE` and PHP refuses
     ///   to start the module.
-    pub fn startup(self, _ty: i32, mod_num: i32) -> Result<()> {
-        for (name, val) in self.constants {
-            val.register_constant(&name, mod_num)?;
+    pub fn startup(&self, _ty: i32, mod_num: i32) -> Result<()> {
+        for (name, val) in &self.constants {
+            val.register_constant(name, mod_num)?;
         }
 
         // Interfaces must be registered before classes so that classes can implement
         // them
-        self.interfaces
-            .into_iter()
-            .try_for_each(|c| c().register())?;
+        self.interfaces.iter().try_for_each(|c| c().register())?;
 
-        self.classes.into_iter().try_for_each(|c| c().register())?;
+        self.classes.iter().try_for_each(|c| c().register())?;
 
         #[cfg(feature = "enum")]
         self.enums
-            .into_iter()
+            .iter()
             .try_for_each(|builder| builder().register())?;
 
         // Initialize observer systems if registered

@@ -26,7 +26,9 @@ Everything the engine keeps a pointer into:
   `ZEND_ACC_HAS_TYPE_HINTS`, and that copy is shallow: `name` and
   `default_value` stay borrowed and are read at runtime by
   `ReflectionParameter`. A function with neither parameters nor a return type
-  keeps the original array.
+  keeps the original array. When a SAPI starts the module again in the same
+  process (a `FrankenPHP` worker restart), MINIT registers each class anew and
+  its new tables replace those of the class freed with the old module.
 - **The module function table**, its function names, and the module `name` and
   `version`. `module_destructor` walks the table reading `fname` after
   MSHUTDOWN for `dl()`-loaded extensions, `get_extension_funcs()` walks it

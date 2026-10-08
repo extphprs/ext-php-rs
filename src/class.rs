@@ -6,6 +6,7 @@ use std::{
 };
 
 use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 
 use crate::{
     args::ArgInfoTables as OwnedArgInfo,
@@ -200,10 +201,11 @@ pub struct ClassMetadata<T: 'static> {
     method_properties: OnceCell<&'static [PropertyDescriptor<T>]>,
     mangled_names: OnceCell<Box<[Box<str>]>>,
     /// Argument info tables of this class's methods. `zend_register_functions`
-    /// borrows them for the life of the process, so they are owned here rather
+    /// borrows them until the module shuts down, so they are owned here rather
     /// than orphaned: this static is the class's equivalent of a C extension's
-    /// `static zend_internal_arg_info[]`.
-    arg_info: OnceCell<ArgInfoTables>,
+    /// `static zend_internal_arg_info[]`. A SAPI that starts the module again in
+    /// the same process registers the class again, with new tables.
+    arg_info: Mutex<Option<ArgInfoTables>>,
     ce: AtomicPtr<ClassEntry>,
 
     // `AtomicPtr` is used here because it is `Send + Sync`.
@@ -221,7 +223,7 @@ impl<T: 'static> ClassMetadata<T> {
             field_properties,
             method_properties: OnceCell::new(),
             mangled_names: OnceCell::new(),
-            arg_info: OnceCell::new(),
+            arg_info: Mutex::new(None),
             ce: AtomicPtr::new(std::ptr::null_mut()),
             phantom: PhantomData,
         }
@@ -265,43 +267,23 @@ impl<T: RegisteredClass> ClassMetadata<T> {
 
     /// Stores a reference to a class entry inside the class metadata.
     ///
-    /// # Panics
-    ///
-    /// Panics if the class entry has already been set in the class metadata.
-    /// This function should only be called once.
-    #[expect(
-        clippy::expect_used,
-        reason = "the class entry is written once during MINIT, before any concurrent access"
-    )]
+    /// Called during MINIT, before any concurrent access. A SAPI can shut the
+    /// module down and start it again in the same process (`FrankenPHP` does on
+    /// a worker restart or `opcache_reset()`): MINIT then registers the class
+    /// again, and the new entry replaces the one freed with the old module.
     pub fn set_ce(&self, ce: &'static mut ClassEntry) {
-        self.ce
-            .compare_exchange(
-                std::ptr::null_mut(),
-                ce,
-                Ordering::SeqCst,
-                Ordering::Relaxed,
-            )
-            .expect("Class entry has already been set");
+        self.ce.store(ce, Ordering::SeqCst);
     }
 
     /// Takes ownership of the argument info tables of this class's methods.
     ///
     /// `zend_register_functions` keeps `zend_internal_function.arg_info`
-    /// pointing into these for the life of the process, so they must outlive
-    /// registration. Called once, from `ClassBuilder::register`.
-    ///
-    /// # Panics
-    ///
-    /// If the argument info has already been set.
-    #[expect(
-        clippy::expect_used,
-        reason = "the arg info is written once during MINIT, before any concurrent access"
-    )]
+    /// pointing into these until the module shuts down, so they must outlive
+    /// registration. Called from `ClassBuilder::register`, once per MINIT: when
+    /// the SAPI starts the module again in the same process, the new tables
+    /// replace those of the class freed with the old module.
     pub fn set_arg_info(&self, arg_info: OwnedArgInfo) {
-        self.arg_info
-            .set(ArgInfoTables(arg_info))
-            .map_err(|_| ())
-            .expect("Argument info has already been set");
+        *self.arg_info.lock() = Some(ArgInfoTables(arg_info));
     }
 
     /// Finds a property descriptor by name.
