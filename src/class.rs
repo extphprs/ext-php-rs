@@ -250,6 +250,11 @@ impl<T: RegisteredClass> ClassMetadata<T> {
 
     /// Retrieves a reference to the stored class entry.
     ///
+    /// The class entry lives until the module shuts down. A SAPI that starts
+    /// the module again in the same process (`FrankenPHP` worker restarts)
+    /// registers a new one, so do not keep the reference across a restart:
+    /// call this again instead.
+    ///
     /// # Panics
     ///
     /// Panics if there is no class entry stored inside the class metadata.
