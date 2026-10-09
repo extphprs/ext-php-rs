@@ -1776,6 +1776,11 @@ fn php_const_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// The `startup` function that you name in `#[php(startup = ...)]` is your own
 /// `extern "C"` function. A panic inside it is not caught.
 ///
+/// You can also give a startup function to `ModuleBuilder::startup_function`.
+/// The generated startup function calls it after the `#[php(startup = ...)]`
+/// function. The two functions run before the macro registers the constants,
+/// interfaces, classes and enums.
+///
 /// ## Usage
 ///
 /// ```rust,no_run,ignore

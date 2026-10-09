@@ -129,6 +129,11 @@ path = "tests/module_restart.rs"
 required-features = ["embed", "closure"]
 
 [[test]]
+name = "module_startup_function"
+path = "tests/module_startup_function.rs"
+required-features = ["embed"]
+
+[[test]]
 name = "observer_restart"
 path = "tests/observer_restart.rs"
 required-features = ["embed", "observer"]

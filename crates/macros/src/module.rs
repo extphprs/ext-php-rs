@@ -77,9 +77,15 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 ::ext_php_rs::zend::StaticModuleEntry::new();
             static __EXT_PHP_RS_MODULE_STARTUP: ::ext_php_rs::internal::ModuleStartupMutex =
                 ::ext_php_rs::internal::MODULE_STARTUP_INIT;
+            static __EXT_PHP_RS_BUILDER_STARTUP: ::std::sync::OnceLock<
+                unsafe extern "C" fn(i32, i32) -> i32,
+            > = ::std::sync::OnceLock::new();
 
             extern "C" fn ext_php_rs_startup(ty: i32, mod_num: i32) -> i32 {
                 let a = unsafe { #startup };
+                let user = __EXT_PHP_RS_BUILDER_STARTUP
+                    .get()
+                    .map_or(0, |startup| unsafe { startup(ty, mod_num) });
                 let b = ::ext_php_rs::internal::startup_guard(|| {
                     // The startup is kept, not taken: a SAPI can shut the module down and
                     // start it again in the same process (FrankenPHP worker restarts), and
@@ -90,7 +96,7 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                         None => Ok(()),
                     }
                 });
-                a | b
+                a | user | b
             }
 
             static __EXT_PHP_RS_BUILD_ERROR: ::std::sync::OnceLock<::std::string::String> =
@@ -111,11 +117,15 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 let builder = internal(::ext_php_rs::builders::ModuleBuilder::new(
                     env!("CARGO_PKG_NAME"),
                     env!("CARGO_PKG_VERSION")
-                ))
-                .startup_function(ext_php_rs_startup);
+                ));
 
                 match builder.try_into() {
-                    Ok((entry, startup, owned)) => {
+                    Ok((mut entry, startup, owned)) => {
+                        if let Some(user_startup) =
+                            entry.module_startup_func.replace(ext_php_rs_startup)
+                        {
+                            let _ = __EXT_PHP_RS_BUILDER_STARTUP.set(user_startup);
+                        }
                         __EXT_PHP_RS_MODULE_STARTUP.lock().replace(startup);
                         (entry, owned)
                     },
