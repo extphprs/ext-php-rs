@@ -42,8 +42,8 @@ NUL byte, the macro returns a placeholder entry with the name of the crate. The
 startup function of that entry logs the build error and fails as described
 above.
 
-The `startup` function that you name in `#[php_module(startup = ...)]` is your
-own `extern "C"` function. A panic inside it is not caught.
+The `startup` function that you name in `#[php(startup = ...)]` is your own
+`extern "C"` function. A panic inside it is not caught.
 
 ## Usage
 
