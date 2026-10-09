@@ -286,12 +286,11 @@ pub(crate) fn register_error_observer_factory(factory: ErrorObserverFactory) {
 ///
 /// Must be called during MINIT phase only.
 pub(crate) unsafe fn error_observer_startup() {
-    if let Some(factory) = ERROR_OBSERVER_FACTORY.get() {
-        if ERROR_OBSERVER_INSTANCE.set(factory()).is_err() {
-            return;
-        }
-        unsafe { ffi::zend_observer_error_register(Some(error_observer_callback)) };
-    }
+    let Some(factory) = ERROR_OBSERVER_FACTORY.get() else {
+        return;
+    };
+    ERROR_OBSERVER_INSTANCE.get_or_init(factory);
+    unsafe { ffi::zend_observer_error_register(Some(error_observer_callback)) };
 }
 
 #[cfg(test)]

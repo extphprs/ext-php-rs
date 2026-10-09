@@ -1,4 +1,9 @@
 //! Stock class entries registered with PHP, primarily exceptions.
+//!
+//! A class entry is valid only until the module shuts down. A SAPI that starts
+//! the module again in the same process (`FrankenPHP` worker restarts) makes new
+//! class entries. Do not keep a returned reference in a `static`: call the
+//! function again each time.
 
 #![allow(clippy::unwrap_used)]
 

@@ -2,11 +2,13 @@
 
 use std::{
     marker::PhantomData,
-    sync::atomic::{AtomicPtr, Ordering},
+    sync::{
+        Mutex, PoisonError,
+        atomic::{AtomicPtr, Ordering},
+    },
 };
 
 use once_cell::sync::OnceCell;
-use parking_lot::Mutex;
 
 use crate::{
     args::ArgInfoTables as OwnedArgInfo,
@@ -245,10 +247,15 @@ impl<T: RegisteredClass> ClassMetadata<T> {
 
     /// Checks if the class entry has been stored, returning a boolean.
     pub fn has_ce(&self) -> bool {
-        !self.ce.load(Ordering::SeqCst).is_null()
+        !self.ce.load(Ordering::Acquire).is_null()
     }
 
     /// Retrieves a reference to the stored class entry.
+    ///
+    /// The class entry lives until the module shuts down. A SAPI that starts
+    /// the module again in the same process (`FrankenPHP` worker restarts)
+    /// registers a new one, so do not keep the reference across a restart:
+    /// call this again instead.
     ///
     /// # Panics
     ///
@@ -261,7 +268,7 @@ impl<T: RegisteredClass> ClassMetadata<T> {
         // SAFETY: There are only two values that can be stored in the atomic
         // ptr: null or a static reference to a class entry. On the null case,
         // `as_ref()` will return `None` and the function will panic.
-        unsafe { self.ce.load(Ordering::SeqCst).as_ref() }
+        unsafe { self.ce.load(Ordering::Acquire).as_ref() }
             .expect("Attempted to retrieve class entry before it has been stored.")
     }
 
@@ -272,7 +279,7 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     /// a worker restart or `opcache_reset()`): MINIT then registers the class
     /// again, and the new entry replaces the one freed with the old module.
     pub fn set_ce(&self, ce: &'static mut ClassEntry) {
-        self.ce.store(ce, Ordering::SeqCst);
+        self.ce.store(ce, Ordering::Release);
     }
 
     /// Takes ownership of the argument info tables of this class's methods.
@@ -283,7 +290,8 @@ impl<T: RegisteredClass> ClassMetadata<T> {
     /// the SAPI starts the module again in the same process, the new tables
     /// replace those of the class freed with the old module.
     pub fn set_arg_info(&self, arg_info: OwnedArgInfo) {
-        *self.arg_info.lock() = Some(ArgInfoTables(arg_info));
+        *self.arg_info.lock().unwrap_or_else(PoisonError::into_inner) =
+            Some(ArgInfoTables(arg_info));
     }
 
     /// Finds a property descriptor by name.
@@ -344,5 +352,19 @@ impl<T: RegisteredClass> ClassMetadata<T> {
                 })
                 .collect()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic::{RefUnwindSafe, UnwindSafe};
+
+    use super::ClassMetadata;
+
+    fn assert_unwind_safe<T: RefUnwindSafe + UnwindSafe>() {}
+
+    #[test]
+    fn class_metadata_is_unwind_safe() {
+        assert_unwind_safe::<ClassMetadata<()>>();
     }
 }

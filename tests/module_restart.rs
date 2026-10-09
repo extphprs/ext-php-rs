@@ -80,7 +80,10 @@ fn run_module_once() {
     unsafe {
         ext_php_rs_sapi_startup();
         sapi_startup(sapi);
-        php_module_startup(sapi, get_module());
+        assert_eq!(
+            php_module_startup(sapi, get_module()),
+            ZEND_RESULT_CODE_SUCCESS
+        );
     }
 
     assert_eq!(unsafe { php_request_startup() }, ZEND_RESULT_CODE_SUCCESS);

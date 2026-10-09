@@ -182,6 +182,9 @@ impl ZendObject {
 
     /// Returns the [`ClassEntry`] associated with this object.
     ///
+    /// The class entry is valid only until the module shuts down. Do not keep
+    /// the reference across a module restart.
+    ///
     /// # Panics
     ///
     /// Panics if the class entry is invalid.

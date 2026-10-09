@@ -57,3 +57,20 @@ building tables by hand. `zend_declare_class_constant` and `zend_enum_add_case`
 take the zval payload with `ZVAL_COPY_VALUE` and no reference bump, so the
 engine owns any refcounted value afterwards and the Rust `Zval` must not run its
 destructor.
+
+## Module restarts
+
+Some SAPIs stop the module and start it again in the same process. FrankenPHP
+does this on a worker restart, when its file watcher finds a change, and on
+`opcache_reset()`. At module shutdown, PHP frees all class entries. The next MINIT
+makes new class entries for the core classes and for your classes.
+
+Thus a `&'static ClassEntry` from ext-php-rs is valid only until the module
+shuts down. This applies to `ClassMetadata::ce()`, `ZendObject::get_class_entry()`
+and the functions in `zend::ce`.
+
+- Do not keep a class entry in a `static`, a `OnceLock` or a thread-local value.
+- Get the class entry again each time that you use it. The call reads one
+  pointer.
+
+Observers stay registered after a restart. See [Observer API](./observer.md).
