@@ -159,14 +159,15 @@ pub fn start_uppercase() -> PhpResult<()> {
 PHP calls the handler with the buffered bytes and an `OutputOp`. The handler
 returns the bytes that PHP sends:
 
-| Return value | Result |
-|--------------|--------|
-| `Cow::Borrowed(input)` | PHP sends the input without a change. |
-| `Cow::Borrowed(b"...")` | PHP sends the static bytes. |
-| `Cow::Owned(vec)` | PHP sends the new bytes. |
-| An empty slice | PHP sends nothing. |
+| Return value | Result | Copy |
+|--------------|--------|------|
+| `Cow::Borrowed(input)` or `&input[..n]` | PHP sends the start of the input. | No |
+| Other `Cow::Borrowed` slice | PHP sends the slice. | One |
+| `Cow::Owned(vec)` | PHP sends the new bytes. | One |
+| An empty slice | PHP sends nothing. | No |
 
-The handler does not copy the bytes for these return values.
+The handler does not copy the input. A copy of the output goes to the request
+heap, because PHP keeps the output after the handler returns.
 
 PHP calls the handler at these times:
 

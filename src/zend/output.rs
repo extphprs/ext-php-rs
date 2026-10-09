@@ -1,6 +1,7 @@
 //! Output handlers that filter what PHP writes, the way `ob_start()` does.
 
 use std::{
+    alloc::Layout,
     borrow::Cow,
     ffi::{c_int, c_void},
     mem,
@@ -11,15 +12,15 @@ use std::{
 use bitflags::bitflags;
 
 use crate::{
-    alloc::efree,
+    alloc::{efree, emalloc},
     error::{Error, Result},
     ffi::{
-        PHP_OUTPUT_HANDLER_CLEAN, PHP_OUTPUT_HANDLER_CLEANABLE, PHP_OUTPUT_HANDLER_FINAL,
-        PHP_OUTPUT_HANDLER_FLUSH, PHP_OUTPUT_HANDLER_FLUSHABLE, PHP_OUTPUT_HANDLER_REMOVABLE,
-        PHP_OUTPUT_HANDLER_START, ZEND_RESULT_CODE_FAILURE, ZEND_RESULT_CODE_SUCCESS,
-        ext_php_rs_output_activated, php_output_context, php_output_handler,
-        php_output_handler_create_internal, php_output_handler_free,
-        php_output_handler_set_context, php_output_handler_start,
+        PHP_OUTPUT_HANDLER_CLEAN, PHP_OUTPUT_HANDLER_CLEANABLE, PHP_OUTPUT_HANDLER_DEFAULT_SIZE,
+        PHP_OUTPUT_HANDLER_FINAL, PHP_OUTPUT_HANDLER_FLUSH, PHP_OUTPUT_HANDLER_FLUSHABLE,
+        PHP_OUTPUT_HANDLER_REMOVABLE, PHP_OUTPUT_HANDLER_START, ZEND_RESULT_CODE_FAILURE,
+        ZEND_RESULT_CODE_SUCCESS, ext_php_rs_output_activated, php_output_buffer,
+        php_output_context, php_output_handler, php_output_handler_create_internal,
+        php_output_handler_free, php_output_handler_set_context, php_output_handler_start,
     },
     zend::{CatchError, bailout, try_catch},
 };
@@ -55,13 +56,8 @@ bitflags! {
     }
 }
 
-struct HandlerState<F> {
-    func: F,
-    output: Vec<u8>,
-}
-
 enum Slot<F> {
-    Idle(HandlerState<F>),
+    Idle(F),
     Running,
     Freed,
     Poisoned,
@@ -76,6 +72,10 @@ enum Slot<F> {
 /// Return `Cow::Borrowed(input)` to pass the input through unchanged, or an
 /// empty slice to drop it. At the end of the request, PHP runs `handler` one
 /// last time with [`OutputOp::Final`] and then drops it.
+///
+/// The input is not copied. A borrowed start of the input (`input` or
+/// `&input[..n]`) is sent without a copy. Any other output is copied once to
+/// the request heap.
 ///
 /// PHP discards the output that `handler` writes while it runs. If `handler`
 /// panics, PHP sends the buffered bytes unchanged and disables the handler. If
@@ -112,17 +112,19 @@ where
         return Err(Error::OutputHandlerStartFailed);
     }
 
-    let state = Box::into_raw(Box::new(Slot::Idle(HandlerState {
-        func: handler,
-        output: Vec::new(),
-    })));
+    let state = Box::into_raw(Box::new(Slot::Idle(handler)));
+    let name_ptr = if name.is_empty() {
+        c"".as_ptr()
+    } else {
+        name.as_ptr().cast()
+    };
 
     // SAFETY: output is active, so the handler goes on the request heap and on
     // the live handler stack. The engine copies `name`. From `set_context`
     // on, the handler owns `state` and frees it through `drop_state::<F>`.
     unsafe {
         let mut php_handler = php_output_handler_create_internal(
-            name.as_ptr().cast(),
+            name_ptr,
             name.len(),
             Some(call_handler::<F>),
             chunk_size,
@@ -137,6 +139,12 @@ where
     Err(Error::OutputHandlerStartFailed)
 }
 
+enum Output {
+    Empty,
+    Input(usize),
+    Copied(*mut u8, usize),
+}
+
 unsafe extern "C" fn call_handler<F>(
     handler_context: *mut *mut c_void,
     output_context: *mut php_output_context,
@@ -149,9 +157,10 @@ where
     let slot = unsafe { *handler_context }.cast::<Slot<F>>();
     // SAFETY: while the slot is `Running`, `drop_state` marks it `Freed`
     // instead of freeing it, so it outlives this call.
-    let mut state = match unsafe { mem::replace(&mut *slot, Slot::Running) } {
-        Slot::Idle(state) => state,
+    let mut func = match unsafe { mem::replace(&mut *slot, Slot::Running) } {
+        Slot::Idle(func) => func,
         other => {
+            // SAFETY: see above.
             unsafe { *slot = other };
             return ZEND_RESULT_CODE_FAILURE;
         }
@@ -159,96 +168,142 @@ where
 
     // SAFETY: `handler_context` points at the `opaq` field of a live handler,
     // and the engine fed `in_` with that handler's buffer. Detaching the
-    // buffer sends output written by `func` to a fresh one, so `input`
-    // stays valid.
-    let (handler, buffer, input, op) = unsafe {
+    // buffer sends output written by `func` to a fresh one, so `input` stays
+    // valid and unchanged.
+    let (handler, buffer, op) = unsafe {
         let handler = handler_context
             .byte_sub(mem::offset_of!(php_output_handler, opaq))
             .cast::<php_output_handler>();
         let buffer = ptr::replace(&raw mut (*handler).buffer, mem::zeroed());
-        let context = &*output_context;
-        let input = if context.in_.used == 0 {
-            &[][..]
-        } else {
-            slice::from_raw_parts(context.in_.data.cast::<u8>(), context.in_.used)
-        };
-        (
-            handler,
-            buffer,
-            input,
-            OutputOp::from_bits_truncate(context.op.cast_unsigned()),
-        )
+        let op = OutputOp::from_bits_truncate((*output_context).op.cast_unsigned());
+        (handler, buffer, op)
+    };
+    let input = if buffer.used == 0 {
+        &[][..]
+    } else {
+        // SAFETY: the detached buffer holds `used` bytes and only this call
+        // can reach it.
+        unsafe { slice::from_raw_parts(buffer.data.cast::<u8>(), buffer.used) }
     };
 
-    let HandlerState { func, output } = &mut state;
-    let result = try_catch(AssertUnwindSafe(|| match func(input, op) {
-        Cow::Borrowed(bytes) => (bytes.as_ptr(), bytes.len()),
-        Cow::Owned(bytes) => {
-            *output = bytes;
-            (output.as_ptr(), output.len())
+    let result = try_catch(AssertUnwindSafe(|| {
+        let output = func(input, op);
+        if output.is_empty() {
+            Output::Empty
+        } else if matches!(output, Cow::Borrowed(bytes) if bytes.as_ptr() == input.as_ptr()) {
+            Output::Input(output.len())
+        } else {
+            Output::Copied(emalloc_copy(&output), output.len())
         }
     }));
 
     // SAFETY: the slot is live, see above.
     if matches!(unsafe { &*slot }, Slot::Freed) {
         // SAFETY: the engine freed the handler on a fatal error that `func`
-        // swallowed with `try_catch`, so the slot and the detached buffer are
-        // only ours. The fatal error is raised again, as the engine
-        // expects.
+        // swallowed with `try_catch`, so the slot and the buffers are only
+        // ours. The fatal error is raised again, as the engine expects.
         unsafe {
             drop(Box::from_raw(slot));
-            if !buffer.data.is_null() {
-                efree(buffer.data.cast());
+            free_buffer(buffer);
+            if let Ok(Output::Copied(data, _)) = result {
+                efree(data);
             }
         }
         if matches!(result, Err(CatchError::Bailout)) {
-            mem::forget(state);
+            mem::forget(func);
         } else {
-            drop(state);
+            drop(func);
         }
         // SAFETY: re-raises the fatal error to the enclosing `zend_try`.
         unsafe { bailout() }
     }
 
-    // SAFETY: the handler is live as the slot is not `Freed`. The engine drops
-    // output written by a running handler, so the fresh buffer is freed.
-    unsafe {
-        let written = ptr::replace(&raw mut (*handler).buffer, buffer);
-        if !written.data.is_null() {
-            efree(written.data.cast());
+    // SAFETY: the handler is live as the slot is not `Freed`. It gets its
+    // buffer back, and the engine drops what `func` wrote meanwhile.
+    let written = unsafe { ptr::replace(&raw mut (*handler).buffer, buffer) };
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => {
+            // SAFETY: `written` came from the engine and nothing else points
+            // at it.
+            unsafe { free_buffer(written) };
+            if let CatchError::Bailout = error {
+                mem::forget(func);
+                // SAFETY: the slot is live. Re-raises the bailout to the
+                // enclosing `zend_try`.
+                unsafe {
+                    *slot = Slot::Poisoned;
+                    bailout()
+                }
+            }
+            // SAFETY: the slot is live.
+            unsafe { *slot = Slot::Idle(func) };
+            return ZEND_RESULT_CODE_FAILURE;
         }
-    }
-
-    if let Err(CatchError::Bailout) = result {
-        mem::forget(state);
-        // SAFETY: the slot is live, see above. Re-raises the bailout to the
-        // enclosing `zend_try`.
-        unsafe {
-            *slot = Slot::Poisoned;
-            bailout()
-        }
-    }
-
-    // SAFETY: the slot is live, see above. Moving `state` keeps `state.output`
-    // where it is.
-    unsafe { *slot = Slot::Idle(state) };
-    let Ok((data, len)) = result else {
-        return ZEND_RESULT_CODE_FAILURE;
     };
-    if len > 0 {
-        // SAFETY: `data` points into the handler buffer, `'static` memory or
-        // `state.output`. The engine is done with `out` before it runs or frees
-        // the handler again, and none of them change before that. `free` is
-        // cleared so the engine does not free it.
-        unsafe {
-            let out = &mut (*output_context).out;
-            out.data = data.cast_mut().cast();
-            out.used = len;
-            out.size = len;
-            out.set_free(0);
+    // SAFETY: the slot is live.
+    unsafe { *slot = Slot::Idle(func) };
+
+    // SAFETY: the engine owns `out` with `free` set, so no later write to the
+    // handler, even from a header callback that runs the handler again, can
+    // change or free what it points at.
+    unsafe {
+        let context = &mut *output_context;
+        match output {
+            Output::Empty => free_buffer(written),
+            Output::Copied(data, len) => {
+                free_buffer(written);
+                give_to_engine(&mut context.out, data, len, len);
+            }
+            Output::Input(len) => {
+                (*handler).buffer = if written.data.is_null() {
+                    new_buffer()
+                } else {
+                    php_output_buffer { used: 0, ..written }
+                };
+                context.in_ = mem::zeroed();
+                give_to_engine(&mut context.out, buffer.data.cast(), len, buffer.size);
+            }
         }
     }
     ZEND_RESULT_CODE_SUCCESS
+}
+
+fn emalloc_copy(bytes: &[u8]) -> *mut u8 {
+    let data = emalloc(Layout::for_value(bytes));
+    // SAFETY: `data` is a fresh request allocation of `bytes.len()` bytes.
+    unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), data, bytes.len()) };
+    data
+}
+
+fn new_buffer() -> php_output_buffer {
+    let layout = Layout::new::<[u8; PHP_OUTPUT_HANDLER_DEFAULT_SIZE as usize]>();
+    // SAFETY: an all-zero `php_output_buffer` is an empty buffer.
+    let mut buffer: php_output_buffer = unsafe { mem::zeroed() };
+    buffer.data = emalloc(layout).cast();
+    buffer.size = layout.size();
+    buffer
+}
+
+/// # Safety
+///
+/// `buffer.data` must be null or a request allocation that nothing else uses.
+unsafe fn free_buffer(buffer: php_output_buffer) {
+    if !buffer.data.is_null() {
+        // SAFETY: see the function contract.
+        unsafe { efree(buffer.data.cast()) };
+    }
+}
+
+/// # Safety
+///
+/// `out` must be the empty output buffer of a live context, and `data` a
+/// request allocation of `size` bytes that nothing else uses.
+unsafe fn give_to_engine(out: &mut php_output_buffer, data: *mut u8, used: usize, size: usize) {
+    out.data = data.cast();
+    out.used = used;
+    out.size = size;
+    out.set_free(1);
 }
 
 unsafe extern "C" fn drop_state<F>(state: *mut c_void) {
@@ -270,7 +325,10 @@ mod tests {
     use std::{cell::RefCell, panic::AssertUnwindSafe, rc::Rc};
 
     use super::*;
-    use crate::{embed::Embed, zend::output_write};
+    use crate::{
+        embed::Embed,
+        zend::{SapiGlobals, output_write},
+    };
 
     fn filter<F>(input: &'static [u8], handler: F) -> String
     where
@@ -292,6 +350,22 @@ mod tests {
     #[test]
     fn borrowed_input_passes_through() {
         assert_eq!(filter(b"hello", |input, _| Cow::Borrowed(input)), "hello");
+    }
+
+    #[test]
+    fn borrowed_prefix_is_sent() {
+        assert_eq!(
+            filter(b"hello", |input, _| Cow::Borrowed(&input[..2])),
+            "he"
+        );
+    }
+
+    #[test]
+    fn borrowed_middle_is_sent() {
+        assert_eq!(
+            filter(b"hello", |input, _| Cow::Borrowed(&input[1..4])),
+            "ell"
+        );
     }
 
     #[test]
@@ -348,6 +422,43 @@ mod tests {
         });
 
         assert_eq!(ops, [OutputOp::Start | OutputOp::Flush, OutputOp::Final]);
+    }
+
+    fn send_headers_through<F>(handler: F) -> usize
+    where
+        F: for<'a> FnMut(&'a [u8], OutputOp) -> Cow<'a, [u8]> + 'static,
+    {
+        Embed::run(AssertUnwindSafe(move || {
+            {
+                let mut sapi = SapiGlobals::get_mut();
+                sapi.headers_sent = 0;
+                sapi.request_info.no_headers = false;
+            }
+            Embed::eval("header_register_callback(fn () => print(str_repeat('b', 65536)));")
+                .expect("header_register_callback failed");
+            let calls = Rc::new(RefCell::new(0));
+            let seen = Rc::clone(&calls);
+            let mut handler = handler;
+            start_output_handler("test", 1, OutputHandlerFlags::Std, move |input, op| {
+                *seen.borrow_mut() += 1;
+                handler(input, op)
+            })
+            .expect("start_output_handler failed");
+            let _ = output_write(&[b'a'; 4096]);
+            calls.take()
+        }))
+    }
+
+    #[test]
+    fn header_callback_output_leaves_owned_output_intact() {
+        let calls = send_headers_through(|input, _| Cow::Owned(input.to_ascii_uppercase()));
+
+        assert!(calls > 1);
+    }
+
+    #[test]
+    fn header_callback_output_leaves_borrowed_input_intact() {
+        assert!(send_headers_through(|input, _| Cow::Borrowed(input)) > 1);
     }
 
     #[test]
