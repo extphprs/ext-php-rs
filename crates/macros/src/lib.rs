@@ -2659,6 +2659,7 @@ mod tests {
     type FunctionLikeFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
 
     #[rustversion::attr(nightly, test)]
+    #[cfg(not(windows))]
     #[allow(dead_code)]
     pub fn test_macrotest_expand() {
         macrotest::expand("tests/expand/*.rs");

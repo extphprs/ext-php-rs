@@ -116,6 +116,75 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
     }
 }
+impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a MyClass {
+    #[inline]
+    fn from_zend_object(
+        obj: &'a ::ext_php_rs::types::ZendObject,
+    ) -> ::ext_php_rs::error::Result<Self> {
+        let obj = ::ext_php_rs::types::ZendClassObject::<MyClass>::from_zend_obj(obj)
+            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
+        Ok(&**obj)
+    }
+}
+impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut MyClass {
+    #[inline]
+    fn from_zend_object_mut(
+        obj: &'a mut ::ext_php_rs::types::ZendObject,
+    ) -> ::ext_php_rs::error::Result<Self> {
+        let obj = ::ext_php_rs::types::ZendClassObject::<MyClass>::from_zend_obj_mut(obj)
+            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
+        Ok(&mut **obj)
+    }
+}
+impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a MyClass {
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+    );
+    #[inline]
+    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
+        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
+            .ok()
+    }
+}
+impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut MyClass {
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+    );
+    #[inline]
+    fn from_zval_mut(
+        zval: &'a mut ::ext_php_rs::types::Zval,
+    ) -> ::std::option::Option<Self> {
+        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
+                zval.object_mut()?,
+            )
+            .ok()
+    }
+}
+impl ::ext_php_rs::convert::IntoZendObject for MyClass {
+    #[inline]
+    fn into_zend_object(
+        self,
+    ) -> ::ext_php_rs::error::Result<
+        ::ext_php_rs::boxed::ZBox<::ext_php_rs::types::ZendObject>,
+    > {
+        Ok(::ext_php_rs::types::ZendClassObject::new(self).into())
+    }
+}
+impl ::ext_php_rs::convert::IntoZval for MyClass {
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+    );
+    const NULLABLE: bool = false;
+    #[inline]
+    fn set_zval(
+        self,
+        zv: &mut ::ext_php_rs::types::Zval,
+        persistent: bool,
+    ) -> ::ext_php_rs::error::Result<()> {
+        use ::ext_php_rs::convert::IntoZendObject;
+        self.into_zend_object()?.set_zval(zv, persistent)
+    }
+}
 impl MyClass {
     pub fn get_first(&self) -> i64 {
         1
@@ -148,7 +217,42 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
                             ::ext_php_rs::builders::FunctionBuilder::new(
                                     "plain",
                                     {
-                                        (/*ERROR*/);
+                                        #[allow(clippy::used_underscore_binding)]
+                                        extern "C" fn handler(
+                                            ex: &mut ::ext_php_rs::zend::ExecuteData,
+                                            retval: &mut ::ext_php_rs::types::Zval,
+                                        ) {
+                                            ::ext_php_rs::zend::run_handler(
+                                                ::std::panic::AssertUnwindSafe(|| {
+                                                    use ::ext_php_rs::convert::{FromZvalMut, IntoZval};
+                                                    let __num_args = unsafe { ex.This.u2.num_args } as usize;
+                                                    if !(__REQUIRED..=0usize).contains(&__num_args) {
+                                                        unsafe {
+                                                            ::ext_php_rs::ffi::zend_wrong_parameters_count_error(
+                                                                __REQUIRED.try_into().unwrap_or(u32::MAX),
+                                                                0u32,
+                                                            );
+                                                        };
+                                                        return;
+                                                    }
+                                                    let __this = match ex.get_object::<MyClass>() {
+                                                        Some(v) => v,
+                                                        None => {
+                                                            ::ext_php_rs::exception::PhpException::from_message(
+                                                                    "Failed to retrieve reference to `$this`".into(),
+                                                                )
+                                                                .throw();
+                                                            return;
+                                                        }
+                                                    };
+                                                    let __result = { __this.plain() };
+                                                    if let Err(e) = __result.set_zval(retval, false) {
+                                                        let e: ::ext_php_rs::exception::PhpException = e.into();
+                                                        e.throw();
+                                                    }
+                                                }),
+                                            );
+                                        }
                                         handler
                                     },
                                 )
