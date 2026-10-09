@@ -7,11 +7,14 @@
     clippy::implicit_hasher
 )]
 
+use std::borrow::Cow;
+
 use ext_php_rs::{
     binary_slice::BinarySlice,
     boxed::ZBox,
     prelude::*,
     types::{ZendHashTable, ZendStr},
+    zend::{OutputHandlerFlags, start_output_handler},
 };
 
 #[php_function]
@@ -27,6 +30,22 @@ pub fn bench_function(n: u64) -> u64 {
 #[php_function]
 pub fn bench_string(s: &str) -> String {
     s.to_uppercase()
+}
+
+#[php_function]
+pub fn bench_output_passthrough() -> PhpResult<()> {
+    start_output_handler("bench_passthrough", 0, OutputHandlerFlags::Std, |input, _| {
+        Cow::Borrowed(input)
+    })?;
+    Ok(())
+}
+
+#[php_function]
+pub fn bench_output_upper() -> PhpResult<()> {
+    start_output_handler("bench_upper", 0, OutputHandlerFlags::Std, |input, _| {
+        Cow::Owned(input.to_ascii_uppercase())
+    })?;
+    Ok(())
 }
 
 #[php_function]
@@ -153,6 +172,8 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         .function(wrap_function!(bench_function))
         .function(wrap_function!(bench_string))
         .function(wrap_function!(bench_throw))
+        .function(wrap_function!(bench_output_passthrough))
+        .function(wrap_function!(bench_output_upper))
         .function(wrap_function!(bench_callback_function))
         .function(wrap_function!(bench_array_with_str_ref_keys))
         .function(wrap_function!(bench_array_with_interned_keys))

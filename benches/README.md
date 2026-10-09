@@ -26,6 +26,8 @@ Each script in `benches/` calls the extension `<count>` times:
 | `binary_slice.php` | `BinarySlice<u64>` argument |
 | `object_new.php` | `new` on a `#[php_class]` with a constructor |
 | `exception_throw.php` | `Err` from Rust, caught as `Exception` in PHP |
+| `output_passthrough.php` | Output handler that passes 1 KiB through on `ob_flush()` |
+| `output_transform.php` | Output handler that returns a new 1 KiB buffer on `ob_flush()` |
 | `property_read.php` | Read of Rust properties and a getter |
 | `property_write.php` | Write of Rust properties and a setter |
 | `property_compound.php` | `+=`, `++` and `.=` on Rust properties |

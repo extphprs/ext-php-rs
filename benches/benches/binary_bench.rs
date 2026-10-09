@@ -1,7 +1,7 @@
 use std::{
     env::consts::{DLL_PREFIX, DLL_SUFFIX},
     path::PathBuf,
-    process::{Command, ExitStatus},
+    process::{Command, ExitStatus, Stdio},
     sync::{LazyLock, Once},
 };
 
@@ -72,6 +72,7 @@ fn run_php(script: &str, cnt: usize) -> ExitStatus {
         .arg(format!("-dextension={}", *EXT_LIB))
         .arg(bench_script(script))
         .arg(cnt.to_string())
+        .stdout(Stdio::null())
         .status()
         .expect("failed to execute php");
 
@@ -153,6 +154,16 @@ fn object_news(cnt: usize) -> ExitStatus {
 #[divan::bench(args = [1, 10, 100_000])]
 fn exception_throws(cnt: usize) -> ExitStatus {
     run_php("exception_throw.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn output_passthroughs(cnt: usize) -> ExitStatus {
+    run_php("output_passthrough.php", cnt)
+}
+
+#[divan::bench(args = [1, 10, 100_000])]
+fn output_transforms(cnt: usize) -> ExitStatus {
+    run_php("output_transform.php", cnt)
 }
 
 fn main() {
