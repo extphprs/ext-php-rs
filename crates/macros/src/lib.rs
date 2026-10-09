@@ -2658,12 +2658,6 @@ mod tests {
         fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream;
     type FunctionLikeFn = fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream;
 
-    #[rustversion::attr(nightly, test)]
-    #[allow(dead_code)]
-    pub fn test_macrotest_expand() {
-        macrotest::expand("tests/expand/*.rs");
-    }
-
     #[test]
     pub fn test_expand() {
         for entry in glob::glob("tests/expand/*.rs").expect("Failed to read expand tests glob") {

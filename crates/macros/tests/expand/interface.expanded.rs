@@ -475,11 +475,107 @@ impl ::ext_php_rs::class::RegisteredClass for MyImpl {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
     }
 }
+impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a MyImpl {
+    #[inline]
+    fn from_zend_object(
+        obj: &'a ::ext_php_rs::types::ZendObject,
+    ) -> ::ext_php_rs::error::Result<Self> {
+        let obj = ::ext_php_rs::types::ZendClassObject::<MyImpl>::from_zend_obj(obj)
+            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
+        Ok(&**obj)
+    }
+}
+impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut MyImpl {
+    #[inline]
+    fn from_zend_object_mut(
+        obj: &'a mut ::ext_php_rs::types::ZendObject,
+    ) -> ::ext_php_rs::error::Result<Self> {
+        let obj = ::ext_php_rs::types::ZendClassObject::<MyImpl>::from_zend_obj_mut(obj)
+            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
+        Ok(&mut **obj)
+    }
+}
+impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a MyImpl {
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+    );
+    #[inline]
+    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
+        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
+            .ok()
+    }
+}
+impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut MyImpl {
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+    );
+    #[inline]
+    fn from_zval_mut(
+        zval: &'a mut ::ext_php_rs::types::Zval,
+    ) -> ::std::option::Option<Self> {
+        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
+                zval.object_mut()?,
+            )
+            .ok()
+    }
+}
+impl ::ext_php_rs::convert::IntoZendObject for MyImpl {
+    #[inline]
+    fn into_zend_object(
+        self,
+    ) -> ::ext_php_rs::error::Result<
+        ::ext_php_rs::boxed::ZBox<::ext_php_rs::types::ZendObject>,
+    > {
+        Ok(::ext_php_rs::types::ZendClassObject::new(self).into())
+    }
+}
+impl ::ext_php_rs::convert::IntoZval for MyImpl {
+    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
+        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+    );
+    const NULLABLE: bool = false;
+    #[inline]
+    fn set_zval(
+        self,
+        zv: &mut ::ext_php_rs::types::Zval,
+        persistent: bool,
+    ) -> ::ext_php_rs::error::Result<()> {
+        use ::ext_php_rs::convert::IntoZendObject;
+        self.into_zend_object()?.set_zval(zv, persistent)
+    }
+}
 impl MyInterface for MyImpl {
     fn my_method(&self, arg: i32) -> String {
         String::new()
     }
 }
+#[allow(non_upper_case_globals)]
+const _: () = {
+    static __INVENTORY: ::inventory::Node = ::inventory::Node {
+        value: &{
+            ::ext_php_rs::internal::class::InterfaceRegistration {
+                class_type_id: ::std::any::TypeId::of::<MyImpl>(),
+                interface_getter: || (
+                    || {
+                        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::get_metadata()
+                            .ce()
+                    },
+                    <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
+                ),
+            }
+        },
+        next: ::inventory::__private::UnsafeCell::new(
+            ::inventory::__private::Option::None,
+        ),
+    };
+    #[link_section = ".text.startup"]
+    unsafe extern "C" fn __ctor() {
+        unsafe { ::inventory::ErasedNode::submit(__INVENTORY.value, &__INVENTORY) }
+    }
+    #[used]
+    #[link_section = ".init_array"]
+    static __CTOR: unsafe extern "C" fn() = __ctor;
+};
 impl ::ext_php_rs::internal::class::InterfaceMethodsProvider<MyImpl>
 for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
     fn get_interface_methods(
@@ -502,7 +598,64 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                             ::ext_php_rs::builders::FunctionBuilder::new(
                                     <PhpInterfaceMyInterface>::__php_method_my_method,
                                     {
-                                        (/*ERROR*/);
+                                        extern "C" fn handler(
+                                            ex: &mut ::ext_php_rs::zend::ExecuteData,
+                                            retval: &mut ::ext_php_rs::types::Zval,
+                                        ) {
+                                            use ::ext_php_rs::convert::IntoZval;
+                                            ::ext_php_rs::zend::run_handler(
+                                                ::std::panic::AssertUnwindSafe(|| {
+                                                    let (parse, this) = ex.parser_method::<MyImpl>();
+                                                    let this = match this {
+                                                        Some(this) => this,
+                                                        None => {
+                                                            ::ext_php_rs::exception::PhpException::from_message(
+                                                                    "Failed to get $this".into(),
+                                                                )
+                                                                .throw();
+                                                            return;
+                                                        }
+                                                    };
+                                                    let mut arg = ::ext_php_rs::args::Arg::of::<i32>("arg");
+                                                    let parse_result = parse
+                                                        .arg(&mut arg)
+                                                        .required_args(__REQUIRED)
+                                                        .parse();
+                                                    if parse_result.is_err() {
+                                                        return;
+                                                    }
+                                                    let arg: i32 = match match arg.zval() {
+                                                        Some(zval) => {
+                                                            <i32 as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
+                                                                zval.dereference_mut(),
+                                                            )
+                                                        }
+                                                        None => {
+                                                            <i32 as ::ext_php_rs::convert::FromZvalMut>::from_missing()
+                                                        }
+                                                    } {
+                                                        Some(value) => value,
+                                                        None => {
+                                                            let msg = ::alloc::__export::must_use({
+                                                                ::alloc::fmt::format(
+                                                                    format_args!("Invalid value for argument `{0}`", "arg"),
+                                                                )
+                                                            });
+                                                            ::ext_php_rs::exception::PhpException::from_message(
+                                                                    msg.into(),
+                                                                )
+                                                                .throw();
+                                                            return;
+                                                        }
+                                                    };
+                                                    let result = this.my_method(arg);
+                                                    if let Err(e) = result.set_zval(retval, false) {
+                                                        let e: ::ext_php_rs::exception::PhpException = e.into();
+                                                        e.throw();
+                                                    }
+                                                }),
+                                            );
+                                        }
                                         handler
                                     },
                                 )
