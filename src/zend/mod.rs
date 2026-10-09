@@ -18,6 +18,7 @@ mod module;
 pub(crate) mod module_globals;
 #[cfg(feature = "observer")]
 pub(crate) mod observer;
+mod output;
 mod streams;
 mod try_catch;
 #[cfg(feature = "observer")]
@@ -55,6 +56,7 @@ pub use module::{ModuleAllocations, ModuleEntry, StaticModuleEntry};
 pub use module_globals::{ModuleGlobal, ModuleGlobals};
 #[cfg(feature = "observer")]
 pub use observer::{FcallInfo, FcallObserver};
+pub use output::{OutputHandlerFlags, OutputOp, start_output_handler};
 pub use streams::*;
 pub(crate) use try_catch::catch_panic;
 pub use try_catch::{CatchError, bailout, run_handler, try_catch, try_catch_first};

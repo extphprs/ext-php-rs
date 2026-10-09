@@ -618,6 +618,13 @@ pub const CONST_NO_FILE_CACHE: u32 = 2;
 pub const CONST_DEPRECATED: u32 = 4;
 pub const MAY_BE_BOOL: u32 = 12;
 pub const MAY_BE_ANY: u32 = 1022;
+pub const PHP_OUTPUT_HANDLER_START: u32 = 1;
+pub const PHP_OUTPUT_HANDLER_CLEAN: u32 = 2;
+pub const PHP_OUTPUT_HANDLER_FLUSH: u32 = 4;
+pub const PHP_OUTPUT_HANDLER_FINAL: u32 = 8;
+pub const PHP_OUTPUT_HANDLER_CLEANABLE: u32 = 16;
+pub const PHP_OUTPUT_HANDLER_FLUSHABLE: u32 = 32;
+pub const PHP_OUTPUT_HANDLER_REMOVABLE: u32 = 64;
 pub const TRACK_VARS_POST: u32 = 0;
 pub const TRACK_VARS_GET: u32 = 1;
 pub const TRACK_VARS_COOKIE: u32 = 2;
@@ -2720,6 +2727,142 @@ unsafe extern "C" {
         ...
     );
 }
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _php_output_buffer {
+    pub data: *mut ::std::os::raw::c_char,
+    pub size: usize,
+    pub used: usize,
+    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 4usize]>,
+    pub __bindgen_padding_0: u32,
+}
+impl _php_output_buffer {
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn free(&self) -> u32 {
+        unsafe { ::std::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u32) }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn set_free(&mut self, val: u32) {
+        unsafe {
+            let val: u32 = ::std::mem::transmute(val);
+            self._bitfield_1.set_const::<0usize, 1u8>(val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn free_raw(this: *const Self) -> u32 {
+        unsafe {
+            ::std::mem::transmute(
+                <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get_const::<0usize, 1u8>(
+                    ::std::ptr::addr_of!((*this)._bitfield_1),
+                ) as u32,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_free_raw(this: *mut Self, val: u32) {
+        unsafe {
+            let val: u32 = ::std::mem::transmute(val);
+            <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set_const::<0usize, 1u8>(
+                ::std::ptr::addr_of_mut!((*this)._bitfield_1),
+                val as u64,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn _reserved(&self) -> u32 {
+        unsafe { ::std::mem::transmute(self._bitfield_1.get_const::<1usize, 31u8>() as u32) }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn set__reserved(&mut self, val: u32) {
+        unsafe {
+            let val: u32 = ::std::mem::transmute(val);
+            self._bitfield_1.set_const::<1usize, 31u8>(val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn _reserved_raw(this: *const Self) -> u32 {
+        unsafe {
+            ::std::mem::transmute(
+                <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_get_const::<1usize, 31u8>(
+                    ::std::ptr::addr_of!((*this)._bitfield_1),
+                ) as u32,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set__reserved_raw(this: *mut Self, val: u32) {
+        unsafe {
+            let val: u32 = ::std::mem::transmute(val);
+            <__BindgenBitfieldUnit<[u8; 4usize]>>::raw_set_const::<1usize, 31u8>(
+                ::std::ptr::addr_of_mut!((*this)._bitfield_1),
+                val as u64,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn new_bitfield_1(free: u32, _reserved: u32) -> __BindgenBitfieldUnit<[u8; 4usize]> {
+        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 4usize]> = Default::default();
+        __bindgen_bitfield_unit.set_const::<0usize, 1u8>({
+            let free: u32 = unsafe { ::std::mem::transmute(free) };
+            free as u64
+        });
+        __bindgen_bitfield_unit.set_const::<1usize, 31u8>({
+            let _reserved: u32 = unsafe { ::std::mem::transmute(_reserved) };
+            _reserved as u64
+        });
+        __bindgen_bitfield_unit
+    }
+}
+pub type php_output_buffer = _php_output_buffer;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _php_output_context {
+    pub op: ::std::os::raw::c_int,
+    pub in_: php_output_buffer,
+    pub out: php_output_buffer,
+}
+pub type php_output_context = _php_output_context;
+pub type php_output_handler_context_func_t = ::std::option::Option<
+    unsafe extern "C" fn(
+        handler_context: *mut *mut ::std::os::raw::c_void,
+        output_context: *mut php_output_context,
+    ) -> zend_result,
+>;
+#[repr(C)]
+pub struct _php_output_handler_user_func_t {
+    pub fci: zend_fcall_info,
+    pub fcc: zend_fcall_info_cache,
+    pub zoh: zval,
+}
+pub type php_output_handler_user_func_t = _php_output_handler_user_func_t;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct _php_output_handler {
+    pub name: *mut zend_string,
+    pub flags: ::std::os::raw::c_int,
+    pub level: ::std::os::raw::c_int,
+    pub size: usize,
+    pub buffer: php_output_buffer,
+    pub opaq: *mut ::std::os::raw::c_void,
+    pub dtor: ::std::option::Option<unsafe extern "C" fn(opaq: *mut ::std::os::raw::c_void)>,
+    pub func: _php_output_handler__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union _php_output_handler__bindgen_ty_1 {
+    pub user: *mut php_output_handler_user_func_t,
+    pub internal: php_output_handler_context_func_t,
+}
+pub type php_output_handler = _php_output_handler;
 unsafe extern "C" {
     pub fn php_output_activate() -> ::std::os::raw::c_int;
 }
@@ -2731,6 +2874,28 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn php_output_end_all();
+}
+unsafe extern "C" {
+    pub fn php_output_handler_create_internal(
+        name: *const ::std::os::raw::c_char,
+        name_len: usize,
+        handler: php_output_handler_context_func_t,
+        chunk_size: usize,
+        flags: ::std::os::raw::c_int,
+    ) -> *mut php_output_handler;
+}
+unsafe extern "C" {
+    pub fn php_output_handler_set_context(
+        handler: *mut php_output_handler,
+        opaq: *mut ::std::os::raw::c_void,
+        dtor: ::std::option::Option<unsafe extern "C" fn(arg1: *mut ::std::os::raw::c_void)>,
+    );
+}
+unsafe extern "C" {
+    pub fn php_output_handler_start(handler: *mut php_output_handler) -> zend_result;
+}
+unsafe extern "C" {
+    pub fn php_output_handler_free(handler: *mut *mut php_output_handler);
 }
 pub type php_stream = _php_stream;
 pub type php_stream_wrapper = _php_stream_wrapper;

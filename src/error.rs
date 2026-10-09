@@ -162,6 +162,10 @@ pub enum Error {
     /// The SAPI write function is not available
     #[error("the SAPI write function is not available")]
     SapiWriteUnavailable,
+    /// The engine refused to start an output handler: no request is active,
+    /// or a registered conflict check rejected the handler name.
+    #[error("the engine refused to start the output handler")]
+    OutputHandlerStartFailed,
     /// Failed to make an object lazy (PHP 8.4+)
     #[error("failed to make the object lazy")]
     LazyObjectFailed,
