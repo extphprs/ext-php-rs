@@ -14,11 +14,10 @@ use std::{
 
 use crate::{
     error::{Error, Result},
-    ffi::{
-        MODULE_TEMPORARY, ZEND_RESULT_CODE_SUCCESS, ext_php_rs_sapi_globals,
-        zend_unregister_ini_entries_ex,
+    ffi::{MODULE_TEMPORARY, ZEND_RESULT_CODE_SUCCESS, ext_php_rs_sapi_globals},
+    zend::{
+        CatchError, ExecutorGlobals, SapiModule, SapiRequestInfo, bailout, globals::lock, try_catch,
     },
-    zend::{CatchError, SapiModule, SapiRequestInfo, bailout, globals::lock, try_catch},
 };
 
 type Activate = unsafe extern "C" fn() -> c_int;
@@ -47,34 +46,48 @@ static CALLBACK: OnceLock<ActivateCallback> = OnceLock::new();
 static USER_SHUTDOWN: OnceLock<Shutdown> = OnceLock::new();
 static PREVIOUS: AtomicPtr<()> = AtomicPtr::new(ptr::null_mut());
 
-/// Keeps `callback` for the hook, and returns the MSHUTDOWN of the module:
-/// the one of the user when there is no hook, else a wrapper that also removes
-/// the hook.
-pub(crate) fn shutdown_func(
-    callback: Option<ActivateCallback>,
-    user_shutdown: Option<Shutdown>,
-) -> Option<Shutdown> {
-    let Some(callback) = callback else {
-        return user_shutdown;
-    };
-    let _ = CALLBACK.set(callback);
-    if let Some(shutdown) = user_shutdown {
-        let _ = USER_SHUTDOWN.set(shutdown);
+pub(crate) fn set_callback(callback: Option<ActivateCallback>) {
+    if let Some(callback) = callback {
+        let _ = CALLBACK.set(callback);
     }
-    Some(module_shutdown)
 }
 
 /// Puts the hook in `sapi_module.activate` and keeps the handler it replaces.
+/// It also puts [`module_shutdown`] in the module entry, so that MSHUTDOWN
+/// removes the hook.
 ///
 /// # Safety
 ///
 /// Call it only from MINIT, before any request runs on another thread.
+///
+/// # Panics
+///
+/// If `EG(current_module)` is null, that is when the caller is not the MINIT
+/// that `zend_startup_module_ex` runs.
 pub(crate) unsafe fn install(ty: c_int) -> Result<()> {
     if CALLBACK.get().is_none() {
         return Ok(());
     }
     if ty == MODULE_TEMPORARY.cast_signed() {
         return Err(Error::SapiActivateUnderDl);
+    }
+
+    let entry = ExecutorGlobals::get().current_module;
+    assert!(
+        !entry.is_null(),
+        "sapi_activate_function needs EG(current_module): start the module with zend_startup_module_ex"
+    );
+    let ours_shutdown: Shutdown = module_shutdown;
+    // SAFETY: during MINIT, `EG(current_module)` is the entry that the engine
+    // calls at MSHUTDOWN, and only this thread uses it.
+    unsafe {
+        if let Some(user) = (*entry)
+            .module_shutdown_func
+            .filter(|&user| !ptr::fn_addr_eq(user, ours_shutdown))
+        {
+            let _ = USER_SHUTDOWN.set(user);
+        }
+        (*entry).module_shutdown_func = Some(ours_shutdown);
     }
 
     let ours: Activate = activate;
@@ -153,33 +166,40 @@ unsafe extern "C" fn activate() -> c_int {
 unsafe extern "C" fn module_shutdown(ty: c_int, module_number: c_int) -> c_int {
     // SAFETY: the engine runs MSHUTDOWN after the last request.
     unsafe { uninstall() };
-    if let Some(shutdown) = USER_SHUTDOWN.get() {
-        // SAFETY: the engine would call the user function with these arguments.
-        return unsafe { shutdown(ty, module_number) };
-    }
-    if ty == MODULE_TEMPORARY.cast_signed() {
-        // SAFETY: the engine does this for a temporary module that has no
-        // shutdown function.
-        unsafe { zend_unregister_ini_entries_ex(module_number, ty) };
-    }
-    ZEND_RESULT_CODE_SUCCESS
+    USER_SHUTDOWN
+        .get()
+        .map_or(ZEND_RESULT_CODE_SUCCESS, |shutdown| {
+            // SAFETY: the engine would call the user function with these arguments.
+            unsafe { shutdown(ty, module_number) }
+        })
 }
 
 #[cfg(all(test, feature = "embed"))]
 mod tests {
     use super::*;
-    use crate::{embed::Embed, ffi::MODULE_PERSISTENT};
+    use crate::{
+        embed::Embed,
+        ffi::MODULE_PERSISTENT,
+        zend::{ExecutorGlobals, ModuleEntry},
+    };
 
     #[test]
     fn second_install_does_not_chain_to_itself() {
         let chained_to_itself = Embed::run(|| {
-            let _ = shutdown_func(Some(ActivateCallback::new(|_| {})), None);
+            set_callback(Some(ActivateCallback::new(|_| {})));
+            // SAFETY: all-zero is an entry without functions.
+            let mut entry: ModuleEntry = unsafe { mem::zeroed() };
+            let current = mem::replace(
+                &mut ExecutorGlobals::get_mut().current_module,
+                &raw mut entry,
+            );
             // SAFETY: `Embed::run` holds the lock that every embed test takes,
             // so no other request starts until `uninstall`.
             unsafe {
                 install(MODULE_PERSISTENT.cast_signed()).expect("first install failed");
                 install(MODULE_PERSISTENT.cast_signed()).expect("second install failed");
             }
+            ExecutorGlobals::get_mut().current_module = current;
             let ours: Activate = activate;
             let chained = previous().is_some_and(|previous| ptr::fn_addr_eq(previous, ours));
             // SAFETY: see above.
@@ -193,7 +213,7 @@ mod tests {
     #[test]
     fn install_refuses_dl_module() {
         let refused = Embed::run(|| {
-            let _ = shutdown_func(Some(ActivateCallback::new(|_| {})), None);
+            set_callback(Some(ActivateCallback::new(|_| {})));
             // SAFETY: the refusal returns before it writes the SAPI module.
             let result = unsafe { install(MODULE_TEMPORARY.cast_signed()) };
             matches!(result, Err(Error::SapiActivateUnderDl))

@@ -769,8 +769,7 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
         #[cfg(feature = "observer")]
         let ext_version = builder.version.clone();
 
-        let shutdown_func =
-            sapi_activate::shutdown_func(builder.sapi_activate, builder.shutdown_func);
+        sapi_activate::set_callback(builder.sapi_activate);
 
         let owned_name = CString::new(builder.name)?;
         let owned_version = CString::new(builder.version)?;
@@ -804,7 +803,7 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
             name,
             functions,
             module_startup_func: builder.startup_func,
-            module_shutdown_func: shutdown_func,
+            module_shutdown_func: builder.shutdown_func,
             request_startup_func: builder.request_startup_func,
             request_shutdown_func: builder.request_shutdown_func,
             info_func: builder.info_func,
@@ -832,7 +831,7 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
             name,
             functions,
             module_startup_func: builder.startup_func,
-            module_shutdown_func: shutdown_func,
+            module_shutdown_func: builder.shutdown_func,
             request_startup_func: builder.request_startup_func,
             request_shutdown_func: builder.request_shutdown_func,
             info_func: builder.info_func,

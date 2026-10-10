@@ -352,7 +352,6 @@ bind! {
     sapi_header_op_enum,
     MODULE_PERSISTENT,
     MODULE_TEMPORARY,
-    zend_unregister_ini_entries_ex,
     zend_activate_auto_globals,
     zend_is_auto_global,
     zend_llist_get_next_ex,

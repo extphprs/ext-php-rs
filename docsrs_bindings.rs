@@ -3703,12 +3703,6 @@ unsafe extern "C" {
         module_number: ::std::os::raw::c_int,
     ) -> zend_result;
 }
-unsafe extern "C" {
-    pub fn zend_unregister_ini_entries_ex(
-        module_number: ::std::os::raw::c_int,
-        module_type: ::std::os::raw::c_int,
-    );
-}
 pub type zend_ini_parser_cb_t = ::std::option::Option<
     unsafe extern "C" fn(
         arg1: *mut zval,
