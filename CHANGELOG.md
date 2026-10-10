@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## [0.16.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.2...ext-php-rs-v0.16.3) - 2026-10-10
+
+### Added
+- *(zend)* Add a per-request sapi activate hook ([#816](https://github.com/extphprs/ext-php-rs/pull/816)) (by @ptondereau) [[#816](https://github.com/extphprs/ext-php-rs/issues/816)] 
+- *(zend)* Add response header wrappers ([#814](https://github.com/extphprs/ext-php-rs/pull/814)) (by @ptondereau) [[#814](https://github.com/extphprs/ext-php-rs/issues/814)] 
 ## [0.16.2](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.1...ext-php-rs-v0.16.2) - 2026-10-10
 
 ### Added

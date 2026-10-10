@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.12.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.2...ext-php-rs-derive-v0.12.3) - 2026-10-10
+
+### Added
+- *(zend)* Add a per-request sapi activate hook ([#816](https://github.com/extphprs/ext-php-rs/pull/816)) (by @ptondereau) [[#816](https://github.com/extphprs/ext-php-rs/issues/816)] 
 ## [0.12.2](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.1...ext-php-rs-derive-v0.12.2) - 2026-10-10
 
 ### Fixed

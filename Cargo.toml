@@ -5,7 +5,7 @@ repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
 keywords = ["php", "ffi", "zend"]
-version = "0.16.2"
+version = "0.16.3"
 authors = [
     "Pierre Tondereau <pierre.tondereau@protonmail.com>",
     "Xenira <xenira@php.rs>",
@@ -26,7 +26,7 @@ smartstring = { version = "1", optional = true }
 indexmap = { version = "2", optional = true }
 inventory = "0.3"
 thiserror = "2"
-ext-php-rs-derive = { version = "=0.12.2", path = "./crates/macros" }
+ext-php-rs-derive = { version = "=0.12.3", path = "./crates/macros" }
 ext-php-rs-introspection = { version = "0.2.1", path = "./crates/introspection" }
 
 [dev-dependencies]
