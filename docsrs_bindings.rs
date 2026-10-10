@@ -3967,6 +3967,19 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn sapi_deactivate_destroy();
 }
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct sapi_header_line {
+    pub line: *const ::std::os::raw::c_char,
+    pub line_len: usize,
+    pub __bindgen_anon_1: sapi_header_line__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union sapi_header_line__bindgen_ty_1 {
+    pub response_code: zend_long,
+    pub header_len: usize,
+}
 pub const sapi_header_op_enum_SAPI_HEADER_REPLACE: sapi_header_op_enum = 0;
 pub const sapi_header_op_enum_SAPI_HEADER_ADD: sapi_header_op_enum = 1;
 pub const sapi_header_op_enum_SAPI_HEADER_DELETE: sapi_header_op_enum = 2;
@@ -3974,6 +3987,12 @@ pub const sapi_header_op_enum_SAPI_HEADER_DELETE_PREFIX: sapi_header_op_enum = 3
 pub const sapi_header_op_enum_SAPI_HEADER_DELETE_ALL: sapi_header_op_enum = 4;
 pub const sapi_header_op_enum_SAPI_HEADER_SET_STATUS: sapi_header_op_enum = 5;
 pub type sapi_header_op_enum = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn sapi_header_op(
+        op: sapi_header_op_enum,
+        arg: *mut ::std::os::raw::c_void,
+    ) -> ::std::os::raw::c_int;
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _sapi_module_struct {

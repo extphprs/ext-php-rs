@@ -184,3 +184,41 @@ during `MINIT`.
 If the handler panics, PHP sends the buffered bytes without a change. Then PHP
 disables the handler. PHP discards the output that the handler writes while it
 runs.
+
+## Response Headers
+
+Use these functions to change the response headers and the status code. They
+do the same work as the PHP functions in the table.
+
+| Function | PHP equivalent |
+|----------|----------------|
+| `zend::set_header(header)` | `header($header)` |
+| `zend::add_header(header)` | `header($header, false)` |
+| `zend::remove_header(name)` | `header_remove($name)` |
+| `zend::remove_all_headers()` | `header_remove()` |
+| `zend::set_response_code(code)` | `http_response_code($code)` |
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{set_header, set_response_code};
+
+#[php_function]
+pub fn moved(location: &str) -> PhpResult<()> {
+    set_header(&format!("Location: {location}"))?;
+    set_response_code(301)?;
+    Ok(())
+}
+```
+
+PHP applies its usual rules to the header. A `Location` header sets the status
+to `302`, or to `303` for a request that is not `GET` or `HEAD`. To send a
+different code, call `set_response_code` after `set_header`.
+
+Each function returns an error in these conditions:
+
+- No request is active, for example during `MINIT`.
+- A `SapiGlobals` guard is alive. The engine changes the SAPI globals, so you
+  must drop the guard first.
+- The header is empty.
+- PHP refuses the header. PHP also emits a warning when it sent the headers
+  before, or when the header has a new line or a NUL byte.

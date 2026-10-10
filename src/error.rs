@@ -166,6 +166,11 @@ pub enum Error {
     /// or a registered conflict check rejected the handler name.
     #[error("the engine refused to start the output handler")]
     OutputHandlerStartFailed,
+    /// The engine refused to change the response headers: no request is
+    /// active, a `SapiGlobals` guard is alive, or the header is invalid or
+    /// comes after the headers were sent.
+    #[error("the engine refused to change the response headers")]
+    ResponseHeaderFailed,
     /// Failed to make an object lazy (PHP 8.4+)
     #[error("failed to make the object lazy")]
     LazyObjectFailed,
