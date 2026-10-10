@@ -134,3 +134,53 @@ fn output_data(data: &[u8]) {
 - **`php_write!`**: Use when you need direct, unbuffered output that bypasses
   PHP's output layer. Useful for low-level SAPI interaction or when output
   buffering must be avoided.
+
+## Output Handlers
+
+An output handler changes the output before PHP sends it. It is the Rust
+equivalent of `ob_start()` with a callback. Use `zend::start_output_handler` to
+put a handler on the top of the output buffer stack.
+
+```rust,ignore
+use std::borrow::Cow;
+
+use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{OutputHandlerFlags, start_output_handler};
+
+#[php_function]
+pub fn start_uppercase() -> PhpResult<()> {
+    start_output_handler("uppercase", 0, OutputHandlerFlags::Std, |input, _op| {
+        Cow::Owned(input.to_ascii_uppercase())
+    })?;
+    Ok(())
+}
+```
+
+PHP calls the handler with the buffered bytes and an `OutputOp`. The handler
+returns the bytes that PHP sends:
+
+| Return value | Result | Copy |
+|--------------|--------|------|
+| `Cow::Borrowed(input)` or `&input[..n]` | PHP sends the start of the input. | No |
+| Other `Cow::Borrowed` slice | PHP sends the slice. | One |
+| `Cow::Owned(vec)` | PHP sends the new bytes. | One |
+| An empty slice | PHP sends nothing. | No |
+
+The handler does not copy the input. A copy of the output goes to the request
+heap, because PHP keeps the output after the handler returns.
+
+PHP calls the handler at these times:
+
+- When the buffer gets to `chunk_size` bytes. A `chunk_size` of `0` sets no limit.
+- When userland calls `ob_flush()`, `ob_clean()` or `ob_end_*()`.
+- At the end of the request, with `OutputOp::Final`.
+
+`OutputHandlerFlags` tells which `ob_*()` functions userland can use on the
+handler. `OutputHandlerFlags::Std` is the default of `ob_start()`.
+
+`start_output_handler` returns an error when no request is active, for example
+during `MINIT`.
+
+If the handler panics, PHP sends the buffered bytes without a change. Then PHP
+disables the handler. PHP discards the output that the handler writes while it
+runs.

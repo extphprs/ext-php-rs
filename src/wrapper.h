@@ -61,6 +61,7 @@ php_file_globals *ext_php_rs_file_globals();
 void *ext_php_rs_tsrmg_bulk(int id);
 #endif
 sapi_module_struct *ext_php_rs_sapi_module();
+bool ext_php_rs_output_activated();
 bool ext_php_rs_zend_try_catch(void* (*callback)(void *), void *ctx, void **result);
 bool ext_php_rs_zend_first_try_catch(void* (*callback)(void *), void *ctx, void **result);
 void ext_php_rs_zend_bailout();

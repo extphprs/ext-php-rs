@@ -110,6 +110,10 @@ sapi_module_struct *ext_php_rs_sapi_module() {
   return &sapi_module;
 }
 
+bool ext_php_rs_output_activated() {
+  return OG(flags) & PHP_OUTPUT_ACTIVATED;
+}
+
 bool ext_php_rs_zend_try_catch(void* (*callback)(void *), void *ctx, void **result) {
   zend_try {
     *result = callback(ctx);
