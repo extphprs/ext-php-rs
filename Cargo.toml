@@ -139,6 +139,11 @@ path = "tests/observer_restart.rs"
 required-features = ["embed", "observer"]
 
 [[test]]
+name = "sapi_activate"
+path = "tests/sapi_activate.rs"
+required-features = ["embed"]
+
+[[test]]
 name = "sapi_header_safety"
 path = "tests/sapi_header_safety.rs"
 required-features = ["embed"]

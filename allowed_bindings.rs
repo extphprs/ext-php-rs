@@ -350,6 +350,8 @@ bind! {
     sapi_header_line,
     sapi_header_op,
     sapi_header_op_enum,
+    MODULE_PERSISTENT,
+    MODULE_TEMPORARY,
     zend_activate_auto_globals,
     zend_is_auto_global,
     zend_llist_get_next_ex,

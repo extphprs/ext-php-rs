@@ -660,6 +660,7 @@ impl<'a> SapiHeader {
     }
 }
 
+/// Information about the current request, as the SAPI gives it.
 pub type SapiRequestInfo = sapi_request_info;
 
 impl SapiRequestInfo {

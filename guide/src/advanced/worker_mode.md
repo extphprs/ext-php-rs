@@ -66,3 +66,44 @@ The guard must be dropped before `php_module_shutdown()` is called.
 Worker mode pairs naturally with a custom `Sapi` implementation. Build the
 SAPI module once, start it, then use worker mode to cycle between requests
 without tearing down the full engine.
+
+## Run code at the start of each request
+
+In worker mode, PHP does not call the request startup function of an
+extension for each request. This is also true for a `FrankenPHP` worker. To
+run code for each request, use `ModuleBuilder::sapi_activate_function`.
+
+```rust,ignore
+use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{SapiRequestInfo, set_header, set_response_code};
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.sapi_activate_function(|info: &SapiRequestInfo| {
+        if info.request_uri() == Some("/old") {
+            let _ = set_header("Location: /new");
+            let _ = set_response_code(301);
+        }
+    })
+}
+```
+
+PHP calls the closure from `sapi_module.activate` at the start of each
+request. This includes each request of a `FrankenPHP` worker, and the first
+request that starts the worker script.
+
+The closure gets the request data from the SAPI: the method, the URI, the
+query string and the cookies. The response headers are empty, so
+`set_header` and `set_response_code` work. `$_SERVER` does not exist yet, and
+PHP code cannot run.
+
+Obey these rules:
+
+- Do not load the extension with `dl()`. PHP removes the extension at the end
+  of the request, but the SAPI keeps the hook. The extension refuses to start.
+- Do not use a panic for control. PHP prints the panic message and continues
+  the request.
+
+A redirect in the closure does not stop the application. The script, or the
+worker callback, runs after the closure. It can replace the headers and write
+a body.

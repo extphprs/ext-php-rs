@@ -42,6 +42,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     }
     module = integration::persistent_string::build_module(module);
     module = integration::reference::build_module(module);
+    module = integration::sapi_activate::build_module(module);
     module = integration::separated::build_module(module);
     module = integration::string::build_module(module);
     module = integration::variadic_args::build_module(module);

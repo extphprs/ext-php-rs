@@ -10,6 +10,15 @@ readonly URL=http://localhost:9080/worker.php
 _tmpdir=""
 _server=""
 
+check_activate_hook() {
+  local headers
+  headers="$(curl -fsS --max-time 10 -o /dev/null -D - "${URL}")"
+  if ! grep -qi '^x-ext-php-rs-activate: /worker.php' <<<"${headers}"; then
+    printf 'the sapi activate hook did not set its header:\n%s\n' "${headers}" >&2
+    return 1
+  fi
+}
+
 cleanup() {
   if [[ -n "${_server}" ]]; then
     pkill -TERM -P "${_server}" -x frankenphp 2>/dev/null || kill "${_server}" 2>/dev/null || true
@@ -52,12 +61,14 @@ main() {
   _server=$!
 
   curl -fsS --max-time 10 --retry 30 --retry-connrefused --retry-delay 1 "${URL}"
+  check_activate_hook
 
   local restart
   for ((restart = 1; restart <= RESTARTS; restart++)); do
     printf 'restart %d\n' "${restart}"
     curl -fsS --max-time 60 -X POST http://localhost:9019/frankenphp/workers/restart
     curl -fsS --max-time 10 "${URL}"
+    check_activate_hook
   done
 }
 
