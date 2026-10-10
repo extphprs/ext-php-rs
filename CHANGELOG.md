@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [0.16.2](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.1...ext-php-rs-v0.16.2) - 2026-10-10
+
+### Added
+- *(zend)* Add output handlers ([#812](https://github.com/extphprs/ext-php-rs/pull/812)) (by @ptondereau) [[#812](https://github.com/extphprs/ext-php-rs/issues/812)] 
+
+### Fixed
+- *(macros)* Run the ModuleBuilder startup function under #[php_module] ([#811](https://github.com/extphprs/ext-php-rs/pull/811)) (by @ptondereau) [[#811](https://github.com/extphprs/ext-php-rs/issues/811)] 
+- *(observer)* Register the hooks again when the SAPI restarts the module ([#809](https://github.com/extphprs/ext-php-rs/pull/809)) (by @ptondereau) [[#809](https://github.com/extphprs/ext-php-rs/issues/809)] 
+
+### Other
+- *(macros)* Compile the macrotest expansions against ext-php-rs ([#813](https://github.com/extphprs/ext-php-rs/pull/813)) (by @ptondereau) [[#813](https://github.com/extphprs/ext-php-rs/issues/813)] 
+- Test module restarts under FrankenPHP ([#808](https://github.com/extphprs/ext-php-rs/pull/808)) (by @ptondereau) [[#808](https://github.com/extphprs/ext-php-rs/issues/808)] 
 ## [0.16.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.0...ext-php-rs-v0.16.1) - 2026-10-06
 
 ### Fixed

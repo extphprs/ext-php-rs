@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.1...ext-php-rs-derive-v0.12.2) - 2026-10-10
+
+### Fixed
+- *(macros)* Run the ModuleBuilder startup function under #[php_module] ([#811](https://github.com/extphprs/ext-php-rs/pull/811)) (by @ptondereau) [[#811](https://github.com/extphprs/ext-php-rs/issues/811)] 
+
+### Other
+- *(macros)* Compile the macrotest expansions against ext-php-rs ([#813](https://github.com/extphprs/ext-php-rs/pull/813)) (by @ptondereau) [[#813](https://github.com/extphprs/ext-php-rs/issues/813)] 
 ## [0.12.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.0...ext-php-rs-derive-v0.12.1) - 2026-10-06
 
 ### Fixed
