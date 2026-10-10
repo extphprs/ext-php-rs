@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -216,8 +216,12 @@ example because a function name, an argument name or the module name contains a
 NUL byte, the macro returns a placeholder entry with the name of the crate. The
 startup function of that entry logs the build error and fails as described
 above.</p>
-<p>The <code>startup</code> function that you name in <code>#[php_module(startup = ...)]</code> is your
-own <code>extern "C"</code> function. A panic inside it is not caught.</p>
+<p>The <code>startup</code> function that you name in <code>#[php(startup = ...)]</code> is your own
+<code>extern "C"</code> function. A panic inside it is not caught.</p>
+<p>You can also give a startup function to <code>ModuleBuilder::startup_function</code>. The
+generated startup function calls it after the <code>#[php(startup = ...)]</code> function.
+The two functions run before the macro registers the constants, interfaces,
+classes and enums.</p>
 <h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;

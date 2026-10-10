@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-04540a14.js";
+            window.path_to_searchindex_js = "searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-31a31a08.js"></script>
@@ -1056,8 +1056,8 @@ foreach ($result as $key =&gt; $value) {
 <p><code>Vec&lt;(K, V)&gt;</code> and <code>Vec&lt;ArrayKey, V&gt;</code> are used to represent associative arrays in PHP
 where the keys can be strings or integers.</p>
 <p>If using <code>String</code> or <code>&amp;str</code> as the key type, only string keys will be accepted.</p>
-<p>For <code>i64</code> keys, string keys that can be parsed as integers will be accepted, and
-converted to <code>i64</code>.</p>
+<p>For <code>i64</code> keys, string keys are only accepted if PHP would treat them as integer
+keys, e.g. <code>"42"</code> or <code>"-1"</code> but not <code>"+1"</code> or <code>"01"</code>.</p>
 <p>If you need to accept both string and integer keys, use <code>ArrayKey</code> as the key type.</p>
 <h3 id="rust-example-2-2"><a class="header" href="#rust-example-2-2">Rust example</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
@@ -2109,8 +2109,12 @@ example because a function name, an argument name or the module name contains a
 NUL byte, the macro returns a placeholder entry with the name of the crate. The
 startup function of that entry logs the build error and fails as described
 above.</p>
-<p>The <code>startup</code> function that you name in <code>#[php_module(startup = ...)]</code> is your
-own <code>extern "C"</code> function. A panic inside it is not caught.</p>
+<p>The <code>startup</code> function that you name in <code>#[php(startup = ...)]</code> is your own
+<code>extern "C"</code> function. A panic inside it is not caught.</p>
+<p>You can also give a startup function to <code>ModuleBuilder::startup_function</code>. The
+generated startup function calls it after the <code>#[php(startup = ...)]</code> function.
+The two functions run before the macro registers the constants, interfaces,
+classes and enums.</p>
 <h2 id="usage-3"><a class="header" href="#usage-3">Usage</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
@@ -2400,7 +2404,9 @@ class B implements Rust\TestInterface {
 <h2 id="interface-inheritance"><a class="header" href="#interface-inheritance">Interface Inheritance</a></h2>
 <p>PHP interfaces can extend other interfaces. You can achieve this in two ways:</p>
 <h3 id="using-phpextends"><a class="header" href="#using-phpextends">Using <code>#[php(extends(...))]</code></a></h3>
-<p>Use the <code>extends</code> attribute to extend a built-in PHP interface or another Rust-defined interface.</p>
+<p>Use the <code>extends</code> attribute to extend a built-in PHP interface or another Rust-defined interface.
+Generated stubs write each parent interface name as a fully qualified name, with a leading <code>\</code>.
+A leading <code>\</code> in <code>stub = "..."</code> is optional.</p>
 <p>For built-in PHP interfaces, use the explicit form:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;
@@ -2699,6 +2705,8 @@ Two forms are supported:
 <code>ce_fn</code> must be a valid function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
 </ul>
 </li>
+<li>Generated stubs write each parent class and interface name as a fully qualified
+name, with a leading <code>\</code>. A leading <code>\</code> in <code>stub = "..."</code> is optional.</li>
 </ul>
 <p>You may also use the <code>#[php(prop)]</code> attribute on a struct field to use the field as a
 PHP property. By default, the property is public and its name is the field name
@@ -2715,43 +2723,28 @@ Property types must implement <code>IntoZval</code> and <code>FromZval</code>.</
 <li><code>flags</code> - Sets property visibility flags, e.g.
 <code>#[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]</code></li>
 </ul>
-<h3 id="known-limitation-phpprop-on-owned-refcounted-types-accessed-via"><a class="header" href="#known-limitation-phpprop-on-owned-refcounted-types-accessed-via">Known limitation: <code>#[php(prop)]</code> on owned refcounted types accessed via</a></h3>
-<p><code>Exception::getMessage</code>-style C methods leaks one <code>zend_string</code> per call.</p>
-<p>The generated read-property handler writes a fresh <code>zend_string</code> with
-refcount=1 into the <code>rv</code> slot via <code>set_zval</code>. PHP’s <code>Exception::getMessage</code>
-(and siblings such as <code>getFile</code>) read this with <code>zval_get_string + RETURN_STR</code>,
-which addrefs to 2 and transfers the pointer to <code>return_value</code> without
-changing the refcount. The stack <code>rv</code> then goes out of scope without
-<code>zval_ptr_dtor</code>, orphaning one refcount per call.</p>
-<p>This affects any <code>#[php_class]</code> extending <code>\Exception</code> with a <code>#[php(prop)]</code>
-field whose type allocates a <code>zend_string</code> (e.g. <code>String</code>, <code>Vec&lt;u8&gt;</code> when
-converted to a binary string, or any <code>IntoZval</code> impl producing <code>IS_STRING_EX</code>)
-— most commonly when the field shadows the parent <code>\Exception::$message</code>.
-Direct property access (<code>$obj-&gt;field</code>) via the <code>FETCH_OBJ_R</code> opcode is
-<strong>not</strong> affected because the bytecode handler properly consumes the rv ref.</p>
-<p><strong>Workarounds, in order of preference:</strong></p>
-<ol>
-<li>
-<p><strong>Do not shadow the inherited property name.</strong> Rename the field
-(e.g. <code>payload</code> instead of <code>message</code>) and expose it through a
-<code>#[php_method]</code> getter. The method-return path is not affected by
-this leak.
-Note: <code>\Exception::getMessage</code> is <code>final</code> in PHP, so overriding it
-directly via <code>#[php_method] fn get_message(...)</code> is rejected at
-class registration.</p>
-</li>
-<li>
-<p><strong>Write the value into the parent’s real property slot via
-<code>zend_update_property_stringl</code></strong> (raw FFI). PHP’s <code>getMessage</code>
-then reads from real storage through <code>zend_std_read_property</code>,
-bypassing the leaky <code>rv</code> path entirely. This requires dropping
-<code>#[php(prop)]</code> from the shadow field and populating the parent
-slot at construction time. See <code>biscuit-php</code> (<code>src/errors.rs</code>)
-for a worked example.</p>
-</li>
-</ol>
-<p>Tracked by the
-<code>prop_string_field_does_not_leak_on_repeated_get_message</code> regression test.</p>
+<h3 id="how-php-code-uses-a-rust-property"><a class="header" href="#how-php-code-uses-a-rust-property">How PHP code uses a Rust property</a></h3>
+<p>The value of a <code>#[php(prop)]</code> field is in the Rust struct. PHP reads the value
+with the getter and writes the value with the setter.</p>
+<p>These operations use the getter and the setter:</p>
+<ul>
+<li><code>$obj-&gt;prop += 1</code>, <code>$obj-&gt;prop .= 'x'</code>, <code>$obj-&gt;prop++</code> and <code>$obj-&gt;prop ??= 1</code>.</li>
+<li><code>==</code> and <code>foreach</code>, which use the current Rust values. Thus <code>==</code> calls each
+getter of the two objects.</li>
+</ul>
+<p>These operations change only a copy, and the Rust value does not change:</p>
+<ul>
+<li><code>$obj-&gt;prop[] = 1</code>, <code>$obj-&gt;prop['key'] = 1</code> and <code>$r = &amp;$obj-&gt;prop</code>. PHP gives
+the notice “Indirect modification of overloaded property”, as for <code>__get</code>.</li>
+<li><code>foreach ($obj as &amp;$value)</code>.</li>
+</ul>
+<p>These operations throw an <code>Error</code>:</p>
+<ul>
+<li><code>$obj-&gt;prop = &amp;$value</code>.</li>
+<li><code>unset($obj-&gt;prop)</code>, because the Rust value cannot be removed.</li>
+</ul>
+<p>If a PHP subclass declares the property again with hooks, PHP uses the Rust
+getter and setter, not the hooks.</p>
 <h2 id="restrictions"><a class="header" href="#restrictions">Restrictions</a></h2>
 <h3 id="no-lifetime-parameters"><a class="header" href="#no-lifetime-parameters">No lifetime parameters</a></h3>
 <p>Rust lifetimes are used by the Rust compiler to reason about a program’s memory safety.
@@ -4275,6 +4268,52 @@ PHP’s output layer. Useful for low-level SAPI interaction or when output
 buffering must be avoided.</p>
 </li>
 </ul>
+<h2 id="output-handlers"><a class="header" href="#output-handlers">Output Handlers</a></h2>
+<p>An output handler changes the output before PHP sends it. It is the Rust
+equivalent of <code>ob_start()</code> with a callback. Use <code>zend::start_output_handler</code> to
+put a handler on the top of the output buffer stack.</p>
+<pre><code class="language-rust ignore">use std::borrow::Cow;
+
+use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{OutputHandlerFlags, start_output_handler};
+
+#[php_function]
+pub fn start_uppercase() -&gt; PhpResult&lt;()&gt; {
+    start_output_handler("uppercase", 0, OutputHandlerFlags::Std, |input, _op| {
+        Cow::Owned(input.to_ascii_uppercase())
+    })?;
+    Ok(())
+}</code></pre>
+<p>PHP calls the handler with the buffered bytes and an <code>OutputOp</code>. The handler
+returns the bytes that PHP sends:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Return value</th><th>Result</th><th>Copy</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Cow::Borrowed(input)</code> or <code>&amp;input[..n]</code></td><td>PHP sends the start of the input.</td><td>No</td></tr>
+<tr><td>Other <code>Cow::Borrowed</code> slice</td><td>PHP sends the slice.</td><td>One</td></tr>
+<tr><td><code>Cow::Owned(vec)</code></td><td>PHP sends the new bytes.</td><td>One</td></tr>
+<tr><td>An empty slice</td><td>PHP sends nothing.</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+<p>The handler does not copy the input. A copy of the output goes to the request
+heap, because PHP keeps the output after the handler returns.</p>
+<p>PHP calls the handler at these times:</p>
+<ul>
+<li>When the buffer gets to <code>chunk_size</code> bytes. A <code>chunk_size</code> of <code>0</code> sets no limit.</li>
+<li>When userland calls <code>ob_flush()</code>, <code>ob_clean()</code> or <code>ob_end_*()</code>.</li>
+<li>At the end of the request, with <code>OutputOp::Final</code>.</li>
+</ul>
+<p><code>OutputHandlerFlags</code> tells which <code>ob_*()</code> functions userland can use on the
+handler. <code>OutputHandlerFlags::Std</code> is the default of <code>ob_start()</code>.</p>
+<p><code>start_output_handler</code> returns an error when no request is active, for example
+during <code>MINIT</code>.</p>
+<p>If the handler panics, PHP sends the buffered bytes without a change. Then PHP
+disables the handler. PHP discards the output that the handler writes while it
+runs.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="ini-settings"><a class="header" href="#ini-settings">INI Settings</a></h1>
 <p>Your PHP Extension may want to provide it’s own PHP INI settings to configure behaviour. This can be done in the <code>#[php_startup]</code> annotated startup function.</p>
@@ -5268,8 +5307,10 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .finish()
 }</code></pre>
 <h2 id="thread-safety-1"><a class="header" href="#thread-safety-1">Thread Safety</a></h2>
-<p>Observers are created once during MINIT and stored as global singletons.
-They must implement <code>Send + Sync</code> because:</p>
+<p>Observers are created once, at the first MINIT, and stored as global singletons.
+When a SAPI stops the module and starts it again in the same process (for example
+a FrankenPHP worker restart), every MINIT registers the hooks again with the same
+instance, so its state is kept. They must implement <code>Send + Sync</code> because:</p>
 <ul>
 <li><strong>NTS</strong>: A single instance handles all requests</li>
 <li><strong>ZTS</strong>: The same instance may be called from different threads</li>
@@ -5900,7 +5941,9 @@ carries make the engine derive <code>ZEND_ACC_HAS_RETURN_TYPE</code> or
 <code>ZEND_ACC_HAS_TYPE_HINTS</code>, and that copy is shallow: <code>name</code> and
 <code>default_value</code> stay borrowed and are read at runtime by
 <code>ReflectionParameter</code>. A function with neither parameters nor a return type
-keeps the original array.</li>
+keeps the original array. When a SAPI starts the module again in the same
+process (a <code>FrankenPHP</code> worker restart), MINIT registers each class anew and
+its new tables replace those of the class freed with the old module.</li>
 <li><strong>The module function table</strong>, its function names, and the module <code>name</code> and
 <code>version</code>. <code>module_destructor</code> walks the table reading <code>fname</code> after
 MSHUTDOWN for <code>dl()</code>-loaded extensions, <code>get_extension_funcs()</code> walks it
@@ -5926,6 +5969,20 @@ building tables by hand. <code>zend_declare_class_constant</code> and <code>zend
 take the zval payload with <code>ZVAL_COPY_VALUE</code> and no reference bump, so the
 engine owns any refcounted value afterwards and the Rust <code>Zval</code> must not run its
 destructor.</p>
+<h2 id="module-restarts"><a class="header" href="#module-restarts">Module restarts</a></h2>
+<p>Some SAPIs stop the module and start it again in the same process. FrankenPHP
+does this on a worker restart, when its file watcher finds a change, and on
+<code>opcache_reset()</code>. At module shutdown, PHP frees all class entries. The next MINIT
+makes new class entries for the core classes and for your classes.</p>
+<p>Thus a <code>&amp;'static ClassEntry</code> from ext-php-rs is valid only until the module
+shuts down. This applies to <code>ClassMetadata::ce()</code>, <code>ZendObject::get_class_entry()</code>
+and the functions in <code>zend::ce</code>.</p>
+<ul>
+<li>Do not keep a class entry in a <code>static</code>, a <code>OnceLock</code> or a thread-local value.</li>
+<li>Get the class entry again each time that you use it. The call reads one
+pointer.</li>
+</ul>
+<p>Observers stay registered after a restart. See <a href="#observer-api">Observer API</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="allowed-bindings"><a class="header" href="#allowed-bindings">Allowed Bindings</a></h1>
 <p>The extension limits the bindings that are generated by <code>bindgen</code> to a subset of the original bindings.

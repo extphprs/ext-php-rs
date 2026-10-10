@@ -34,7 +34,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-04540a14.js";
+            window.path_to_searchindex_js = "searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-31a31a08.js"></script>
@@ -293,6 +293,52 @@ PHP’s output layer. Useful for low-level SAPI interaction or when output
 buffering must be avoided.</p>
 </li>
 </ul>
+<h2 id="output-handlers"><a class="header" href="#output-handlers">Output Handlers</a></h2>
+<p>An output handler changes the output before PHP sends it. It is the Rust
+equivalent of <code>ob_start()</code> with a callback. Use <code>zend::start_output_handler</code> to
+put a handler on the top of the output buffer stack.</p>
+<pre><code class="language-rust ignore">use std::borrow::Cow;
+
+use ext_php_rs::prelude::*;
+use ext_php_rs::zend::{OutputHandlerFlags, start_output_handler};
+
+#[php_function]
+pub fn start_uppercase() -&gt; PhpResult&lt;()&gt; {
+    start_output_handler("uppercase", 0, OutputHandlerFlags::Std, |input, _op| {
+        Cow::Owned(input.to_ascii_uppercase())
+    })?;
+    Ok(())
+}</code></pre>
+<p>PHP calls the handler with the buffered bytes and an <code>OutputOp</code>. The handler
+returns the bytes that PHP sends:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Return value</th><th>Result</th><th>Copy</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Cow::Borrowed(input)</code> or <code>&amp;input[..n]</code></td><td>PHP sends the start of the input.</td><td>No</td></tr>
+<tr><td>Other <code>Cow::Borrowed</code> slice</td><td>PHP sends the slice.</td><td>One</td></tr>
+<tr><td><code>Cow::Owned(vec)</code></td><td>PHP sends the new bytes.</td><td>One</td></tr>
+<tr><td>An empty slice</td><td>PHP sends nothing.</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+<p>The handler does not copy the input. A copy of the output goes to the request
+heap, because PHP keeps the output after the handler returns.</p>
+<p>PHP calls the handler at these times:</p>
+<ul>
+<li>When the buffer gets to <code>chunk_size</code> bytes. A <code>chunk_size</code> of <code>0</code> sets no limit.</li>
+<li>When userland calls <code>ob_flush()</code>, <code>ob_clean()</code> or <code>ob_end_*()</code>.</li>
+<li>At the end of the request, with <code>OutputOp::Final</code>.</li>
+</ul>
+<p><code>OutputHandlerFlags</code> tells which <code>ob_*()</code> functions userland can use on the
+handler. <code>OutputHandlerFlags::Std</code> is the default of <code>ob_start()</code>.</p>
+<p><code>start_output_handler</code> returns an error when no request is active, for example
+during <code>MINIT</code>.</p>
+<p>If the handler panics, PHP sends the buffered bytes without a change. Then PHP
+disables the handler. PHP discards the output that the handler writes while it
+runs.</p>
 
                     </main>
 

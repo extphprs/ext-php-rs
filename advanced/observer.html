@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -543,8 +543,10 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
         .finish()
 }</code></pre>
 <h2 id="thread-safety"><a class="header" href="#thread-safety">Thread Safety</a></h2>
-<p>Observers are created once during MINIT and stored as global singletons.
-They must implement <code>Send + Sync</code> because:</p>
+<p>Observers are created once, at the first MINIT, and stored as global singletons.
+When a SAPI stops the module and starts it again in the same process (for example
+a FrankenPHP worker restart), every MINIT registers the hooks again with the same
+instance, so its state is kept. They must implement <code>Send + Sync</code> because:</p>
 <ul>
 <li><strong>NTS</strong>: A single instance handles all requests</li>
 <li><strong>ZTS</strong>: The same instance may be called from different threads</li>

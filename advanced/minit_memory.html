@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -195,7 +195,9 @@ carries make the engine derive <code>ZEND_ACC_HAS_RETURN_TYPE</code> or
 <code>ZEND_ACC_HAS_TYPE_HINTS</code>, and that copy is shallow: <code>name</code> and
 <code>default_value</code> stay borrowed and are read at runtime by
 <code>ReflectionParameter</code>. A function with neither parameters nor a return type
-keeps the original array.</li>
+keeps the original array. When a SAPI starts the module again in the same
+process (a <code>FrankenPHP</code> worker restart), MINIT registers each class anew and
+its new tables replace those of the class freed with the old module.</li>
 <li><strong>The module function table</strong>, its function names, and the module <code>name</code> and
 <code>version</code>. <code>module_destructor</code> walks the table reading <code>fname</code> after
 MSHUTDOWN for <code>dl()</code>-loaded extensions, <code>get_extension_funcs()</code> walks it
@@ -221,6 +223,20 @@ building tables by hand. <code>zend_declare_class_constant</code> and <code>zend
 take the zval payload with <code>ZVAL_COPY_VALUE</code> and no reference bump, so the
 engine owns any refcounted value afterwards and the Rust <code>Zval</code> must not run its
 destructor.</p>
+<h2 id="module-restarts"><a class="header" href="#module-restarts">Module restarts</a></h2>
+<p>Some SAPIs stop the module and start it again in the same process. FrankenPHP
+does this on a worker restart, when its file watcher finds a change, and on
+<code>opcache_reset()</code>. At module shutdown, PHP frees all class entries. The next MINIT
+makes new class entries for the core classes and for your classes.</p>
+<p>Thus a <code>&amp;'static ClassEntry</code> from ext-php-rs is valid only until the module
+shuts down. This applies to <code>ClassMetadata::ce()</code>, <code>ZendObject::get_class_entry()</code>
+and the functions in <code>zend::ce</code>.</p>
+<ul>
+<li>Do not keep a class entry in a <code>static</code>, a <code>OnceLock</code> or a thread-local value.</li>
+<li>Get the class entry again each time that you use it. The call reads one
+pointer.</li>
+</ul>
+<p>Observers stay registered after a restart. See <a href="./observer.html">Observer API</a>.</p>
 
                     </main>
 

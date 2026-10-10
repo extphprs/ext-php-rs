@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -241,7 +241,9 @@ class B implements Rust\TestInterface {
 <h2 id="interface-inheritance"><a class="header" href="#interface-inheritance">Interface Inheritance</a></h2>
 <p>PHP interfaces can extend other interfaces. You can achieve this in two ways:</p>
 <h3 id="using-phpextends"><a class="header" href="#using-phpextends">Using <code>#[php(extends(...))]</code></a></h3>
-<p>Use the <code>extends</code> attribute to extend a built-in PHP interface or another Rust-defined interface.</p>
+<p>Use the <code>extends</code> attribute to extend a built-in PHP interface or another Rust-defined interface.
+Generated stubs write each parent interface name as a fully qualified name, with a leading <code>\</code>.
+A leading <code>\</code> in <code>stub = "..."</code> is optional.</p>
 <p>For built-in PHP interfaces, use the explicit form:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
 </span><span class="boring">extern crate ext_php_rs;

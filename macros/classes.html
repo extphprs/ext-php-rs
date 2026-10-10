@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -205,6 +205,8 @@ Two forms are supported:
 <code>ce_fn</code> must be a valid function with the signature <code>fn() -&gt; &amp;'static ClassEntry</code>.</li>
 </ul>
 </li>
+<li>Generated stubs write each parent class and interface name as a fully qualified
+name, with a leading <code>\</code>. A leading <code>\</code> in <code>stub = "..."</code> is optional.</li>
 </ul>
 <p>You may also use the <code>#[php(prop)]</code> attribute on a struct field to use the field as a
 PHP property. By default, the property is public and its name is the field name
@@ -221,43 +223,28 @@ Property types must implement <code>IntoZval</code> and <code>FromZval</code>.</
 <li><code>flags</code> - Sets property visibility flags, e.g.
 <code>#[php(prop, flags = ext_php_rs::flags::PropertyFlags::Private)]</code></li>
 </ul>
-<h3 id="known-limitation-phpprop-on-owned-refcounted-types-accessed-via"><a class="header" href="#known-limitation-phpprop-on-owned-refcounted-types-accessed-via">Known limitation: <code>#[php(prop)]</code> on owned refcounted types accessed via</a></h3>
-<p><code>Exception::getMessage</code>-style C methods leaks one <code>zend_string</code> per call.</p>
-<p>The generated read-property handler writes a fresh <code>zend_string</code> with
-refcount=1 into the <code>rv</code> slot via <code>set_zval</code>. PHP’s <code>Exception::getMessage</code>
-(and siblings such as <code>getFile</code>) read this with <code>zval_get_string + RETURN_STR</code>,
-which addrefs to 2 and transfers the pointer to <code>return_value</code> without
-changing the refcount. The stack <code>rv</code> then goes out of scope without
-<code>zval_ptr_dtor</code>, orphaning one refcount per call.</p>
-<p>This affects any <code>#[php_class]</code> extending <code>\Exception</code> with a <code>#[php(prop)]</code>
-field whose type allocates a <code>zend_string</code> (e.g. <code>String</code>, <code>Vec&lt;u8&gt;</code> when
-converted to a binary string, or any <code>IntoZval</code> impl producing <code>IS_STRING_EX</code>)
-— most commonly when the field shadows the parent <code>\Exception::$message</code>.
-Direct property access (<code>$obj-&gt;field</code>) via the <code>FETCH_OBJ_R</code> opcode is
-<strong>not</strong> affected because the bytecode handler properly consumes the rv ref.</p>
-<p><strong>Workarounds, in order of preference:</strong></p>
-<ol>
-<li>
-<p><strong>Do not shadow the inherited property name.</strong> Rename the field
-(e.g. <code>payload</code> instead of <code>message</code>) and expose it through a
-<code>#[php_method]</code> getter. The method-return path is not affected by
-this leak.
-Note: <code>\Exception::getMessage</code> is <code>final</code> in PHP, so overriding it
-directly via <code>#[php_method] fn get_message(...)</code> is rejected at
-class registration.</p>
-</li>
-<li>
-<p><strong>Write the value into the parent’s real property slot via
-<code>zend_update_property_stringl</code></strong> (raw FFI). PHP’s <code>getMessage</code>
-then reads from real storage through <code>zend_std_read_property</code>,
-bypassing the leaky <code>rv</code> path entirely. This requires dropping
-<code>#[php(prop)]</code> from the shadow field and populating the parent
-slot at construction time. See <code>biscuit-php</code> (<code>src/errors.rs</code>)
-for a worked example.</p>
-</li>
-</ol>
-<p>Tracked by the
-<code>prop_string_field_does_not_leak_on_repeated_get_message</code> regression test.</p>
+<h3 id="how-php-code-uses-a-rust-property"><a class="header" href="#how-php-code-uses-a-rust-property">How PHP code uses a Rust property</a></h3>
+<p>The value of a <code>#[php(prop)]</code> field is in the Rust struct. PHP reads the value
+with the getter and writes the value with the setter.</p>
+<p>These operations use the getter and the setter:</p>
+<ul>
+<li><code>$obj-&gt;prop += 1</code>, <code>$obj-&gt;prop .= 'x'</code>, <code>$obj-&gt;prop++</code> and <code>$obj-&gt;prop ??= 1</code>.</li>
+<li><code>==</code> and <code>foreach</code>, which use the current Rust values. Thus <code>==</code> calls each
+getter of the two objects.</li>
+</ul>
+<p>These operations change only a copy, and the Rust value does not change:</p>
+<ul>
+<li><code>$obj-&gt;prop[] = 1</code>, <code>$obj-&gt;prop['key'] = 1</code> and <code>$r = &amp;$obj-&gt;prop</code>. PHP gives
+the notice “Indirect modification of overloaded property”, as for <code>__get</code>.</li>
+<li><code>foreach ($obj as &amp;$value)</code>.</li>
+</ul>
+<p>These operations throw an <code>Error</code>:</p>
+<ul>
+<li><code>$obj-&gt;prop = &amp;$value</code>.</li>
+<li><code>unset($obj-&gt;prop)</code>, because the Rust value cannot be removed.</li>
+</ul>
+<p>If a PHP subclass declares the property again with hooks, PHP uses the Rust
+getter and setter, not the hooks.</p>
 <h2 id="restrictions"><a class="header" href="#restrictions">Restrictions</a></h2>
 <h3 id="no-lifetime-parameters"><a class="header" href="#no-lifetime-parameters">No lifetime parameters</a></h3>
 <p>Rust lifetimes are used by the Rust compiler to reason about a program’s memory safety.

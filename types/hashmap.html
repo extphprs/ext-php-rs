@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-04540a14.js";
+            window.path_to_searchindex_js = "../searchindex-c904634f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -294,8 +294,8 @@ foreach ($result as $key =&gt; $value) {
 <p><code>Vec&lt;(K, V)&gt;</code> and <code>Vec&lt;ArrayKey, V&gt;</code> are used to represent associative arrays in PHP
 where the keys can be strings or integers.</p>
 <p>If using <code>String</code> or <code>&amp;str</code> as the key type, only string keys will be accepted.</p>
-<p>For <code>i64</code> keys, string keys that can be parsed as integers will be accepted, and
-converted to <code>i64</code>.</p>
+<p>For <code>i64</code> keys, string keys are only accepted if PHP would treat them as integer
+keys, e.g. <code>"42"</code> or <code>"-1"</code> but not <code>"+1"</code> or <code>"01"</code>.</p>
 <p>If you need to accept both string and integer keys, use <code>ArrayKey</code> as the key type.</p>
 <h3 id="rust-example-2"><a class="header" href="#rust-example-2">Rust example</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
