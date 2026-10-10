@@ -171,6 +171,10 @@ pub enum Error {
     /// comes after the headers were sent.
     #[error("the engine refused to change the response headers")]
     ResponseHeaderFailed,
+    /// A module loaded with `dl()` has a `sapi_activate_function`. PHP unloads
+    /// such a module at the end of the request, while the SAPI keeps the hook.
+    #[error("a module loaded with dl() cannot have a sapi_activate_function")]
+    SapiActivateUnderDl,
     /// Failed to make an object lazy (PHP 8.4+)
     #[error("failed to make the object lazy")]
     LazyObjectFailed,

@@ -26,6 +26,7 @@ pub mod observer;
 pub mod panic;
 pub mod persistent_string;
 pub mod reference;
+pub mod sapi_activate;
 pub mod separated;
 pub mod string;
 pub mod types;

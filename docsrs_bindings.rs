@@ -612,6 +612,8 @@ pub const _ZEND_SEND_MODE_SHIFT: u32 = 25;
 pub const _ZEND_IS_VARIADIC_BIT: u32 = 134217728;
 pub const ZEND_MODULE_API_NO: u32 = 20250925;
 pub const USING_ZTS: u32 = 0;
+pub const MODULE_PERSISTENT: u32 = 1;
+pub const MODULE_TEMPORARY: u32 = 2;
 pub const CONST_CS: u32 = 0;
 pub const CONST_PERSISTENT: u32 = 1;
 pub const CONST_NO_FILE_CACHE: u32 = 2;
@@ -3700,6 +3702,12 @@ unsafe extern "C" {
         ini_entry: *const zend_ini_entry_def,
         module_number: ::std::os::raw::c_int,
     ) -> zend_result;
+}
+unsafe extern "C" {
+    pub fn zend_unregister_ini_entries_ex(
+        module_number: ::std::os::raw::c_int,
+        module_type: ::std::os::raw::c_int,
+    );
 }
 pub type zend_ini_parser_cb_t = ::std::option::Option<
     unsafe extern "C" fn(

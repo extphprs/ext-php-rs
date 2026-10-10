@@ -86,7 +86,10 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                 let user = __EXT_PHP_RS_BUILDER_STARTUP
                     .get()
                     .map_or(0, |startup| unsafe { startup(ty, mod_num) });
-                let b = ::ext_php_rs::internal::startup_guard(|| {
+                if a | user != 0 {
+                    return a | user;
+                }
+                ::ext_php_rs::internal::startup_guard(|| {
                     // The startup is kept, not taken: a SAPI can shut the module down and
                     // start it again in the same process (FrankenPHP worker restarts), and
                     // every MINIT must register the classes, interfaces, enums and constants.
@@ -95,8 +98,7 @@ fn parser_impl(input: ItemFn, crate_name: Option<&str>, static_ext: bool) -> Res
                         Some(startup) => startup.startup(ty, mod_num),
                         None => Ok(()),
                     }
-                });
-                a | user | b
+                })
             }
 
             static __EXT_PHP_RS_BUILD_ERROR: ::std::sync::OnceLock<::std::string::String> =

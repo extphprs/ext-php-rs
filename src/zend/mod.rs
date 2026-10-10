@@ -20,6 +20,7 @@ pub(crate) mod module_globals;
 #[cfg(feature = "observer")]
 pub(crate) mod observer;
 mod output;
+pub(crate) mod sapi_activate;
 mod streams;
 mod try_catch;
 #[cfg(feature = "observer")]
@@ -50,6 +51,7 @@ pub use globals::SapiGlobals;
 pub use globals::SapiHeader;
 pub use globals::SapiHeaders;
 pub use globals::SapiModule;
+pub use globals::SapiRequestInfo;
 pub use handlers::ZendObjectHandlers;
 pub use headers::{add_header, remove_all_headers, remove_header, set_header, set_response_code};
 pub use ini_entry_def::{IniEntryDef, IniEntryDefs};

@@ -9,7 +9,11 @@ use crate::{
     error::Result,
     ffi::{ZEND_MODULE_API_NO, ext_php_rs_php_build_id},
     flags::ClassFlags,
-    zend::{FunctionEntry, ModuleAllocations, ModuleEntry, ModuleGlobal, ModuleGlobals},
+    zend::{
+        FunctionEntry, ModuleAllocations, ModuleEntry, ModuleGlobal, ModuleGlobals,
+        SapiRequestInfo,
+        sapi_activate::{self, ActivateCallback},
+    },
 };
 #[cfg(feature = "enum")]
 use crate::{builders::enum_builder::EnumBuilder, enum_::RegisteredEnum};
@@ -60,6 +64,7 @@ pub struct ModuleBuilder<'a> {
     request_startup_func: Option<StartupShutdownFunc>,
     request_shutdown_func: Option<StartupShutdownFunc>,
     post_deactivate_func: Option<unsafe extern "C" fn() -> i32>,
+    sapi_activate: Option<ActivateCallback>,
     info_func: Option<InfoFunc>,
     globals_size: usize,
     #[cfg(php_zts)]
@@ -86,6 +91,7 @@ impl Default for ModuleBuilder<'_> {
             request_startup_func: None,
             request_shutdown_func: None,
             post_deactivate_func: None,
+            sapi_activate: None,
             info_func: None,
             globals_size: 0,
             #[cfg(php_zts)]
@@ -184,6 +190,42 @@ impl ModuleBuilder<'_> {
     /// * `func` - The function to be called when shutdown is requested.
     pub fn post_deactivate_function(mut self, func: unsafe extern "C" fn() -> i32) -> Self {
         self.post_deactivate_func = Some(func);
+        self
+    }
+
+    /// Runs `callback` at the start of every request, with the request
+    /// information that the SAPI gives.
+    ///
+    /// The callback runs from `sapi_module.activate`, after the SAPI handler.
+    /// Unlike the request startup function, it also runs for each request of a
+    /// `FrankenPHP` worker. At this point the response headers are empty, so
+    /// [`set_header`](crate::zend::set_header) and
+    /// [`set_response_code`](crate::zend::set_response_code) work. `$_SERVER`
+    /// does not exist yet and no PHP code can run.
+    ///
+    /// A panic in `callback` is printed and ignored. A module loaded with
+    /// `dl()` refuses to start when it has this callback. Calling this method
+    /// again replaces the callback.
+    ///
+    /// ```ignore
+    /// use ext_php_rs::prelude::*;
+    /// use ext_php_rs::zend::{SapiRequestInfo, set_header, set_response_code};
+    ///
+    /// #[php_module]
+    /// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    ///     module.sapi_activate_function(|info: &SapiRequestInfo| {
+    ///         if info.request_uri() == Some("/old") {
+    ///             let _ = set_header("Location: /new");
+    ///             let _ = set_response_code(301);
+    ///         }
+    ///     })
+    /// }
+    /// ```
+    pub fn sapi_activate_function<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&SapiRequestInfo) + Send + Sync + 'static,
+    {
+        self.sapi_activate = Some(ActivateCallback::new(callback));
         self
     }
 
@@ -654,7 +696,7 @@ impl ModuleStartup {
     /// * Returns an error if a constant, interface, class or enum could not be
     ///   registered. The generated MINIT then returns `FAILURE` and PHP refuses
     ///   to start the module.
-    pub fn startup(&self, _ty: i32, mod_num: i32) -> Result<()> {
+    pub fn startup(&self, ty: i32, mod_num: i32) -> Result<()> {
         for (name, val) in &self.constants {
             val.register_constant(name, mod_num)?;
         }
@@ -679,7 +721,9 @@ impl ModuleStartup {
             crate::zend::zend_extension::zend_extension_startup(&self.name, &self.version);
         }
 
-        Ok(())
+        // SAFETY: this runs in MINIT, and the hook goes in last so that no
+        // failed step leaves it installed.
+        unsafe { sapi_activate::install(ty) }
     }
 }
 
@@ -725,6 +769,9 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
         #[cfg(feature = "observer")]
         let ext_version = builder.version.clone();
 
+        let shutdown_func =
+            sapi_activate::shutdown_func(builder.sapi_activate, builder.shutdown_func);
+
         let owned_name = CString::new(builder.name)?;
         let owned_version = CString::new(builder.version)?;
         let name = owned_name.as_ptr();
@@ -757,7 +804,7 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
             name,
             functions,
             module_startup_func: builder.startup_func,
-            module_shutdown_func: builder.shutdown_func,
+            module_shutdown_func: shutdown_func,
             request_startup_func: builder.request_startup_func,
             request_shutdown_func: builder.request_shutdown_func,
             info_func: builder.info_func,
@@ -785,7 +832,7 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
             name,
             functions,
             module_startup_func: builder.startup_func,
-            module_shutdown_func: builder.shutdown_func,
+            module_shutdown_func: shutdown_func,
             request_startup_func: builder.request_startup_func,
             request_shutdown_func: builder.request_shutdown_func,
             info_func: builder.info_func,
