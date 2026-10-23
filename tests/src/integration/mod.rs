@@ -12,6 +12,7 @@ pub mod defaults;
 #[cfg(feature = "enum")]
 pub mod enum_;
 pub mod exception;
+pub mod gc;
 pub mod globals;
 pub mod interface;
 pub mod iterable;

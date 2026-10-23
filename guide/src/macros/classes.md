@@ -71,6 +71,93 @@ These operations throw an `Error`:
 If a PHP subclass declares the property again with hooks, PHP uses the Rust
 getter and setter, not the hooks.
 
+## PHP Values in Rust Fields
+
+A field can keep a PHP value, for example a callback. Two objects that refer to
+each other make a cycle. The PHP cycle collector finds and frees each cycle that
+no other value refers to. The collector must know the values that each object
+keeps.
+
+`#[php_class]` gives the collector the value of each field that has one of
+these types:
+
+- `Zval`.
+- `ZBox<ZendObject>` and `ZBox<ZendClassObject<T>>`.
+- `ZendCallable` when it owns its value.
+- `Option`, `Box`, `Vec` and arrays of these types, and the values of a
+  `HashMap` or a `BTreeMap` of these types.
+
+You do not write code for these fields. In this example, the collector frees the
+emitter and the closure after `unset($emitter)`:
+
+```rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::{prelude::*, types::Zval};
+
+#[php_class]
+pub struct EventEmitter {
+    listeners: Vec<Zval>,
+}
+
+#[php_impl]
+impl EventEmitter {
+    pub fn __construct() -> Self {
+        Self {
+            listeners: Vec::new(),
+        }
+    }
+
+    pub fn on(&mut self, listener: &Zval) {
+        self.listeners.push(listener.shallow_clone());
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.class::<EventEmitter>()
+}
+# fn main() {}
+```
+
+```php
+$emitter = new EventEmitter();
+$emitter->on(fn() => $emitter);
+unset($emitter);
+gc_collect_cycles();
+```
+
+The collector does not see the values in other types, for example
+`ZBox<ZendHashTable>`, `Rc`, `Arc`, `RefCell` and Rust closures. A cycle through
+these fields stays in memory until the end of the request. To let the collector
+see a PHP array, keep the array in a `Zval`.
+
+For a field of your own type, implement the unsafe trait `GcTrace` for the type.
+The implementation must give only the PHP values that the type owns, and each
+value one time. If it gives a value two times, the collector can free a value
+that is in use.
+
+```rust,no_run
+# extern crate ext_php_rs;
+use ext_php_rs::{
+    gc::{GcRoots, GcTrace},
+    types::Zval,
+};
+
+pub struct Listener {
+    name: String,
+    callback: Zval,
+}
+
+unsafe impl GcTrace for Listener {
+    unsafe fn gc_trace(&self, roots: &mut GcRoots) {
+        // SAFETY: `callback` is the only PHP value of `Listener`.
+        unsafe { self.callback.gc_trace(roots) };
+    }
+}
+# fn main() {}
+```
+
 ## Restrictions
 
 ### No lifetime parameters
