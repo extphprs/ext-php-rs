@@ -1058,6 +1058,12 @@ pub struct zend_get_gc_buffer {
     pub end: *mut zval,
     pub start: *mut zval,
 }
+unsafe extern "C" {
+    pub fn zend_get_gc_buffer_create() -> *mut zend_get_gc_buffer;
+}
+unsafe extern "C" {
+    pub fn zend_get_gc_buffer_grow(gc_buffer: *mut zend_get_gc_buffer);
+}
 pub type zend_string_init_interned_func_t = ::std::option::Option<
     unsafe extern "C" fn(
         str_: *const ::std::os::raw::c_char,
