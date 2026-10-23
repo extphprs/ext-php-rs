@@ -27,6 +27,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         module = integration::enum_::build_module(module);
     }
     module = integration::exception::build_module(module);
+    module = integration::gc::build_module(module);
     module = integration::globals::build_module(module);
     module = integration::module_globals::build_module(module);
     module = integration::iterable::build_module(module);

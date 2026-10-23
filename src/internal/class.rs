@@ -6,6 +6,7 @@ use crate::{
     convert::{IntoZval, IntoZvalDyn},
     describe::DocComments,
     flags::{ConstantFlags, MethodFlags},
+    gc::{GcRoots, GcTrace},
     internal::property::PropertyDescriptor,
 };
 
@@ -151,6 +152,36 @@ impl<T> ProbeClone<T> for &'_ CloneProbe<T> {
     fn clone_obj(self, _: &T) -> Option<T> {
         None
     }
+}
+
+/// Probe for an optional [`GcTrace`] implementation on a field type, same
+/// mechanism as [`DefaultProbe`].
+pub struct GcTraceProbe<T>(PhantomData<T>);
+
+impl<T> Default for GcTraceProbe<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+pub trait ProbeGcTrace<T> {
+    /// # Safety
+    ///
+    /// Same contract as [`GcTrace::gc_trace`].
+    unsafe fn trace_field(self, value: &T, roots: &mut GcRoots);
+}
+
+impl<T: GcTrace> ProbeGcTrace<T> for GcTraceProbe<T> {
+    #[inline]
+    unsafe fn trace_field(self, value: &T, roots: &mut GcRoots) {
+        // SAFETY: the caller upholds the `GcTrace::gc_trace` contract.
+        unsafe { value.gc_trace(roots) };
+    }
+}
+
+impl<T> ProbeGcTrace<T> for &'_ GcTraceProbe<T> {
+    #[inline]
+    unsafe fn trace_field(self, _: &T, _: &mut GcRoots) {}
 }
 
 // This implementation is only used for `TYPE` and `NULLABLE`.

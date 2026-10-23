@@ -2,7 +2,7 @@ use darling::util::Flag;
 use darling::{FromAttributes, FromMeta, ToTokens, util::SpannedValue};
 use proc_macro2::TokenStream;
 use quote::{TokenStreamExt, quote};
-use syn::{Attribute, Expr, Fields, ItemStruct};
+use syn::{Attribute, Expr, Fields, Index, ItemStruct, Member};
 
 use crate::helpers::get_docs;
 use crate::parsing::{PhpNameContext, PhpRename, RenameRule, ident_to_php_name, validate_php_name};
@@ -121,6 +121,7 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
 
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
+    let gc_trace = generate_gc_trace(&input.fields);
     let fields = match &mut input.fields {
         Fields::Named(fields) => parse_fields(fields.named.iter_mut())?,
         _ => vec![],
@@ -136,6 +137,7 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         attr.flags.as_ref(),
         attr.readonly.is_present(),
         &docs,
+        &gc_trace,
     );
 
     Ok(quote! {
@@ -225,6 +227,7 @@ fn generate_registered_class_impl(
     flags: Option<&syn::Expr>,
     readonly: bool,
     docs: &[String],
+    gc_trace: &TokenStream,
 ) -> TokenStream {
     let modifier = modifier.option_tokens();
 
@@ -478,6 +481,36 @@ fn generate_registered_class_impl(
             fn clone_obj(&self) -> ::std::option::Option<Self> {
                 use ::ext_php_rs::internal::class::ProbeClone as _;
                 ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+            }
+
+            #gc_trace
+        }
+    }
+}
+
+/// Generates `RegisteredClass::gc_trace`, which traces every field whose type
+/// implements `GcTrace`. Structs without fields keep the default.
+fn generate_gc_trace(fields: &Fields) -> TokenStream {
+    if fields.is_empty() {
+        return TokenStream::new();
+    }
+    let traces = fields.iter().enumerate().map(|(index, field)| {
+        let ty = &field.ty;
+        let member = field
+            .ident
+            .clone()
+            .map_or_else(|| Member::Unnamed(Index::from(index)), Member::Named);
+        quote! {
+            ::ext_php_rs::internal::class::GcTraceProbe::<#ty>::default()
+                .trace_field(&self.#member, roots);
+        }
+    });
+    quote! {
+        #[inline]
+        fn gc_trace(&self, roots: &mut ::ext_php_rs::gc::GcRoots) {
+            use ::ext_php_rs::internal::class::ProbeGcTrace as _;
+            unsafe {
+                #(#traces)*
             }
         }
     }

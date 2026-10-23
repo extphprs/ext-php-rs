@@ -17,6 +17,7 @@ use crate::{
     describe::DocComments,
     exception::PhpException,
     flags::{ClassFlags, ConstantFlags, MethodFlags, PropertyFlags},
+    gc::GcRoots,
     internal::property::PropertyDescriptor,
     zend::{ClassEntry, ExecuteData, ZendObjectHandlers},
 };
@@ -140,6 +141,17 @@ pub trait RegisteredClass: Sized + 'static {
     fn clone_obj(&self) -> Option<Self> {
         None
     }
+
+    /// Reports the PHP values held in the Rust fields of this object to the
+    /// cycle collector.
+    ///
+    /// The [`macro@crate::php_class`] macro generates it: it calls
+    /// [`GcTrace::gc_trace`] one time for each field whose type implements
+    /// [`GcTrace`]. The default reports nothing.
+    ///
+    /// [`GcTrace`]: crate::gc::GcTrace
+    /// [`GcTrace::gc_trace`]: crate::gc::GcTrace::gc_trace
+    fn gc_trace(&self, _roots: &mut GcRoots) {}
 }
 
 /// Stores metadata about a classes Rust constructor, including the function

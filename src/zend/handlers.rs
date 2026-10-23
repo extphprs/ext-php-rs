@@ -17,6 +17,7 @@ use crate::{
     },
     flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
+    gc::GcRoots,
     internal::property::PropertyDescriptor,
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
     zend::{ExecutorGlobals, catch_panic},
@@ -72,7 +73,7 @@ impl ZendObjectHandlers {
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
-        unsafe { (*ptr).get_gc = Some(Self::get_gc) };
+        unsafe { (*ptr).get_gc = Some(Self::get_gc::<T>) };
         unsafe { (*ptr).has_property = Some(Self::has_property::<T>) };
         unsafe { (*ptr).get_property_ptr_ptr = Some(Self::get_property_ptr_ptr::<T>) };
         unsafe { (*ptr).unset_property = Some(Self::unset_property::<T>) };
@@ -89,29 +90,47 @@ impl ZendObjectHandlers {
     /// property's declared slot, so the engine-owned storage covers it: this is
     /// the standard-object branch of `zend_std_get_gc`.
     ///
-    /// Not reported, as before this handler existed: zvals held inside the Rust
-    /// struct itself, and the initializer or proxy instance of a lazy object
-    /// (`zend_lazy_object_get_gc` is not exported). Cycles through those leak
-    /// instead of being collected.
-    unsafe extern "C" fn get_gc(
+    /// The values reported by [`RegisteredClass::gc_trace`] go in the engine
+    /// buffer, followed by the declared slots when the properties table does
+    /// not exist, as `zend_lazy_object_get_gc` does. The collector reads the
+    /// buffer and then the returned table. Internal classes and their
+    /// subclasses cannot be lazy (`zend_class_can_be_lazy`).
+    unsafe extern "C" fn get_gc<T: RegisteredClass>(
         object: *mut ZendObject,
         table: *mut *mut Zval,
         n: *mut c_int,
     ) -> *mut ZendHashTable {
-        let obj = unsafe { &mut *object };
-        if obj.properties.is_null() {
-            unsafe {
-                *table = obj.properties_table.as_mut_ptr();
-                *n = (*obj.ce).default_properties_count;
-            }
-            ptr::null_mut()
-        } else {
-            unsafe {
-                *table = ptr::null_mut();
-                *n = 0;
-            }
-            obj.properties
+        // SAFETY: the collector passes a live object of class `T` or of a
+        // subclass, and the out pointers of its `get_gc` call.
+        let mut roots = GcRoots::new();
+        if let Some(this) = ZendClassObject::<T>::from_zend_obj(unsafe { &*object })
+            .and_then(|class| class.obj.as_ref())
+        {
+            this.gc_trace(&mut roots);
         }
+        let properties = unsafe { (*object).properties };
+        let slots = unsafe { (&raw mut (*object).properties_table).cast::<Zval>() };
+        let count = unsafe { (*(*object).ce).default_properties_count };
+        if roots.is_empty() {
+            unsafe {
+                if properties.is_null() {
+                    *table = slots;
+                    *n = count;
+                } else {
+                    *table = ptr::null_mut();
+                    *n = 0;
+                }
+            }
+            return properties;
+        }
+        if properties.is_null() {
+            for index in 0..usize::try_from(count).unwrap_or_default() {
+                // SAFETY: the object has `default_properties_count` slots.
+                roots.push(unsafe { &*slots.add(index) });
+            }
+        }
+        unsafe { roots.write_table(table, n) };
+        properties
     }
 
     unsafe extern "C" fn free_obj<T: RegisteredClass>(object: *mut ZendObject) {
