@@ -22,6 +22,21 @@ final class GcUninitializedChild extends GcHolder
     }
 }
 
+final class ReadsHolderOnDestruct
+{
+    public static mixed $seen = 'not destructed';
+
+    public function __construct(
+        private readonly GcHolder $holder
+    ) {
+    }
+
+    public function __destruct()
+    {
+        self::$seen = $this->holder->callback;
+    }
+}
+
 function assert_collected(string $case, Closure $build): void
 {
     $dropped = gc_holder_dropped();
@@ -128,3 +143,10 @@ for ($i = 0; $i < 1000; $i++) {
 unset($holder);
 gc_collect_cycles();
 assert(gc_holder_dropped() === ( $dropped + 1000 ), 'some of the 1000 cycles were not collected');
+
+$holder = new GcHolder();
+$holder->setCallback(new ReadsHolderOnDestruct($holder));
+$holder->setCallback(static fn() => 'replaced');
+assert(ReadsHolderOnDestruct::$seen === null, 'a destructor saw the field value it was released from');
+unset($holder);
+gc_collect_cycles();
