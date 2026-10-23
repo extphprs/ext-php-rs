@@ -84,12 +84,26 @@ impl<T: ZBoxable> ZBox<T> {
     pub fn into_raw(self) -> *mut T {
         ManuallyDrop::new(self).0.as_ptr()
     }
+
+    /// Whether `drop` is releasing the value. The pointer is then
+    /// [`NonNull::dangling`], which no allocation can return.
+    pub(crate) fn is_released(&self) -> bool {
+        self.0 == NonNull::dangling()
+    }
 }
 
 impl<T: ZBoxable> Drop for ZBox<T> {
     #[inline]
     fn drop(&mut self) {
-        self.deref_mut().free();
+        let mut value = self.0;
+        // SAFETY: `self.0` is a field of this box. The box holds a dangling
+        // pointer while `free` runs, as `zend_assign_to_variable` clears a slot
+        // before it releases the old value: `free` can run a destructor or a GC
+        // run, and `get_gc` must not report a value that this box no longer
+        // owns. The write is volatile so the optimizer keeps it in memory.
+        unsafe { ptr::write_volatile(&raw mut self.0, NonNull::dangling()) };
+        // SAFETY: `value` is the pointer that this box owned.
+        unsafe { value.as_mut() }.free();
     }
 }
 
@@ -153,5 +167,40 @@ pub unsafe trait ZBoxable {
     /// in the process.
     fn free(&mut self) {
         unsafe { efree(ptr::from_mut(self).cast::<u8>()) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        mem::ManuallyDrop,
+        ptr::{self, NonNull},
+        sync::atomic::{AtomicBool, AtomicPtr, Ordering},
+    };
+
+    use super::{ZBox, ZBoxable};
+
+    static SLOT: AtomicPtr<NonNull<Probe>> = AtomicPtr::new(ptr::null_mut());
+    static SAW_RELEASED: AtomicBool = AtomicBool::new(false);
+
+    struct Probe(u64);
+
+    unsafe impl ZBoxable for Probe {
+        fn free(&mut self) {
+            let slot = SLOT.load(Ordering::SeqCst);
+            let seen = unsafe { ptr::read_volatile(slot) };
+            SAW_RELEASED.store(seen == NonNull::dangling(), Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn drop_marks_the_box_released_before_free() {
+        let mut probe = Probe(0);
+        let mut owner = ManuallyDrop::new(unsafe { ZBox::from_raw(&raw mut probe) });
+        assert!(!owner.is_released());
+        SLOT.store((&raw mut owner).cast(), Ordering::SeqCst);
+        unsafe { ManuallyDrop::drop(&mut owner) };
+        assert!(SAW_RELEASED.load(Ordering::SeqCst));
+        assert_eq!(probe.0, 0);
     }
 }
