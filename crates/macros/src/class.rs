@@ -496,11 +496,16 @@ fn generate_gc_trace(fields: &Fields) -> TokenStream {
     }
     let traces = fields.iter().enumerate().map(|(index, field)| {
         let ty = &field.ty;
+        let cfgs = field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("cfg"));
         let member = field
             .ident
             .clone()
             .map_or_else(|| Member::Unnamed(Index::from(index)), Member::Named);
         quote! {
+            #(#cfgs)*
             ::ext_php_rs::internal::class::GcTraceProbe::<#ty>::default()
                 .trace_field(&self.#member, roots);
         }

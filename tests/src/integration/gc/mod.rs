@@ -73,6 +73,13 @@ impl GcHolder {
     }
 }
 
+#[php_class]
+pub struct GcCfgFields {
+    #[cfg(any())]
+    pub disabled: Zval,
+    pub enabled: Zval,
+}
+
 #[php_function]
 pub fn gc_holder_dropped() -> usize {
     DROPPED.load(Ordering::Relaxed)
