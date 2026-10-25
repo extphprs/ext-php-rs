@@ -139,17 +139,13 @@ unsafe impl GcTrace for Zval {
 
 unsafe impl GcTrace for ZBox<ZendObject> {
     unsafe fn gc_trace(&self, roots: &mut GcRoots) {
-        if !self.is_released() {
-            roots.push_object(self);
-        }
+        roots.push_object(self);
     }
 }
 
 unsafe impl<T: RegisteredClass> GcTrace for ZBox<ZendClassObject<T>> {
     unsafe fn gc_trace(&self, roots: &mut GcRoots) {
-        if !self.is_released() {
-            roots.push_object(&self.std);
-        }
+        roots.push_object(&self.std);
     }
 }
 

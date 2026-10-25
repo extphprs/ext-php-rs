@@ -1189,8 +1189,9 @@ impl Zval {
         //
         // The old value moves out and the zval is null while the old value is
         // released, as `zend_assign_to_variable` does: the release can run a
-        // destructor or a GC run, and `get_gc` must not report a value that this
-        // zval no longer owns.
+        // destructor or a GC run, and this zval can be engine memory the
+        // collector walks directly (a hashtable bucket, a property slot), so it
+        // must not hold a value it no longer owns.
         //
         // For strings, we use zend_string_release directly instead of zval_ptr_dtor
         // to correctly handle persistent strings. zend_string_release properly checks
