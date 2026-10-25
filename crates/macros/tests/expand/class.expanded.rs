@@ -116,50 +116,6 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
     }
 }
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a MyClass {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyClass>::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut MyClass {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyClass>::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a MyClass {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut MyClass {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
-    }
-}
 impl ::ext_php_rs::convert::IntoZendObject for MyClass {
     #[inline]
     fn into_zend_object(
@@ -245,7 +201,14 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
                                                             return;
                                                         }
                                                     };
-                                                    let __result = { __this.plain() };
+                                                    let __payload = match __this.try_borrow() {
+                                                        Ok(payload) => payload,
+                                                        Err(err) => {
+                                                            ::ext_php_rs::exception::PhpException::from(err).throw();
+                                                            return;
+                                                        }
+                                                    };
+                                                    let __result = { __payload.plain() };
                                                     if let Err(e) = __result.set_zval(retval, false) {
                                                         let e: ::ext_php_rs::exception::PhpException = e.into();
                                                         e.throw();

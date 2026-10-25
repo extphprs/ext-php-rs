@@ -1,0 +1,5 @@
+error: `self_` must be `&ZendClassObject<Self>`. Borrow the Rust value in short scopes with `self_.try_borrow()` or `self_.try_borrow_mut()`.
+ --> tests/ui/php_impl_self_mut.rs:8:29
+  |
+8 |     pub fn get_count(self_: &mut ext_php_rs::types::ZendClassObject<Counter>) -> i64 {
+  |                             ^

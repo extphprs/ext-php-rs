@@ -399,8 +399,10 @@ impl<'a> ParsedImpl<'a> {
                     let is_constructor = matches!(opts.ty, MethodTy::Constructor);
                     let mut args =
                         Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
-                    let receiver = if args.receiver.is_some() {
-                        MethodReceiver::Class
+                    let receiver = if let Some(receiver) = &args.receiver {
+                        MethodReceiver::Class {
+                            mutable: receiver.mutable,
+                        }
                     } else if !is_constructor && args.take_self_object()? {
                         MethodReceiver::ZendClassObject
                     } else {

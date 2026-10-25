@@ -94,55 +94,6 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
         ]
     }
 }
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface,
-        >::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a>
-for &'a mut PhpInterfaceMyInterface {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface,
-        >::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
-    }
-}
 impl ::ext_php_rs::convert::IntoZendObject for PhpInterfaceMyInterface {
     #[inline]
     fn into_zend_object(
@@ -290,55 +241,6 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
         ]
     }
 }
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface2 {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface2,
-        >::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a>
-for &'a mut PhpInterfaceMyInterface2 {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface2,
-        >::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
-    }
-}
 impl ::ext_php_rs::convert::IntoZendObject for PhpInterfaceMyInterface2 {
     #[inline]
     fn into_zend_object(
@@ -475,50 +377,6 @@ impl ::ext_php_rs::class::RegisteredClass for MyImpl {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
     }
 }
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a MyImpl {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyImpl>::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut MyImpl {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyImpl>::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a MyImpl {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut MyImpl {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
-    }
-}
 impl ::ext_php_rs::convert::IntoZendObject for MyImpl {
     #[inline]
     fn into_zend_object(
@@ -616,6 +474,13 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                                             return;
                                                         }
                                                     };
+                                                    let __payload = match this.try_borrow() {
+                                                        Ok(payload) => payload,
+                                                        Err(err) => {
+                                                            ::ext_php_rs::exception::PhpException::from(err).throw();
+                                                            return;
+                                                        }
+                                                    };
                                                     let mut arg = ::ext_php_rs::args::Arg::of::<i32>("arg");
                                                     let parse_result = parse
                                                         .arg(&mut arg)
@@ -645,7 +510,7 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                                             return;
                                                         }
                                                     };
-                                                    let result = this.my_method(arg);
+                                                    let result = __payload.my_method(arg);
                                                     if let Err(e) = result.set_zval(retval, false) {
                                                         let e: ::ext_php_rs::exception::PhpException = e.into();
                                                         e.throw();

@@ -33,7 +33,11 @@ final class ReadsHolderOnDestruct
 
     public function __destruct()
     {
-        self::$seen = $this->holder->callback;
+        try {
+            self::$seen = $this->holder->callback;
+        } catch (Error $error) {
+            self::$seen = $error->getMessage();
+        }
     }
 }
 
@@ -71,6 +75,26 @@ assert_collected('Vec<Zval> field that grows the engine buffer', static function
 assert_collected('HashMap<String, Zval> field', static function (): WeakReference {
     $holder = new GcHolder();
     $holder->setNamed('first', static fn() => $holder);
+    return WeakReference::create($holder);
+});
+
+assert_collected('Vec<Vec<Zval>> field', static function (): WeakReference {
+    $holder = new GcHolder();
+    $holder->addNested(static fn() => $holder);
+    return WeakReference::create($holder);
+});
+
+assert_collected('HashMap<String, Vec<Zval>> field', static function (): WeakReference {
+    $holder = new GcHolder();
+    $holder->addGrouped('first', static fn() => $holder);
+    return WeakReference::create($holder);
+});
+
+assert_collected('BTreeMap<u32, Zval> field with 20 entries', static function (): WeakReference {
+    $holder = new GcHolder();
+    for ($i = 0; $i < 20; $i++) {
+        $holder->addOrdered($i, static fn() => $holder);
+    }
     return WeakReference::create($holder);
 });
 
@@ -147,6 +171,9 @@ assert(gc_holder_dropped() === ( $dropped + 1000 ), 'some of the 1000 cycles wer
 $holder = new GcHolder();
 $holder->setCallback(new ReadsHolderOnDestruct($holder));
 $holder->setCallback(static fn() => 'replaced');
-assert(ReadsHolderOnDestruct::$seen === null, 'a destructor saw the field value it was released from');
+assert(
+    ReadsHolderOnDestruct::$seen === 'Cannot use object of class GcHolder while one of its methods modifies it',
+    'a destructor read a field while a method was replacing it'
+);
 unset($holder);
 gc_collect_cycles();

@@ -5,7 +5,7 @@ error[E0277]: `std::option::Option<&mut Counter>` cannot be used as a PHP functi
   |                       ^^^^^^^^^^^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `std::option::Option<&mut Counter>`
   |
   = help: the trait `FromZval<'_>` is not implemented for `std::option::Option<&mut Counter>`
-  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a `#[php_class]` argument is `ClassRef<T>` or `ClassRefMut<T>`, not `&T` or `&mut T`: the guard keeps PHP re-entry from aliasing the value
   = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
 help: the trait `FromZval<'_>` is conditionally implemented for `std::option::Option<T>`
  --> src/convert.rs
@@ -31,7 +31,7 @@ error[E0277]: `std::option::Option<&mut Counter>` cannot be used as a PHP functi
   |                       ^^^^^^^^^^^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `std::option::Option<&mut Counter>`
   |
   = help: the trait `FromZval<'_>` is not implemented for `std::option::Option<&mut Counter>`
-  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = note: a `#[php_class]` argument is `ClassRef<T>` or `ClassRefMut<T>`, not `&T` or `&mut T`: the guard keeps PHP re-entry from aliasing the value
   = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
 help: the trait `FromZval<'_>` is conditionally implemented for `std::option::Option<T>`
  --> src/convert.rs

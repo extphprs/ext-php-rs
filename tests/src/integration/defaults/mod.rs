@@ -63,11 +63,16 @@ impl OptionalArgs {
 
     #[php(optional = second)]
     pub fn pick(
-        self_: &mut ZendClassObject<OptionalArgs>,
+        self_: &ZendClassObject<OptionalArgs>,
         first: Option<i64>,
         second: Option<i64>,
-    ) -> String {
-        format!("{}{:?}{:?}", self_.prefix, first, second)
+    ) -> PhpResult<String> {
+        Ok(format!(
+            "{}{:?}{:?}",
+            self_.try_borrow()?.prefix,
+            first,
+            second
+        ))
     }
 }
 

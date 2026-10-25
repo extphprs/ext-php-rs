@@ -71,6 +71,116 @@ These operations throw an `Error`:
 If a PHP subclass declares the property again with hooks, PHP uses the Rust
 getter and setter, not the hooks.
 
+## Access to the Rust Value
+
+The object keeps its Rust value in a borrow cell. Each method borrows the value
+until the method returns:
+
+- A `&self` method borrows the value as shared. Other `&self` methods and
+  property reads can use the value at the same time.
+- A `&mut self` method borrows the value as exclusive. No other method and no
+  other property access can use the value at the same time.
+
+A method can call PHP code, for example a callback. That PHP code can call a
+method on the same object. If the second call conflicts with the borrow, PHP
+throws an `Error`:
+
+| Conflict | `Error` message |
+| --- | --- |
+| A `&self` method or a property read while a `&mut self` method runs | `Cannot use object of class Foo while one of its methods modifies it` |
+| A `&mut self` method or a property write while a different method runs | `Cannot modify object of class Foo while it is in use` |
+| The object has no Rust value, for example a subclass that does not call `parent::__construct()` | `Object of class Foo is not initialized` |
+
+### Class Arguments
+
+A parameter of a `#[php_class]` type is a borrow guard:
+
+- `ClassRef<Foo>` gives shared access to the value.
+- `ClassRefMut<Foo>` gives exclusive access to the value.
+
+The guard keeps the borrow until the function returns. A `&Foo` or a `&mut Foo`
+parameter does not compile. If two parameters get the same object and the
+borrows conflict, PHP throws a `TypeError`.
+
+```rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::prelude::*;
+
+#[php_class]
+pub struct Counter {
+    count: i64,
+}
+
+#[php_function]
+pub fn add_to(mut target: ClassRefMut<Counter>, source: ClassRef<Counter>) -> i64 {
+    target.count += source.count;
+    target.count
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.class::<Counter>().function(wrap_function!(add_to))
+}
+# fn main() {}
+```
+
+### Call PHP Code from a Method
+
+A `&mut self` method keeps the exclusive borrow until it returns. If a PHP
+callback of the method calls a method on the same object, the callback gets an
+`Error`. To let the callback use the object, use `self_: &ZendClassObject<Self>`
+in place of `&mut self`. Then borrow the value only when it is necessary:
+
+```rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::{
+    prelude::*,
+    types::{ZendClassObject, Zval},
+};
+
+#[php_class]
+pub struct EventEmitter {
+    listeners: Vec<Zval>,
+}
+
+#[php_impl]
+impl EventEmitter {
+    pub fn __construct() -> Self {
+        Self {
+            listeners: Vec::new(),
+        }
+    }
+
+    pub fn on(&mut self, listener: &Zval) {
+        self.listeners.push(listener.shallow_clone());
+    }
+
+    pub fn emit(self_: &ZendClassObject<Self>) -> PhpResult<()> {
+        let listeners: Vec<Zval> = self_
+            .try_borrow()?
+            .listeners
+            .iter()
+            .map(Zval::shallow_clone)
+            .collect();
+        for listener in &listeners {
+            listener.try_call(vec![])?;
+        }
+        Ok(())
+    }
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.class::<EventEmitter>()
+}
+# fn main() {}
+```
+
+The guard of `try_borrow()` stops at the end of the `let` statement. Thus a
+listener can call `$emitter->on()` during `emit()`.
+
 ## PHP Values in Rust Fields
 
 A field can keep a PHP value, for example a callback. Two objects that refer to
@@ -127,6 +237,10 @@ unset($emitter);
 gc_collect_cycles();
 ```
 
+While a `&mut self` method runs, the collector does not read the Rust fields
+of the object. The collector then counts the values of these fields as used
+from outside the cycle. A later collection frees the cycle.
+
 The collector does not see the values in other types, for example
 `ZBox<ZendHashTable>`, `Rc`, `Arc`, `RefCell` and Rust closures. A cycle through
 these fields stays in memory until the end of the request. To let the collector
@@ -135,7 +249,8 @@ see a PHP array, keep the array in a `Zval`.
 For a field of your own type, implement the unsafe trait `GcTrace` for the type.
 The implementation must give only the PHP values that the type owns, and each
 value one time. If it gives a value two times, the collector can free a value
-that is in use.
+that is in use. Do not give the values in a `RefCell`, a `Cell` or a `Mutex`.
+A shared borrow does not stop a change of these values.
 
 ```rust,no_run
 # extern crate ext_php_rs;

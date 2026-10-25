@@ -249,20 +249,18 @@ macro_rules! throw {
 ///
 /// The following traits are implemented:
 ///
-/// * `FromZendObject for &'a T`
-/// * `FromZendObjectMut for &'a mut T`
-/// * `FromZval for &'a T`
-/// * `FromZvalMut for &'a mut T`
 /// * `IntoZendObject for T`
 /// * `IntoZval for T`
 ///
 /// These implementations are required while we wait on the stabilisation of
-/// specialisation.
+/// specialisation. To read a `T` back from a [`Zval`], use
+/// [`ClassRef`](crate::types::ClassRef) or
+/// [`ClassRefMut`](crate::types::ClassRefMut).
 ///
 /// # Examples
 ///
 /// ```
-/// # use ext_php_rs::{convert::{IntoZval, FromZval, IntoZvalDyn}, types::{Zval, ZendObject}, class::{RegisteredClass, ConstructorMeta, ClassEntryInfo}, builders::{ClassBuilder, FunctionBuilder}, zend::ClassEntry, flags::{ClassFlags, ConstantFlags, MethodFlags}, describe::DocComments};
+/// # use ext_php_rs::{convert::{IntoZval, FromZval, IntoZvalDyn}, types::{ClassRef, Zval, ZendObject}, class::{RegisteredClass, ConstructorMeta, ClassEntryInfo}, builders::{ClassBuilder, FunctionBuilder}, zend::ClassEntry, flags::{ClassFlags, ConstantFlags, MethodFlags}, describe::DocComments};
 /// use ext_php_rs::class_derives;
 ///
 /// struct Test {
@@ -303,8 +301,8 @@ macro_rules! throw {
 ///     x.into_zval(false).unwrap()
 /// }
 ///
-/// fn from_zval_test<'a>(zv: &'a Zval) -> &'a Test {
-///     <&Test>::from_zval(zv).unwrap()
+/// fn from_zval_test<'a>(zv: &'a Zval) -> ClassRef<'a, Test> {
+///     ClassRef::<Test>::from_zval(zv).unwrap()
 /// }
 /// ```
 ///
@@ -315,51 +313,6 @@ macro_rules! throw {
 #[macro_export]
 macro_rules! class_derives {
     ($type: ty) => {
-        impl<'a> $crate::convert::FromZendObject<'a> for &'a $type {
-            #[inline]
-            fn from_zend_object(obj: &'a $crate::types::ZendObject) -> $crate::error::Result<Self> {
-                let obj = $crate::types::ZendClassObject::<$type>::from_zend_obj(obj)
-                    .ok_or($crate::error::Error::InvalidScope)?;
-                Ok(&**obj)
-            }
-        }
-
-        impl<'a> $crate::convert::FromZendObjectMut<'a> for &'a mut $type {
-            #[inline]
-            fn from_zend_object_mut(
-                obj: &'a mut $crate::types::ZendObject,
-            ) -> $crate::error::Result<Self> {
-                let obj = $crate::types::ZendClassObject::<$type>::from_zend_obj_mut(obj)
-                    .ok_or($crate::error::Error::InvalidScope)?;
-                Ok(&mut **obj)
-            }
-        }
-
-        impl<'a> $crate::convert::FromZval<'a> for &'a $type {
-            const TYPE: $crate::flags::DataType = $crate::flags::DataType::object(
-                <$type as $crate::class::RegisteredClass>::CLASS_NAME,
-            );
-
-            #[inline]
-            fn from_zval(zval: &'a $crate::types::Zval) -> ::std::option::Option<Self> {
-                <Self as $crate::convert::FromZendObject>::from_zend_object(zval.object()?).ok()
-            }
-        }
-
-        impl<'a> $crate::convert::FromZvalMut<'a> for &'a mut $type {
-            const TYPE: $crate::flags::DataType = $crate::flags::DataType::object(
-                <$type as $crate::class::RegisteredClass>::CLASS_NAME,
-            );
-
-            #[inline]
-            fn from_zval_mut(zval: &'a mut $crate::types::Zval) -> ::std::option::Option<Self> {
-                <Self as $crate::convert::FromZendObjectMut>::from_zend_object_mut(
-                    zval.object_mut()?,
-                )
-                .ok()
-            }
-        }
-
         impl $crate::convert::IntoZendObject for $type {
             #[inline]
             fn into_zend_object(

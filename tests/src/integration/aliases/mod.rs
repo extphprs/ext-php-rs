@@ -52,7 +52,7 @@ pub fn test_alias_phpref(mut target: Ref<'_>) {
 }
 
 #[php_function]
-pub fn test_object_by_value(counter: &mut AliasCounter) -> i64 {
+pub fn test_object_by_value(mut counter: ClassRefMut<AliasCounter>) -> i64 {
     counter.count += 1;
     counter.count
 }

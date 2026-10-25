@@ -103,6 +103,8 @@ impl ExecuteData {
     /// contains an arbitrary Rust type at the start of the object. The
     /// object will also resolve to [`None`] if the function is called
     /// inside a method that does not belong to an object with type `T`.
+    /// An object without its Rust value is returned: borrowing it gives
+    /// [`BorrowError::Uninitialized`](crate::types::BorrowError::Uninitialized).
     ///
     /// # Example
     ///
@@ -138,11 +140,11 @@ impl ExecuteData {
     /// [`parse_object`]: #method.parse_object
     pub fn parser_method<T: RegisteredClass>(
         &mut self,
-    ) -> (ArgParser<'_, '_>, Option<&mut ZendClassObject<T>>) {
+    ) -> (ArgParser<'_, '_>, Option<&ZendClassObject<T>>) {
         let (parser, obj) = self.parser_object();
         (
             parser,
-            obj.and_then(|obj| ZendClassObject::from_zend_obj_mut(obj)),
+            obj.and_then(|obj| ZendClassObject::from_zend_obj_uninit(obj)),
         )
     }
 
@@ -172,23 +174,9 @@ impl ExecuteData {
     ///     module
     /// }
     /// ```
-    pub fn get_object<T: RegisteredClass>(&mut self) -> Option<&mut ZendClassObject<T>> {
-        ZendClassObject::from_zend_obj_mut(self.get_self()?)
-    }
-
-    /// Attempts to retrieve the 'this' object, even if the Rust backing
-    /// is not yet initialized. This is used internally by the constructor
-    /// to get access to the object before calling `initialize()`.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the returned object is not dereferenced
-    /// to `T` until after `initialize()` is called. Only `initialize()` should
-    /// be called on the returned object.
-    pub(crate) fn get_object_uninit<T: RegisteredClass>(
-        &mut self,
-    ) -> Option<&mut ZendClassObject<T>> {
-        ZendClassObject::from_zend_obj_mut_uninit(self.get_self()?)
+    #[must_use]
+    pub fn get_object<T: RegisteredClass>(&self) -> Option<&ZendClassObject<T>> {
+        ZendClassObject::from_zend_obj_uninit(self.This.object()?)
     }
 
     /// Attempts to retrieve the 'this' object, which can be used in class
