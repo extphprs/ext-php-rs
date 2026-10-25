@@ -191,7 +191,7 @@ assert(preg_match('/refcount\((\d+)\)\{/', $dump, $m) === 1);
 assert(
     (int) $m[1] === 2,
     "\$builder3 refcount should be 2 (\$builder3 + debug_zval_dump's copy); a leak in "
-    . '&mut ZendClassObject<T>::set_zval pushes it higher. Got: '
+    . '&ZendClassObject<T>::set_zval pushes it higher. Got: '
     . $m[1]
 );
 

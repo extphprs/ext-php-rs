@@ -151,7 +151,14 @@ impl Closure {
                     return;
                 };
 
-                this.0.invoke(parser, ret);
+                let mut closure = match this.try_borrow_mut() {
+                    Ok(closure) => closure,
+                    Err(err) => {
+                        PhpException::from(err).throw();
+                        return;
+                    }
+                };
+                closure.0.invoke(parser, ret);
             }));
         }
     }
@@ -199,7 +206,7 @@ class_derives!(Closure);
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait PhpClosure {
     /// Invokes the closure.
-    fn invoke<'a>(&'a mut self, parser: ArgParser<'a, '_>, ret: &mut Zval);
+    fn invoke(&mut self, parser: ArgParser<'_, '_>, ret: &mut Zval);
 }
 
 /// Implemented on [`FnOnce`] types which can be used as PHP closures. See

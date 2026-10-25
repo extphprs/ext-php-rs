@@ -25,6 +25,7 @@ pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
 pub mod panic;
+pub mod payload;
 pub mod persistent_string;
 pub mod reference;
 pub mod sapi_activate;

@@ -1074,6 +1074,18 @@ impl Zval {
         self.value.obj = ptr::from_ref(val).cast_mut();
     }
 
+    /// Sets the value of the zval as the object `val` points to, adding a
+    /// reference without forming a `&mut ZendObject`.
+    ///
+    /// # Safety
+    ///
+    /// `val` must point to a live object.
+    pub(crate) unsafe fn set_object_ptr(&mut self, val: *mut ZendObject) {
+        self.change_type(ZvalTypeFlags::ObjectEx);
+        unsafe { (*val).gc.refcount += 1 };
+        self.value.obj = val;
+    }
+
     /// Sets the value of the zval as an array. Returns nothing in a result on
     /// success.
     ///
