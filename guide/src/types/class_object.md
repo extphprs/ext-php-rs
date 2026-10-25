@@ -4,9 +4,12 @@ A class object is an instance of a Rust struct (which has been registered as a
 PHP class) that has been allocated alongside an object. You can think of a class
 object as a superset of an object, as a class object contains a Zend object.
 
-| `T` parameter | `&T` parameter        | `T` Return type | `&T` Return type          | PHP representation             |
-| ------------- | --------------------- | --------------- | ------------------------- | ------------------------------ |
-| No            | `&ZendClassObject<T>` | Yes             | `&mut ZendClassObject<T>` | Zend object and a Rust struct. |
+| `T` parameter | `&T` parameter        | `T` Return type | `&T` Return type      | PHP representation             |
+| ------------- | --------------------- | --------------- | --------------------- | ------------------------------ |
+| No            | `&ZendClassObject<T>` | Yes             | `&ZendClassObject<T>` | Zend object and a Rust struct. |
+
+To get the Rust struct, use `try_borrow()` for shared access or
+`try_borrow_mut()` for exclusive access.
 
 ## Examples
 
@@ -28,8 +31,8 @@ impl Example {
     // ext-php-rs treats the method as associated due to the `self_` argument.
     // The argument _must_ be called `self_`.
     pub fn builder_pattern(
-        self_: &mut ZendClassObject<Example>,
-    ) -> &mut ZendClassObject<Example> {
+        self_: &ZendClassObject<Example>,
+    ) -> &ZendClassObject<Example> {
         // do something with `self_`
         self_
     }

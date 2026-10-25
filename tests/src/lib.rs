@@ -41,6 +41,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     {
         module = integration::observer::build_module(module);
     }
+    module = integration::payload::build_module(module);
     module = integration::persistent_string::build_module(module);
     module = integration::reference::build_module(module);
     module = integration::sapi_activate::build_module(module);

@@ -117,6 +117,10 @@ impl GcRoots {
 /// times, or is not owned, the collector can free a value that is still in
 /// use.
 ///
+/// The collector reads the value while methods can hold shared borrows of
+/// it. Do not report values behind interior mutability (`RefCell`, `Cell`,
+/// `Mutex`): a shared borrow does not stop a change to them.
+///
 /// [`ZendCallable`]: crate::types::ZendCallable
 pub unsafe trait GcTrace {
     /// Adds the PHP references owned by `self` to `roots`.

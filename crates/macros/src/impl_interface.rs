@@ -166,6 +166,11 @@ fn generate_method_builder(
     output: &ReturnType,
     is_static: bool,
 ) -> TokenStream {
+    let receiver_mut = inputs
+        .iter()
+        .any(|arg| matches!(arg, FnArg::Receiver(receiver) if matches!(receiver.kind, syn::ReceiverKind::Reference(_, _, Some(_)))));
+    let guard = crate::function::payload_guard(&quote! { this }, receiver_mut);
+
     // Collect non-self arguments in order
     let typed_args = inputs.iter().filter_map(|arg| match arg {
         FnArg::Typed(pat_type) => Some(pat_type),
@@ -324,6 +329,7 @@ fn generate_method_builder(
                     return;
                 }
             };
+            #guard
             #(#arg_declarations)*
             let parse_result = parse
                 #(.arg(&mut #arg_names))*
@@ -333,7 +339,7 @@ fn generate_method_builder(
                 return;
             }
             #(#arg_value_accessors)*
-            this.#method_ident(#(#arg_names),*);
+            __payload.#method_ident(#(#arg_names),*);
         }
     } else {
         quote! {
@@ -346,6 +352,7 @@ fn generate_method_builder(
                     return;
                 }
             };
+            #guard
             #(#arg_declarations)*
             let parse_result = parse
                 #(.arg(&mut #arg_names))*
@@ -355,7 +362,7 @@ fn generate_method_builder(
                 return;
             }
             #(#arg_value_accessors)*
-            let result = this.#method_ident(#(#arg_names),*);
+            let result = __payload.#method_ident(#(#arg_names),*);
             #result_handling
         }
     };

@@ -69,7 +69,7 @@ where
 #[diagnostic::on_unimplemented(
     message = "`{Self}` cannot be used as a PHP function argument",
     label = "no `FromZval` or `FromZvalMut` implementation for `{Self}`",
-    note = "`Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation",
+    note = "a `#[php_class]` argument is `ClassRef<T>` or `ClassRefMut<T>`, not `&T` or `&mut T`: the guard keeps PHP re-entry from aliasing the value",
     note = "a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected"
 )]
 pub trait FromZvalMut<'a>: Sized {

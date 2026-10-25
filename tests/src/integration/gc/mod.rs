@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -16,6 +16,9 @@ pub struct GcHolder {
     callback: Zval,
     listeners: Vec<Zval>,
     named: HashMap<String, Zval>,
+    nested: Vec<Vec<Zval>>,
+    grouped: HashMap<String, Vec<Zval>>,
+    ordered: BTreeMap<u32, Zval>,
     callable: Option<ZendCallable<'static>>,
     child: Option<ZBox<ZendObject>>,
     label: String,
@@ -34,6 +37,9 @@ impl GcHolder {
             callback: Zval::new(),
             listeners: Vec::new(),
             named: HashMap::new(),
+            nested: Vec::new(),
+            grouped: HashMap::new(),
+            ordered: BTreeMap::new(),
             callable: None,
             child: None,
             label: String::from("holder"),
@@ -55,6 +61,21 @@ impl GcHolder {
 
     pub fn set_named(&mut self, name: String, listener: &Zval) {
         self.named.insert(name, listener.shallow_clone());
+    }
+
+    pub fn add_nested(&mut self, listener: &Zval) {
+        self.nested.push(vec![listener.shallow_clone()]);
+    }
+
+    pub fn add_grouped(&mut self, name: String, listener: &Zval) {
+        self.grouped
+            .entry(name)
+            .or_default()
+            .push(listener.shallow_clone());
+    }
+
+    pub fn add_ordered(&mut self, key: u32, listener: &Zval) {
+        self.ordered.insert(key, listener.shallow_clone());
     }
 
     pub fn set_callable(&mut self, callable: &Zval) {
@@ -88,6 +109,7 @@ pub fn gc_holder_dropped() -> usize {
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<GcHolder>()
+        .class::<GcCfgFields>()
         .function(wrap_function!(gc_holder_dropped))
 }
 

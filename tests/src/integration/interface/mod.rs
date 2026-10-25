@@ -24,7 +24,7 @@ pub trait EmptyObjectTrait {
     #[php(defaults(value = 0))]
     fn set_value(&mut self, value: i32);
 
-    fn scale(self_: &mut ZendClassObject<PhpInterfaceEmptyObjectTrait>, factor: f64) -> f64;
+    fn scale(self_: &ZendClassObject<PhpInterfaceEmptyObjectTrait>, factor: f64) -> f64;
 }
 
 // ============================================================================

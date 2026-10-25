@@ -80,7 +80,7 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
 
     let mut args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;
     args.mark_sensitive(&php_attr.sensitive)?;
-    if let Some(ReceiverArg { span }) = args.receiver {
+    if let Some(ReceiverArg { span, .. }) = args.receiver {
         bail!(span => "Receiver arguments are invalid on PHP functions. See `#[php_impl]`.");
     }
 
@@ -129,10 +129,29 @@ pub enum CallType<'a> {
 pub enum MethodReceiver {
     /// Static method - has no receiver.
     Static,
-    /// Class method, takes `&self` or `&mut self`.
-    Class,
-    /// Class method, takes `&mut ZendClassObject<Self>`.
+    /// Class method, takes `&self` or, when `mutable`, `&mut self`.
+    Class { mutable: bool },
+    /// Class method, takes `&ZendClassObject<Self>`.
     ZendClassObject,
+}
+
+/// Borrows the payload of `this` for the call: `__payload` holds the guard,
+/// and a conflict throws the `BorrowError` as a PHP `Error`.
+pub fn payload_guard(this: &TokenStream, mutable: bool) -> TokenStream {
+    let (binding, borrow) = if mutable {
+        (quote! { let mut __payload }, quote! { try_borrow_mut })
+    } else {
+        (quote! { let __payload }, quote! { try_borrow })
+    };
+    quote! {
+        #binding = match #this.#borrow() {
+            Ok(payload) => payload,
+            Err(err) => {
+                ::ext_php_rs::exception::PhpException::from(err).throw();
+                return;
+            }
+        };
+    }
 }
 
 impl<'a> Function<'a> {
@@ -256,7 +275,7 @@ impl<'a> Function<'a> {
             && matches!(
                 call_type,
                 CallType::Method {
-                    receiver: MethodReceiver::Class | MethodReceiver::ZendClassObject,
+                    receiver: MethodReceiver::Class { .. } | MethodReceiver::ZendClassObject,
                     ..
                 }
             );
@@ -340,9 +359,9 @@ impl<'a> Function<'a> {
         {
             return quote! {
                 .returns(
-                    <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::TYPE,
+                    <&::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::TYPE,
                     false,
-                    <&mut ::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::NULLABLE,
+                    <&::ext_php_rs::types::ZendClassObject<#class> as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                 )
             };
         }
@@ -410,17 +429,26 @@ impl<'a> Function<'a> {
                     MethodReceiver::Static => quote! {
                         let parse = ex.parser();
                     },
-                    MethodReceiver::ZendClassObject | MethodReceiver::Class => quote! {
-                        let (parse, this) = ex.parser_method::<#class>();
-                        let this = match this {
-                            Some(this) => this,
-                            None => {
-                                ::ext_php_rs::exception::PhpException::from_message("Failed to retrieve reference to `$this`".into())
-                                    .throw();
-                                return;
+                    MethodReceiver::ZendClassObject | MethodReceiver::Class { .. } => {
+                        let guard = match receiver {
+                            MethodReceiver::Class { mutable } => {
+                                payload_guard(&quote! { this }, *mutable)
                             }
+                            _ => quote! {},
                         };
-                    },
+                        quote! {
+                            let (parse, this) = ex.parser_method::<#class>();
+                            let this = match this {
+                                Some(this) => this,
+                                None => {
+                                    ::ext_php_rs::exception::PhpException::from_message("Failed to retrieve reference to `$this`".into())
+                                        .throw();
+                                    return;
+                                }
+                            };
+                            #guard
+                        }
+                    }
                 };
 
                 // When returning &Self or &mut Self, discard the return value
@@ -429,11 +457,11 @@ impl<'a> Function<'a> {
                     (MethodReceiver::Static, _) => {
                         quote! { #class::#ident(#({#arg_accessors}),*) }
                     }
-                    (MethodReceiver::Class, true) => {
-                        quote! { let _ = this.#ident(#({#arg_accessors}),*); }
+                    (MethodReceiver::Class { .. }, true) => {
+                        quote! { let _ = __payload.#ident(#({#arg_accessors}),*); }
                     }
-                    (MethodReceiver::Class, false) => {
-                        quote! { this.#ident(#({#arg_accessors}),*) }
+                    (MethodReceiver::Class { .. }, false) => {
+                        quote! { __payload.#ident(#({#arg_accessors}),*) }
                     }
                     (MethodReceiver::ZendClassObject, true) => {
                         // Explicit scope helps with mutable borrow lifetime
@@ -476,7 +504,7 @@ impl<'a> Function<'a> {
             CallType::Function
                 | CallType::Method {
                     receiver: MethodReceiver::Static
-                        | MethodReceiver::Class
+                        | MethodReceiver::Class { .. }
                         | MethodReceiver::ZendClassObject,
                     ..
                 }
@@ -598,21 +626,25 @@ impl<'a> Function<'a> {
             } => (quote! {}, quote! { #class::#ident(#(#arg_names),*) }),
             CallType::Method {
                 class,
-                receiver: MethodReceiver::Class,
+                receiver: MethodReceiver::Class { mutable },
                 ..
-            } => (
-                quote! {
-                    let __this = match ex.get_object::<#class>() {
-                        Some(v) => v,
-                        None => { #this_error }
-                    };
-                },
-                if returns_this {
-                    quote! { let _ = __this.#ident(#(#arg_names),*); }
-                } else {
-                    quote! { __this.#ident(#(#arg_names),*) }
-                },
-            ),
+            } => {
+                let guard = payload_guard(&quote! { __this }, *mutable);
+                (
+                    quote! {
+                        let __this = match ex.get_object::<#class>() {
+                            Some(v) => v,
+                            None => { #this_error }
+                        };
+                        #guard
+                    },
+                    if returns_this {
+                        quote! { let _ = __payload.#ident(#(#arg_names),*); }
+                    } else {
+                        quote! { __payload.#ident(#(#arg_names),*) }
+                    },
+                )
+            }
             CallType::Method {
                 class,
                 receiver: MethodReceiver::ZendClassObject,
@@ -637,8 +669,8 @@ impl<'a> Function<'a> {
                 use ::ext_php_rs::convert::{FromZvalMut, IntoZval};
 
                 #count_check
-                #(#arg_bindings)*
                 #this_binding
+                #(#arg_bindings)*
                 #call
 
                 if let Err(e) = __this.set_zval(retval, false) {
@@ -651,8 +683,8 @@ impl<'a> Function<'a> {
                 use ::ext_php_rs::convert::{FromZvalMut, IntoZval};
 
                 #count_check
-                #(#arg_bindings)*
                 #this_binding
+                #(#arg_bindings)*
                 let __result = { #call };
 
                 if let Err(e) = __result.set_zval(retval, false) {
@@ -756,6 +788,7 @@ impl<'a> Function<'a> {
 #[derive(Debug)]
 pub struct ReceiverArg {
     pub span: Span,
+    pub mutable: bool,
 }
 
 #[derive(Debug)]
@@ -787,7 +820,7 @@ impl<'a> Args<'a> {
         for arg in args {
             match arg {
                 FnArg::Receiver(receiver) => {
-                    let syn::ReceiverKind::Reference(..) = &receiver.kind else {
+                    let syn::ReceiverKind::Reference(_, _, mutability) = &receiver.kind else {
                         bail!(receiver => "PHP objects are heap-allocated and cannot be passed by value. Try using `&self` or `&mut self`.");
                     };
                     if result.receiver.is_some() {
@@ -795,6 +828,7 @@ impl<'a> Args<'a> {
                     }
                     result.receiver.replace(ReceiverArg {
                         span: receiver.span(),
+                        mutable: mutability.is_some(),
                     });
                 }
                 FnArg::Typed(PatType { attrs, pat, ty, .. }) => {
@@ -855,6 +889,11 @@ impl<'a> Args<'a> {
         let self_object = self.typed.remove(0);
         if let Some(default) = &self_object.default {
             bail!(default => "`self_` is the PHP object itself and cannot have a default.");
+        }
+        if let Type::Reference(reference) = &self_object.ty
+            && reference.mutability.is_some()
+        {
+            bail!(self_object.ty => "`self_` must be `&ZendClassObject<Self>`. Borrow the Rust value in short scopes with `self_.try_borrow()` or `self_.try_borrow_mut()`.");
         }
         Ok(true)
     }
@@ -1156,7 +1195,7 @@ mod tests {
 
     #[test]
     fn take_self_object_removes_only_a_leading_self_() {
-        let mut args = parse_args("fn f(self_: &mut Obj, a: i64, b: i64)");
+        let mut args = parse_args("fn f(self_: &Obj, a: i64, b: i64)");
         assert!(args.take_self_object().unwrap());
         let names: Vec<String> = args.typed.iter().map(|arg| arg.name.to_string()).collect();
         assert_eq!(names, ["a", "b"]);
@@ -1164,6 +1203,16 @@ mod tests {
         let mut args = parse_args("fn f(a: i64, self_: &mut Obj)");
         assert!(!args.take_self_object().unwrap());
         assert_eq!(args.typed.len(), 2);
+    }
+
+    #[test]
+    fn self_object_must_be_a_shared_reference() {
+        let mut args = parse_args("fn f(self_: &mut Obj, a: i64)");
+        let err = args.take_self_object().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "`self_` must be `&ZendClassObject<Self>`. Borrow the Rust value in short scopes with `self_.try_borrow()` or `self_.try_borrow_mut()`."
+        );
     }
 
     #[test]

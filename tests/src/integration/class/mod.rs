@@ -57,19 +57,19 @@ impl TestClass {
     }
 
     pub fn self_ref(
-        self_: &mut ZendClassObject<TestClass>,
+        self_: &ZendClassObject<TestClass>,
         val: String,
-    ) -> &mut ZendClassObject<TestClass> {
-        self_.string = format!("Changed to {val}");
-        self_
+    ) -> PhpResult<&ZendClassObject<TestClass>> {
+        self_.try_borrow_mut()?.string = format!("Changed to {val}");
+        Ok(self_)
     }
 
     pub fn self_multi_ref<'a>(
-        self_: &'a mut ZendClassObject<TestClass>,
+        self_: &'a ZendClassObject<TestClass>,
         val: &str,
-    ) -> &'a mut ZendClassObject<TestClass> {
-        self_.string = format!("Changed to {val}");
-        self_
+    ) -> PhpResult<&'a ZendClassObject<TestClass>> {
+        self_.try_borrow_mut()?.string = format!("Changed to {val}");
+        Ok(self_)
     }
 
     /// Returns a new instance with a different string (tests returning Self)
@@ -767,7 +767,7 @@ impl TestCloneableClass {
         Self { value, name }
     }
 
-    pub fn accept_cloneable(obj: &TestCloneableClass) -> String {
+    pub fn accept_cloneable(obj: ClassRef<TestCloneableClass>) -> String {
         format!("accepted: {} {}", obj.value, obj.name)
     }
 }
