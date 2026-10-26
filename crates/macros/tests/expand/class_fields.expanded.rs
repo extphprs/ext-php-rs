@@ -110,15 +110,9 @@ impl ::ext_php_rs::class::RegisteredClass for Emitter {
     }
     #[inline]
     #[must_use]
-    fn clone_obj(&self) -> ::std::option::Option<Self> {
+    fn clone_fn() -> ::std::option::Option<fn(&Self) -> Self> {
         use ::ext_php_rs::internal::class::ProbeClone as _;
-        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
-    }
-    #[inline]
-    #[must_use]
-    fn cloneable() -> bool {
-        use ::ext_php_rs::internal::class::ProbeClone as _;
-        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().cloneable()
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
     }
     #[inline]
     fn gc_trace(&self, roots: &mut ::ext_php_rs::gc::GcRoots) {
@@ -262,15 +256,9 @@ impl ::ext_php_rs::class::RegisteredClass for Pair {
     }
     #[inline]
     #[must_use]
-    fn clone_obj(&self) -> ::std::option::Option<Self> {
+    fn clone_fn() -> ::std::option::Option<fn(&Self) -> Self> {
         use ::ext_php_rs::internal::class::ProbeClone as _;
-        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
-    }
-    #[inline]
-    #[must_use]
-    fn cloneable() -> bool {
-        use ::ext_php_rs::internal::class::ProbeClone as _;
-        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().cloneable()
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
     }
     #[inline]
     fn gc_trace(&self, roots: &mut ::ext_php_rs::gc::GcRoots) {
