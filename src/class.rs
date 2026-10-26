@@ -133,13 +133,23 @@ pub trait RegisteredClass: Sized + 'static {
     /// Returns a clone of this object for PHP's `clone` operator.
     ///
     /// When PHP executes `clone $obj`, this method is called to produce a copy
-    /// of the Rust data. For types that derive `Clone`, the `#[php_class]` macro
-    /// generates an implementation returning `Some(self.clone())`. Types that
-    /// don't implement `Clone` use the default (returns `None`), which causes
-    /// PHP to throw an error when attempting to clone.
+    /// of the Rust data. For types that implement `Clone`, the `#[php_class]`
+    /// macro generates an implementation returning `Some(self.clone())`. It is
+    /// called only when [`RegisteredClass::cloneable`] returns `true`.
     #[must_use]
     fn clone_obj(&self) -> Option<Self> {
         None
+    }
+
+    /// Whether PHP can clone objects of this class.
+    ///
+    /// The `#[php_class]` macro returns `true` for types that implement
+    /// `Clone`. When it is `false`, the class has no clone handler, like the
+    /// uncloneable classes of PHP: `clone` throws an `Error` and
+    /// `ReflectionClass::isCloneable()` returns `false`.
+    #[must_use]
+    fn cloneable() -> bool {
+        false
     }
 
     /// Reports the PHP values held in the Rust fields of this object to the

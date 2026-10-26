@@ -79,7 +79,7 @@ impl ZendObjectHandlers {
             }
         }
         unsafe { (*ptr).free_obj = Some(Self::free_obj::<T>) };
-        unsafe { (*ptr).clone_obj = Some(Self::clone_obj::<T>) };
+        unsafe { (*ptr).clone_obj = T::cloneable().then_some(Self::clone_obj::<T> as _) };
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
@@ -193,38 +193,38 @@ impl ZendObjectHandlers {
             else {
                 return Ok(None);
             };
-            Ok(T::clone_obj(&*old.try_borrow()?))
+            Ok(Some(T::clone_obj(&*old.try_borrow()?)))
         });
 
-        match cloned_val {
-            Ok(Some(val)) => {
+        let format = match cloned_val {
+            Ok(Some(Some(val))) => {
                 // A PHP subclass of `T` clones as itself, with its own property table.
                 let ce = unsafe { (*object).ce.as_ref() };
                 let mut new = ZendClassObject::<T>::internal_new(Some(val), ce);
                 unsafe { zend_objects_clone_members(&raw mut new.std, object) };
                 let raw = new.into_raw();
                 // SAFETY: `into_raw` yields a valid object the engine takes over.
-                unsafe { &raw mut (*raw).std }
+                return unsafe { &raw mut (*raw).std };
             }
-            Ok(None) => {
-                // Like `ZEND_CLONE`, name the object's own class, which for a PHP
-                // subclass of `T` is the subclass. The name goes to `%s` as is: an
-                // anonymous class name contains a NUL byte, so it can't be a CString.
-                let name = unsafe { (*object).get_class_entry().name };
-                unsafe {
-                    zend_throw_error(
-                        ptr::null_mut(),
-                        c"Trying to clone an uncloneable object of class %s".as_ptr(),
-                        (*name).val.as_ptr(),
-                    );
-                }
-                Self::released_placeholder::<T>()
-            }
+            Ok(Some(None)) => c"Trying to clone an uncloneable object of class %s",
+            Ok(None) => c"Object of class %s is not initialized",
             Err(panic) => {
                 panic.throw();
-                Self::released_placeholder::<T>()
+                return Self::released_placeholder::<T>();
             }
+        };
+        // SAFETY: the engine passes the live object being cloned, and its class
+        // has a name. Like `ZEND_CLONE`, name the object's own class, which for a
+        // PHP subclass of `T` is the subclass. The name goes to `%s` as is: an
+        // anonymous class name contains a NUL byte, so it can't be a CString.
+        unsafe {
+            zend_throw_error(
+                ptr::null_mut(),
+                format.as_ptr(),
+                (*(*(*object).ce).name).val.as_ptr(),
+            );
         }
+        Self::released_placeholder::<T>()
     }
 
     /// A fresh uninitialised object for the error paths of `clone_obj`: PHP calls

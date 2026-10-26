@@ -861,7 +861,9 @@ $copy->fontSize = 16.0;
 echo $style->fontSize;  // 12.0 — original is unchanged
 ```
 
-Structs that do not implement `Clone` throw an error when cloned:
+A class whose struct does not implement `Clone` has no clone handler, like the
+uncloneable classes of PHP. `clone` throws an `Error` that names the class of
+the object, and `ReflectionClass::isCloneable()` returns `false`:
 
 ```php
 // If MyClass does not implement Clone:
@@ -870,7 +872,13 @@ $copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyC
 ```
 
 A `clone` of an object that one of its methods modifies at that time throws an
-`Error`. When a clone fails, PHP does not call `__destruct` on the failed copy.
+`Error`. A `clone` of an object that has no Rust value, for example a PHP
+subclass that did not call the parent constructor, also throws an `Error`.
+When a clone fails, PHP does not call `__destruct` on the failed copy.
+
+A `__clone` method does not make a class cloneable. If the struct does not
+implement `Clone`, `clone` throws, but `ReflectionClass::isCloneable()`
+returns `true` because PHP sees the `__clone` method.
 
 ## Implementing Iterator
 
