@@ -174,10 +174,6 @@ impl ZendObjectHandlers {
         unsafe { zend_object_std_dtor(object) };
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "the formatted message is built from a class name and contains no NUL byte"
-    )]
     unsafe extern "C" fn clone_obj<T: RegisteredClass>(object: *mut ZendObject) -> *mut ZendObject {
         // PHP will call OBJ_RELEASE on the returned pointer if an exception
         // is thrown, so we must NEVER return the original object. Always
@@ -191,7 +187,7 @@ impl ZendObjectHandlers {
             Ok(Some(T::clone_obj(&*old.try_borrow()?)))
         });
 
-        let message: fn(&str) -> String = match cloned_val {
+        let format = match cloned_val {
             Ok(Some(Some(val))) => {
                 let mut new = ZendClassObject::<T>::new(val);
                 unsafe { zend_objects_clone_members(&raw mut new.std, object) };
@@ -199,21 +195,23 @@ impl ZendObjectHandlers {
                 // SAFETY: `into_raw` yields a valid object the engine takes over.
                 return unsafe { &raw mut (*raw).std };
             }
-            Ok(Some(None)) => {
-                |class| format!("Trying to clone an uncloneable object of class {class}")
-            }
-            Ok(None) => |class| format!("Object of class {class} is not initialized"),
+            Ok(Some(None)) => c"Trying to clone an uncloneable object of class %s",
+            Ok(None) => c"Object of class %s is not initialized",
             Err(panic) => {
                 panic.throw();
                 return Self::released_placeholder::<T>();
             }
         };
-        // SAFETY: the engine passes the live object being cloned.
-        let class = unsafe { (*object).get_class_entry() }
-            .name()
-            .unwrap_or(T::CLASS_NAME);
-        let msg = CString::new(message(class)).expect("Failed to create error message");
-        unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
+        // SAFETY: the engine passes the live object being cloned, and its class
+        // has a name. The name goes through `%s` like in the engine's own clone
+        // error, so the name of an anonymous class stops at its NUL byte.
+        unsafe {
+            zend_throw_error(
+                ptr::null_mut(),
+                format.as_ptr(),
+                (*(*(*object).ce).name).val.as_ptr(),
+            );
+        }
         Self::released_placeholder::<T>()
     }
 
