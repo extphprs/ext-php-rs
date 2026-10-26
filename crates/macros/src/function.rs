@@ -228,6 +228,12 @@ impl<'a> Function<'a> {
             .iter()
             .map(TypedArg::arg_declaration)
             .collect::<Vec<_>>();
+        let holder_declarations = self
+            .args
+            .typed
+            .iter()
+            .filter_map(TypedArg::holder_declaration)
+            .collect::<Vec<_>>();
 
         // `entry` impl
         let args = self
@@ -282,6 +288,7 @@ impl<'a> Function<'a> {
                 use ::ext_php_rs::convert::IntoZval;
 
                 #(#arg_declarations)*
+                #(#holder_declarations)*
                 #result
 
                 // The method returns &Self or &mut Self, use `this` directly
@@ -295,6 +302,7 @@ impl<'a> Function<'a> {
                 use ::ext_php_rs::convert::IntoZval;
 
                 #(#arg_declarations)*
+                #(#holder_declarations)*
                 let result = {
                     #result
                 };
@@ -517,29 +525,25 @@ impl<'a> Function<'a> {
         let name = arg.name;
         let ty = arg.clean_ty();
         let zval_ident = format_ident!("__zval_{}", i);
-
-        let read_zval = quote! {
-            let #zval_ident = unsafe { ex.zend_call_arg(#i) };
-            let Some(#zval_ident) = #zval_ident else { return; };
-        };
-
-        let convert = quote! {
-            <#ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                #zval_ident.dereference_mut()
-            )
-        };
+        let holder = arg.holder_ident();
+        let holder_declaration = arg.holder_declaration();
+        let extract = extract_call(
+            &ty,
+            arg.ty.span(),
+            &quote! { #zval_ident.dereference_mut() },
+            &holder,
+        );
+        let php_name = ident_to_php_name(name);
 
         let invalid = invalid_argument(name);
-        let throw_invalid = quote! {
-            #invalid.throw();
-            return;
-        };
 
         // An explicit null on a non-nullable parameter that has a default is a
         // TypeError, the same as PHP reports for `int $x = 5` called with null.
         let reject_null = arg.default.as_ref().map(|_| {
             quote! {
-                if !<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE && #zval_ident.is_null() {
+                if !::ext_php_rs::internal::argument::nullable::<#ty, _>()
+                    && #zval_ident.is_null()
+                {
                     ::ext_php_rs::exception::PhpException::new(
                         concat!("Argument `$", stringify!(#name), "` must not be null").into(),
                         0,
@@ -553,17 +557,25 @@ impl<'a> Function<'a> {
         let missing = arg.missing_value(&ty);
 
         quote! {
-            let #name: #ty = {
-                let __value = if #i < __REQUIRED || __num_args > #i {
-                    #read_zval
-                    #reject_null
-                    #convert
-                } else {
-                    #missing
-                };
-                match __value {
+            #holder_declaration
+            let #name: #ty = if #i < __REQUIRED || __num_args > #i {
+                let #zval_ident = unsafe { ex.zend_call_arg(#i) };
+                let Some(#zval_ident) = #zval_ident else { return; };
+                #reject_null
+                match #extract {
+                    Ok(value) => value,
+                    Err(error) => {
+                        ::ext_php_rs::internal::argument::argument_error(#php_name, &error).throw();
+                        return;
+                    }
+                }
+            } else {
+                match #missing {
                     Some(value) => value,
-                    None => { #throw_invalid }
+                    None => {
+                        #invalid.throw();
+                        return;
+                    }
                 }
             };
         }
@@ -734,6 +746,12 @@ impl<'a> Function<'a> {
             .iter()
             .map(TypedArg::arg_declaration)
             .collect::<Vec<_>>();
+        let holder_declarations = self
+            .args
+            .typed
+            .iter()
+            .filter_map(TypedArg::holder_declaration)
+            .collect::<Vec<_>>();
         let variadic_bindings = self
             .args
             .typed
@@ -753,6 +771,7 @@ impl<'a> Function<'a> {
                 constructor: {
                     fn inner(ex: &mut ::ext_php_rs::zend::ExecuteData) -> ::ext_php_rs::class::ConstructorResult<#class> {
                         #(#arg_declarations)*
+                        #(#holder_declarations)*
                         let parse = ex.parser()
                             #(.arg(&mut #arg_names))*
                             .required_args(__REQUIRED)
@@ -878,8 +897,8 @@ impl<'a> Args<'a> {
     ///
     /// With `#[php(optional = x)]` it is the position of `x`. Otherwise it is
     /// computed by `ext_php_rs::args::required_count` from each parameter's
-    /// `FromZvalMut::NULLABLE` and default, so the rule follows the type and
-    /// not its spelling. A variadic parameter is counted by the runtime.
+    /// `FunctionArgument::NULLABLE` and default, so the rule follows the type
+    /// and not its spelling. A variadic parameter is counted by the runtime.
     pub fn required_count(&self, optional: Option<usize>) -> TokenStream {
         if let Some(index) = optional {
             let first = self.typed[index].name;
@@ -895,7 +914,10 @@ impl<'a> Args<'a> {
                         format!("`{name}` comes after `optional = {first}`, so PHP callers may omit it: make it `Option<T>` or give it a default.")
                     };
                     quote_spanned! { arg.ty.span() =>
-                        const _: () = assert!(<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE, #message);
+                        const _: () = assert!(
+                            ::ext_php_rs::internal::argument::nullable::<#ty, _>(),
+                            #message
+                        );
                     }
                 });
             return quote! {
@@ -909,7 +931,9 @@ impl<'a> Args<'a> {
             }
             let ty = arg.clean_ty();
             let has_default = arg.default.is_some();
-            quote! { <#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE || #has_default }
+            quote! {
+                ::ext_php_rs::internal::argument::nullable::<#ty, _>() || #has_default
+            }
         });
         quote! {
             const __REQUIRED: usize = ::ext_php_rs::args::required_count(&[#(#omittable),*]);
@@ -934,6 +958,25 @@ fn reject_unknown_defaults(defaults: HashMap<Ident, Expr>) -> Result<()> {
 /// PHP type, nullability and pass-by-reference of each variadic value.
 fn is_slice_ref(ty: &Type) -> bool {
     matches!(ty, Type::Reference(reference) if matches!(*reference.elem, Type::Slice(_)))
+}
+
+/// The empty holder of an argument, spanned to the parameter type: a type that
+/// cannot be an argument is reported there.
+pub(crate) fn new_holder(ty: &Type, span: Span) -> TokenStream {
+    quote_spanned! { span => ::ext_php_rs::internal::argument::holder::<#ty, _>() }
+}
+
+/// Converts an argument with its holder, spanned to the parameter type for the
+/// same reason as [`new_holder`].
+pub(crate) fn extract_call(
+    ty: &Type,
+    span: Span,
+    zval: &TokenStream,
+    holder: &Ident,
+) -> TokenStream {
+    quote_spanned! { span =>
+        ::ext_php_rs::internal::argument::extract::<#ty, _>(#zval, &mut #holder)
+    }
 }
 
 pub(crate) fn invalid_argument(name: &Ident) -> TokenStream {
@@ -997,10 +1040,29 @@ impl TypedArg<'_> {
         });
         let variadic = self.variadic.then(|| quote! { .is_variadic() });
         quote! {
-            ::ext_php_rs::args::Arg::of::<#ty>(#name)
+            ::ext_php_rs::internal::argument::arg::<#ty, _>(#name)
                 #default
                 #variadic
         }
+    }
+
+    /// The local that keeps the guard of a class argument for the whole call.
+    fn holder_ident(&self) -> Ident {
+        format_ident!("__holder_{}", self.name)
+    }
+
+    /// Declares the holder of a non-variadic argument. It must come after the
+    /// `Arg` locals, so the guard it keeps is dropped before them.
+    fn holder_declaration(&self) -> Option<TokenStream> {
+        if self.variadic {
+            return None;
+        }
+        let holder = self.holder_ident();
+        let new_holder = new_holder(&self.clean_ty(), self.ty.span());
+        Some(quote! {
+            #[allow(non_snake_case)]
+            let mut #holder = #new_holder;
+        })
     }
 
     fn variadic_binding(&self) -> Option<TokenStream> {
@@ -1022,7 +1084,7 @@ impl TypedArg<'_> {
         if let Some(default) = &self.default {
             quote! { ::std::option::Option::Some((#default).into()) }
         } else {
-            quote! { <#ty as ::ext_php_rs::convert::FromZvalMut>::from_missing() }
+            quote! { ::ext_php_rs::internal::argument::missing::<#ty, _>() }
         }
     }
 
@@ -1052,23 +1114,41 @@ impl TypedArg<'_> {
                 )
             });
             quote! {
-                Some(zval) if !<#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE && zval.is_null() => {
+                Some(zval) if !::ext_php_rs::internal::argument::nullable::<#ty, _>()
+                    && zval.is_null() =>
+                {
                     #bail_null
                 }
             }
         });
         let missing = self.missing_value(&ty);
+        let holder = self.holder_ident();
+        let extract = extract_call(
+            &ty,
+            self.ty.span(),
+            &quote! { zval.dereference_mut() },
+            &holder,
+        );
+        let php_name = ident_to_php_name(name);
+        let bail_error = bail_fn(quote! {
+            ::ext_php_rs::internal::argument::argument_error(#php_name, &error)
+        });
 
         quote! {
-            match match #name.zval() {
+            match #name.zval() {
                 #reject_null
-                Some(zval) => <#ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(zval.dereference_mut()),
-                None => #missing,
-            } {
-                Some(value) => value,
-                None => {
-                    #bail_invalid
-                }
+                Some(zval) => match #extract {
+                    Ok(value) => value,
+                    Err(error) => {
+                        #bail_error
+                    }
+                },
+                None => match #missing {
+                    Some(value) => value,
+                    None => {
+                        #bail_invalid
+                    }
+                },
             }
         }
     }
@@ -1110,9 +1190,7 @@ mod tests {
         let args = parse_args("fn f(a: MaybeAge, b: Option<i64>)");
         let by_type = args.required_count(None).to_string();
         assert!(by_type.contains("required_count"));
-        assert!(
-            by_type.contains("MaybeAge as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
-        );
+        assert!(by_type.contains("argument :: nullable :: < MaybeAge , _ > ()"));
         let explicit = args.required_count(Some(1)).to_string();
         assert!(explicit.starts_with("const __REQUIRED : usize = 1usize ;"));
     }
@@ -1123,9 +1201,7 @@ mod tests {
             parse_with_defaults("fn f(a: i64, b: Maybe, c: i64, rest: &[i64])", &["c"]).unwrap();
         let tokens = args.required_count(Some(1)).to_string();
         assert_eq!(tokens.matches("const _ : () = assert !").count(), 1);
-        assert!(
-            tokens.contains("< Maybe as :: ext_php_rs :: convert :: FromZvalMut > :: NULLABLE")
-        );
+        assert!(tokens.contains("argument :: nullable :: < Maybe , _ > ()"));
         assert!(tokens.contains("`b` is marked `optional`"));
     }
 

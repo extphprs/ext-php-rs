@@ -13,11 +13,11 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
             {
                 const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                     &[
-                        <String as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                        ::ext_php_rs::internal::argument::nullable::<String, _>()
                             || false,
-                        <Option<i64> as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                        ::ext_php_rs::internal::argument::nullable::<Option<i64>, _>()
                             || false,
-                        <i64 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE || true,
+                        ::ext_php_rs::internal::argument::nullable::<i64, _>() || true,
                     ],
                 );
                 ::ext_php_rs::builders::FunctionBuilder::new(
@@ -41,20 +41,37 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
                                             };
                                             return;
                                         }
-                                        let name: String = {
-                                            let __value = if 0usize < __REQUIRED || __num_args > 0usize
-                                            {
-                                                let __zval_0 = unsafe { ex.zend_call_arg(0usize) };
-                                                let Some(__zval_0) = __zval_0 else {
-                                                    return;
-                                                };
-                                                <String as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                    __zval_0.dereference_mut(),
-                                                )
-                                            } else {
-                                                <String as ::ext_php_rs::convert::FromZvalMut>::from_missing()
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_name = ::ext_php_rs::internal::argument::holder::<
+                                            String,
+                                            _,
+                                        >();
+                                        let name: String = if 0usize < __REQUIRED
+                                            || __num_args > 0usize
+                                        {
+                                            let __zval_0 = unsafe { ex.zend_call_arg(0usize) };
+                                            let Some(__zval_0) = __zval_0 else {
+                                                return;
                                             };
-                                            match __value {
+                                            match ::ext_php_rs::internal::argument::extract::<
+                                                String,
+                                                _,
+                                            >(__zval_0.dereference_mut(), &mut __holder_name) {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                            "name",
+                                                            &error,
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        } else {
+                                            match ::ext_php_rs::internal::argument::missing::<
+                                                String,
+                                                _,
+                                            >() {
                                                 Some(value) => value,
                                                 None => {
                                                     ::ext_php_rs::exception::PhpException::new(
@@ -67,24 +84,37 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
                                                 }
                                             }
                                         };
-                                        let age: Option<i64> = {
-                                            let __value = if 1usize < __REQUIRED || __num_args > 1usize
-                                            {
-                                                let __zval_1 = unsafe { ex.zend_call_arg(1usize) };
-                                                let Some(__zval_1) = __zval_1 else {
-                                                    return;
-                                                };
-                                                <Option<
-                                                    i64,
-                                                > as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                    __zval_1.dereference_mut(),
-                                                )
-                                            } else {
-                                                <Option<
-                                                    i64,
-                                                > as ::ext_php_rs::convert::FromZvalMut>::from_missing()
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_age = ::ext_php_rs::internal::argument::holder::<
+                                            Option<i64>,
+                                            _,
+                                        >();
+                                        let age: Option<i64> = if 1usize < __REQUIRED
+                                            || __num_args > 1usize
+                                        {
+                                            let __zval_1 = unsafe { ex.zend_call_arg(1usize) };
+                                            let Some(__zval_1) = __zval_1 else {
+                                                return;
                                             };
-                                            match __value {
+                                            match ::ext_php_rs::internal::argument::extract::<
+                                                Option<i64>,
+                                                _,
+                                            >(__zval_1.dereference_mut(), &mut __holder_age) {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                            "age",
+                                                            &error,
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        } else {
+                                            match ::ext_php_rs::internal::argument::missing::<
+                                                Option<i64>,
+                                                _,
+                                            >() {
                                                 Some(value) => value,
                                                 None => {
                                                     ::ext_php_rs::exception::PhpException::new(
@@ -97,31 +127,45 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
                                                 }
                                             }
                                         };
-                                        let times: i64 = {
-                                            let __value = if 2usize < __REQUIRED || __num_args > 2usize
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_times = ::ext_php_rs::internal::argument::holder::<
+                                            i64,
+                                            _,
+                                        >();
+                                        let times: i64 = if 2usize < __REQUIRED
+                                            || __num_args > 2usize
+                                        {
+                                            let __zval_2 = unsafe { ex.zend_call_arg(2usize) };
+                                            let Some(__zval_2) = __zval_2 else {
+                                                return;
+                                            };
+                                            if !::ext_php_rs::internal::argument::nullable::<i64, _>()
+                                                && __zval_2.is_null()
                                             {
-                                                let __zval_2 = unsafe { ex.zend_call_arg(2usize) };
-                                                let Some(__zval_2) = __zval_2 else {
-                                                    return;
-                                                };
-                                                if !<i64 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
-                                                    && __zval_2.is_null()
-                                                {
-                                                    ::ext_php_rs::exception::PhpException::new(
-                                                            "Argument `$times` must not be null".into(),
-                                                            0,
-                                                            ::ext_php_rs::zend::ce::type_error(),
+                                                ::ext_php_rs::exception::PhpException::new(
+                                                        "Argument `$times` must not be null".into(),
+                                                        0,
+                                                        ::ext_php_rs::zend::ce::type_error(),
+                                                    )
+                                                    .throw();
+                                                return;
+                                            }
+                                            match ::ext_php_rs::internal::argument::extract::<
+                                                i64,
+                                                _,
+                                            >(__zval_2.dereference_mut(), &mut __holder_times) {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                            "times",
+                                                            &error,
                                                         )
                                                         .throw();
                                                     return;
                                                 }
-                                                <i64 as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                    __zval_2.dereference_mut(),
-                                                )
-                                            } else {
-                                                ::std::option::Option::Some((1).into())
-                                            };
-                                            match __value {
+                                            }
+                                        } else {
+                                            match ::std::option::Option::Some((1).into()) {
                                                 Some(value) => value,
                                                 None => {
                                                     ::ext_php_rs::exception::PhpException::new(
@@ -145,10 +189,10 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_greet {
                             handler
                         },
                     )
-                    .arg(::ext_php_rs::args::Arg::of::<String>("name"))
-                    .arg(::ext_php_rs::args::Arg::of::<Option<i64>>("age"))
+                    .arg(::ext_php_rs::internal::argument::arg::<String, _>("name"))
+                    .arg(::ext_php_rs::internal::argument::arg::<Option<i64>, _>("age"))
                     .arg(
-                        ::ext_php_rs::args::Arg::of::<i64>("times")
+                        ::ext_php_rs::internal::argument::arg::<i64, _>("times")
                             .default({
                                 let __default: i64 = (1).into();
                                 ::ext_php_rs::convert::StubLiteral::stub_literal(&__default)
@@ -178,7 +222,7 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_sum {
             {
                 const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                     &[
-                        <i64 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE || false,
+                        ::ext_php_rs::internal::argument::nullable::<i64, _>() || false,
                         false,
                     ],
                 );
@@ -193,9 +237,20 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_sum {
                                 ::ext_php_rs::zend::run_handler(
                                     ::std::panic::AssertUnwindSafe(|| {
                                         use ::ext_php_rs::convert::IntoZval;
-                                        let mut first = ::ext_php_rs::args::Arg::of::<i64>("first");
-                                        let mut rest = ::ext_php_rs::args::Arg::of::<i64>("rest")
+                                        let mut first = ::ext_php_rs::internal::argument::arg::<
+                                            i64,
+                                            _,
+                                        >("first");
+                                        let mut rest = ::ext_php_rs::internal::argument::arg::<
+                                            i64,
+                                            _,
+                                        >("rest")
                                             .is_variadic();
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_first = ::ext_php_rs::internal::argument::holder::<
+                                            i64,
+                                            _,
+                                        >();
                                         let result = {
                                             let parse = ex
                                                 .parser()
@@ -209,25 +264,39 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_sum {
                                             let __variadic_rest = rest.try_variadic_vals::<i64>();
                                             sum(
                                                 {
-                                                    match match first.zval() {
+                                                    match first.zval() {
                                                         Some(zval) => {
-                                                            <i64 as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                                zval.dereference_mut(),
-                                                            )
+                                                            match ::ext_php_rs::internal::argument::extract::<
+                                                                i64,
+                                                                _,
+                                                            >(zval.dereference_mut(), &mut __holder_first) {
+                                                                Ok(value) => value,
+                                                                Err(error) => {
+                                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                                            "first",
+                                                                            &error,
+                                                                        )
+                                                                        .throw();
+                                                                    return;
+                                                                }
+                                                            }
                                                         }
                                                         None => {
-                                                            <i64 as ::ext_php_rs::convert::FromZvalMut>::from_missing()
-                                                        }
-                                                    } {
-                                                        Some(value) => value,
-                                                        None => {
-                                                            ::ext_php_rs::exception::PhpException::new(
-                                                                    "Invalid value given for argument `first`.".into(),
-                                                                    0,
-                                                                    ::ext_php_rs::zend::ce::type_error(),
-                                                                )
-                                                                .throw();
-                                                            return;
+                                                            match ::ext_php_rs::internal::argument::missing::<
+                                                                i64,
+                                                                _,
+                                                            >() {
+                                                                Some(value) => value,
+                                                                None => {
+                                                                    ::ext_php_rs::exception::PhpException::new(
+                                                                            "Invalid value given for argument `first`.".into(),
+                                                                            0,
+                                                                            ::ext_php_rs::zend::ce::type_error(),
+                                                                        )
+                                                                        .throw();
+                                                                    return;
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 },
@@ -257,8 +326,11 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_sum {
                             handler
                         },
                     )
-                    .arg(::ext_php_rs::args::Arg::of::<i64>("first"))
-                    .arg(::ext_php_rs::args::Arg::of::<i64>("rest").is_variadic())
+                    .arg(::ext_php_rs::internal::argument::arg::<i64, _>("first"))
+                    .arg(
+                        ::ext_php_rs::internal::argument::arg::<i64, _>("rest")
+                            .is_variadic(),
+                    )
                     .required_args(__REQUIRED)
                     .returns(
                         <i64 as ::ext_php_rs::convert::IntoZval>::TYPE,
@@ -280,8 +352,10 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_bump {
             {
                 const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                     &[
-                        <ext_php_rs::types::PhpRef as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
-                            || false,
+                        ::ext_php_rs::internal::argument::nullable::<
+                            ext_php_rs::types::PhpRef,
+                            _,
+                        >() || false,
                     ],
                 );
                 ::ext_php_rs::builders::FunctionBuilder::new(
@@ -305,20 +379,37 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_bump {
                                             };
                                             return;
                                         }
-                                        let target: ext_php_rs::types::PhpRef = {
-                                            let __value = if 0usize < __REQUIRED || __num_args > 0usize
-                                            {
-                                                let __zval_0 = unsafe { ex.zend_call_arg(0usize) };
-                                                let Some(__zval_0) = __zval_0 else {
-                                                    return;
-                                                };
-                                                <ext_php_rs::types::PhpRef as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                    __zval_0.dereference_mut(),
-                                                )
-                                            } else {
-                                                <ext_php_rs::types::PhpRef as ::ext_php_rs::convert::FromZvalMut>::from_missing()
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_target = ::ext_php_rs::internal::argument::holder::<
+                                            ext_php_rs::types::PhpRef,
+                                            _,
+                                        >();
+                                        let target: ext_php_rs::types::PhpRef = if 0usize
+                                            < __REQUIRED || __num_args > 0usize
+                                        {
+                                            let __zval_0 = unsafe { ex.zend_call_arg(0usize) };
+                                            let Some(__zval_0) = __zval_0 else {
+                                                return;
                                             };
-                                            match __value {
+                                            match ::ext_php_rs::internal::argument::extract::<
+                                                ext_php_rs::types::PhpRef,
+                                                _,
+                                            >(__zval_0.dereference_mut(), &mut __holder_target) {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                            "target",
+                                                            &error,
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        } else {
+                                            match ::ext_php_rs::internal::argument::missing::<
+                                                ext_php_rs::types::PhpRef,
+                                                _,
+                                            >() {
                                                 Some(value) => value,
                                                 None => {
                                                     ::ext_php_rs::exception::PhpException::new(
@@ -343,9 +434,165 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_bump {
                         },
                     )
                     .arg(
-                        ::ext_php_rs::args::Arg::of::<
+                        ::ext_php_rs::internal::argument::arg::<
                             ext_php_rs::types::PhpRef,
+                            _,
                         >("target"),
+                    )
+                    .required_args(__REQUIRED)
+                    .returns(::ext_php_rs::flags::DataType::Void, false, false)
+            }
+        }
+        entry
+    };
+}
+pub fn merge(target: &mut Counter, source: Option<&Counter>) {}
+#[doc(hidden)]
+#[allow(non_camel_case_types)]
+struct _internal_merge;
+impl ::ext_php_rs::internal::function::PhpFunction for _internal_merge {
+    const FUNCTION_ENTRY: fn() -> ::ext_php_rs::builders::FunctionBuilder<'static> = {
+        fn entry() -> ::ext_php_rs::builders::FunctionBuilder<'static> {
+            {
+                const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                    &[
+                        ::ext_php_rs::internal::argument::nullable::<&mut Counter, _>()
+                            || false,
+                        ::ext_php_rs::internal::argument::nullable::<
+                            Option<&Counter>,
+                            _,
+                        >() || false,
+                    ],
+                );
+                ::ext_php_rs::builders::FunctionBuilder::new(
+                        "merge",
+                        {
+                            #[allow(clippy::used_underscore_binding)]
+                            extern "C" fn handler(
+                                ex: &mut ::ext_php_rs::zend::ExecuteData,
+                                retval: &mut ::ext_php_rs::types::Zval,
+                            ) {
+                                ::ext_php_rs::zend::run_handler(
+                                    ::std::panic::AssertUnwindSafe(|| {
+                                        use ::ext_php_rs::convert::{FromZvalMut, IntoZval};
+                                        let __num_args = unsafe { ex.This.u2.num_args } as usize;
+                                        if !(__REQUIRED..=2usize).contains(&__num_args) {
+                                            unsafe {
+                                                ::ext_php_rs::ffi::zend_wrong_parameters_count_error(
+                                                    __REQUIRED.try_into().unwrap_or(u32::MAX),
+                                                    2u32,
+                                                );
+                                            };
+                                            return;
+                                        }
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_target = ::ext_php_rs::internal::argument::holder::<
+                                            &mut Counter,
+                                            _,
+                                        >();
+                                        let target: &mut Counter = if 0usize < __REQUIRED
+                                            || __num_args > 0usize
+                                        {
+                                            let __zval_0 = unsafe { ex.zend_call_arg(0usize) };
+                                            let Some(__zval_0) = __zval_0 else {
+                                                return;
+                                            };
+                                            match ::ext_php_rs::internal::argument::extract::<
+                                                &mut Counter,
+                                                _,
+                                            >(__zval_0.dereference_mut(), &mut __holder_target) {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                            "target",
+                                                            &error,
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        } else {
+                                            match ::ext_php_rs::internal::argument::missing::<
+                                                &mut Counter,
+                                                _,
+                                            >() {
+                                                Some(value) => value,
+                                                None => {
+                                                    ::ext_php_rs::exception::PhpException::new(
+                                                            "Invalid value given for argument `target`.".into(),
+                                                            0,
+                                                            ::ext_php_rs::zend::ce::type_error(),
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        };
+                                        #[allow(non_snake_case)]
+                                        let mut __holder_source = ::ext_php_rs::internal::argument::holder::<
+                                            Option<&Counter>,
+                                            _,
+                                        >();
+                                        let source: Option<&Counter> = if 1usize < __REQUIRED
+                                            || __num_args > 1usize
+                                        {
+                                            let __zval_1 = unsafe { ex.zend_call_arg(1usize) };
+                                            let Some(__zval_1) = __zval_1 else {
+                                                return;
+                                            };
+                                            match ::ext_php_rs::internal::argument::extract::<
+                                                Option<&Counter>,
+                                                _,
+                                            >(__zval_1.dereference_mut(), &mut __holder_source) {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                            "source",
+                                                            &error,
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        } else {
+                                            match ::ext_php_rs::internal::argument::missing::<
+                                                Option<&Counter>,
+                                                _,
+                                            >() {
+                                                Some(value) => value,
+                                                None => {
+                                                    ::ext_php_rs::exception::PhpException::new(
+                                                            "Invalid value given for argument `source`.".into(),
+                                                            0,
+                                                            ::ext_php_rs::zend::ce::type_error(),
+                                                        )
+                                                        .throw();
+                                                    return;
+                                                }
+                                            }
+                                        };
+                                        let __result = { merge(target, source) };
+                                        if let Err(e) = __result.set_zval(retval, false) {
+                                            let e: ::ext_php_rs::exception::PhpException = e.into();
+                                            e.throw();
+                                        }
+                                    }),
+                                );
+                            }
+                            handler
+                        },
+                    )
+                    .arg(
+                        ::ext_php_rs::internal::argument::arg::<
+                            &mut Counter,
+                            _,
+                        >("target"),
+                    )
+                    .arg(
+                        ::ext_php_rs::internal::argument::arg::<
+                            Option<&Counter>,
+                            _,
+                        >("source"),
                     )
                     .required_args(__REQUIRED)
                     .returns(::ext_php_rs::flags::DataType::Void, false, false)

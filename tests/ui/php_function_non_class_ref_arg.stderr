@@ -1,0 +1,143 @@
+error[E0277]: `&NotAClass` cannot be used as a PHP function argument
+ --> tests/ui/php_function_non_class_ref_arg.rs:6:21
+  |
+6 | pub fn read(_value: &NotAClass) {}
+  |                     ^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&NotAClass`
+  |
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&NotAClass`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+note: required by a bound in `ext_php_rs::internal::argument::arg`
+ --> src/internal/argument.rs
+  |
+  | pub fn arg<'z, 'a, 'h, T, const FROM_ZVAL: bool>(name: impl Into<String>) -> Arg<'z>
+  |        --- required by a bound in this function
+  | where
+  |     T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `arg`
+
+error[E0277]: `&NotAClass` cannot be used as a PHP function argument
+ --> tests/ui/php_function_non_class_ref_arg.rs:6:21
+  |
+6 | pub fn read(_value: &NotAClass) {}
+  |                     ^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&NotAClass`
+  |
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&NotAClass`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+note: required by a bound in `ext_php_rs::internal::argument::nullable`
+ --> src/internal/argument.rs
+  |
+  | pub const fn nullable<'a, 'h, T, const FROM_ZVAL: bool>() -> bool
+  |              -------- required by a bound in this function
+  | where
+  |     T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `nullable`
+
+error[E0277]: `&NotAClass` cannot be used as a PHP function argument
+ --> tests/ui/php_function_non_class_ref_arg.rs:6:21
+  |
+6 | pub fn read(_value: &NotAClass) {}
+  |                     ^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&NotAClass`
+  |
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&NotAClass`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+note: required by a bound in `ext_php_rs::internal::argument::holder`
+ --> src/internal/argument.rs
+  |
+  | pub fn holder<'a, 'h, T, const FROM_ZVAL: bool>() -> T::Holder
+  |        ------ required by a bound in this function
+  | where
+  |     T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `holder`
+
+error[E0277]: `&NotAClass` cannot be used as a PHP function argument
+ --> tests/ui/php_function_non_class_ref_arg.rs:6:21
+  |
+6 | pub fn read(_value: &NotAClass) {}
+  |                     ^ no `FromZval` or `FromZvalMut` implementation for `&NotAClass`
+  |
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&NotAClass`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+
+error[E0277]: `&NotAClass` cannot be used as a PHP function argument
+ --> tests/ui/php_function_non_class_ref_arg.rs:6:13
+  |
+6 | pub fn read(_value: &NotAClass) {}
+  |             ^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&NotAClass`
+  |
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&NotAClass`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`

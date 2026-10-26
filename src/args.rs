@@ -59,11 +59,20 @@ impl<'a> Arg<'a> {
     ///
     /// * `name` - The name of the parameter.
     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
+        Self::typed(name, T::TYPE, T::NULLABLE, T::BY_REF)
+    }
+
+    pub(crate) fn typed(
+        name: impl Into<String>,
+        r#type: DataType,
+        allow_null: bool,
+        as_ref: bool,
+    ) -> Self {
         Arg {
             name: name.into(),
-            r#type: T::TYPE,
-            as_ref: T::BY_REF,
-            allow_null: T::NULLABLE,
+            r#type,
+            as_ref,
+            allow_null,
             variadic: false,
             default_value: None,
             zval: None,
