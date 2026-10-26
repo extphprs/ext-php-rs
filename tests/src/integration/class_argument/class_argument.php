@@ -62,3 +62,14 @@ assert(thrown(fn() => $first->add(new stdClass()))
 assert(thrown(fn() => $first->add(null))
 === 'TypeError: Invalid value given for argument `other`.', 'null as a &T parameter');
 assert($first->count() === 18, 'the failed calls left the object unchanged');
+
+assert($first->addAll($second, $second) === 44, '&T and variadic ClassRef parameters on a &mut self method');
+assert($first->bumpWhileCalling(fn() => thrown(fn() => arg_counter_total($second, $first)))
+=== 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'an object that a method modifies in a variadic ClassRef parameter');
+assert(thrown(fn() => arg_counter_total($second, new ArgCounterWithoutParent()))
+=== 'Error: Object of class ArgCounter is not initialized', 'an object without a Rust value in a variadic ClassRef parameter');
+assert(thrown(fn() => arg_counter_total($second, new stdClass()))
+=== 'TypeError: Invalid value given for argument `counters`.', 'an object of another class in a variadic ClassRef parameter');
+assert(thrown(fn() => $first->addAll($first))
+=== 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'the receiver of a &mut self method passed as a &T parameter before a variadic');
+assert($first->count() === 45, 'the failed variadic calls left the object unchanged');
