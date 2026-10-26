@@ -41,6 +41,19 @@ pub trait FromZval<'a>: Sized {
     fn from_missing() -> Option<Self> {
         None
     }
+
+    /// Attempts to retrieve an instance of `Self` from a reference to a
+    /// [`Zval`], and tells why it failed.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::ZvalConversion`] - The value is not a `Self`.
+    /// * [`Error::Borrow`] - The value is a class object whose Rust value is
+    ///   borrowed. The implementations for `ClassRef<T>` and `ClassRefMut<T>`
+    ///   return this error.
+    fn try_from_zval(zval: &'a Zval) -> Result<Self> {
+        Self::from_zval(zval).ok_or_else(|| Error::ZvalConversion(zval.get_type()))
+    }
 }
 
 impl<'a, T> FromZval<'a> for Option<T>
@@ -58,6 +71,14 @@ where
 
     fn from_missing() -> Option<Self> {
         Some(None)
+    }
+
+    fn try_from_zval(zval: &'a Zval) -> Result<Self> {
+        match T::try_from_zval(zval) {
+            Ok(value) => Ok(Some(value)),
+            Err(_) if zval.dereference().is_null() => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 }
 

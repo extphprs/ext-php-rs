@@ -284,7 +284,11 @@ impl<'a, T: RegisteredClass> FromZval<'a> for ClassRef<'a, T> {
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
-        Self::from_zend_object(zval.object()?).ok()
+        Self::try_from_zval(zval).ok()
+    }
+
+    fn try_from_zval(zval: &'a Zval) -> Result<Self> {
+        Ok(<&ZendClassObject<T>>::try_from_zval(zval)?.try_borrow()?)
     }
 }
 
@@ -299,7 +303,11 @@ impl<'a, T: RegisteredClass> FromZval<'a> for ClassRefMut<'a, T> {
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
-        Self::from_zend_object(zval.object()?).ok()
+        Self::try_from_zval(zval).ok()
+    }
+
+    fn try_from_zval(zval: &'a Zval) -> Result<Self> {
+        Ok(<&ZendClassObject<T>>::try_from_zval(zval)?.try_borrow_mut()?)
     }
 }
 
