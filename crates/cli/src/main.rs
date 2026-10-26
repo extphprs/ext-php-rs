@@ -43,6 +43,18 @@ pub unsafe extern "C" fn _emalloc(size: usize) -> *mut c_void {
     unsafe { libc::malloc(size) }
 }
 
+/// Stub implementation of PHP's fallible `_femalloc` using system malloc.
+///
+/// # Safety
+///
+/// This function is unsafe because it directly calls libc malloc.
+/// The caller must ensure proper memory management of the returned pointer.
+#[cfg(not(windows))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn _femalloc(size: usize) -> *mut c_void {
+    unsafe { libc::malloc(size) }
+}
+
 /// Stub implementation of PHP's _efree using system free.
 ///
 /// # Safety
