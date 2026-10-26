@@ -1231,12 +1231,31 @@ impl Zval {
     /// Extracts some type from a `Zval`.
     ///
     /// This is a wrapper function around `TryFrom`.
+    ///
+    /// For `ClassRef<T>` and `ClassRefMut<T>`, `None` can also mean that the
+    /// Rust value of the object is borrowed. Use [`Zval::try_extract`] to
+    /// know the cause.
     #[must_use]
     pub fn extract<'a, T>(&'a self) -> Option<T>
     where
         T: FromZval<'a>,
     {
         FromZval::from_zval(self)
+    }
+
+    /// Extracts some type from a `Zval`, and tells why it failed.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::ZvalConversion`] - The value is not a `T`.
+    /// * [`Error::Borrow`] - The value is a class object whose Rust value is
+    ///   borrowed, for `T` a `ClassRef`, a `ClassRefMut` or an `Option` of
+    ///   them.
+    pub fn try_extract<'a, T>(&'a self) -> Result<T>
+    where
+        T: FromZval<'a>,
+    {
+        T::try_from_zval(self)
     }
 
     /// Creates a shallow clone of the [`Zval`].
