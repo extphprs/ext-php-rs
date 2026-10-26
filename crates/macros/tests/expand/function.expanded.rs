@@ -302,12 +302,11 @@ impl ::ext_php_rs::internal::function::PhpFunction for _internal_sum {
                                                 },
                                                 {
                                                     match __variadic_rest.as_deref() {
-                                                        Some(values) => values,
-                                                        None => {
-                                                            ::ext_php_rs::exception::PhpException::new(
-                                                                    "Invalid value given for argument `rest`.".into(),
-                                                                    0,
-                                                                    ::ext_php_rs::zend::ce::type_error(),
+                                                        Ok(values) => values,
+                                                        Err(error) => {
+                                                            ::ext_php_rs::internal::argument::argument_error(
+                                                                    "rest",
+                                                                    error,
                                                                 )
                                                                 .throw();
                                                             return;
