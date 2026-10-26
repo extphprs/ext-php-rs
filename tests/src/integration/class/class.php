@@ -484,6 +484,46 @@ assert(
 );
 assert($error->getPrevious() === null, 'The refused clone runs no destructor');
 
+class UncloneableDestructChild extends TestUncloneableDestruct
+{
+}
+
+class CloneableChildWithoutParent extends TestCloneableClass
+{
+    public function __construct()
+    {
+    }
+}
+
+$error = caught(fn() => clone new UncloneableDestructChild());
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Trying to clone an uncloneable object of class UncloneableDestructChild',
+    'The clone error names the runtime class'
+);
+
+if (PHP_VERSION_ID >= 80_500) {
+    $error = caught(fn() => call_user_func('clone', $uncloneable, ['x' => 1]));
+    assert(
+        $error instanceof Error
+        && $error->getMessage() === 'Trying to clone an uncloneable object of class TestUncloneableDestruct',
+        'clone() with properties reports the same error'
+    );
+}
+
+assert(
+    !( new ReflectionClass(TestUncloneableDestruct::class) )->isCloneable(),
+    'A class without Clone is not cloneable'
+);
+assert(( new ReflectionClass(TestCloneableClass::class) )->isCloneable(), 'A class with Clone is cloneable');
+
+$error = caught(fn() => clone new CloneableChildWithoutParent());
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Object of class CloneableChildWithoutParent is not initialized',
+    'Cloning an object that skipped its parent constructor names the runtime class'
+);
+
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should
 // hit the cache_slot fast path and return the same correct value.
