@@ -524,6 +524,18 @@ assert(
     'Cloning an object that skipped its parent constructor names the runtime class'
 );
 
+$anonymous = new class extends TestCloneableClass {
+    public function __construct()
+    {
+    }
+};
+$error = caught(fn() => clone $anonymous);
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Object of class TestCloneableClass@anonymous is not initialized',
+    'The clone error names an anonymous class like the engine does'
+);
+
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should
 // hit the cache_slot fast path and return the same correct value.
