@@ -36,6 +36,10 @@ void ext_php_rs_zend_object_release(zend_object *obj) {
   zend_object_release(obj);
 }
 
+void ext_php_rs_zend_object_store_ctor_failed(zend_object *obj) {
+  zend_object_store_ctor_failed(obj);
+}
+
 zend_executor_globals *ext_php_rs_executor_globals() {
 #ifdef ZTS
 #ifdef ZEND_ENABLE_STATIC_TSRMLS_CACHE

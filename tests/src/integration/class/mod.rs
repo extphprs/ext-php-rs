@@ -806,6 +806,35 @@ impl TestUncloneableClass {
     }
 }
 
+#[php_class]
+pub struct TestUncloneableDestruct;
+
+#[php_impl]
+impl TestUncloneableDestruct {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    pub fn __destruct(&self) {}
+}
+
+#[php_class]
+#[derive(Clone)]
+pub struct TestCloneableDestruct;
+
+#[php_impl]
+impl TestCloneableDestruct {
+    pub fn __construct() -> Self {
+        Self
+    }
+
+    pub fn __destruct(&self) {}
+
+    pub fn call_while_modifying(&mut self, callback: &Zval) -> PhpResult<Zval> {
+        Ok(callback.try_call(vec![])?)
+    }
+}
+
 const HIDDEN: ext_php_rs::flags::PropertyFlags = ext_php_rs::flags::PropertyFlags::Private;
 
 #[php_class]
@@ -845,6 +874,8 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestChildClass>()
         .class::<TestCloneableClass>()
         .class::<TestUncloneableClass>()
+        .class::<TestUncloneableDestruct>()
+        .class::<TestCloneableDestruct>()
         .class::<TestExceptionMessageLeak>()
         .class::<TestOptionalProp>()
         .class::<TestPropSemantics>()

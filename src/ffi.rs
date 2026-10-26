@@ -25,6 +25,7 @@ unsafe extern "C" {
     pub fn ext_php_rs_php_build_id() -> *const c_char;
     pub fn ext_php_rs_zend_object_alloc(obj_size: usize, ce: *mut zend_class_entry) -> *mut c_void;
     pub fn ext_php_rs_zend_object_release(obj: *mut zend_object);
+    pub fn ext_php_rs_zend_object_store_ctor_failed(obj: *mut zend_object);
     pub fn ext_php_rs_executor_globals() -> *mut zend_executor_globals;
     pub fn ext_php_rs_compiler_globals() -> *mut zend_compiler_globals;
     pub fn ext_php_rs_process_globals() -> *mut php_core_globals;

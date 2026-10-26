@@ -9,11 +9,12 @@ use crate::{
     exception::PhpResult,
     ffi::{
         BP_VAR_IS, BP_VAR_R, ZEND_ACC_STATIC, ext_php_rs_executor_globals,
-        instanceof_function_slow, std_object_handlers, zend_class_entry, zend_hash_find,
-        zend_hash_str_find, zend_is_true, zend_object_handlers, zend_object_std_dtor,
-        zend_objects_clone_members, zend_property_info, zend_std_compare_objects,
-        zend_std_get_properties, zend_std_get_property_ptr_ptr, zend_std_has_property,
-        zend_std_read_property, zend_std_unset_property, zend_std_write_property, zend_throw_error,
+        ext_php_rs_zend_object_store_ctor_failed, instanceof_function_slow, std_object_handlers,
+        zend_class_entry, zend_hash_find, zend_hash_str_find, zend_is_true, zend_object_handlers,
+        zend_object_std_dtor, zend_objects_clone_members, zend_property_info,
+        zend_std_compare_objects, zend_std_get_properties, zend_std_get_property_ptr_ptr,
+        zend_std_has_property, zend_std_read_property, zend_std_unset_property,
+        zend_std_write_property, zend_throw_error,
     },
     flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
@@ -216,13 +217,19 @@ impl ZendObjectHandlers {
 
     /// A fresh uninitialised object for the error paths of `clone_obj`: PHP calls
     /// `OBJ_RELEASE` on whatever `clone_obj` returns once an exception is pending,
-    /// so the original must never be handed back. `free_obj` accepts the `None`
-    /// backing.
+    /// so the original must never be handed back. It is marked as a failed
+    /// construction, so the engine frees it without calling `__destruct`.
+    /// `free_obj` accepts the `None` backing.
     fn released_placeholder<T: RegisteredClass>() -> *mut ZendObject {
         let empty = ZendClassObject::<T>::new_uninit(None);
         let raw = empty.into_raw();
-        // SAFETY: `into_raw` yields a valid object the engine takes over.
-        unsafe { &raw mut (*raw).std }
+        // SAFETY: `into_raw` yields a valid object the engine takes over, and
+        // nothing else references it yet.
+        unsafe {
+            let object = &raw mut (*raw).std;
+            ext_php_rs_zend_object_store_ctor_failed(object);
+            object
+        }
     }
 
     #[allow(clippy::items_after_statements)]

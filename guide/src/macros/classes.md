@@ -869,6 +869,9 @@ $obj = new MyClass();
 $copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
 ```
 
+A `clone` of an object that one of its methods modifies at that time throws an
+`Error`. When a clone fails, PHP does not call `__destruct` on the failed copy.
+
 ## Implementing Iterator
 
 To make a Rust class usable with PHP's `foreach` loop, implement the
