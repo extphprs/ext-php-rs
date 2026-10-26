@@ -17,7 +17,9 @@ function thrown(Closure $call): string
 
 final class ArgCounterWithoutParent extends ArgCounter
 {
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 }
 
 $first = new ArgCounter(2, 'first');
@@ -33,51 +35,30 @@ assert($first->giveMaybe(null) === -1, 'Option<&mut T> parameter given null');
 assert($first->giveMaybe($second) === 13, 'Option<&mut T> parameter given an object');
 assert(ArgCounter::sum($first, $second) === 18, '&T parameters on a static method');
 assert(ArgCounter::sum($first, $first) === 10, 'the same object as two &T parameters');
-assert((new ArgView($second))->count() === 13, '&T parameter on a constructor');
+assert(( new ArgView($second) )->count() === 13, '&T parameter on a constructor');
 assert($first->peerTotal($second) === 18, '&T parameter on an interface method');
 assert($first instanceof Peer);
 assert(arg_counter_pair($first, $second) === 18, '&mut T and &T parameters on a function');
 assert(arg_counter_label($second) === 'second', 'a result that borrows a &T parameter');
 assert(arg_counter_total($first, $second) === 31, 'variadic ClassRef parameters');
 
-assert(
-    thrown(fn() => $first->add($first))
-        === 'Error: Cannot use object of class ArgCounter while one of its methods modifies it',
-    'the receiver of a &mut self method passed as a &T parameter',
-);
-assert(
-    thrown(fn() => $first->give($first)) === 'Error: Cannot modify object of class ArgCounter while it is in use',
-    'the receiver of a &self method passed as a &mut T parameter',
-);
-assert(
-    thrown(fn() => arg_counter_pair($first, $first))
-        === 'Error: Cannot use object of class ArgCounter while one of its methods modifies it',
-    'the same object as a &mut T and a &T parameter',
-);
-assert(
-    thrown(fn() => arg_counter_read($first, fn() => $first->bump()))
-        === 'Error: Cannot modify object of class ArgCounter while it is in use',
-    'a callback that modifies an object borrowed as a &T parameter',
-);
+assert(thrown(fn() => $first->add($first))
+=== 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'the receiver of a &mut self method passed as a &T parameter');
+assert(thrown(fn() => $first->give($first))
+=== 'Error: Cannot modify object of class ArgCounter while it is in use', 'the receiver of a &self method passed as a &mut T parameter');
+assert(thrown(fn() => arg_counter_pair($first, $first))
+=== 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'the same object as a &mut T and a &T parameter');
+assert(thrown(fn() => arg_counter_read($first, fn() => $first->bump()))
+=== 'Error: Cannot modify object of class ArgCounter while it is in use', 'a callback that modifies an object borrowed as a &T parameter');
 $first->setCallback(fn() => $first->bump());
-assert(
-    thrown(fn() => $second->runCallbackOf($first))
-        === 'Error: Cannot modify object of class ArgCounter while it is in use',
-    'a callback stored in a &T parameter that modifies it',
-);
+assert(thrown(fn() => $second->runCallbackOf($first))
+=== 'Error: Cannot modify object of class ArgCounter while it is in use', 'a callback stored in a &T parameter that modifies it');
 assert(arg_counter_read($first, fn() => $first->count()) === 18, 'a callback that reads a &T parameter');
 
-assert(
-    thrown(fn() => $first->add(new ArgCounterWithoutParent()))
-        === 'Error: Object of class ArgCounter is not initialized',
-    'an object without a Rust value as a &T parameter',
-);
-assert(
-    thrown(fn() => $first->add(new stdClass())) === 'TypeError: Invalid value given for argument `other`.',
-    'an object of another class as a &T parameter',
-);
-assert(
-    thrown(fn() => $first->add(null)) === 'TypeError: Invalid value given for argument `other`.',
-    'null as a &T parameter',
-);
+assert(thrown(fn() => $first->add(new ArgCounterWithoutParent()))
+=== 'Error: Object of class ArgCounter is not initialized', 'an object without a Rust value as a &T parameter');
+assert(thrown(fn() => $first->add(new stdClass()))
+=== 'TypeError: Invalid value given for argument `other`.', 'an object of another class as a &T parameter');
+assert(thrown(fn() => $first->add(null))
+=== 'TypeError: Invalid value given for argument `other`.', 'null as a &T parameter');
 assert($first->count() === 18, 'the failed calls left the object unchanged');
