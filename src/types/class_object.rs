@@ -96,6 +96,22 @@ impl<T: RegisteredClass> ZendClassObject<T> {
         unsafe { ZBox::from_raw(obj) }
     }
 
+    /// Creates an object of the class of `source` that holds `val`, and copies
+    /// the properties of `source` into it, like `zend_objects_clone_obj`.
+    ///
+    /// # Safety
+    ///
+    /// `source` points to a live object.
+    pub(crate) unsafe fn new_clone(val: T, source: *mut ZendObject) -> ZBox<Self> {
+        // SAFETY: the class entry of a live object outlives the object.
+        let ce = unsafe { (*source).ce.as_ref() };
+        let mut new = Self::internal_new(Some(val), ce);
+        // SAFETY: `new` has the class of `source`, so both objects have the
+        // same number of property slots.
+        unsafe { zend_objects_clone_members(&raw mut new.std, source) };
+        new
+    }
+
     /// Initializes the class object with the value `val`.
     ///
     /// # Parameters
@@ -352,10 +368,8 @@ impl<T: RegisteredClass + Clone> Clone for ZBox<ZendClassObject<T>> {
             Ok(value) => T::clone(&value),
             Err(err) => panic!("{err}"),
         };
-        let mut new = ZendClassObject::new(value);
-        // SAFETY: both objects are live, and the source guard is released.
-        unsafe { zend_objects_clone_members(&raw mut new.std, (&raw const self.std).cast_mut()) };
-        new
+        // SAFETY: `self` is live, and the source guard is released.
+        unsafe { ZendClassObject::new_clone(value, (&raw const self.std).cast_mut()) }
     }
 }
 

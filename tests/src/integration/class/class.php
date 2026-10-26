@@ -536,6 +536,25 @@ assert(
     'The clone error names an anonymous class like the engine does'
 );
 
+class CloneableChildWithProperties extends TestCloneableClass
+{
+    public array $tags = ['first'];
+    public int $clones = 0;
+
+    public function __clone()
+    {
+        $this->clones++;
+    }
+}
+
+$child = new CloneableChildWithProperties(7, 'child');
+$child->tags[] = 'second';
+$copy = clone $child;
+assert($copy instanceof CloneableChildWithProperties, 'The clone of a subclass keeps its class');
+assert($copy->tags === ['first', 'second'], 'The clone copies the properties of the subclass');
+assert($copy->clones === 1 && $child->clones === 0, 'The clone calls __clone of the subclass');
+assert($copy->value === 7 && $copy->name === 'child', 'The clone copies the Rust value');
+
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should
 // hit the cache_slot fast path and return the same correct value.
