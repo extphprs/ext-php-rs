@@ -455,6 +455,35 @@ assert($manual->copies === 0);
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
 
+function caught(Closure $call): ?Throwable
+{
+    try {
+        $call();
+    } catch (Throwable $throwable) {
+        return $throwable;
+    }
+
+    return null;
+}
+
+$uncloneable = new TestUncloneableDestruct();
+$error = caught(fn() => clone $uncloneable);
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Trying to clone an uncloneable object of class TestUncloneableDestruct',
+    'An uncloneable class reports the clone error itself'
+);
+assert($error->getPrevious() === null, 'A failed clone runs no destructor');
+
+$cloneable = new TestCloneableDestruct();
+$error = $cloneable->callWhileModifying(fn() => caught(fn() => clone $cloneable));
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Cannot use object of class TestCloneableDestruct while one of its methods modifies it',
+    'Cloning an object while a method modifies it is refused'
+);
+assert($error->getPrevious() === null, 'The refused clone runs no destructor');
+
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should
 // hit the cache_slot fast path and return the same correct value.
