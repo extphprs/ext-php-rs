@@ -48,12 +48,12 @@ assert(thrown(fn() => $first->give($first))
 === 'Error: Cannot modify object of class ArgCounter while it is in use', 'the receiver of a &self method passed as a &mut T parameter');
 assert(thrown(fn() => arg_counter_pair($first, $first))
 === 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'the same object as a &mut T and a &T parameter');
-assert(thrown(fn() => arg_counter_read($first, fn() => $first->bump()))
+assert(thrown(fn() => arg_counter_read($first, $first->bump(...)))
 === 'Error: Cannot modify object of class ArgCounter while it is in use', 'a callback that modifies an object borrowed as a &T parameter');
-$first->setCallback(fn() => $first->bump());
+$first->setCallback($first->bump(...));
 assert(thrown(fn() => $second->runCallbackOf($first))
 === 'Error: Cannot modify object of class ArgCounter while it is in use', 'a callback stored in a &T parameter that modifies it');
-assert(arg_counter_read($first, fn() => $first->count()) === 18, 'a callback that reads a &T parameter');
+assert(arg_counter_read($first, $first->count(...)) === 18, 'a callback that reads a &T parameter');
 
 assert(thrown(fn() => $first->add(new ArgCounterWithoutParent()))
 === 'Error: Object of class ArgCounter is not initialized', 'an object without a Rust value as a &T parameter');
