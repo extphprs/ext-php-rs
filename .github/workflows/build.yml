@@ -272,21 +272,13 @@ jobs:
 
       - name: Install libphp-embed
         if: matrix.phpts == 'nts'
-        # The GitHub runner image no longer ships the ondrej PPA, and setup-php
-        # uses its cached PHP build. Add the PPA and its "main/debug" component
-        # (where libphp*-embed-dbgsym lives) so the embed library resolves.
         run: |
-          sudo add-apt-repository -y ppa:ondrej/php
-          src=$(grep -rlE 'ondrej' /etc/apt/sources.list.d/ | head -n1)
-          if [ -n "$src" ] && ! grep -q 'main/debug' "$src"; then
-            if [ "${src##*.}" = "sources" ]; then
-              sudo sed -i -E '/^Components:/ s#$# main/debug#' "$src"
-            else
-              sudo sed -i -E 's#(^deb .* )main([[:space:]]*$)#\1main main/debug\2#' "$src"
-            fi
+          if ! grep -rqs 'packages.sury.org/php' /etc/apt/sources.list.d/; then
+            sudo curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg
+            echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ $(. /etc/os-release && echo "$VERSION_CODENAME") main" | sudo tee /etc/apt/sources.list.d/sury-php.list
           fi
           sudo apt-get update -y
-          sudo apt-get install -y libphp${{ env.php_version }}-embed-dbgsym
+          sudo apt-get install -y libphp${{ env.php_version }}-embed
 
       - name: Install cargo-expand
         uses: dtolnay/install@cargo-expand
@@ -447,21 +439,13 @@ jobs:
           debug: true
 
       - name: Install libphp-embed
-        # The GitHub runner image no longer ships the ondrej PPA, and setup-php
-        # uses its cached PHP build. Add the PPA and its "main/debug" component
-        # (where libphp*-embed-dbgsym lives) so the embed library resolves.
         run: |
-          sudo add-apt-repository -y ppa:ondrej/php
-          src=$(grep -rlE 'ondrej' /etc/apt/sources.list.d/ | head -n1)
-          if [ -n "$src" ] && ! grep -q 'main/debug' "$src"; then
-            if [ "${src##*.}" = "sources" ]; then
-              sudo sed -i -E '/^Components:/ s#$# main/debug#' "$src"
-            else
-              sudo sed -i -E 's#(^deb .* )main([[:space:]]*$)#\1main main/debug\2#' "$src"
-            fi
+          if ! grep -rqs 'packages.sury.org/php' /etc/apt/sources.list.d/; then
+            sudo curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg
+            echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ $(. /etc/os-release && echo "$VERSION_CODENAME") main" | sudo tee /etc/apt/sources.list.d/sury-php.list
           fi
           sudo apt-get update -y
-          sudo apt-get install -y libphp${{ env.php_version }}-embed-dbgsym
+          sudo apt-get install -y libphp${{ env.php_version }}-embed
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@master
