@@ -11,12 +11,14 @@ use darling::FromMeta;
 use darling::util::SpannedValue;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::spanned::Spanned as _;
 use syn::{FnArg, ImplItem, ItemImpl, Pat, ReturnType};
 
-use crate::function::invalid_argument;
+use crate::function::{extract_call, invalid_argument, new_holder};
 use crate::interface::{method_name_const, method_sensitive_const};
 use crate::parsing::{RenameRule, ident_to_php_name, reject_php_attrs};
 use crate::prelude::*;
+use crate::syn_ext::DropLifetimes;
 
 /// Attributes for the `#[php_impl_interface]` macro.
 #[derive(FromMeta, Default, Debug)]
@@ -179,53 +181,68 @@ fn generate_method_builder(
     let positioned_args: Vec<_> = typed_args
         .enumerate()
         .filter_map(|(position, pat_type)| match &*pat_type.pat {
-            Pat::Ident(pat_ident) => Some((position, &pat_ident.ident, &pat_type.ty)),
+            Pat::Ident(pat_ident) => {
+                let mut ty = (*pat_type.ty).clone();
+                ty.drop_lifetimes();
+                let span = pat_type.ty.span();
+                let holder = new_holder(&ty, span);
+                Some((position, (&pat_ident.ident, ty, holder, span)))
+            }
             _ => None,
         })
         .collect();
-    let args: Vec<_> = positioned_args
-        .iter()
-        .map(|(_, name, ty)| (*name, *ty))
-        .collect();
+    let args: Vec<_> = positioned_args.iter().map(|(_, arg)| arg).collect();
 
-    // The required count follows each parameter's `FromZvalMut::NULLABLE`, so
-    // an alias of `Option<T>` behaves like `Option<T>`. An `Option<T>` before a
-    // required parameter stays required.
+    // The required count follows each parameter's `FunctionArgument::NULLABLE`,
+    // so an alias of `Option<T>` behaves like `Option<T>`. An `Option<T>`
+    // before a required parameter stays required.
     let omittable = args
         .iter()
-        .map(|(_, ty)| quote! { <#ty as ::ext_php_rs::convert::FromZvalMut>::NULLABLE });
+        .map(|(_, ty, _, _)| quote! { ::ext_php_rs::internal::argument::nullable::<#ty, _>() });
     let required = quote! {
         const __REQUIRED: usize = ::ext_php_rs::args::required_count(&[#(#omittable),*]);
     };
 
     let arg_declarations: Vec<_> = args
         .iter()
-        .map(|(name, ty)| {
+        .map(|(name, ty, new_holder, _)| {
             let php_name = ident_to_php_name(name);
+            let holder = format_ident!("__holder_{}", name);
             quote! {
-                let mut #name = ::ext_php_rs::args::Arg::of::<#ty>(#php_name);
+                let mut #name = ::ext_php_rs::internal::argument::arg::<#ty, _>(#php_name);
+                #[allow(non_snake_case)]
+            let mut #holder = #new_holder;
             }
         })
         .collect();
 
-    let arg_names: Vec<_> = args.iter().map(|(name, _)| name).collect();
+    let arg_names: Vec<_> = args.iter().map(|(name, _, _, _)| name).collect();
 
     // Value accessors that extract values from the Arg objects after parsing.
-    // An omitted argument takes `FromZvalMut::from_missing()`.
+    // An omitted argument takes `FunctionArgument::missing()`.
     let arg_value_accessors: Vec<_> = args
         .iter()
-        .map(|(name, ty)| {
+        .map(|(name, ty, _, span)| {
             let invalid = invalid_argument(name);
+            let holder = format_ident!("__holder_{}", name);
+            let extract = extract_call(ty, *span, &quote! { zval.dereference_mut() }, &holder);
+            let php_name = ident_to_php_name(name);
             quote! {
-                let #name: #ty = match match #name.zval() {
-                    Some(zval) => <#ty as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(zval.dereference_mut()),
-                    None => <#ty as ::ext_php_rs::convert::FromZvalMut>::from_missing(),
-                } {
-                    Some(value) => value,
-                    None => {
-                        #invalid.throw();
-                        return;
-                    }
+                let #name: #ty = match #name.zval() {
+                    Some(zval) => match #extract {
+                        Ok(value) => value,
+                        Err(error) => {
+                            ::ext_php_rs::internal::argument::argument_error(#php_name, &error).throw();
+                            return;
+                        }
+                    },
+                    None => match ::ext_php_rs::internal::argument::missing::<#ty, _>() {
+                        Some(value) => value,
+                        None => {
+                            #invalid.throw();
+                            return;
+                        }
+                    },
                 };
             }
         })
@@ -234,11 +251,11 @@ fn generate_method_builder(
     // Generate .arg() calls for PHP reflection metadata (for FunctionBuilder)
     let arg_builders: Vec<_> = positioned_args
         .iter()
-        .map(|(position, name, ty)| {
+        .map(|(position, (name, ty, _, _))| {
             let php_name = ident_to_php_name(name);
             quote! {
                 .arg({
-                    let arg = ::ext_php_rs::args::Arg::of::<#ty>(#php_name);
+                    let arg = ::ext_php_rs::internal::argument::arg::<#ty, _>(#php_name);
                     if #sensitive.contains(&#position) {
                         arg.sensitive()
                     } else {

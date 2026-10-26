@@ -15,3 +15,6 @@ pub fn sum(first: i64, rest: &[i64]) -> i64 {
 
 #[php_function]
 pub fn bump(target: ext_php_rs::types::PhpRef<'_>) {}
+
+#[php_function]
+pub fn merge(target: &mut Counter, source: Option<&Counter>) {}
