@@ -197,6 +197,14 @@ impl<T: RegisteredClass> ZendClassObject<T> {
         unsafe { Self::resolve(ptr::from_ref(std), false)?.as_ref() }
     }
 
+    /// The [`ZendClassObject`] in `zval`, even if the Rust object is not
+    /// initialized, so a borrow reports [`BorrowError::Uninitialized`].
+    pub(crate) fn from_zval_uninit(zval: &Zval) -> Result<&Self> {
+        zval.object()
+            .and_then(Self::from_zend_obj_uninit)
+            .ok_or_else(|| Error::ZvalConversion(zval.get_type()))
+    }
+
     /// Resolves the [`ZendClassObject`] containing `std`, validating that the
     /// object was created by this type's `create_object` handler.
     ///
@@ -288,7 +296,7 @@ impl<'a, T: RegisteredClass> FromZval<'a> for ClassRef<'a, T> {
     }
 
     fn try_from_zval(zval: &'a Zval) -> Result<Self> {
-        Ok(<&ZendClassObject<T>>::try_from_zval(zval)?.try_borrow()?)
+        Ok(ZendClassObject::<T>::from_zval_uninit(zval)?.try_borrow()?)
     }
 }
 
@@ -307,7 +315,7 @@ impl<'a, T: RegisteredClass> FromZval<'a> for ClassRefMut<'a, T> {
     }
 
     fn try_from_zval(zval: &'a Zval) -> Result<Self> {
-        Ok(<&ZendClassObject<T>>::try_from_zval(zval)?.try_borrow_mut()?)
+        Ok(ZendClassObject::<T>::from_zval_uninit(zval)?.try_borrow_mut()?)
     }
 }
 

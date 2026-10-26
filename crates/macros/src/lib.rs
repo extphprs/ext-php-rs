@@ -128,14 +128,24 @@ extern crate proc_macro;
 ///
 /// ### Class Arguments
 ///
-/// A parameter of a `#[php_class]` type is a borrow guard:
+/// A parameter of a `#[php_class]` type borrows the Rust value of the object:
 ///
-/// - `ClassRef<Foo>` gives shared access to the value.
-/// - `ClassRefMut<Foo>` gives exclusive access to the value.
+/// - `&Foo` gives shared access to the value.
+/// - `&mut Foo` gives exclusive access to the value.
+/// - `Option<&Foo>` and `Option<&mut Foo>` also accept `null`.
 ///
-/// The guard keeps the borrow until the function returns. A `&Foo` or a `&mut
-/// Foo` parameter does not compile. If two parameters get the same object and
-/// the borrows conflict, PHP throws a `TypeError`.
+/// The borrow starts before the function body and stops when the function
+/// returns. The rules of [Access to the Rust Value](#access-to-the-rust-value)
+/// apply during the call. If two parameters, or the object of the method and a
+/// parameter, get the same object and the borrows conflict, PHP throws an
+/// `Error`.
+///
+/// The borrow guards `ClassRef<Foo>` and `ClassRefMut<Foo>` are also parameter
+/// types. A variadic parameter must use them, for example `&[ClassRef<Foo>]`. A
+/// property setter cannot take a `&Foo` parameter.
+///
+/// A PHP fatal error during the call stops the function without the release of
+/// the borrow. The object stays borrowed until the end of the request.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -148,7 +158,7 @@ extern crate proc_macro;
 /// }
 ///
 /// #[php_function]
-/// pub fn add_to(mut target: ClassRefMut<Counter>, source: ClassRef<Counter>) -> i64 {
+/// pub fn add_to(target: &mut Counter, source: &Counter) -> i64 {
 ///     target.count += source.count;
 ///     target.count
 /// }

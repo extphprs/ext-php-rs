@@ -6,6 +6,7 @@ pub mod binary_slice;
 pub mod bool;
 pub mod callable;
 pub mod class;
+pub mod class_argument;
 pub mod closure;
 pub mod constant;
 pub mod defaults;

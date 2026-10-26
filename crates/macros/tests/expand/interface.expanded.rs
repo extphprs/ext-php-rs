@@ -47,14 +47,14 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
                         {
                             const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                                 &[
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                                    ::ext_php_rs::internal::argument::nullable::<i32, _>()
                                         || false,
                                 ],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new_abstract(
                                     "myMethod",
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg(::ext_php_rs::internal::argument::arg::<i32, _>("arg"))
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,
@@ -167,14 +167,14 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
                         {
                             const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                                 &[
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                                    ::ext_php_rs::internal::argument::nullable::<i32, _>()
                                         || false,
                                 ],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new_abstract(
                                     "MY_METHOD",
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg(::ext_php_rs::internal::argument::arg::<i32, _>("arg"))
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,
@@ -457,7 +457,7 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                     (
                         {
                             const __REQUIRED: usize = ::ext_php_rs::args::required_count(
-                                &[<i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE],
+                                &[::ext_php_rs::internal::argument::nullable::<i32, _>()],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new(
                                     <PhpInterfaceMyInterface>::__php_method_my_method,
@@ -487,7 +487,15 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                                             return;
                                                         }
                                                     };
-                                                    let mut arg = ::ext_php_rs::args::Arg::of::<i32>("arg");
+                                                    let mut arg = ::ext_php_rs::internal::argument::arg::<
+                                                        i32,
+                                                        _,
+                                                    >("arg");
+                                                    #[allow(non_snake_case)]
+                                                    let mut __holder_arg = ::ext_php_rs::internal::argument::holder::<
+                                                        i32,
+                                                        _,
+                                                    >();
                                                     let parse_result = parse
                                                         .arg(&mut arg)
                                                         .required_args(__REQUIRED)
@@ -495,25 +503,39 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                                     if parse_result.is_err() {
                                                         return;
                                                     }
-                                                    let arg: i32 = match match arg.zval() {
+                                                    let arg: i32 = match arg.zval() {
                                                         Some(zval) => {
-                                                            <i32 as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                                zval.dereference_mut(),
-                                                            )
+                                                            match ::ext_php_rs::internal::argument::extract::<
+                                                                i32,
+                                                                _,
+                                                            >(zval.dereference_mut(), &mut __holder_arg) {
+                                                                Ok(value) => value,
+                                                                Err(error) => {
+                                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                                            "arg",
+                                                                            &error,
+                                                                        )
+                                                                        .throw();
+                                                                    return;
+                                                                }
+                                                            }
                                                         }
                                                         None => {
-                                                            <i32 as ::ext_php_rs::convert::FromZvalMut>::from_missing()
-                                                        }
-                                                    } {
-                                                        Some(value) => value,
-                                                        None => {
-                                                            ::ext_php_rs::exception::PhpException::new(
-                                                                    "Invalid value given for argument `arg`.".into(),
-                                                                    0,
-                                                                    ::ext_php_rs::zend::ce::type_error(),
-                                                                )
-                                                                .throw();
-                                                            return;
+                                                            match ::ext_php_rs::internal::argument::missing::<
+                                                                i32,
+                                                                _,
+                                                            >() {
+                                                                Some(value) => value,
+                                                                None => {
+                                                                    ::ext_php_rs::exception::PhpException::new(
+                                                                            "Invalid value given for argument `arg`.".into(),
+                                                                            0,
+                                                                            ::ext_php_rs::zend::ce::type_error(),
+                                                                        )
+                                                                        .throw();
+                                                                    return;
+                                                                }
+                                                            }
                                                         }
                                                     };
                                                     let result = __payload.my_method(arg);
@@ -527,7 +549,7 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                         handler
                                     },
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg(::ext_php_rs::internal::argument::arg::<i32, _>("arg"))
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,

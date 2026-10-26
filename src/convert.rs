@@ -90,7 +90,7 @@ where
 #[diagnostic::on_unimplemented(
     message = "`{Self}` cannot be used as a PHP function argument",
     label = "no `FromZval` or `FromZvalMut` implementation for `{Self}`",
-    note = "a `#[php_class]` argument is `ClassRef<T>` or `ClassRefMut<T>`, not `&T` or `&mut T`: the guard keeps PHP re-entry from aliasing the value",
+    note = "a variadic `#[php_class]` parameter is `&[ClassRef<T>]` or `&[ClassRefMut<T>]`",
     note = "a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected"
 )]
 pub trait FromZvalMut<'a>: Sized {
@@ -122,6 +122,20 @@ pub trait FromZvalMut<'a>: Sized {
     fn from_missing() -> Option<Self> {
         None
     }
+
+    /// Attempts to retrieve an instance of `Self` from a mutable reference to a
+    /// [`Zval`], and tells why it failed.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::ZvalConversion`] - The value is not a `Self`.
+    /// * [`Error::Borrow`] - The value is a class object whose Rust value is
+    ///   borrowed. A [`FromZval`] type gives the error of
+    ///   [`FromZval::try_from_zval`].
+    fn try_from_zval_mut(zval: &'a mut Zval) -> Result<Self> {
+        let r#type = zval.get_type();
+        Self::from_zval_mut(zval).ok_or(Error::ZvalConversion(r#type))
+    }
 }
 
 impl<'a, T> FromZvalMut<'a> for T
@@ -139,6 +153,11 @@ where
     #[inline]
     fn from_missing() -> Option<Self> {
         <T as FromZval>::from_missing()
+    }
+
+    #[inline]
+    fn try_from_zval_mut(zval: &'a mut Zval) -> Result<Self> {
+        Self::try_from_zval(zval)
     }
 }
 

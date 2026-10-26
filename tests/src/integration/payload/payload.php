@@ -59,9 +59,15 @@ assert(
 assert($reentrant->callWhileReading() === 2, 'a read during a read was refused');
 
 $message = thrown(static fn() => payload_pair($reentrant, $reentrant));
-assert($message === 'TypeError: Invalid value given for argument `second`.', 'same object, mutable and shared');
+assert(
+    $message === 'Error: Cannot use object of class Reentrant while one of its methods modifies it',
+    'same object, mutable and shared'
+);
 $message = thrown(static fn() => $reentrant->absorb($reentrant));
-assert($message === 'TypeError: Invalid value given for argument `other`.', 'receiver passed as a shared argument');
+assert(
+    $message === 'Error: Cannot use object of class Reentrant while one of its methods modifies it',
+    'receiver passed as a shared argument'
+);
 assert($reentrant->absorb(new Reentrant()) === 2, 'a shared argument of another object was refused');
 
 assert(payload_extract($reentrant) === '2', 'try_extract refused a free object');
