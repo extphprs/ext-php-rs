@@ -137,31 +137,20 @@ impl<T> Default for CloneProbe<T> {
 }
 
 pub trait ProbeClone<T> {
-    fn clone_obj(self, value: &T) -> Option<T>;
-    fn cloneable(self) -> bool;
+    fn clone_fn(self) -> Option<fn(&T) -> T>;
 }
 
 impl<T: Clone> ProbeClone<T> for CloneProbe<T> {
     #[inline]
-    fn clone_obj(self, value: &T) -> Option<T> {
-        Some(value.clone())
-    }
-
-    #[inline]
-    fn cloneable(self) -> bool {
-        true
+    fn clone_fn(self) -> Option<fn(&T) -> T> {
+        Some(T::clone)
     }
 }
 
 impl<T> ProbeClone<T> for &'_ CloneProbe<T> {
     #[inline]
-    fn clone_obj(self, _: &T) -> Option<T> {
+    fn clone_fn(self) -> Option<fn(&T) -> T> {
         None
-    }
-
-    #[inline]
-    fn cloneable(self) -> bool {
-        false
     }
 }
 
