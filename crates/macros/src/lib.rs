@@ -1827,9 +1827,12 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// A slice parameter `&[T]` in last position is variadic, the equivalent of the
 /// PHP `...$args` syntax. `T` is any argument type: `&[&Zval]` receives the raw
 /// values, `&[i64]` receives converted integers. If one of the values cannot be
-/// converted into `T`, the call throws a `TypeError`. A variadic parameter that
-/// is not the last parameter is a compile error. The slice must be spelled in
-/// the signature; a type alias that hides the slice is not detected.
+/// converted into `T`, the call throws a `TypeError`. If one of the values is a
+/// class object whose Rust value is borrowed or not initialized, the call
+/// throws an `Error`, see [Class Arguments](./classes.md#class-arguments). A
+/// variadic parameter that is not the last parameter is a compile error. The
+/// slice must be spelled in the signature; a type alias that hides the slice is
+/// not detected.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]

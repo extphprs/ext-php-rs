@@ -1091,18 +1091,22 @@ impl TypedArg<'_> {
     /// Get the accessor used to access the value of the argument.
     fn accessor(&self, bail_fn: impl Fn(TokenStream) -> TokenStream) -> TokenStream {
         let name = self.name;
-        let bail_invalid = bail_fn(invalid_argument(name));
+        let php_name = ident_to_php_name(name);
         if self.variadic {
             let variadic_name = format_ident!("__variadic_{}", name);
+            let bail_error = bail_fn(quote! {
+                ::ext_php_rs::internal::argument::argument_error(#php_name, error)
+            });
             return quote! {
                 match #variadic_name.as_deref() {
-                    Some(values) => values,
-                    None => {
-                        #bail_invalid
+                    Ok(values) => values,
+                    Err(error) => {
+                        #bail_error
                     }
                 }
             };
         }
+        let bail_invalid = bail_fn(invalid_argument(name));
 
         let ty = self.clean_ty();
         let reject_null = self.default.as_ref().map(|_| {
@@ -1129,7 +1133,6 @@ impl TypedArg<'_> {
             &quote! { zval.dereference_mut() },
             &holder,
         );
-        let php_name = ident_to_php_name(name);
         let bail_error = bail_fn(quote! {
             ::ext_php_rs::internal::argument::argument_error(#php_name, &error)
         });

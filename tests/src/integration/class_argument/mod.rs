@@ -61,6 +61,16 @@ impl ArgCounter {
         other.callback.try_call(vec![])?;
         Ok(self.count)
     }
+
+    pub fn bump_while_calling(&mut self, callback: &Zval) -> PhpResult<Zval> {
+        self.count += 1;
+        Ok(callback.try_call(vec![])?)
+    }
+
+    pub fn add_all(&mut self, first: &ArgCounter, rest: &[ClassRef<ArgCounter>]) -> i64 {
+        self.count += first.count + rest.iter().map(|other| other.count).sum::<i64>();
+        self.count
+    }
 }
 
 #[php_class]
