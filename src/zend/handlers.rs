@@ -214,9 +214,8 @@ impl ZendObjectHandlers {
             }
         };
         // SAFETY: the engine passes the live object being cloned, and its class
-        // has a name. Like `ZEND_CLONE`, name the object's own class, which for a
-        // PHP subclass of `T` is the subclass. The name goes to `%s` as is: an
-        // anonymous class name contains a NUL byte, so it can't be a CString.
+        // has a name. The name goes through `%s` like in the engine's own clone
+        // error, so the name of an anonymous class stops at its NUL byte.
         unsafe {
             zend_throw_error(
                 ptr::null_mut(),
