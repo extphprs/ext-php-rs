@@ -160,6 +160,42 @@ extern crate proc_macro;
 /// # fn main() {}
 /// ```
 ///
+/// ### Class Objects in a `Zval`
+///
+/// `Zval::extract::<ClassRef<Foo>>()` gives `None` if the value is not a `Foo`.
+/// It also gives `None` if a method of the object borrows the Rust value. To
+/// know the cause, use `Zval::try_extract`:
+///
+/// - `Error::ZvalConversion` tells that the value is not a `Foo`.
+/// - `Error::Borrow` tells that the borrow conflicts with a method of the
+///   object.
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{error::Error, prelude::*, types::Zval};
+///
+/// #[php_class]
+/// pub struct Counter {
+///     count: i64,
+/// }
+///
+/// #[php_function]
+/// pub fn count_of(value: &Zval) -> PhpResult<Option<i64>> {
+///     match value.try_extract::<ClassRef<Counter>>() {
+///         Ok(counter) => Ok(Some(counter.count)),
+///         Err(Error::ZvalConversion(_)) => Ok(None),
+///         Err(err) => Err(err.into()),
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<Counter>().function(wrap_function!(count_of))
+/// }
+/// # fn main() {}
+/// ```
+///
 /// ### Call PHP Code from a Method
 ///
 /// A `&mut self` method keeps the exclusive borrow until it returns. If a PHP

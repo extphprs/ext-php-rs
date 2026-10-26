@@ -64,6 +64,18 @@ $message = thrown(static fn() => $reentrant->absorb($reentrant));
 assert($message === 'TypeError: Invalid value given for argument `other`.', 'receiver passed as a shared argument');
 assert($reentrant->absorb(new Reentrant()) === 2, 'a shared argument of another object was refused');
 
+assert(payload_extract($reentrant) === '2', 'try_extract refused a free object');
+assert(payload_extract(null) === 'null', 'try_extract refused null');
+assert(
+    str_starts_with(payload_extract(new stdClass()), 'could not convert value of type '),
+    'try_extract accepted another class'
+);
+$reentrant->setCallback(static fn() => payload_extract($reentrant));
+assert(
+    $reentrant->callWhileModifying() === 'Cannot use object of class Reentrant while one of its methods modifies it',
+    'try_extract hid the borrow conflict'
+);
+
 $emitter = new Emitter();
 $emitter->on(static function () use ($emitter): void {
     $emitter->on(static fn() => null);

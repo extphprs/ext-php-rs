@@ -97,6 +97,15 @@ pub fn payload_pair(first: ClassRefMut<Reentrant>, second: ClassRef<Reentrant>) 
     first.count + second.count
 }
 
+#[php_function]
+pub fn payload_extract(value: &Zval) -> String {
+    match value.try_extract::<Option<ClassRef<Reentrant>>>() {
+        Ok(Some(reentrant)) => reentrant.count.to_string(),
+        Ok(None) => String::from("null"),
+        Err(err) => err.to_string(),
+    }
+}
+
 #[php_class]
 pub struct Emitter {
     listeners: Vec<Zval>,
@@ -172,6 +181,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<Emitter>()
         .class::<CallsBackOnDrop>()
         .function(wrap_function!(payload_pair))
+        .function(wrap_function!(payload_extract))
 }
 
 #[cfg(test)]
