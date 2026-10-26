@@ -70,7 +70,7 @@ impl ZendObjectHandlers {
         let offset = ZendClassObject::<T>::std_offset();
         unsafe { (*ptr).offset = offset.try_into().expect("Invalid offset") };
         unsafe { (*ptr).free_obj = Some(Self::free_obj::<T>) };
-        unsafe { (*ptr).clone_obj = Some(Self::clone_obj::<T>) };
+        unsafe { (*ptr).clone_obj = T::cloneable().then_some(Self::clone_obj::<T> as _) };
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
@@ -188,31 +188,33 @@ impl ZendObjectHandlers {
             else {
                 return Ok(None);
             };
-            Ok(T::clone_obj(&*old.try_borrow()?))
+            Ok(Some(T::clone_obj(&*old.try_borrow()?)))
         });
 
-        match cloned_val {
-            Ok(Some(val)) => {
+        let message: fn(&str) -> String = match cloned_val {
+            Ok(Some(Some(val))) => {
                 let mut new = ZendClassObject::<T>::new(val);
                 unsafe { zend_objects_clone_members(&raw mut new.std, object) };
                 let raw = new.into_raw();
                 // SAFETY: `into_raw` yields a valid object the engine takes over.
-                unsafe { &raw mut (*raw).std }
+                return unsafe { &raw mut (*raw).std };
             }
-            Ok(None) => {
-                let msg = CString::new(format!(
-                    "Trying to clone an uncloneable object of class {}",
-                    T::CLASS_NAME
-                ))
-                .expect("Failed to create error message");
-                unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
-                Self::released_placeholder::<T>()
+            Ok(Some(None)) => {
+                |class| format!("Trying to clone an uncloneable object of class {class}")
             }
+            Ok(None) => |class| format!("Object of class {class} is not initialized"),
             Err(panic) => {
                 panic.throw();
-                Self::released_placeholder::<T>()
+                return Self::released_placeholder::<T>();
             }
-        }
+        };
+        // SAFETY: the engine passes the live object being cloned.
+        let class = unsafe { (*object).get_class_entry() }
+            .name()
+            .unwrap_or(T::CLASS_NAME);
+        let msg = CString::new(message(class)).expect("Failed to create error message");
+        unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
+        Self::released_placeholder::<T>()
     }
 
     /// A fresh uninitialised object for the error paths of `clone_obj`: PHP calls

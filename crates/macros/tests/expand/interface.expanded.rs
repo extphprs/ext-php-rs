@@ -376,6 +376,12 @@ impl ::ext_php_rs::class::RegisteredClass for MyImpl {
         use ::ext_php_rs::internal::class::ProbeClone as _;
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
     }
+    #[inline]
+    #[must_use]
+    fn cloneable() -> bool {
+        use ::ext_php_rs::internal::class::ProbeClone as _;
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().cloneable()
+    }
 }
 impl ::ext_php_rs::convert::IntoZendObject for MyImpl {
     #[inline]

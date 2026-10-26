@@ -115,6 +115,12 @@ impl ::ext_php_rs::class::RegisteredClass for Emitter {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
     }
     #[inline]
+    #[must_use]
+    fn cloneable() -> bool {
+        use ::ext_php_rs::internal::class::ProbeClone as _;
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().cloneable()
+    }
+    #[inline]
     fn gc_trace(&self, roots: &mut ::ext_php_rs::gc::GcRoots) {
         use ::ext_php_rs::internal::class::ProbeGcTrace as _;
         unsafe {
@@ -259,6 +265,12 @@ impl ::ext_php_rs::class::RegisteredClass for Pair {
     fn clone_obj(&self) -> ::std::option::Option<Self> {
         use ::ext_php_rs::internal::class::ProbeClone as _;
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+    }
+    #[inline]
+    #[must_use]
+    fn cloneable() -> bool {
+        use ::ext_php_rs::internal::class::ProbeClone as _;
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().cloneable()
     }
     #[inline]
     fn gc_trace(&self, roots: &mut ::ext_php_rs::gc::GcRoots) {
