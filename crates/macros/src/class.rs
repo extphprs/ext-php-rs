@@ -478,16 +478,9 @@ fn generate_registered_class_impl(
 
             #[inline]
             #[must_use]
-            fn clone_obj(&self) -> ::std::option::Option<Self> {
+            fn clone_fn() -> ::std::option::Option<fn(&Self) -> Self> {
                 use ::ext_php_rs::internal::class::ProbeClone as _;
-                ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
-            }
-
-            #[inline]
-            #[must_use]
-            fn cloneable() -> bool {
-                use ::ext_php_rs::internal::class::ProbeClone as _;
-                ::ext_php_rs::internal::class::CloneProbe::<Self>::default().cloneable()
+                ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
             }
 
             #gc_trace

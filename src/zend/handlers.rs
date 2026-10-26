@@ -69,7 +69,7 @@ impl ZendObjectHandlers {
         let offset = ZendClassObject::<T>::std_offset();
         unsafe { (*ptr).offset = offset.try_into().expect("Invalid offset") };
         unsafe { (*ptr).free_obj = Some(Self::free_obj::<T>) };
-        unsafe { (*ptr).clone_obj = T::cloneable().then_some(Self::clone_obj::<T> as _) };
+        unsafe { (*ptr).clone_obj = T::clone_fn().map(|_| Self::clone_obj::<T> as _) };
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
@@ -183,7 +183,10 @@ impl ZendObjectHandlers {
             else {
                 return Ok(None);
             };
-            Ok(Some(T::clone_obj(&*old.try_borrow()?)))
+            let Some(clone) = T::clone_fn() else {
+                return Ok(Some(None));
+            };
+            Ok(Some(Some(clone(&*old.try_borrow()?))))
         });
 
         let format = match cloned_val {
