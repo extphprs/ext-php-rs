@@ -11,10 +11,9 @@ use crate::{
         BP_VAR_IS, BP_VAR_R, ZEND_ACC_STATIC, ext_php_rs_executor_globals,
         ext_php_rs_zend_object_store_ctor_failed, instanceof_function_slow, std_object_handlers,
         zend_class_entry, zend_hash_find, zend_hash_str_find, zend_is_true, zend_object_handlers,
-        zend_object_std_dtor, zend_objects_clone_members, zend_property_info,
-        zend_std_compare_objects, zend_std_get_properties, zend_std_get_property_ptr_ptr,
-        zend_std_has_property, zend_std_read_property, zend_std_unset_property,
-        zend_std_write_property, zend_throw_error,
+        zend_object_std_dtor, zend_property_info, zend_std_compare_objects,
+        zend_std_get_properties, zend_std_get_property_ptr_ptr, zend_std_has_property,
+        zend_std_read_property, zend_std_unset_property, zend_std_write_property, zend_throw_error,
     },
     flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
@@ -189,9 +188,8 @@ impl ZendObjectHandlers {
 
         let format = match cloned_val {
             Ok(Some(Some(val))) => {
-                let mut new = ZendClassObject::<T>::new(val);
-                unsafe { zend_objects_clone_members(&raw mut new.std, object) };
-                let raw = new.into_raw();
+                // SAFETY: the engine passes the live object being cloned.
+                let raw = unsafe { ZendClassObject::<T>::new_clone(val, object) }.into_raw();
                 // SAFETY: `into_raw` yields a valid object the engine takes over.
                 return unsafe { &raw mut (*raw).std };
             }
