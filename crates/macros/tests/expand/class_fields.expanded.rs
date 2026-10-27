@@ -125,6 +125,7 @@ impl ::ext_php_rs::class::RegisteredClass for Emitter {
         }
     }
 }
+impl ::ext_php_rs::class::PhpClass for Emitter {}
 impl ::ext_php_rs::convert::IntoZendObject for Emitter {
     #[inline]
     fn into_zend_object(
@@ -271,6 +272,7 @@ impl ::ext_php_rs::class::RegisteredClass for Pair {
         }
     }
 }
+impl ::ext_php_rs::class::PhpClass for Pair {}
 impl ::ext_php_rs::convert::IntoZendObject for Pair {
     #[inline]
     fn into_zend_object(

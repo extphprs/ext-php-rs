@@ -249,6 +249,7 @@ macro_rules! throw {
 ///
 /// The following traits are implemented:
 ///
+/// * `PhpClass for T`
 /// * `IntoZendObject for T`
 /// * `IntoZval for T`
 ///
@@ -313,6 +314,8 @@ macro_rules! throw {
 #[macro_export]
 macro_rules! class_derives {
     ($type: ty) => {
+        impl $crate::class::PhpClass for $type {}
+
         impl $crate::convert::IntoZendObject for $type {
             #[inline]
             fn into_zend_object(

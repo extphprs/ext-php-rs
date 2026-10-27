@@ -389,6 +389,7 @@ impl ::ext_php_rs::class::RegisteredClass for MyImpl {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
     }
 }
+impl ::ext_php_rs::class::PhpClass for MyImpl {}
 impl ::ext_php_rs::convert::IntoZendObject for MyImpl {
     #[inline]
     fn into_zend_object(
@@ -556,7 +557,10 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                     },
                                 )
                                 .arg({
-                                    let arg = ::ext_php_rs::internal::argument::arg::<i32, _>("arg");
+                                    let arg = ::ext_php_rs::internal::argument::arg::<
+                                        i32,
+                                        _,
+                                    >("arg");
                                     if <PhpInterfaceMyInterface>::__php_sensitive_my_method
                                         .contains(&0usize)
                                     {

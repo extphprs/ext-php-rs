@@ -116,6 +116,7 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
         ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
     }
 }
+impl ::ext_php_rs::class::PhpClass for MyClass {}
 impl ::ext_php_rs::convert::IntoZendObject for MyClass {
     #[inline]
     fn into_zend_object(
