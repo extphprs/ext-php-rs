@@ -13,6 +13,7 @@ use crate::parsing::{
     reject_php_attrs, validate_php_name,
 };
 use crate::prelude::*;
+use crate::syn_ext::DropLifetimes;
 
 /// Method types.
 #[derive(Debug)]
@@ -197,6 +198,8 @@ struct PropGroup<'a> {
     /// Documentation comments for the property.
     docs: Vec<String>,
     value_ty: Option<&'a syn::Type>,
+    /// Type of the value parameter of the setter.
+    setter_ty: Option<&'a syn::Type>,
 }
 
 #[derive(Debug)]
@@ -318,6 +321,7 @@ impl<'a> ParsedImpl<'a> {
                     vis: opts.vis,
                     docs: Vec::new(),
                     value_ty: None,
+                    setter_ty: None,
                 });
                 self.properties.len() - 1
             });
@@ -336,6 +340,9 @@ impl<'a> ParsedImpl<'a> {
             bail!(span => "The getter and setter of property `{}` must have the same visibility.", group.name);
         }
         *slot = Some(&method.sig.ident);
+        if !is_getter {
+            group.setter_ty = value_ty;
+        }
         if (is_getter && value_ty.is_some()) || group.value_ty.is_none() {
             group.value_ty = value_ty;
         }
@@ -511,20 +518,24 @@ impl<'a> ParsedImpl<'a> {
                 };
                 let docs = &group.docs;
                 let readonly = group.getter.is_some() && group.setter.is_none();
-                let type_tokens = group.value_ty.map_or_else(
-                    || {
-                        quote! {
-                            ty: ::ext_php_rs::flags::DataType::Mixed,
-                            nullable: false,
-                        }
+                let type_tokens = match (group.value_ty, group.getter) {
+                    (None, _) => quote! {
+                        ty: ::ext_php_rs::flags::DataType::Mixed,
+                        nullable: false,
                     },
-                    |vty| {
-                        quote! {
-                            ty: <#vty as ::ext_php_rs::convert::IntoZval>::TYPE,
-                            nullable: <#vty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
-                        }
+                    (Some(vty), Some(_)) => quote! {
+                        ty: <#vty as ::ext_php_rs::convert::IntoZval>::TYPE,
+                        nullable: <#vty as ::ext_php_rs::convert::IntoZval>::NULLABLE,
                     },
-                );
+                    (Some(vty), None) => {
+                        let mut vty = vty.clone();
+                        vty.drop_lifetimes();
+                        quote! {
+                            ty: ::ext_php_rs::internal::argument::data_type::<#vty, _>(),
+                            nullable: ::ext_php_rs::internal::argument::nullable::<#vty, _>(),
+                        }
+                    }
+                };
 
                 let mut fn_defs = Vec::new();
 
@@ -553,17 +564,34 @@ impl<'a> ParsedImpl<'a> {
                 let setter_ref = if let Some(setter_ident) = group.setter {
                     let setter_fn_name =
                         syn::Ident::new(&format!("__method_set_{i}"), setter_ident.span());
-                    if let Some(vty) = group.value_ty {
+                    if let Some(sty) = group.setter_ty {
+                        let mut sty = sty.clone();
+                        sty.drop_lifetimes();
                         fn_defs.push(quote! {
                             fn #setter_fn_name(
                                 this: &mut #path,
                                 __zv: &::ext_php_rs::types::Zval,
                             ) -> ::ext_php_rs::exception::PhpResult {
-                                use ::ext_php_rs::convert::FromZval as _;
-                                let val = <#vty as ::ext_php_rs::convert::FromZval>::from_zval(__zv)
-                                    .ok_or("Unable to convert property value into required type.")?;
+                                let mut __value = __zv.shallow_clone();
+                                let mut __holder =
+                                    ::ext_php_rs::internal::argument::holder::<#sty, _>();
+                                let val = match ::ext_php_rs::internal::argument::extract::<#sty, _>(
+                                    __value.dereference_mut(),
+                                    &mut __holder,
+                                ) {
+                                    ::std::result::Result::Ok(val) => val,
+                                    ::std::result::Result::Err(
+                                        ::ext_php_rs::error::Error::Borrow(error),
+                                    ) => return ::std::result::Result::Err(error.into()),
+                                    ::std::result::Result::Err(_) => {
+                                        return ::std::result::Result::Err(
+                                            "Unable to convert property value into required type."
+                                                .into(),
+                                        );
+                                    }
+                                };
                                 #path::#setter_ident(this, val);
-                                Ok(())
+                                ::std::result::Result::Ok(())
                             }
                         });
                     } else {
