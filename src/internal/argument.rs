@@ -8,7 +8,7 @@
 
 use crate::{
     args::Arg,
-    class::RegisteredClass,
+    class::PhpClass,
     convert::FromZvalMut,
     error::{Error, Result},
     exception::PhpException,
@@ -98,7 +98,7 @@ impl<'a, 'h, T: FromZvalMut<'a>> FunctionArgument<'a, 'h, true> for T {
     }
 }
 
-impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
+impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
     type Holder = Option<ClassRef<'a, T>>;
 
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
@@ -117,7 +117,7 @@ impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
     }
 }
 
-impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
     type Holder = Option<ClassRefMut<'a, T>>;
 
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
@@ -136,7 +136,7 @@ impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut
     }
 }
 
-impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
     type Holder = Option<ClassRef<'a, T>>;
 
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
@@ -157,7 +157,7 @@ impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<
     }
 }
 
-impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
     type Holder = Option<ClassRefMut<'a, T>>;
 
     const TYPE: DataType = DataType::object(T::CLASS_NAME);

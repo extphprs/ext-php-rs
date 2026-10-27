@@ -153,6 +153,19 @@ pub trait RegisteredClass: Sized + 'static {
     fn gc_trace(&self, _roots: &mut GcRoots) {}
 }
 
+/// A [`RegisteredClass`] whose PHP objects hold a Rust value of this type.
+///
+/// The [`macro@crate::php_class`] macro implements it. The PHP objects of a
+/// `#[php_enum]` or `#[php_interface]` type hold no Rust value, so these types
+/// do not implement it. Only a `PhpClass` type can be a `&T`, `&mut T`,
+/// `ClassRef<T>` or `ClassRefMut<T>` parameter.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a `#[php_class]`",
+    label = "the PHP objects of `{Self}` hold no Rust value",
+    note = "a `#[php_enum]` parameter takes the enum by value, for example `suit: Suit`"
+)]
+pub trait PhpClass: RegisteredClass {}
+
 /// Stores metadata about a classes Rust constructor, including the function
 /// pointer and the arguments of the function.
 pub struct ConstructorMeta<T> {

@@ -108,6 +108,10 @@ The borrow guards `ClassRef<Foo>` and `ClassRefMut<Foo>` are also parameter
 types. A variadic parameter must use them, for example `&[ClassRef<Foo>]`. A
 property setter cannot take a `&Foo` parameter.
 
+Only a `#[php_class]` type can be a class parameter. The PHP objects of a
+`#[php_enum]` type hold no Rust value, so a `&Suit` parameter does not compile.
+Take the enum by value, for example `suit: Suit`.
+
 A PHP fatal error during the call stops the function without the release of the
 borrow. The object stays borrowed until the end of the request.
 
