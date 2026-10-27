@@ -223,6 +223,15 @@ where
     T::NULLABLE
 }
 
+/// The PHP type of an argument of type `T`.
+#[must_use]
+pub const fn data_type<'a, 'h, T, const FROM_ZVAL: bool>() -> DataType
+where
+    T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+{
+    T::TYPE
+}
+
 /// The [`Arg`] of a parameter of type `T`.
 pub fn arg<'z, 'a, 'h, T, const FROM_ZVAL: bool>(name: impl Into<String>) -> Arg<'z>
 where

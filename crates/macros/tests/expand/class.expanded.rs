@@ -251,11 +251,26 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
             this: &mut MyClass,
             __zv: &::ext_php_rs::types::Zval,
         ) -> ::ext_php_rs::exception::PhpResult {
-            use ::ext_php_rs::convert::FromZval as _;
-            let val = <i64 as ::ext_php_rs::convert::FromZval>::from_zval(__zv)
-                .ok_or("Unable to convert property value into required type.")?;
+            let mut __value = __zv.shallow_clone();
+            let mut __holder = ::ext_php_rs::internal::argument::holder::<i64, _>();
+            let val = match ::ext_php_rs::internal::argument::extract::<
+                i64,
+                _,
+            >(__value.dereference_mut(), &mut __holder) {
+                ::std::result::Result::Ok(val) => val,
+                ::std::result::Result::Err(
+                    ::ext_php_rs::error::Error::Borrow(error),
+                ) => {
+                    return ::std::result::Result::Err(error.into());
+                }
+                ::std::result::Result::Err(_) => {
+                    return ::std::result::Result::Err(
+                        "Unable to convert property value into required type.".into(),
+                    );
+                }
+            };
             MyClass::set_first(this, val);
-            Ok(())
+            ::std::result::Result::Ok(())
         }
         fn __method_get_1(
             this: &MyClass,
