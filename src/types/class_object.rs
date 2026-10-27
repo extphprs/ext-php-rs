@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     boxed::{ZBox, ZBoxable},
-    class::RegisteredClass,
+    class::{PhpClass, RegisteredClass},
     convert::{FromZendObject, FromZval, IntoZval},
     error::{Error, Result},
     ffi::{
@@ -304,7 +304,7 @@ impl<'a, T: RegisteredClass> FromZendObject<'a> for &'a ZendClassObject<T> {
     }
 }
 
-impl<'a, T: RegisteredClass> FromZval<'a> for ClassRef<'a, T> {
+impl<'a, T: PhpClass> FromZval<'a> for ClassRef<'a, T> {
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
@@ -316,14 +316,14 @@ impl<'a, T: RegisteredClass> FromZval<'a> for ClassRef<'a, T> {
     }
 }
 
-impl<'a, T: RegisteredClass> FromZendObject<'a> for ClassRef<'a, T> {
+impl<'a, T: PhpClass> FromZendObject<'a> for ClassRef<'a, T> {
     fn from_zend_object(obj: &'a ZendObject) -> Result<Self> {
         let obj = ZendClassObject::<T>::from_zend_obj(obj).ok_or(Error::InvalidScope)?;
         Ok(obj.try_borrow()?)
     }
 }
 
-impl<'a, T: RegisteredClass> FromZval<'a> for ClassRefMut<'a, T> {
+impl<'a, T: PhpClass> FromZval<'a> for ClassRefMut<'a, T> {
     const TYPE: DataType = DataType::object(T::CLASS_NAME);
 
     fn from_zval(zval: &'a Zval) -> Option<Self> {
@@ -335,7 +335,7 @@ impl<'a, T: RegisteredClass> FromZval<'a> for ClassRefMut<'a, T> {
     }
 }
 
-impl<'a, T: RegisteredClass> FromZendObject<'a> for ClassRefMut<'a, T> {
+impl<'a, T: PhpClass> FromZendObject<'a> for ClassRefMut<'a, T> {
     fn from_zend_object(obj: &'a ZendObject) -> Result<Self> {
         let obj = ZendClassObject::<T>::from_zend_obj(obj).ok_or(Error::InvalidScope)?;
         Ok(obj.try_borrow_mut()?)

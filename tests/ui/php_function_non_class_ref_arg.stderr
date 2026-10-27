@@ -10,17 +10,17 @@ error[E0277]: `&NotAClass` cannot be used as a PHP function argument
 help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
  --> src/internal/argument.rs
   |
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
 note: required by a bound in `ext_php_rs::internal::argument::arg`
  --> src/internal/argument.rs
   |
@@ -42,17 +42,17 @@ error[E0277]: `&NotAClass` cannot be used as a PHP function argument
 help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
  --> src/internal/argument.rs
   |
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
 note: required by a bound in `ext_php_rs::internal::argument::nullable`
  --> src/internal/argument.rs
   |
@@ -74,17 +74,17 @@ error[E0277]: `&NotAClass` cannot be used as a PHP function argument
 help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
  --> src/internal/argument.rs
   |
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
 note: required by a bound in `ext_php_rs::internal::argument::holder`
  --> src/internal/argument.rs
   |
@@ -106,17 +106,17 @@ error[E0277]: `&NotAClass` cannot be used as a PHP function argument
 help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
  --> src/internal/argument.rs
   |
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
 
 error[E0277]: `&NotAClass` cannot be used as a PHP function argument
  --> tests/ui/php_function_non_class_ref_arg.rs:6:13
@@ -130,14 +130,14 @@ error[E0277]: `&NotAClass` cannot be used as a PHP function argument
 help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
  --> src/internal/argument.rs
   |
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for &'h mut T {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
 ...
-  | impl<'a: 'h, 'h, T: RegisteredClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
