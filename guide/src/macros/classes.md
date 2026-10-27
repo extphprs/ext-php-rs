@@ -105,8 +105,8 @@ the call. If two parameters, or the object of the method and a parameter, get
 the same object and the borrows conflict, PHP throws an `Error`.
 
 The borrow guards `ClassRef<Foo>` and `ClassRefMut<Foo>` are also parameter
-types. A variadic parameter must use them, for example `&[ClassRef<Foo>]`. A
-property setter cannot take a `&Foo` parameter.
+types. A variadic parameter must use them, for example `&[ClassRef<Foo>]`. The
+value parameter of a property setter accepts the same types.
 
 Only a `#[php_class]` type can be a class parameter. The PHP objects of a
 `#[php_enum]` type hold no Rust value, so a `&Suit` parameter does not compile.

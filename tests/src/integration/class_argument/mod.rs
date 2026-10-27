@@ -89,6 +89,11 @@ impl ArgView {
     pub fn count(&self) -> i64 {
         self.count
     }
+
+    #[php(setter)]
+    pub fn set_source(&mut self, source: &ArgCounter) {
+        self.count = source.count;
+    }
 }
 
 #[php_interface]

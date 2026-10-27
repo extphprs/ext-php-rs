@@ -73,3 +73,15 @@ assert(thrown(fn() => arg_counter_total($second, new stdClass()))
 assert(thrown(fn() => $first->addAll($first))
 === 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'the receiver of a &mut self method passed as a &T parameter before a variadic');
 assert($first->count() === 45, 'the failed variadic calls left the object unchanged');
+
+$view = new ArgView($second);
+$view->source = $first;
+assert($view->count() === 45, 'a &T parameter on a property setter');
+assert($first->bumpWhileCalling(fn() => thrown(fn() => $view->source = $first))
+=== 'Error: Cannot use object of class ArgCounter while one of its methods modifies it', 'an object that a method modifies given to a &T setter');
+assert(
+    thrown(fn() => $view->source = new stdClass())
+    === 'Exception: Unable to convert property value into required type.',
+    'an object of another class given to a &T setter'
+);
+assert($view->count() === 45, 'the failed setter calls left the object unchanged');
