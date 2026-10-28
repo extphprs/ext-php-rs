@@ -15,6 +15,10 @@ on:
         value: ${{ jobs.release-plz-release.outputs.release_created }}
   workflow_dispatch:
 
+env:
+  clang: "17"
+  php_version: "8.5"
+
 jobs:
   release-plz-release:
     name: Release-plz release
@@ -24,9 +28,6 @@ jobs:
       id-token: write
     outputs:
       release_created: ${{ steps.release-plz.outputs.release_created }}
-    env:
-      clang: "17"
-      php_version: "8.5"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -91,8 +92,30 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php_version }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Cache LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/llvm-${{ env.clang }}
+          key: ubuntu-latest-llvm-${{ env.clang }}
+      - name: Setup LLVM & Clang
+        id: clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ env.clang }}
+          directory: ${{ runner.temp }}/llvm-${{ env.clang }}
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+      - name: Configure Clang
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/lib" >> $GITHUB_ENV
+          echo "LLVM_VERSION=${{ steps.clang.outputs.version }}" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ env.clang }}/bin/llvm-config" >> $GITHUB_ENV
       - name: Authenticate to crates.io
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
