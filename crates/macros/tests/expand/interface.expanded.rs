@@ -47,14 +47,14 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
                         {
                             const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                                 &[
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                                    ::ext_php_rs::internal::argument::nullable::<i32, _>()
                                         || false,
                                 ],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new_abstract(
                                     "myMethod",
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg(::ext_php_rs::internal::argument::arg::<i32, _>("arg"))
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,
@@ -92,55 +92,6 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
                 ::ext_php_rs::flags::ConstantFlags::Public,
             ),
         ]
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface,
-        >::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a>
-for &'a mut PhpInterfaceMyInterface {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface,
-        >::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut PhpInterfaceMyInterface {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
     }
 }
 impl ::ext_php_rs::convert::IntoZendObject for PhpInterfaceMyInterface {
@@ -216,14 +167,14 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
                         {
                             const __REQUIRED: usize = ::ext_php_rs::args::required_count(
                                 &[
-                                    <i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE
+                                    ::ext_php_rs::internal::argument::nullable::<i32, _>()
                                         || false,
                                 ],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new_abstract(
                                     "MY_METHOD",
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg(::ext_php_rs::internal::argument::arg::<i32, _>("arg"))
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,
@@ -288,55 +239,6 @@ impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
             ("my_const", &42, &[], ::ext_php_rs::flags::ConstantFlags::Public),
             ("AnotherConst", &"Hello", &[], ::ext_php_rs::flags::ConstantFlags::Public),
         ]
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a PhpInterfaceMyInterface2 {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface2,
-        >::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a>
-for &'a mut PhpInterfaceMyInterface2 {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<
-            PhpInterfaceMyInterface2,
-        >::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut PhpInterfaceMyInterface2 {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <PhpInterfaceMyInterface2 as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
     }
 }
 impl ::ext_php_rs::convert::IntoZendObject for PhpInterfaceMyInterface2 {
@@ -470,55 +372,12 @@ impl ::ext_php_rs::class::RegisteredClass for MyImpl {
     }
     #[inline]
     #[must_use]
-    fn clone_obj(&self) -> ::std::option::Option<Self> {
+    fn clone_fn() -> ::std::option::Option<fn(&Self) -> Self> {
         use ::ext_php_rs::internal::class::ProbeClone as _;
-        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
     }
 }
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a MyImpl {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyImpl>::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut MyImpl {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyImpl>::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a MyImpl {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut MyImpl {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyImpl as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
-    }
-}
+impl ::ext_php_rs::class::PhpClass for MyImpl {}
 impl ::ext_php_rs::convert::IntoZendObject for MyImpl {
     #[inline]
     fn into_zend_object(
@@ -593,7 +452,7 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                     (
                         {
                             const __REQUIRED: usize = ::ext_php_rs::args::required_count(
-                                &[<i32 as ::ext_php_rs::convert::FromZvalMut>::NULLABLE],
+                                &[::ext_php_rs::internal::argument::nullable::<i32, _>()],
                             );
                             ::ext_php_rs::builders::FunctionBuilder::new(
                                     <PhpInterfaceMyInterface>::__php_method_my_method,
@@ -616,7 +475,22 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                                             return;
                                                         }
                                                     };
-                                                    let mut arg = ::ext_php_rs::args::Arg::of::<i32>("arg");
+                                                    let __payload = match this.try_borrow() {
+                                                        Ok(payload) => payload,
+                                                        Err(err) => {
+                                                            ::ext_php_rs::exception::PhpException::from(err).throw();
+                                                            return;
+                                                        }
+                                                    };
+                                                    let mut arg = ::ext_php_rs::internal::argument::arg::<
+                                                        i32,
+                                                        _,
+                                                    >("arg");
+                                                    #[allow(non_snake_case)]
+                                                    let mut __holder_arg = ::ext_php_rs::internal::argument::holder::<
+                                                        i32,
+                                                        _,
+                                                    >();
                                                     let parse_result = parse
                                                         .arg(&mut arg)
                                                         .required_args(__REQUIRED)
@@ -624,28 +498,42 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                                     if parse_result.is_err() {
                                                         return;
                                                     }
-                                                    let arg: i32 = match match arg.zval() {
+                                                    let arg: i32 = match arg.zval() {
                                                         Some(zval) => {
-                                                            <i32 as ::ext_php_rs::convert::FromZvalMut>::from_zval_mut(
-                                                                zval.dereference_mut(),
-                                                            )
+                                                            match ::ext_php_rs::internal::argument::extract::<
+                                                                i32,
+                                                                _,
+                                                            >(zval.dereference_mut(), &mut __holder_arg) {
+                                                                Ok(value) => value,
+                                                                Err(error) => {
+                                                                    ::ext_php_rs::internal::argument::argument_error(
+                                                                            "arg",
+                                                                            &error,
+                                                                        )
+                                                                        .throw();
+                                                                    return;
+                                                                }
+                                                            }
                                                         }
                                                         None => {
-                                                            <i32 as ::ext_php_rs::convert::FromZvalMut>::from_missing()
-                                                        }
-                                                    } {
-                                                        Some(value) => value,
-                                                        None => {
-                                                            ::ext_php_rs::exception::PhpException::new(
-                                                                    "Invalid value given for argument `arg`.".into(),
-                                                                    0,
-                                                                    ::ext_php_rs::zend::ce::type_error(),
-                                                                )
-                                                                .throw();
-                                                            return;
+                                                            match ::ext_php_rs::internal::argument::missing::<
+                                                                i32,
+                                                                _,
+                                                            >() {
+                                                                Some(value) => value,
+                                                                None => {
+                                                                    ::ext_php_rs::exception::PhpException::new(
+                                                                            "Invalid value given for argument `arg`.".into(),
+                                                                            0,
+                                                                            ::ext_php_rs::zend::ce::type_error(),
+                                                                        )
+                                                                        .throw();
+                                                                    return;
+                                                                }
+                                                            }
                                                         }
                                                     };
-                                                    let result = this.my_method(arg);
+                                                    let result = __payload.my_method(arg);
                                                     if let Err(e) = result.set_zval(retval, false) {
                                                         let e: ::ext_php_rs::exception::PhpException = e.into();
                                                         e.throw();
@@ -656,7 +544,7 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                         handler
                                     },
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg(::ext_php_rs::internal::argument::arg::<i32, _>("arg"))
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,

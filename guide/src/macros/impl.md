@@ -36,9 +36,12 @@ section for details.
 Class methods can take a `&self` or `&mut self` parameter. They cannot take a
 consuming `self` parameter. Static methods can omit this `self` parameter.
 
-To access the underlying Zend object, you can take a reference to a
-`ZendClassObject<T>` in place of the self parameter, where the parameter must
-be named `self_`. This can also be used to return a reference to `$this`.
+To access the Zend object, use `self_: &ZendClassObject<Self>` in place of the
+self parameter. The parameter must have the name `self_`. Borrow the Rust value
+with `self_.try_borrow()` or `self_.try_borrow_mut()`. You can also return
+`self_` to return `$this`. A `&mut ZendClassObject<Self>` parameter does not
+compile. Refer to [Access to the Rust Value](./classes.md#access-to-the-rust-value)
+for the borrow rules.
 
 The rest of the options are passed as separate attributes:
 
@@ -295,7 +298,7 @@ impl Human {
         println!("My name is {} and I am {} years old. I live at {}.", self.name, self.age, self.address);
     }
 
-    pub fn get_raw_obj(self_: &mut ZendClassObject<Human>) -> &mut ZendClassObject<Human> {
+    pub fn get_raw_obj(self_: &ZendClassObject<Human>) -> &ZendClassObject<Human> {
         dbg!(self_)
     }
 

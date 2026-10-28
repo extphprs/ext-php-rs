@@ -106,6 +106,259 @@ extern crate proc_macro;
 /// If a PHP subclass declares the property again with hooks, PHP uses the Rust
 /// getter and setter, not the hooks.
 ///
+/// ## Access to the Rust Value
+///
+/// The object keeps its Rust value in a borrow cell. Each method borrows the
+/// value until the method returns:
+///
+/// - A `&self` method borrows the value as shared. Other `&self` methods and
+///   property reads can use the value at the same time.
+/// - A `&mut self` method borrows the value as exclusive. No other method and
+///   no other property access can use the value at the same time.
+///
+/// A method can call PHP code, for example a callback. That PHP code can call a
+/// method on the same object. If the second call conflicts with the borrow, PHP
+/// throws an `Error`:
+///
+/// | Conflict | `Error` message |
+/// | --- | --- |
+/// | A `&self` method or a property read while a `&mut self` method runs | `Cannot use object of class Foo while one of its methods modifies it` |
+/// | A `&mut self` method or a property write while a different method runs | `Cannot modify object of class Foo while it is in use` |
+/// | The object has no Rust value, for example a subclass that does not call `parent::__construct()` | `Object of class Foo is not initialized` |
+///
+/// ### Class Arguments
+///
+/// A parameter of a `#[php_class]` type borrows the Rust value of the object:
+///
+/// - `&Foo` gives shared access to the value.
+/// - `&mut Foo` gives exclusive access to the value.
+/// - `Option<&Foo>` and `Option<&mut Foo>` also accept `null`.
+///
+/// The borrow starts before the function body and stops when the function
+/// returns. The rules of [Access to the Rust Value](#access-to-the-rust-value)
+/// apply during the call. If two parameters, or the object of the method and a
+/// parameter, get the same object and the borrows conflict, PHP throws an
+/// `Error`.
+///
+/// The borrow guards `ClassRef<Foo>` and `ClassRefMut<Foo>` are also parameter
+/// types. A variadic parameter must use them, for example `&[ClassRef<Foo>]`.
+/// The value parameter of a property setter accepts the same types.
+///
+/// Only a `#[php_class]` type can be a class parameter. The PHP objects of a
+/// `#[php_enum]` type hold no Rust value, so a `&Suit` parameter does not
+/// compile. Take the enum by value, for example `suit: Suit`.
+///
+/// A PHP fatal error during the call stops the function without the release of
+/// the borrow. The object stays borrowed until the end of the request.
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::prelude::*;
+///
+/// #[php_class]
+/// pub struct Counter {
+///     count: i64,
+/// }
+///
+/// #[php_function]
+/// pub fn add_to(target: &mut Counter, source: &Counter) -> i64 {
+///     target.count += source.count;
+///     target.count
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<Counter>().function(wrap_function!(add_to))
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ### Class Objects in a `Zval`
+///
+/// `Zval::extract::<ClassRef<Foo>>()` gives `None` if the value is not a `Foo`.
+/// It also gives `None` if a method of the object borrows the Rust value. To
+/// know the cause, use `Zval::try_extract`:
+///
+/// - `Error::ZvalConversion` tells that the value is not a `Foo`.
+/// - `Error::Borrow` tells that the borrow conflicts with a method of the
+///   object.
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{error::Error, prelude::*, types::Zval};
+///
+/// #[php_class]
+/// pub struct Counter {
+///     count: i64,
+/// }
+///
+/// #[php_function]
+/// pub fn count_of(value: &Zval) -> PhpResult<Option<i64>> {
+///     match value.try_extract::<ClassRef<Counter>>() {
+///         Ok(counter) => Ok(Some(counter.count)),
+///         Err(Error::ZvalConversion(_)) => Ok(None),
+///         Err(err) => Err(err.into()),
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<Counter>().function(wrap_function!(count_of))
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ### Call PHP Code from a Method
+///
+/// A `&mut self` method keeps the exclusive borrow until it returns. If a PHP
+/// callback of the method calls a method on the same object, the callback gets
+/// an `Error`. To let the callback use the object, use `self_:
+/// &ZendClassObject<Self>` in place of `&mut self`. Then borrow the value only
+/// when it is necessary:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{
+///     prelude::*,
+///     types::{ZendClassObject, Zval},
+/// };
+///
+/// #[php_class]
+/// pub struct EventEmitter {
+///     listeners: Vec<Zval>,
+/// }
+///
+/// #[php_impl]
+/// impl EventEmitter {
+///     pub fn __construct() -> Self {
+///         Self {
+///             listeners: Vec::new(),
+///         }
+///     }
+///
+///     pub fn on(&mut self, listener: &Zval) {
+///         self.listeners.push(listener.shallow_clone());
+///     }
+///
+///     pub fn emit(self_: &ZendClassObject<Self>) -> PhpResult<()> {
+///         let listeners: Vec<Zval> = self_
+///             .try_borrow()?
+///             .listeners
+///             .iter()
+///             .map(Zval::shallow_clone)
+///             .collect();
+///         for listener in &listeners {
+///             listener.try_call(vec![])?;
+///         }
+///         Ok(())
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<EventEmitter>()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// The guard of `try_borrow()` stops at the end of the `let` statement. Thus a
+/// listener can call `$emitter->on()` during `emit()`.
+///
+/// ## PHP Values in Rust Fields
+///
+/// A field can keep a PHP value, for example a callback. Two objects that refer
+/// to each other make a cycle. The PHP cycle collector finds and frees each
+/// cycle that no other value refers to. The collector must know the values that
+/// each object keeps.
+///
+/// `#[php_class]` gives the collector the value of each field that has one of
+/// these types:
+///
+/// - `Zval`.
+/// - `ZBox<ZendObject>` and `ZBox<ZendClassObject<T>>`.
+/// - `ZendCallable` when it owns its value.
+/// - `Option`, `Box`, `Vec` and arrays of these types, and the values of a
+///   `HashMap` or a `BTreeMap` of these types.
+///
+/// You do not write code for these fields. In this example, the collector frees
+/// the emitter and the closure after `unset($emitter)`:
+///
+/// ```rust,no_run,ignore
+/// # #![cfg_attr(windows, feature(abi_vectorcall))]
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{prelude::*, types::Zval};
+///
+/// #[php_class]
+/// pub struct EventEmitter {
+///     listeners: Vec<Zval>,
+/// }
+///
+/// #[php_impl]
+/// impl EventEmitter {
+///     pub fn __construct() -> Self {
+///         Self {
+///             listeners: Vec::new(),
+///         }
+///     }
+///
+///     pub fn on(&mut self, listener: &Zval) {
+///         self.listeners.push(listener.shallow_clone());
+///     }
+/// }
+///
+/// #[php_module]
+/// pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+///     module.class::<EventEmitter>()
+/// }
+/// # fn main() {}
+/// ```
+///
+/// ```php
+/// $emitter = new EventEmitter();
+/// $emitter->on(fn() => $emitter);
+/// unset($emitter);
+/// gc_collect_cycles();
+/// ```
+///
+/// While a `&mut self` method runs, the collector does not read the Rust fields
+/// of the object. The collector then counts the values of these fields as used
+/// from outside the cycle. A later collection frees the cycle.
+///
+/// The collector does not see the values in other types, for example
+/// `ZBox<ZendHashTable>`, `Rc`, `Arc`, `RefCell` and Rust closures. A cycle
+/// through these fields stays in memory until the end of the request. To let
+/// the collector see a PHP array, keep the array in a `Zval`.
+///
+/// For a field of your own type, implement the unsafe trait `GcTrace` for the
+/// type. The implementation must give only the PHP values that the type owns,
+/// and each value one time. If it gives a value two times, the collector can
+/// free a value that is in use. Do not give the values in a `RefCell`, a `Cell`
+/// or a `Mutex`. A shared borrow does not stop a change of these values.
+///
+/// ```rust,no_run,ignore
+/// # extern crate ext_php_rs;
+/// use ext_php_rs::{
+///     gc::{GcRoots, GcTrace},
+///     types::Zval,
+/// };
+///
+/// pub struct Listener {
+///     name: String,
+///     callback: Zval,
+/// }
+///
+/// unsafe impl GcTrace for Listener {
+///     unsafe fn gc_trace(&self, roots: &mut GcRoots) {
+///         // SAFETY: `callback` is the only PHP value of `Listener`.
+///         unsafe { self.callback.gc_trace(roots) };
+///     }
+/// }
+/// # fn main() {}
+/// ```
+///
 /// ## Restrictions
 ///
 /// ### No lifetime parameters
@@ -667,13 +920,27 @@ extern crate proc_macro;
 /// echo $style->fontSize;  // 12.0 — original is unchanged
 /// ```
 ///
-/// Structs that do not implement `Clone` throw an error when cloned:
+/// The clone of a PHP subclass has the class of the subclass. PHP copies the
+/// properties of the subclass and calls its `__clone` method.
+///
+/// A class whose struct does not implement `Clone` has no clone handler, like
+/// the uncloneable classes of PHP. `clone` throws an `Error` that names the
+/// class of the object, and `ReflectionClass::isCloneable()` returns `false`:
 ///
 /// ```php
 /// // If MyClass does not implement Clone:
 /// $obj = new MyClass();
 /// $copy = clone $obj; // Error: Trying to clone an uncloneable object of class MyClass
 /// ```
+///
+/// A `clone` of an object that one of its methods modifies at that time throws
+/// an `Error`. A `clone` of an object that has no Rust value, for example a PHP
+/// subclass that did not call the parent constructor, also throws an `Error`.
+/// When a clone fails, PHP does not call `__destruct` on the failed copy.
+///
+/// A `__clone` method does not make a class cloneable. If the struct does not
+/// implement `Clone`, `clone` throws, but `ReflectionClass::isCloneable()`
+/// returns `true` because PHP sees the `__clone` method.
 ///
 /// ## Implementing Iterator
 ///
@@ -1564,9 +1831,12 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// A slice parameter `&[T]` in last position is variadic, the equivalent of the
 /// PHP `...$args` syntax. `T` is any argument type: `&[&Zval]` receives the raw
 /// values, `&[i64]` receives converted integers. If one of the values cannot be
-/// converted into `T`, the call throws a `TypeError`. A variadic parameter that
-/// is not the last parameter is a compile error. The slice must be spelled in
-/// the signature; a type alias that hides the slice is not detected.
+/// converted into `T`, the call throws a `TypeError`. If one of the values is a
+/// class object whose Rust value is borrowed or not initialized, the call
+/// throws an `Error`, see [Class Arguments](./classes.md#class-arguments). A
+/// variadic parameter that is not the last parameter is a compile error. The
+/// slice must be spelled in the signature; a type alias that hides the slice is
+/// not detected.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1886,10 +2156,12 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// Class methods can take a `&self` or `&mut self` parameter. They cannot take
 /// a consuming `self` parameter. Static methods can omit this `self` parameter.
 ///
-/// To access the underlying Zend object, you can take a reference to a
-/// `ZendClassObject<T>` in place of the self parameter, where the parameter
-/// must be named `self_`. This can also be used to return a reference to
-/// `$this`.
+/// To access the Zend object, use `self_: &ZendClassObject<Self>` in place of
+/// the self parameter. The parameter must have the name `self_`. Borrow the
+/// Rust value with `self_.try_borrow()` or `self_.try_borrow_mut()`. You can
+/// also return `self_` to return `$this`. A `&mut ZendClassObject<Self>`
+/// parameter does not compile. Refer to [Access to the Rust
+/// Value](./classes.md#access-to-the-rust-value) for the borrow rules.
 ///
 /// The rest of the options are passed as separate attributes:
 ///
@@ -2149,7 +2421,7 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///         println!("My name is {} and I am {} years old. I live at {}.", self.name, self.age, self.address);
 ///     }
 ///
-///     pub fn get_raw_obj(self_: &mut ZendClassObject<Human>) -> &mut ZendClassObject<Human> {
+///     pub fn get_raw_obj(self_: &ZendClassObject<Human>) -> &ZendClassObject<Human> {
 ///         dbg!(self_)
 ///     }
 ///

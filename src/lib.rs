@@ -32,6 +32,7 @@ pub mod describe;
 pub mod embed;
 #[cfg(feature = "enum")]
 pub mod enum_;
+pub mod gc;
 pub mod php_eval;
 #[cfg(feature = "observer")]
 #[cfg_attr(docs, doc(cfg(feature = "observer")))]
@@ -69,7 +70,7 @@ pub mod prelude {
     pub use crate::php_print;
     pub use crate::php_println;
     pub use crate::php_write;
-    pub use crate::types::ZendCallable;
+    pub use crate::types::{ClassRef, ClassRefMut, ZendCallable};
     #[cfg(feature = "observer")]
     pub use crate::zend::{
         BacktraceFrame, ErrorInfo, ErrorObserver, ExceptionInfo, ExceptionObserver, FcallInfo,

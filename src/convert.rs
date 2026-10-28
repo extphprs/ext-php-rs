@@ -41,6 +41,19 @@ pub trait FromZval<'a>: Sized {
     fn from_missing() -> Option<Self> {
         None
     }
+
+    /// Attempts to retrieve an instance of `Self` from a reference to a
+    /// [`Zval`], and tells why it failed.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::ZvalConversion`] - The value is not a `Self`.
+    /// * [`Error::Borrow`] - The value is a class object whose Rust value is
+    ///   borrowed. The implementations for `ClassRef<T>` and `ClassRefMut<T>`
+    ///   return this error.
+    fn try_from_zval(zval: &'a Zval) -> Result<Self> {
+        Self::from_zval(zval).ok_or_else(|| Error::ZvalConversion(zval.get_type()))
+    }
 }
 
 impl<'a, T> FromZval<'a> for Option<T>
@@ -59,6 +72,14 @@ where
     fn from_missing() -> Option<Self> {
         Some(None)
     }
+
+    fn try_from_zval(zval: &'a Zval) -> Result<Self> {
+        match T::try_from_zval(zval) {
+            Ok(value) => Ok(Some(value)),
+            Err(_) if zval.dereference().is_null() => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
 }
 
 /// Allows mutable zvals to be converted into Rust types in a fallible way.
@@ -69,7 +90,7 @@ where
 #[diagnostic::on_unimplemented(
     message = "`{Self}` cannot be used as a PHP function argument",
     label = "no `FromZval` or `FromZvalMut` implementation for `{Self}`",
-    note = "`Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation",
+    note = "a variadic `#[php_class]` parameter is `&[ClassRef<T>]` or `&[ClassRefMut<T>]`",
     note = "a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected"
 )]
 pub trait FromZvalMut<'a>: Sized {
@@ -101,6 +122,20 @@ pub trait FromZvalMut<'a>: Sized {
     fn from_missing() -> Option<Self> {
         None
     }
+
+    /// Attempts to retrieve an instance of `Self` from a mutable reference to a
+    /// [`Zval`], and tells why it failed.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::ZvalConversion`] - The value is not a `Self`.
+    /// * [`Error::Borrow`] - The value is a class object whose Rust value is
+    ///   borrowed. A [`FromZval`] type gives the error of
+    ///   [`FromZval::try_from_zval`].
+    fn try_from_zval_mut(zval: &'a mut Zval) -> Result<Self> {
+        let r#type = zval.get_type();
+        Self::from_zval_mut(zval).ok_or(Error::ZvalConversion(r#type))
+    }
 }
 
 impl<'a, T> FromZvalMut<'a> for T
@@ -118,6 +153,11 @@ where
     #[inline]
     fn from_missing() -> Option<Self> {
         <T as FromZval>::from_missing()
+    }
+
+    #[inline]
+    fn try_from_zval_mut(zval: &'a mut Zval) -> Result<Self> {
+        Self::try_from_zval(zval)
     }
 }
 

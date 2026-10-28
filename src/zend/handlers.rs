@@ -9,14 +9,15 @@ use crate::{
     exception::PhpResult,
     ffi::{
         BP_VAR_IS, BP_VAR_R, ZEND_ACC_STATIC, ext_php_rs_executor_globals,
-        instanceof_function_slow, std_object_handlers, zend_class_entry, zend_hash_find,
-        zend_hash_str_find, zend_is_true, zend_object_handlers, zend_object_std_dtor,
-        zend_objects_clone_members, zend_property_info, zend_std_compare_objects,
+        ext_php_rs_zend_object_store_ctor_failed, instanceof_function_slow, std_object_handlers,
+        zend_class_entry, zend_hash_find, zend_hash_str_find, zend_is_true, zend_object_handlers,
+        zend_object_std_dtor, zend_property_info, zend_std_compare_objects,
         zend_std_get_properties, zend_std_get_property_ptr_ptr, zend_std_has_property,
         zend_std_read_property, zend_std_unset_property, zend_std_write_property, zend_throw_error,
     },
     flags::ErrorType,
     flags::{PropertyFlags, ZvalTypeFlags},
+    gc::GcRoots,
     internal::property::PropertyDescriptor,
     types::{ZendClassObject, ZendHashTable, ZendObject, ZendStr, Zval},
     zend::{ExecutorGlobals, catch_panic},
@@ -68,11 +69,11 @@ impl ZendObjectHandlers {
         let offset = ZendClassObject::<T>::std_offset();
         unsafe { (*ptr).offset = offset.try_into().expect("Invalid offset") };
         unsafe { (*ptr).free_obj = Some(Self::free_obj::<T>) };
-        unsafe { (*ptr).clone_obj = Some(Self::clone_obj::<T>) };
+        unsafe { (*ptr).clone_obj = T::clone_fn().map(|_| Self::clone_obj::<T> as _) };
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };
         unsafe { (*ptr).write_property = Some(Self::write_property::<T>) };
         unsafe { (*ptr).get_properties = Some(Self::get_properties::<T>) };
-        unsafe { (*ptr).get_gc = Some(Self::get_gc) };
+        unsafe { (*ptr).get_gc = Some(Self::get_gc::<T>) };
         unsafe { (*ptr).has_property = Some(Self::has_property::<T>) };
         unsafe { (*ptr).get_property_ptr_ptr = Some(Self::get_property_ptr_ptr::<T>) };
         unsafe { (*ptr).unset_property = Some(Self::unset_property::<T>) };
@@ -89,29 +90,51 @@ impl ZendObjectHandlers {
     /// property's declared slot, so the engine-owned storage covers it: this is
     /// the standard-object branch of `zend_std_get_gc`.
     ///
-    /// Not reported, as before this handler existed: zvals held inside the Rust
-    /// struct itself, and the initializer or proxy instance of a lazy object
-    /// (`zend_lazy_object_get_gc` is not exported). Cycles through those leak
-    /// instead of being collected.
-    unsafe extern "C" fn get_gc(
+    /// The values reported by [`RegisteredClass::gc_trace`] go in the engine
+    /// buffer, followed by the declared slots when the properties table does
+    /// not exist, as `zend_lazy_object_get_gc` does. The collector reads the
+    /// buffer and then the returned table. Internal classes and their
+    /// subclasses cannot be lazy (`zend_class_can_be_lazy`).
+    unsafe extern "C" fn get_gc<T: RegisteredClass>(
         object: *mut ZendObject,
         table: *mut *mut Zval,
         n: *mut c_int,
     ) -> *mut ZendHashTable {
-        let obj = unsafe { &mut *object };
-        if obj.properties.is_null() {
-            unsafe {
-                *table = obj.properties_table.as_mut_ptr();
-                *n = (*obj.ce).default_properties_count;
-            }
-            ptr::null_mut()
-        } else {
-            unsafe {
-                *table = ptr::null_mut();
-                *n = 0;
-            }
-            obj.properties
+        // SAFETY: the collector passes a live object of class `T` or of a
+        // subclass, and the out pointers of its `get_gc` call.
+        let mut roots = GcRoots::new();
+        // SAFETY: the collector runs no PHP code while it traces, so no
+        // `ClassRefMut` starts while `this` lives. A live one makes `unguarded`
+        // return `None`: its method may be releasing a field, so the Rust roots
+        // are skipped and their targets count as referenced from outside.
+        if let Some(this) = ZendClassObject::<T>::from_zend_obj(unsafe { &*object })
+            .and_then(|class| unsafe { class.unguarded() })
+        {
+            this.gc_trace(&mut roots);
         }
+        let properties = unsafe { (*object).properties };
+        let slots = unsafe { (&raw mut (*object).properties_table).cast::<Zval>() };
+        let count = unsafe { (*(*object).ce).default_properties_count };
+        if roots.is_empty() {
+            unsafe {
+                if properties.is_null() {
+                    *table = slots;
+                    *n = count;
+                } else {
+                    *table = ptr::null_mut();
+                    *n = 0;
+                }
+            }
+            return properties;
+        }
+        if properties.is_null() {
+            for index in 0..usize::try_from(count).unwrap_or_default() {
+                // SAFETY: the object has `default_properties_count` slots.
+                roots.push(unsafe { &*slots.add(index) });
+            }
+        }
+        unsafe { roots.write_table(table, n) };
+        properties
     }
 
     unsafe extern "C" fn free_obj<T: RegisteredClass>(object: *mut ZendObject) {
@@ -120,15 +143,18 @@ impl ZendObjectHandlers {
         // - Objects where the Rust side was never initialized
         if let Some(obj) = unsafe {
             object
-                .as_mut()
-                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
         } {
             // Manually drop the object as we don't want to free the underlying memory.
             // A panic in the user's `Drop` must not escape this `extern "C"` frame, and
             // no exception can be thrown here: this also runs from the collector and at
             // shutdown. Report it as a warning and keep freeing the object.
-            let dropped = catch_unwind(AssertUnwindSafe(|| unsafe {
-                ptr::drop_in_place(&raw mut obj.obj);
+            // SAFETY: the refcount reached zero, so only guards a bailout skipped
+            // remain, and they are never used again. The value is moved out first:
+            // a `Drop` that reaches `$this` through PHP sees an uninitialized object.
+            let dropped = catch_unwind(AssertUnwindSafe(|| {
+                drop(unsafe { obj.take_unguarded() });
             }));
             if let Err(payload) = dropped {
                 let message = payload
@@ -147,57 +173,64 @@ impl ZendObjectHandlers {
         unsafe { zend_object_std_dtor(object) };
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "the formatted message is built from a class name and contains no NUL byte"
-    )]
     unsafe extern "C" fn clone_obj<T: RegisteredClass>(object: *mut ZendObject) -> *mut ZendObject {
         // PHP will call OBJ_RELEASE on the returned pointer if an exception
         // is thrown, so we must NEVER return the original object. Always
         // allocate a new (possibly uninitialized) object for error paths.
         let cloned_val = catch_panic(|| {
-            Ok(unsafe {
-                object
-                    .as_ref()
-                    .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
-                    .and_then(|old| old.obj.as_ref())
-                    .and_then(RegisteredClass::clone_obj)
-            })
+            let Some(old) =
+                unsafe { object.as_ref() }.and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
+            else {
+                return Ok(None);
+            };
+            let Some(clone) = T::clone_fn() else {
+                return Ok(Some(None));
+            };
+            Ok(Some(Some(clone(&*old.try_borrow()?))))
         });
 
-        match cloned_val {
-            Ok(Some(val)) => {
-                let mut new = ZendClassObject::<T>::new(val);
-                unsafe { zend_objects_clone_members(&raw mut new.std, object) };
-                let raw = new.into_raw();
+        let format = match cloned_val {
+            Ok(Some(Some(val))) => {
+                // SAFETY: the engine passes the live object being cloned.
+                let raw = unsafe { ZendClassObject::<T>::new_clone(val, object) }.into_raw();
                 // SAFETY: `into_raw` yields a valid object the engine takes over.
-                unsafe { &raw mut (*raw).std }
+                return unsafe { &raw mut (*raw).std };
             }
-            Ok(None) => {
-                let msg = CString::new(format!(
-                    "Trying to clone an uncloneable object of class {}",
-                    T::CLASS_NAME
-                ))
-                .expect("Failed to create error message");
-                unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
-                Self::released_placeholder::<T>()
-            }
+            Ok(Some(None)) => c"Trying to clone an uncloneable object of class %s",
+            Ok(None) => c"Object of class %s is not initialized",
             Err(panic) => {
                 panic.throw();
-                Self::released_placeholder::<T>()
+                return Self::released_placeholder::<T>();
             }
+        };
+        // SAFETY: the engine passes the live object being cloned, and its class
+        // has a name. The name goes through `%s` like in the engine's own clone
+        // error, so the name of an anonymous class stops at its NUL byte.
+        unsafe {
+            zend_throw_error(
+                ptr::null_mut(),
+                format.as_ptr(),
+                (*(*(*object).ce).name).val.as_ptr(),
+            );
         }
+        Self::released_placeholder::<T>()
     }
 
     /// A fresh uninitialised object for the error paths of `clone_obj`: PHP calls
     /// `OBJ_RELEASE` on whatever `clone_obj` returns once an exception is pending,
-    /// so the original must never be handed back. `free_obj` accepts the `None`
-    /// backing.
+    /// so the original must never be handed back. It is marked as a failed
+    /// construction, so the engine frees it without calling `__destruct`.
+    /// `free_obj` accepts the `None` backing.
     fn released_placeholder<T: RegisteredClass>() -> *mut ZendObject {
-        let empty = unsafe { ZendClassObject::<T>::new_uninit(None) };
+        let empty = ZendClassObject::<T>::new_uninit(None);
         let raw = empty.into_raw();
-        // SAFETY: `into_raw` yields a valid object the engine takes over.
-        unsafe { &raw mut (*raw).std }
+        // SAFETY: `into_raw` yields a valid object the engine takes over, and
+        // nothing else references it yet.
+        unsafe {
+            let object = &raw mut (*raw).std;
+            ext_php_rs_zend_object_store_ctor_failed(object);
+            object
+        }
     }
 
     #[allow(clippy::items_after_statements)]
@@ -212,8 +245,8 @@ impl ZendObjectHandlers {
         // that didn't call the parent constructor), fall back to standard PHP handling
         let Some(obj) = (unsafe {
             object
-                .as_mut()
-                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
         }) else {
             let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
             return unsafe { zend_std_read_property(object, member, type_, cache_slot, rv) };
@@ -223,7 +256,7 @@ impl ZendObjectHandlers {
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
-            this: &T,
+            obj: &ZendClassObject<T>,
             member: *mut ZendStr,
             type_: c_int,
             cache_slot: *mut *mut c_void,
@@ -257,7 +290,7 @@ impl ZendObjectHandlers {
                     let getter = prop_info
                         .get
                         .ok_or("No getter available for this property.")?;
-                    getter(this, rv_mut)?;
+                    getter(&*obj.try_borrow()?, rv_mut)?;
                     if !matches!(u32::try_from(type_), Ok(BP_VAR_R | BP_VAR_IS)) {
                         if !rv_mut.is_object() && !rv_mut.is_reference() {
                             let class = unsafe { (*object).ce.as_ref() }
@@ -292,9 +325,7 @@ impl ZendObjectHandlers {
             })
         }
 
-        match catch_panic(|| unsafe {
-            internal::<T>(object, &**obj, member, type_, cache_slot, rv)
-        }) {
+        match catch_panic(|| unsafe { internal::<T>(object, obj, member, type_, cache_slot, rv) }) {
             Ok((retval, released)) => {
                 drop(released);
                 retval
@@ -318,8 +349,8 @@ impl ZendObjectHandlers {
         // that didn't call the parent constructor), fall back to standard PHP handling
         let Some(obj) = (unsafe {
             object
-                .as_mut()
-                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
         }) else {
             let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
             return unsafe { zend_std_write_property(object, member, value, cache_slot) };
@@ -329,12 +360,11 @@ impl ZendObjectHandlers {
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
-            obj: &mut ZendClassObject<T>,
+            obj: &ZendClassObject<T>,
             member: *mut ZendStr,
             value: *mut Zval,
             cache_slot: *mut *mut c_void,
         ) -> PhpResult<*mut Zval> {
-            let self_ = &mut *obj;
             let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
             let value_mut = unsafe { value.as_mut().ok_or("Invalid return zval given")? };
 
@@ -360,7 +390,7 @@ impl ZendObjectHandlers {
                     let setter = prop_info
                         .set
                         .ok_or("No setter available for this property.")?;
-                    setter(self_, value_mut)?;
+                    setter(&mut *obj.try_borrow_mut()?, value_mut)?;
                     value
                 }
                 None => unsafe { zend_std_write_property(object, member, value, cache_slot) },
@@ -397,7 +427,7 @@ impl ZendObjectHandlers {
 
         let mut released = Vec::new();
         if let Err(e) = catch_panic(|| {
-            let _ = unsafe { refresh_slots::<T>(object, &**obj, &mut released) };
+            let _ = unsafe { refresh_slots::<T>(object, &*obj.try_borrow()?, &mut released) };
             Ok(())
         }) {
             e.throw();
@@ -495,7 +525,7 @@ impl ZendObjectHandlers {
                 }) else {
                     continue;
                 };
-                unsafe { refresh_slots::<T>(object, &**obj, &mut released) }?;
+                unsafe { refresh_slots::<T>(object, &*obj.try_borrow()?, &mut released) }?;
             }
             Ok(())
         });
@@ -524,8 +554,8 @@ impl ZendObjectHandlers {
         // that didn't call the parent constructor), fall back to standard PHP handling
         let Some(obj) = (unsafe {
             object
-                .as_mut()
-                .and_then(|obj| ZendClassObject::<T>::from_zend_obj_mut(obj))
+                .as_ref()
+                .and_then(|obj| ZendClassObject::<T>::from_zend_obj(obj))
         }) else {
             let cache_slot = unsafe { std_cache_slot::<T>(member, cache_slot) };
             return unsafe { zend_std_has_property(object, member, has_set_exists, cache_slot) };
@@ -535,13 +565,12 @@ impl ZendObjectHandlers {
         #[inline(always)]
         unsafe fn internal<T: RegisteredClass>(
             object: *mut ZendObject,
-            obj: &mut ZendClassObject<T>,
+            obj: &ZendClassObject<T>,
             member: *mut ZendStr,
             has_set_exists: c_int,
             cache_slot: *mut *mut c_void,
         ) -> PhpResult<c_int> {
             let prop = unsafe { resolve_property::<T>(member, cache_slot)? };
-            let self_ = &*obj;
 
             match has_set_exists {
                 //
@@ -550,7 +579,7 @@ impl ZendObjectHandlers {
                     if let Some(val) = prop {
                         let getter = val.get.ok_or("No getter available for this property.")?;
                         let mut zv = Zval::new();
-                        getter(self_, &mut zv)?;
+                        getter(&*obj.try_borrow()?, &mut zv)?;
                         return Ok(c_int::from(!zv.is_null()));
                     }
                 }
@@ -560,7 +589,7 @@ impl ZendObjectHandlers {
                     if let Some(val) = prop {
                         let getter = val.get.ok_or("No getter available for this property.")?;
                         let mut zv = Zval::new();
-                        getter(self_, &mut zv)?;
+                        getter(&*obj.try_borrow()?, &mut zv)?;
 
                         cfg_if::cfg_if! {
                             if #[cfg(php84)] {

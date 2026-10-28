@@ -962,6 +962,21 @@ pub struct _zend_reference {
 pub struct _zend_ast_ref {
     pub gc: zend_refcounted_h,
 }
+pub const _zend_oom_state_ZEND_OOM_STATE_NONE: _zend_oom_state = 0;
+pub const _zend_oom_state_ZEND_OOM_STATE_PENDING: _zend_oom_state = 1;
+pub const _zend_oom_state_ZEND_OOM_STATE_HANDLING: _zend_oom_state = 2;
+pub const _zend_oom_state_ZEND_OOM_STATE_HANDLED: _zend_oom_state = 3;
+pub type _zend_oom_state = ::std::os::raw::c_uint;
+pub use self::_zend_oom_state as zend_oom_state;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_oom_info {
+    pub state: zend_oom_state,
+    pub lineno: u32,
+    pub message: *mut zend_string,
+    pub filename: *mut zend_string,
+}
+pub type zend_oom_info = _zend_oom_info;
 unsafe extern "C" {
     pub fn _emalloc(
         size: usize,
@@ -1042,6 +1057,12 @@ pub struct zend_get_gc_buffer {
     pub cur: *mut zval,
     pub end: *mut zval,
     pub start: *mut zval,
+}
+unsafe extern "C" {
+    pub fn zend_get_gc_buffer_create() -> *mut zend_get_gc_buffer;
+}
+unsafe extern "C" {
+    pub fn zend_get_gc_buffer_grow(gc_buffer: *mut zend_get_gc_buffer);
 }
 pub type zend_string_init_interned_func_t = ::std::option::Option<
     unsafe extern "C" fn(
@@ -2198,6 +2219,7 @@ pub struct _zend_compiler_globals {
     pub multibyte: bool,
     pub detect_unicode: bool,
     pub encoding_declared: bool,
+    pub interned_strings_fallible: bool,
     pub ast: *mut zend_ast,
     pub ast_arena: *mut zend_arena,
     pub delayed_oplines_stack: zend_stack,
@@ -2381,6 +2403,7 @@ pub struct _zend_executor_globals {
     pub reserved_stack_size: zend_ulong,
     pub strtod_state: zend_strtod_state,
     pub reserved: [*mut ::std::os::raw::c_void; 6usize],
+    pub delayed_oom: zend_oom_info,
 }
 pub const _zend_compile_position_ZEND_COMPILE_POSITION_AT_SHEBANG: _zend_compile_position = 0;
 pub const _zend_compile_position_ZEND_COMPILE_POSITION_AT_OPEN_TAG: _zend_compile_position = 1;

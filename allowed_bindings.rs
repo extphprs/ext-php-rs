@@ -423,6 +423,8 @@ bind! {
     zend_compile_string,
     zend_execute,
     zend_get_executed_scope,
+    zend_get_gc_buffer_create,
+    zend_get_gc_buffer_grow,
     zend_destroy_static_vars,
     destroy_op_array,
     zend_extension,

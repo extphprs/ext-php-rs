@@ -111,55 +111,12 @@ impl ::ext_php_rs::class::RegisteredClass for MyClass {
     }
     #[inline]
     #[must_use]
-    fn clone_obj(&self) -> ::std::option::Option<Self> {
+    fn clone_fn() -> ::std::option::Option<fn(&Self) -> Self> {
         use ::ext_php_rs::internal::class::ProbeClone as _;
-        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_obj(self)
+        ::ext_php_rs::internal::class::CloneProbe::<Self>::default().clone_fn()
     }
 }
-impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a MyClass {
-    #[inline]
-    fn from_zend_object(
-        obj: &'a ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyClass>::from_zend_obj(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&**obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut MyClass {
-    #[inline]
-    fn from_zend_object_mut(
-        obj: &'a mut ::ext_php_rs::types::ZendObject,
-    ) -> ::ext_php_rs::error::Result<Self> {
-        let obj = ::ext_php_rs::types::ZendClassObject::<MyClass>::from_zend_obj_mut(obj)
-            .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-        Ok(&mut **obj)
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a MyClass {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?)
-            .ok()
-    }
-}
-impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut MyClass {
-    const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(
-        <MyClass as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME,
-    );
-    #[inline]
-    fn from_zval_mut(
-        zval: &'a mut ::ext_php_rs::types::Zval,
-    ) -> ::std::option::Option<Self> {
-        <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(
-                zval.object_mut()?,
-            )
-            .ok()
-    }
-}
+impl ::ext_php_rs::class::PhpClass for MyClass {}
 impl ::ext_php_rs::convert::IntoZendObject for MyClass {
     #[inline]
     fn into_zend_object(
@@ -245,7 +202,14 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
                                                             return;
                                                         }
                                                     };
-                                                    let __result = { __this.plain() };
+                                                    let __payload = match __this.try_borrow() {
+                                                        Ok(payload) => payload,
+                                                        Err(err) => {
+                                                            ::ext_php_rs::exception::PhpException::from(err).throw();
+                                                            return;
+                                                        }
+                                                    };
+                                                    let __result = { __payload.plain() };
                                                     if let Err(e) = __result.set_zval(retval, false) {
                                                         let e: ::ext_php_rs::exception::PhpException = e.into();
                                                         e.throw();
@@ -287,11 +251,26 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
             this: &mut MyClass,
             __zv: &::ext_php_rs::types::Zval,
         ) -> ::ext_php_rs::exception::PhpResult {
-            use ::ext_php_rs::convert::FromZval as _;
-            let val = <i64 as ::ext_php_rs::convert::FromZval>::from_zval(__zv)
-                .ok_or("Unable to convert property value into required type.")?;
+            let mut __value = __zv.shallow_clone();
+            let mut __holder = ::ext_php_rs::internal::argument::holder::<i64, _>();
+            let val = match ::ext_php_rs::internal::argument::extract::<
+                i64,
+                _,
+            >(__value.dereference_mut(), &mut __holder) {
+                ::std::result::Result::Ok(val) => val,
+                ::std::result::Result::Err(
+                    ::ext_php_rs::error::Error::Borrow(error),
+                ) => {
+                    return ::std::result::Result::Err(error.into());
+                }
+                ::std::result::Result::Err(_) => {
+                    return ::std::result::Result::Err(
+                        "Unable to convert property value into required type.".into(),
+                    );
+                }
+            };
             MyClass::set_first(this, val);
-            Ok(())
+            ::std::result::Result::Ok(())
         }
         fn __method_get_1(
             this: &MyClass,

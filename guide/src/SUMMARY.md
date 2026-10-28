@@ -57,5 +57,6 @@
 
 # Migration Guides
 ---
+[v0.17](./migration-guides/v0.17.md)
 [v0.16](./migration-guides/v0.16.md)
 [v0.14](./migration-guides/v0.14.md)

@@ -59,11 +59,20 @@ impl<'a> Arg<'a> {
     ///
     /// * `name` - The name of the parameter.
     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
+        Self::typed(name, T::TYPE, T::NULLABLE, T::BY_REF)
+    }
+
+    pub(crate) fn typed(
+        name: impl Into<String>,
+        r#type: DataType,
+        allow_null: bool,
+        as_ref: bool,
+    ) -> Self {
         Arg {
             name: name.into(),
-            r#type: T::TYPE,
-            as_ref: T::BY_REF,
-            allow_null: T::NULLABLE,
+            r#type,
+            as_ref,
+            allow_null,
             variadic: false,
             default_value: None,
             zval: None,
@@ -142,16 +151,20 @@ impl<'a> Arg<'a> {
             .collect()
     }
 
-    /// Gets all the variadic values for this Rust argument. Returns `None` if
-    /// one of the values cannot be converted into `T`.
-    pub fn try_variadic_vals<T>(&'a mut self) -> Option<Vec<T>>
+    /// Gets all the variadic values for this Rust argument.
+    ///
+    /// # Errors
+    ///
+    /// Returns the error of the first value that cannot be converted into `T`,
+    /// see [`FromZvalMut::try_from_zval_mut`].
+    pub fn try_variadic_vals<T>(&'a mut self) -> Result<Vec<T>>
     where
         T: FromZvalMut<'a>,
     {
         self.variadic_zvals
             .iter_mut()
             .filter_map(|zv| zv.as_mut())
-            .map(|zv| T::from_zval_mut(zv.dereference_mut()))
+            .map(|zv| T::try_from_zval_mut(zv.dereference_mut()))
             .collect()
     }
 
@@ -500,7 +513,10 @@ mod tests {
         arg.variadic_zvals.push(Some(&mut long));
         arg.variadic_zvals.push(Some(&mut double));
 
-        assert_eq!(arg.try_variadic_vals::<i64>(), None);
+        assert!(matches!(
+            arg.try_variadic_vals::<i64>(),
+            Err(Error::ZvalConversion(DataType::Double))
+        ));
     }
 
     #[test]
