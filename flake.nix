@@ -34,6 +34,12 @@
       php-zts-debug =
         (withDebug (pkgs.php.override { ztsSupport = true; })).buildEnv { embedSupport = true; };
       php-zts-debug-dev = php-zts-debug.unwrapped.dev;
+      php86 = pkgs.php86.buildEnv { embedSupport = true; };
+      php86-dev = php86.unwrapped.dev;
+      php86-zts = (pkgs.php86.override { ztsSupport = true; }).buildEnv { embedSupport = true; };
+      php86-zts-dev = php86-zts.unwrapped.dev;
+      php86-debug = (withDebug pkgs.php86).buildEnv { embedSupport = true; };
+      php86-debug-dev = php86-debug.unwrapped.dev;
       withAsan = phpPkg: phpPkg.override {
         stdenv = pkgs.clangStdenv;
         valgrindSupport = false;
@@ -112,6 +118,9 @@
         zts = mkShellFor php-zts php-zts-dev;
         debug = mkShellFor php-debug php-debug-dev;
         zts-debug = mkShellFor php-zts-debug php-zts-debug-dev;
+        php86 = mkShellFor php86 php86-dev;
+        php86-zts = mkShellFor php86-zts php86-zts-dev;
+        php86-debug = mkShellFor php86-debug php86-debug-dev;
         asan = asanShell;
       };
     };

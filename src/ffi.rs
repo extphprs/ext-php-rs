@@ -53,3 +53,64 @@ unsafe extern "C" {
 }
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+#[cfg(php86)]
+pub use php86::*;
+
+#[cfg(php86)]
+mod php86 {
+    use super::{
+        HashTable, zend_call_known_function_ex, zend_class_entry, zend_function,
+        zend_is_callable_ex, zend_object, zend_string, zval,
+    };
+    use std::ptr;
+
+    pub use super::{
+        zend_result_FAILURE as ZEND_RESULT_CODE_FAILURE,
+        zend_result_SUCCESS as ZEND_RESULT_CODE_SUCCESS,
+    };
+
+    pub const ZEND_INTERNAL_FUNCTION: u32 = 1;
+    pub const ZEND_USER_FUNCTION: u32 = 2;
+    pub const ZEND_EVAL_CODE: u32 = 4;
+
+    pub unsafe fn zend_call_known_function(
+        fn_: *mut zend_function,
+        object: *mut zend_object,
+        called_scope: *mut zend_class_entry,
+        retval_ptr: *mut zval,
+        param_count: u32,
+        params: *mut zval,
+        named_params: *mut HashTable,
+    ) {
+        unsafe {
+            zend_call_known_function_ex(
+                fn_,
+                object,
+                called_scope,
+                retval_ptr,
+                param_count,
+                params,
+                named_params,
+                0,
+            );
+        }
+    }
+
+    pub unsafe fn zend_is_callable(
+        callable: *const zval,
+        check_flags: u32,
+        callable_name: *mut *mut zend_string,
+    ) -> bool {
+        unsafe {
+            zend_is_callable_ex(
+                callable,
+                ptr::null_mut(),
+                check_flags,
+                callable_name,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        }
+    }
+}

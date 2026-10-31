@@ -65,6 +65,7 @@ bind! {
     zend_array_destroy,
     zend_array_dup,
     zend_call_known_function,
+    zend_call_known_function_ex,
     zend_fetch_function_str,
     zend_hash_str_find_ptr_lc,
     zend_ce_argument_count_error,

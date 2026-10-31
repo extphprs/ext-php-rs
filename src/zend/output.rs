@@ -431,7 +431,7 @@ mod tests {
         Embed::run(AssertUnwindSafe(move || {
             {
                 let mut sapi = SapiGlobals::get_mut();
-                sapi.headers_sent = 0;
+                sapi.headers_sent = Default::default();
                 sapi.request_info.no_headers = false;
             }
             Embed::eval("header_register_callback(fn () => print(str_repeat('b', 65536)));")
