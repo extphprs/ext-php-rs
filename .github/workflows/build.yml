@@ -95,7 +95,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        php: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        php: ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6"]
         rust: [stable, nightly]
         clang: ["15", "21"]
         phpts: [ts, nts]
@@ -103,6 +103,9 @@ jobs:
           # ext-php-rs requires nightly Rust when on Windows.
           - os: windows-latest
             rust: stable
+          # windows.php.net ships no devel pack for the 8.6 nightly.
+          - os: windows-latest
+            php: "8.6"
           - os: macos-latest
             clang: "21"
           - os: ubuntu-latest
@@ -501,8 +504,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        php: ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6-rc"]
         phpts: [["-zts", "TS"], ["", "NTS"]]
+        include:
+          - php: "8.6-rc"
+            alpine: "3.23"
+            llvm: "21"
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -523,6 +530,8 @@ jobs:
           build-args: |
             PHP_VERSION=${{ matrix.php }}
             TS=${{ matrix.phpts[0] }}
+            ALPINE=${{ matrix.alpine || '3.22' }}
+            LLVM=${{ matrix.llvm || '17' }}
       - name: Build
         run: |
           docker run \
