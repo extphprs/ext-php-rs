@@ -5,7 +5,7 @@ repository = "https://github.com/extphprs/ext-php-rs"
 homepage = "https://ext-php.rs"
 license = "MIT OR Apache-2.0"
 keywords = ["php", "ffi", "zend"]
-version = "0.16.3"
+version = "0.16.4"
 authors = [
     "Pierre Tondereau <pierre.tondereau@protonmail.com>",
     "Xenira <xenira@php.rs>",
@@ -41,7 +41,7 @@ anyhow = "1"
 bindgen = { version = "0.73.2", default-features = false, features = ["logging"] }
 cc = "1.2"
 skeptic = "0.14"
-ext-php-rs-build = { version = "0.1.1", path = "./crates/php-build" }
+ext-php-rs-build = { version = "0.2.0", path = "./crates/php-build" }
 
 [target.'cfg(windows)'.build-dependencies]
 ureq = { version = "3.0", features = [

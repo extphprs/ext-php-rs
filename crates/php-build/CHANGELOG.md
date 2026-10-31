@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.1.1...ext-php-rs-build-v0.2.0) - 2026-10-31
+
+### Added
+- *(php)* Support PHP 8.6 ([#833](https://github.com/extphprs/ext-php-rs/pull/833)) (by @ptondereau) [[#833](https://github.com/extphprs/ext-php-rs/issues/833)] 
 ## [0.1.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.1.0...ext-php-rs-build-v0.1.1) - 2026-01-28
 
 ### Other

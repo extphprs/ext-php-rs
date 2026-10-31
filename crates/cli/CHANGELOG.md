@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.2](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.1...cargo-php-v0.2.2) - 2026-10-31
+
+### Fixed
+- *(ci)* Install libphp-embed from sury and stub _femalloc ([#828](https://github.com/extphprs/ext-php-rs/pull/828)) (by @ptondereau) [[#828](https://github.com/extphprs/ext-php-rs/issues/828)] 
 ## [0.2.1](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.0...cargo-php-v0.2.1) - 2026-10-06
 
 ### Fixed
