@@ -9,7 +9,7 @@ use crate::{
         zend_call_known_function, zend_fetch_function_str, zend_function, zend_function_entry,
         zend_hash_str_find_ptr_lc,
     },
-    flags::FunctionType,
+    flags::{FunctionType, MethodFlags},
     types::Zval,
 };
 
@@ -43,6 +43,16 @@ impl FunctionEntry {
             doc_comment: ptr::null(),
             #[cfg(php84)]
             frameless_function_infos: ptr::null(),
+        }
+    }
+
+    pub(crate) fn add_flags(&mut self, flags: MethodFlags) {
+        cfg_if::cfg_if! {
+            if #[cfg(php86)] {
+                self.flags |= u64::from(flags.bits());
+            } else {
+                self.flags |= flags.bits();
+            }
         }
     }
 }

@@ -59,14 +59,23 @@ impl ZendObjectHandlers {
     /// # Panics
     ///
     /// * If the offset of the `T` type is not a valid `i32` value.
-    #[expect(
-        clippy::expect_used,
-        reason = "the property offset is computed from a struct layout and fits in the engine's offset type"
+    #[cfg_attr(
+        not(php86),
+        expect(
+            clippy::expect_used,
+            reason = "the property offset is computed from a struct layout and fits in the engine's offset type"
+        )
     )]
     pub unsafe fn init<T: RegisteredClass>(ptr: *mut ZendObjectHandlers) {
         unsafe { ptr::copy_nonoverlapping(&raw const std_object_handlers, ptr, 1) };
         let offset = ZendClassObject::<T>::std_offset();
-        unsafe { (*ptr).offset = offset.try_into().expect("Invalid offset") };
+        cfg_if::cfg_if! {
+            if #[cfg(php86)] {
+                unsafe { (*ptr).offset = offset };
+            } else {
+                unsafe { (*ptr).offset = offset.try_into().expect("Invalid offset") };
+            }
+        }
         unsafe { (*ptr).free_obj = Some(Self::free_obj::<T>) };
         unsafe { (*ptr).clone_obj = Some(Self::clone_obj::<T>) };
         unsafe { (*ptr).read_property = Some(Self::read_property::<T>) };

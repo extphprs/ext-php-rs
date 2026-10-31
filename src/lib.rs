@@ -106,6 +106,9 @@ pub const PHP_84: bool = cfg!(php84);
 /// Whether the extension is compiled for PHP 8.5 or later.
 pub const PHP_85: bool = cfg!(php85);
 
+/// Whether the extension is compiled for PHP 8.6 or later.
+pub const PHP_86: bool = cfg!(php86);
+
 #[cfg(feature = "enum")]
 pub use ext_php_rs_derive::php_enum;
 pub use ext_php_rs_derive::{

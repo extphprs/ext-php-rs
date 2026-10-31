@@ -785,13 +785,22 @@ impl SapiRequestInfo {
     /// Get the current user.
     #[must_use]
     pub fn current_user(&self) -> Option<&str> {
-        if self.current_user.is_null() {
-            return None;
+        cfg_if::cfg_if! {
+            if #[cfg(php86)] {
+                unsafe { self.current_user.as_ref() }.and_then(|user| user.as_str().ok())
+            } else {
+                if self.current_user.is_null() {
+                    return None;
+                }
+                unsafe { CStr::from_ptr(self.current_user).to_str().ok() }
+            }
         }
-        unsafe { CStr::from_ptr(self.current_user).to_str().ok() }
     }
 
     /// Get the current user length.
+    ///
+    /// PHP 8.6 removes this field. Use [`Self::current_user`] instead.
+    #[cfg(not(php86))]
     #[must_use]
     pub fn current_user_length(&self) -> i32 {
         self.current_user_length

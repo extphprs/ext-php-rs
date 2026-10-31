@@ -449,7 +449,7 @@ impl ClassBuilder {
         let mut methods = Vec::with_capacity(self.methods.len() + 1);
         for (method, flags) in self.methods {
             let (mut entry, args) = method.build()?;
-            entry.flags |= flags.bits();
+            entry.add_flags(flags);
             methods.push(entry);
             arg_info.push(args);
         }

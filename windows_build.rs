@@ -149,8 +149,10 @@ impl DevelPack {
             .parse::<f32>()
             .context("Failed to parse PHP version as float")?;
 
-        // PHP builds switched to VS17 in PHP 8.4.1.
-        let visual_studio_version = if version_float >= 8.4f32 {
+        // PHP builds switched to VS17 in PHP 8.4.1 and to VS18 in PHP 8.6.
+        let visual_studio_version = if version_float >= 8.6f32 {
+            "vs18"
+        } else if version_float >= 8.4f32 {
             "vs17"
         } else {
             "vs16"

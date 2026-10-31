@@ -79,19 +79,11 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// * `name` - The name of the function.
     pub fn new_abstract<T: Into<String>>(name: T) -> Self {
+        let mut function = FunctionEntry::end();
+        function.add_flags(MethodFlags::Abstract);
         Self {
             name: name.into(),
-            function: FunctionEntry {
-                fname: ptr::null(),
-                handler: None,
-                arg_info: ptr::null(),
-                num_args: 0,
-                flags: MethodFlags::Abstract.bits(),
-                #[cfg(php84)]
-                doc_comment: ptr::null(),
-                #[cfg(php84)]
-                frameless_function_infos: ptr::null(),
-            },
+            function,
             args: vec![],
             n_req: None,
             retval: None,
@@ -184,7 +176,7 @@ impl<'a> FunctionBuilder<'a> {
         let variadic = self.args.last().is_some_and(|arg| arg.variadic);
 
         if variadic {
-            self.function.flags |= MethodFlags::Variadic.bits();
+            self.function.add_flags(MethodFlags::Variadic);
             n_req = n_req.saturating_sub(1);
         }
 
