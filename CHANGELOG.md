@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [0.16.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.3...ext-php-rs-v0.16.4) - 2026-10-31
+
+### Added
+- *(php)* Support PHP 8.6 ([#833](https://github.com/extphprs/ext-php-rs/pull/833)) (by @ptondereau) [[#833](https://github.com/extphprs/ext-php-rs/issues/833)] 
+
+### Fixed
+- *(bindings)* Regenerate docsrs bindings for PHP 8.5 upstream drift ([#832](https://github.com/extphprs/ext-php-rs/pull/832)) (by @ptondereau) [[#832](https://github.com/extphprs/ext-php-rs/issues/832)] 
+- *(ci)* Install PHP and LLVM in the release-plz PR job ([#829](https://github.com/extphprs/ext-php-rs/pull/829)) (by @ptondereau) [[#829](https://github.com/extphprs/ext-php-rs/issues/829)] 
+- *(ci)* Install libphp-embed from sury and stub _femalloc ([#828](https://github.com/extphprs/ext-php-rs/pull/828)) (by @ptondereau) [[#828](https://github.com/extphprs/ext-php-rs/issues/828)] 
+
+### Other
+- Build the ubuntu matrix with clang 21 ([#830](https://github.com/extphprs/ext-php-rs/pull/830)) (by @ptondereau) [[#830](https://github.com/extphprs/ext-php-rs/issues/830)] 
+- Add security policy ([#825](https://github.com/extphprs/ext-php-rs/pull/825)) (by @ptondereau) [[#825](https://github.com/extphprs/ext-php-rs/issues/825)] 
 ## [0.16.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.2...ext-php-rs-v0.16.3) - 2026-10-15
 
 ### Added
