@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.12.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.3...ext-php-rs-derive-v0.12.4) - 2026-11-01
+
+### Added
+- *(php-build)* Mark ApiVersion as non_exhaustive ([#834](https://github.com/extphprs/ext-php-rs/pull/834)) (by @ptondereau) [[#834](https://github.com/extphprs/ext-php-rs/issues/834)] 
 ## [0.12.3](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.2...ext-php-rs-derive-v0.12.3) - 2026-10-15
 
 ### Added
