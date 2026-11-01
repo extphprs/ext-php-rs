@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.1.1...ext-php-rs-build-v0.2.0) - 2026-11-01
+
+### Added
+- *(php)* Support PHP 8.6 ([#833](https://github.com/extphprs/ext-php-rs/pull/833)) (by @ptondereau) [[#833](https://github.com/extphprs/ext-php-rs/issues/833)] 
+- *(php-build)* Mark ApiVersion as non_exhaustive ([#834](https://github.com/extphprs/ext-php-rs/pull/834)) (by @ptondereau) [[#834](https://github.com/extphprs/ext-php-rs/issues/834)] 
 ## [0.1.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.1.0...ext-php-rs-build-v0.1.1) - 2026-01-28
 
 ### Other
