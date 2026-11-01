@@ -212,6 +212,7 @@ impl Display for Arch {
 /// for version detection and comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(clippy::inconsistent_digit_grouping)]
+#[non_exhaustive]
 pub enum ApiVersion {
     /// PHP 8.0
     Php80 = 2020_09_30,
