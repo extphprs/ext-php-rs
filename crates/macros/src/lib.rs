@@ -624,7 +624,8 @@ extern crate proc_macro;
 ///
 /// - `find_php()` - Locates the PHP executable (respects the `PHP` env var)
 /// - `PHPInfo::get()` - Runs `php -i` and parses the output
-/// - `ApiVersion` - Enum representing PHP versions (Php80, Php81, Php82, etc.)
+/// - `ApiVersion` - Enum for the PHP versions (Php80, Php81, Php82, etc.). It
+///   is `#[non_exhaustive]`, so a `match` on it must have a `_` arm.
 /// - `emit_php_cfg_flags()` - Emits `cargo:rustc-cfg=phpXX` for all supported
 ///   versions
 /// - `emit_check_cfg()` - Emits check-cfg to avoid unknown cfg warnings
