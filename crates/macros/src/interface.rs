@@ -166,41 +166,6 @@ impl ToTokens for InterfaceData<'_> {
 
             }
 
-            impl<'a> ::ext_php_rs::convert::FromZendObject<'a> for &'a #interface_name {
-                #[inline]
-                fn from_zend_object(
-                    obj: &'a ::ext_php_rs::types::ZendObject,
-                ) -> ::ext_php_rs::error::Result<Self> {
-                    let obj = ::ext_php_rs::types::ZendClassObject::<#interface_name>::from_zend_obj(obj)
-                        .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-                    Ok(&**obj)
-                }
-            }
-            impl<'a> ::ext_php_rs::convert::FromZendObjectMut<'a> for &'a mut #interface_name {
-                #[inline]
-                fn from_zend_object_mut(
-                    obj: &'a mut ::ext_php_rs::types::ZendObject,
-                ) -> ::ext_php_rs::error::Result<Self> {
-                    let obj = ::ext_php_rs::types::ZendClassObject::<#interface_name>::from_zend_obj_mut(obj)
-                        .ok_or(::ext_php_rs::error::Error::InvalidScope)?;
-                    Ok(&mut **obj)
-                }
-            }
-            impl<'a> ::ext_php_rs::convert::FromZval<'a> for &'a #interface_name {
-                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(<#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME);
-                #[inline]
-                fn from_zval(zval: &'a ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-                    <Self as ::ext_php_rs::convert::FromZendObject>::from_zend_object(zval.object()?).ok()
-                }
-            }
-            impl<'a> ::ext_php_rs::convert::FromZvalMut<'a> for &'a mut #interface_name {
-                const TYPE: ::ext_php_rs::flags::DataType = ::ext_php_rs::flags::DataType::object(<#interface_name as ::ext_php_rs::class::RegisteredClass>::CLASS_NAME);
-                #[inline]
-                fn from_zval_mut(zval: &'a mut ::ext_php_rs::types::Zval) -> ::std::option::Option<Self> {
-                    <Self as ::ext_php_rs::convert::FromZendObjectMut>::from_zend_object_mut(zval.object_mut()?)
-                        .ok()
-                }
-            }
             impl ::ext_php_rs::convert::IntoZendObject for #interface_name {
                 #[inline]
                 fn into_zend_object(

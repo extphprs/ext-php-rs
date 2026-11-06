@@ -294,7 +294,7 @@ impl ClassBuilder {
 
             // SAFETY: After calling this function, PHP will always call the constructor
             // defined below, which assumes that the object is uninitialized.
-            let obj = unsafe { ZendClassObject::<T>::new_uninit(ce.as_ref()) }.into_raw();
+            let obj = ZendClassObject::<T>::new_uninit(unsafe { ce.as_ref() }).into_raw();
             // SAFETY: same ownership transfer as above.
             unsafe { (*obj).get_mut_zend_obj() }
         }
@@ -317,15 +317,15 @@ impl ClassBuilder {
                         ConstructorResult::ArgError => return,
                     };
 
-                    // Use get_object_uninit because the Rust backing is not yet initialized.
-                    // We need access to the ZendClassObject to call initialize() on it.
-                    let Some(this_obj) = ex.get_object_uninit::<T>() else {
+                    let Some(this_obj) = ex.get_object::<T>() else {
                         PhpException::from_message("Failed to retrieve reference to `this` object.".into())
                             .throw();
                         return;
                     };
 
-                    this_obj.initialize(this);
+                    if let Err(err) = this_obj.initialize(this) {
+                        PhpException::from(err).throw();
+                    }
                 }));
             }
         }

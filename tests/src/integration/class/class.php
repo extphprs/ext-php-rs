@@ -191,7 +191,7 @@ assert(preg_match('/refcount\((\d+)\)\{/', $dump, $m) === 1);
 assert(
     (int) $m[1] === 2,
     "\$builder3 refcount should be 2 (\$builder3 + debug_zval_dump's copy); a leak in "
-    . '&mut ZendClassObject<T>::set_zval pushes it higher. Got: '
+    . '&ZendClassObject<T>::set_zval pushes it higher. Got: '
     . $m[1]
 );
 
@@ -454,6 +454,106 @@ assert($manual->copies === 0);
 
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
+
+function caught(Closure $call): ?Throwable
+{
+    try {
+        $call();
+    } catch (Throwable $throwable) {
+        return $throwable;
+    }
+
+    return null;
+}
+
+$uncloneable = new TestUncloneableDestruct();
+$error = caught(fn() => clone $uncloneable);
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Trying to clone an uncloneable object of class TestUncloneableDestruct',
+    'An uncloneable class reports the clone error itself'
+);
+assert($error->getPrevious() === null, 'A failed clone runs no destructor');
+
+$cloneable = new TestCloneableDestruct();
+$error = $cloneable->callWhileModifying(fn() => caught(fn() => clone $cloneable));
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Cannot use object of class TestCloneableDestruct while one of its methods modifies it',
+    'Cloning an object while a method modifies it is refused'
+);
+assert($error->getPrevious() === null, 'The refused clone runs no destructor');
+
+class UncloneableDestructChild extends TestUncloneableDestruct
+{
+}
+
+class CloneableChildWithoutParent extends TestCloneableClass
+{
+    public function __construct()
+    {
+    }
+}
+
+$error = caught(fn() => clone new UncloneableDestructChild());
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Trying to clone an uncloneable object of class UncloneableDestructChild',
+    'The clone error names the runtime class'
+);
+
+if (PHP_VERSION_ID >= 80_500) {
+    $error = caught(fn() => call_user_func('clone', $uncloneable, ['x' => 1]));
+    assert(
+        $error instanceof Error
+        && $error->getMessage() === 'Trying to clone an uncloneable object of class TestUncloneableDestruct',
+        'clone() with properties reports the same error'
+    );
+}
+
+assert(
+    !( new ReflectionClass(TestUncloneableDestruct::class) )->isCloneable(),
+    'A class without Clone is not cloneable'
+);
+assert(( new ReflectionClass(TestCloneableClass::class) )->isCloneable(), 'A class with Clone is cloneable');
+
+$error = caught(fn() => clone new CloneableChildWithoutParent());
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Object of class CloneableChildWithoutParent is not initialized',
+    'Cloning an object that skipped its parent constructor names the runtime class'
+);
+
+$anonymous = new class extends TestCloneableClass {
+    public function __construct()
+    {
+    }
+};
+$error = caught(fn() => clone $anonymous);
+assert(
+    $error instanceof Error
+    && $error->getMessage() === 'Object of class TestCloneableClass@anonymous is not initialized',
+    'The clone error names an anonymous class like the engine does'
+);
+
+class CloneableChildWithProperties extends TestCloneableClass
+{
+    public array $tags = ['first'];
+    public int $clones = 0;
+
+    public function __clone()
+    {
+        $this->clones++;
+    }
+}
+
+$child = new CloneableChildWithProperties(7, 'child');
+$child->tags[] = 'second';
+$copy = clone $child;
+assert($copy instanceof CloneableChildWithProperties, 'The clone of a subclass keeps its class');
+assert($copy->tags === ['first', 'second'], 'The clone copies the properties of the subclass');
+assert($copy->clones === 1 && $child->clones === 0, 'The clone calls __clone of the subclass');
+assert($copy->value === 7 && $copy->name === 'child', 'The clone copies the Rust value');
 
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should

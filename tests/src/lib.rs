@@ -19,6 +19,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     module = integration::bool::build_module(module);
     module = integration::callable::build_module(module);
     module = integration::class::build_module(module);
+    module = integration::class_argument::build_module(module);
     module = integration::closure::build_module(module);
     module = integration::constant::build_module(module);
     module = integration::defaults::build_module(module);
@@ -27,6 +28,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
         module = integration::enum_::build_module(module);
     }
     module = integration::exception::build_module(module);
+    module = integration::gc::build_module(module);
     module = integration::globals::build_module(module);
     module = integration::module_globals::build_module(module);
     module = integration::iterable::build_module(module);
@@ -40,6 +42,7 @@ pub fn build_module(module: ModuleBuilder) -> ModuleBuilder {
     {
         module = integration::observer::build_module(module);
     }
+    module = integration::payload::build_module(module);
     module = integration::persistent_string::build_module(module);
     module = integration::reference::build_module(module);
     module = integration::sapi_activate::build_module(module);
