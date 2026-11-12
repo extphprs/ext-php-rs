@@ -85,7 +85,6 @@ if (PHP_VERSION_ID >= 80200) {
         assert(!str_contains($e->getTraceAsString(), 's3cret'), $e->getTraceAsString());
     }
 
-    $parameters = (new \ReflectionMethod(Test\TestCredentials::class, '__construct'))->getParameters();
+    $parameters = ( new \ReflectionMethod(Test\TestCredentials::class, '__construct') )->getParameters();
     assert($parameters[0]->getAttributes(\SensitiveParameter::class) !== [], 'Reflection sees the attribute');
 }
-
