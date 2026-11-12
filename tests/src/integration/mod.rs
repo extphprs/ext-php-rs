@@ -6,12 +6,14 @@ pub mod binary_slice;
 pub mod bool;
 pub mod callable;
 pub mod class;
+pub mod class_argument;
 pub mod closure;
 pub mod constant;
 pub mod defaults;
 #[cfg(feature = "enum")]
 pub mod enum_;
 pub mod exception;
+pub mod gc;
 pub mod globals;
 pub mod interface;
 pub mod iterable;
@@ -24,6 +26,7 @@ pub mod object;
 #[cfg(feature = "observer")]
 pub mod observer;
 pub mod panic;
+pub mod payload;
 pub mod persistent_string;
 pub mod reference;
 pub mod sapi_activate;

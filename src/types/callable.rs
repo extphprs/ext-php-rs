@@ -7,6 +7,7 @@ use crate::{
     error::{Error, Result},
     ffi::_call_user_function_impl,
     flags::DataType,
+    gc::{GcRoots, GcTrace},
 };
 
 use super::{ZendHashTable, Zval};
@@ -293,6 +294,16 @@ impl TryFrom<Zval> for ZendCallable<'_> {
 
     fn try_from(value: Zval) -> Result<Self> {
         ZendCallable::new_owned(value)
+    }
+}
+
+unsafe impl GcTrace for ZendCallable<'_> {
+    unsafe fn gc_trace(&self, roots: &mut GcRoots) {
+        if let OwnedZval::Owned(callable) = &self.0 {
+            // SAFETY: an owned callable holds its own reference; a borrowed
+            // one is reported by its owner.
+            unsafe { callable.gc_trace(roots) };
+        }
     }
 }
 

@@ -54,6 +54,9 @@ pub enum Error {
     /// [`DataType`].
     #[error("type flags did not contain a datatype: {0:?}")]
     InvalidTypeToDatatype(ZvalTypeFlags),
+    /// The Rust value of a class object could not be borrowed.
+    #[error(transparent)]
+    Borrow(#[from] crate::types::BorrowError),
     /// The function called was called in an invalid scope (calling
     /// class-related functions inside of a non-class bound function).
     #[error("invalid scope")]
@@ -211,7 +214,10 @@ impl From<NulError> for Error {
 
 impl From<Error> for PhpException {
     fn from(err: Error) -> Self {
-        Self::from_message(err.to_string())
+        match err {
+            Error::Borrow(err) => err.into(),
+            err => Self::from_message(err.to_string()),
+        }
     }
 }
 

@@ -3,6 +3,7 @@ use parking_lot::{Mutex, const_mutex};
 
 use crate::builders::ModuleStartup;
 
+pub mod argument;
 pub mod class;
 pub mod function;
 pub mod property;

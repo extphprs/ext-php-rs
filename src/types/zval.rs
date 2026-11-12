@@ -2,7 +2,7 @@
 //! contains is determined by a property inside the struct. The content of the
 //! Zval is stored in a union.
 
-use std::{convert::TryInto, ffi::c_void, fmt::Debug, ptr};
+use std::{convert::TryInto, ffi::c_void, fmt::Debug, mem::ManuallyDrop, ptr};
 
 use cfg_if::cfg_if;
 
@@ -1074,6 +1074,18 @@ impl Zval {
         self.value.obj = ptr::from_ref(val).cast_mut();
     }
 
+    /// Sets the value of the zval as the object `val` points to, adding a
+    /// reference without forming a `&mut ZendObject`.
+    ///
+    /// # Safety
+    ///
+    /// `val` must point to a live object.
+    pub(crate) unsafe fn set_object_ptr(&mut self, val: *mut ZendObject) {
+        self.change_type(ZvalTypeFlags::ObjectEx);
+        unsafe { (*val).gc.refcount += 1 };
+        self.value.obj = val;
+    }
+
     /// Sets the value of the zval as an array. Returns nothing in a result on
     /// success.
     ///
@@ -1175,6 +1187,12 @@ impl Zval {
         // SAFETY: we have exclusive mutable access to this zval so can free the
         // contents.
         //
+        // The old value moves out and the zval is null while the old value is
+        // released, as `zend_assign_to_variable` does: the release can run a
+        // destructor or a GC run, and this zval can be engine memory the
+        // collector walks directly (a hashtable bucket, a property slot), so it
+        // must not hold a value it no longer owns.
+        //
         // For strings, we use zend_string_release directly instead of zval_ptr_dtor
         // to correctly handle persistent strings. zend_string_release properly checks
         // the IS_STR_PERSISTENT flag and uses the correct deallocator (free vs efree).
@@ -1185,20 +1203,26 @@ impl Zval {
         // need to call zval_ptr_dtor because they don't have heap-allocated data.
         // This is important for cargo-php stub generation where zval_ptr_dtor is
         // stubbed as a null pointer - calling it would crash.
-        if self.is_string() {
+        let mut released = ManuallyDrop::new(Zval::new());
+        released.value = self.value;
+        released.u1 = self.u1;
+        // SAFETY: `type_info` is a field of this zval. The write is volatile so
+        // the optimizer keeps it in memory while the release below runs PHP code.
+        unsafe { ptr::write_volatile(&raw mut self.u1.type_info, ZvalTypeFlags::Null.bits()) };
+        if released.is_string() {
             unsafe {
-                if let Some(str_ptr) = self.value.str_.as_mut() {
+                if let Some(str_ptr) = released.value.str_.as_mut() {
                     ext_php_rs_zend_string_release(str_ptr);
                 }
             }
-        } else if self.is_array()
-            || self.is_object()
-            || self.is_resource()
-            || self.is_reference()
-            || self.has_type(IS_CONSTANT_AST)
+        } else if released.is_array()
+            || released.is_object()
+            || released.is_resource()
+            || released.is_reference()
+            || released.has_type(IS_CONSTANT_AST)
         {
             // Only call zval_ptr_dtor for reference-counted types
-            unsafe { zval_ptr_dtor(self) };
+            unsafe { zval_ptr_dtor(&raw mut *released) };
         }
         // Simple types (Long, Double, Bool, Null, etc.) need no cleanup
         self.u1.type_info = ty.bits();
@@ -1207,12 +1231,31 @@ impl Zval {
     /// Extracts some type from a `Zval`.
     ///
     /// This is a wrapper function around `TryFrom`.
+    ///
+    /// For `ClassRef<T>` and `ClassRefMut<T>`, `None` can also mean that the
+    /// Rust value of the object is borrowed. Use [`Zval::try_extract`] to
+    /// know the cause.
     #[must_use]
     pub fn extract<'a, T>(&'a self) -> Option<T>
     where
         T: FromZval<'a>,
     {
         FromZval::from_zval(self)
+    }
+
+    /// Extracts some type from a `Zval`, and tells why it failed.
+    ///
+    /// # Errors
+    ///
+    /// * [`Error::ZvalConversion`] - The value is not a `T`.
+    /// * [`Error::Borrow`] - The value is a class object whose Rust value is
+    ///   borrowed, for `T` a `ClassRef`, a `ClassRefMut` or an `Option` of
+    ///   them.
+    pub fn try_extract<'a, T>(&'a self) -> Result<T>
+    where
+        T: FromZval<'a>,
+    {
+        T::try_from_zval(self)
     }
 
     /// Creates a shallow clone of the [`Zval`].

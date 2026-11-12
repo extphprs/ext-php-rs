@@ -4,26 +4,31 @@ error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
 7 | pub fn count_all(rest: Rest<'_>) -> usize {
   |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
   |
-  = help: the trait `RegisteredEnum` is not implemented for `&[&_zval_struct]`
-  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&[&_zval_struct]`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
   = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
-  = help: the following other types implement trait `FromZvalMut<'a>`:
-            &'a mut ZendClassObject<T>
-            &'a mut _zend_array
-            &'a mut _zend_object
-            &'a mut _zend_object_iterator
-            &'a mut _zval_struct
-            PhpRef<'a>
-            Separated<'a>
-            ext_php_rs::types::Iterable<'a>
-            std::option::Option<&'a mut _zend_array>
-  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
-  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
-note: required by a bound in `Arg::<'a>::of`
- --> src/args.rs
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
   |
-  |     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
-  |                  ^^^^^^^^^^^^^^^ required by this bound in `Arg::<'a>::of`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+note: required by a bound in `ext_php_rs::internal::argument::arg`
+ --> src/internal/argument.rs
+  |
+  | pub fn arg<'z, 'a, 'h, T, const FROM_ZVAL: bool>(name: impl Into<String>) -> Arg<'z>
+  |        --- required by a bound in this function
+  | where
+  |     T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `arg`
 
 error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
  --> tests/ui/php_function_slice_alias.rs:7:24
@@ -31,26 +36,31 @@ error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
 7 | pub fn count_all(rest: Rest<'_>) -> usize {
   |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
   |
-  = help: the trait `RegisteredClass` is not implemented for `&[&_zval_struct]`
-  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&[&_zval_struct]`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
   = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
-  = help: the following other types implement trait `FromZvalMut<'a>`:
-            &'a mut ZendClassObject<T>
-            &'a mut _zend_array
-            &'a mut _zend_object
-            &'a mut _zend_object_iterator
-            &'a mut _zval_struct
-            PhpRef<'a>
-            Separated<'a>
-            ext_php_rs::types::Iterable<'a>
-            std::option::Option<&'a mut _zend_array>
-  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
-  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
-note: required by a bound in `Arg::<'a>::of`
- --> src/args.rs
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
   |
-  |     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
-  |                  ^^^^^^^^^^^^^^^ required by this bound in `Arg::<'a>::of`
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+note: required by a bound in `ext_php_rs::internal::argument::nullable`
+ --> src/internal/argument.rs
+  |
+  | pub const fn nullable<'a, 'h, T, const FROM_ZVAL: bool>() -> bool
+  |              -------- required by a bound in this function
+  | where
+  |     T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `nullable`
 
 error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
  --> tests/ui/php_function_slice_alias.rs:7:24
@@ -58,40 +68,76 @@ error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
 7 | pub fn count_all(rest: Rest<'_>) -> usize {
   |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
   |
-  = help: the trait `RegisteredEnum` is not implemented for `&[&_zval_struct]`
-  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&[&_zval_struct]`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
   = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
-  = help: the following other types implement trait `FromZvalMut<'a>`:
-            &'a mut ZendClassObject<T>
-            &'a mut _zend_array
-            &'a mut _zend_object
-            &'a mut _zend_object_iterator
-            &'a mut _zval_struct
-            PhpRef<'a>
-            Separated<'a>
-            ext_php_rs::types::Iterable<'a>
-            std::option::Option<&'a mut _zend_array>
-  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
-  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+note: required by a bound in `ext_php_rs::internal::argument::holder`
+ --> src/internal/argument.rs
+  |
+  | pub fn holder<'a, 'h, T, const FROM_ZVAL: bool>() -> T::Holder
+  |        ------ required by a bound in this function
+  | where
+  |     T: FunctionArgument<'a, 'h, FROM_ZVAL>,
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `holder`
 
 error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
  --> tests/ui/php_function_slice_alias.rs:7:24
   |
 7 | pub fn count_all(rest: Rest<'_>) -> usize {
-  |                        ^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
+  |                        ^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
   |
-  = help: the trait `RegisteredClass` is not implemented for `&[&_zval_struct]`
-  = note: `Option<&mut T>` is not supported for object arguments, use `&mut T`: PHP objects are handles and the caller sees every mutation
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&[&_zval_struct]`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
   = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
-  = help: the following other types implement trait `FromZvalMut<'a>`:
-            &'a mut ZendClassObject<T>
-            &'a mut _zend_array
-            &'a mut _zend_object
-            &'a mut _zend_object_iterator
-            &'a mut _zval_struct
-            PhpRef<'a>
-            Separated<'a>
-            ext_php_rs::types::Iterable<'a>
-            std::option::Option<&'a mut _zend_array>
-  = note: required for `&[&_zval_struct]` to implement `FromZval<'_>`
-  = note: required for `&[&_zval_struct]` to implement `FromZvalMut<'_>`
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
+
+error[E0277]: `&[&_zval_struct]` cannot be used as a PHP function argument
+ --> tests/ui/php_function_slice_alias.rs:7:18
+  |
+7 | pub fn count_all(rest: Rest<'_>) -> usize {
+  |                  ^^^^^^^^^^ no `FromZval` or `FromZvalMut` implementation for `&[&_zval_struct]`
+  |
+  = help: the trait `ext_php_rs::internal::argument::FunctionArgument<'_, '_, _>` is not implemented for `&[&_zval_struct]`
+  = note: a `#[php_class]` parameter is `&T`, `&mut T`, `Option<&T>`, `Option<&mut T>`, `ClassRef<T>` or `ClassRefMut<T>`
+  = note: a variadic parameter must be spelled `&[T]` in the signature, a type alias hiding the slice is not detected
+help: the following other types implement trait `ext_php_rs::internal::argument::FunctionArgument<'a, 'h, FROM_ZVAL>`
+ --> src/internal/argument.rs
+  |
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for &'h mut T {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'h mut T`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h T>`
+...
+  | impl<'a: 'h, 'h, T: PhpClass> FunctionArgument<'a, 'h, false> for Option<&'h mut T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::option::Option<&'h mut T>`
