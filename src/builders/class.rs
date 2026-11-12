@@ -20,6 +20,7 @@ use crate::{
     },
     flags::{ClassFlags, ConstantFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
+    zend::function::{SensitiveParameters, mark_sensitive},
     zend::{ClassEntry, CompilerGlobals, ExecuteData, ExecutorGlobals, FunctionEntry},
     zend_fastcall,
 };
@@ -447,7 +448,9 @@ impl ClassBuilder {
 
         let mut arg_info = Vec::with_capacity(self.methods.len());
         let mut methods = Vec::with_capacity(self.methods.len() + 1);
+        let mut sensitive = SensitiveParameters::new();
         for (method, flags) in self.methods {
+            sensitive.extend(method.sensitive());
             let (mut entry, args) = method.build()?;
             entry.add_flags(flags);
             methods.push(entry);
@@ -485,6 +488,7 @@ impl ClassBuilder {
 
         let class = unsafe { class.as_mut() }.ok_or(Error::InvalidPointer)?;
         class.info.internal.builtin_functions = ptr::null();
+        mark_sensitive(&raw const class.function_table, &sensitive);
 
         // disable serialization if the class has an associated object
         if self.object_override.is_some() {

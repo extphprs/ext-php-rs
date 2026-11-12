@@ -41,9 +41,10 @@ pub fn parser(input: DeriveInput) -> Result<TokenStream> {
     });
     let mut from_where_clause = into_where_clause.clone();
 
-    // FIXME(david): work around since mutating `generics` will add the lifetime to
-    // the struct generics as well, leading to an error as we would have
-    // `impl<'a> FromZendObject<'a> for Struct<'a>` when `Struct` has no lifetime.
+    // FIXME(david): work around since mutating `generics` will add the lifetime
+    // to the struct generics as well, leading to an error as we would have
+    // `impl<'a> FromZendObject<'a> for Struct<'a>` when `Struct` has no
+    // lifetime.
     let from_impl_generics = {
         let tokens = into_impl_generics.to_token_stream();
         let mut parsed: Generics = syn::parse2(tokens).expect("couldn't reparse generics");

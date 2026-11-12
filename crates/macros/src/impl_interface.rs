@@ -59,7 +59,8 @@ pub fn parser(args: &PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStre
         bail!(input => "`#[php_impl_interface]` can only be used on trait implementations (e.g., `impl SomeTrait for SomeStruct`)");
     };
 
-    // Clone the trait path and modify the last segment to add PhpInterface prefix
+    // Clone the trait path and modify the last segment to add PhpInterface
+    // prefix
     let mut interface_struct_path = trait_path.clone();
     match interface_struct_path.segments.last_mut() {
         Some(segment) => {
@@ -234,7 +235,8 @@ fn generate_method_builder(
         quote! { ::ext_php_rs::flags::MethodFlags::Public }
     };
 
-    // Generate the .returns() call - void for no return type, or the actual type
+    // Generate the .returns() call - void for no return type, or the actual
+    // type
     let returns_call = match output {
         ReturnType::Default => quote! {
             .returns(::ext_php_rs::flags::DataType::Void, false, false)

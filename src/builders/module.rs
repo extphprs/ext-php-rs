@@ -9,6 +9,7 @@ use crate::{
     error::Result,
     ffi::{ZEND_MODULE_API_NO, ext_php_rs_php_build_id},
     flags::ClassFlags,
+    zend::function::{SensitiveParameters, mark_sensitive},
     zend::{
         FunctionEntry, ModuleAllocations, ModuleEntry, ModuleGlobal, ModuleGlobals,
         SapiRequestInfo,
@@ -683,6 +684,9 @@ pub struct ModuleStartup {
     interfaces: Vec<fn() -> ClassBuilder>,
     #[cfg(feature = "enum")]
     enums: Vec<fn() -> EnumBuilder>,
+    /// Parameters of the module's functions to mark `#[\SensitiveParameter]`.
+    /// The engine registers the functions before MINIT, so `startup` can.
+    sensitive: SensitiveParameters,
 }
 
 impl ModuleStartup {
@@ -699,6 +703,11 @@ impl ModuleStartup {
     pub fn startup(&self, ty: i32, mod_num: i32) -> Result<()> {
         for (name, val) in &self.constants {
             val.register_constant(name, mod_num)?;
+        }
+
+        if !self.sensitive.is_empty() {
+            let table = crate::zend::CompilerGlobals::get().function_table;
+            mark_sensitive(table, &self.sensitive);
         }
 
         // Interfaces must be registered before classes so that classes can implement
@@ -751,11 +760,14 @@ impl ModuleBuilder<'_> {
 impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocations) {
     type Error = crate::error::Error;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(builder: ModuleBuilder) -> Result<Self, Self::Error> {
         builder.validate()?;
         let mut arg_info = Vec::with_capacity(builder.functions.len());
         let mut function_table = Vec::with_capacity(builder.functions.len() + 1);
+        let mut sensitive = SensitiveParameters::new();
         for function in builder.functions {
+            sensitive.extend(function.sensitive());
             let (entry, args) = function.build()?;
             function_table.push(entry);
             arg_info.push(args);
@@ -790,6 +802,7 @@ impl TryFrom<ModuleBuilder<'_>> for (ModuleEntry, ModuleStartup, ModuleAllocatio
             interfaces: builder.interfaces,
             #[cfg(feature = "enum")]
             enums: builder.enums,
+            sensitive,
         };
 
         #[cfg(not(php_zts))]

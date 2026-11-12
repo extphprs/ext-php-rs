@@ -1,5 +1,5 @@
 use darling::FromAttributes;
-use darling::util::{Flag, SpannedValue};
+use darling::util::{Flag, PathList, SpannedValue};
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::collections::{BTreeSet, HashMap};
@@ -72,6 +72,8 @@ struct MethodArgs {
     optional: Option<Ident>,
     /// Default values for optional arguments.
     defaults: HashMap<Ident, Expr>,
+    /// Arguments PHP marks `#[\SensitiveParameter]`.
+    sensitive: PathList,
     /// Visibility of the method (public, protected, private).
     vis: Visibility,
     /// Span of the explicit `vis` option, when given.
@@ -89,6 +91,7 @@ pub struct PhpFunctionImplAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
+    sensitive: PathList,
     vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
     getter: Flag,
@@ -171,12 +174,16 @@ impl MethodArgs {
             if let Some(optional) = &attr.optional {
                 bail!(optional => "{kind} cannot have `optional`; they map to a PHP property.");
             }
+            if let Some(name) = attr.sensitive.first() {
+                bail!(name => "{kind} cannot have `sensitive`; they map to a PHP property.");
+            }
         }
 
         Ok(Self {
             name,
             optional: attr.optional,
             defaults: attr.defaults,
+            sensitive: attr.sensitive,
             vis_span: attr.vis.as_ref().map(SpannedValue::span),
             vis: attr.vis.map_or(Visibility::Public, |vis| *vis),
             ty,
@@ -399,6 +406,7 @@ impl<'a> ParsedImpl<'a> {
                     let is_constructor = matches!(opts.ty, MethodTy::Constructor);
                     let mut args =
                         Args::parse_from_fnargs(method.sig.inputs.iter(), opts.defaults)?;
+                    args.mark_sensitive(&opts.sensitive)?;
                     let receiver = if args.receiver.is_some() {
                         MethodReceiver::Class
                     } else if !is_constructor && args.take_self_object()? {
