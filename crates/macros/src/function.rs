@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use darling::{FromAttributes, util::SpannedValue};
+use darling::{
+    FromAttributes,
+    util::{PathList, SpannedValue},
+};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::spanned::Spanned as _;
@@ -63,6 +66,7 @@ struct PhpFunctionAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
+    sensitive: PathList,
     vis: Option<SpannedValue<Visibility>>,
     attrs: Vec<syn::Attribute>,
 }
@@ -74,7 +78,8 @@ pub fn parser(mut input: ItemFn) -> Result<TokenStream> {
     }
     input.attrs.retain(|attr| !attr.path().is_ident("php"));
 
-    let args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;
+    let mut args = Args::parse_from_fnargs(input.sig.inputs.iter(), php_attr.defaults)?;
+    args.mark_sensitive(&php_attr.sensitive)?;
     if let Some(ReceiverArg { span }) = args.receiver {
         bail!(span => "Receiver arguments are invalid on PHP functions. See `#[php_impl]`.");
     }
@@ -759,6 +764,9 @@ pub struct TypedArg<'a> {
     pub ty: Type,
     pub default: Option<Expr>,
     pub variadic: bool,
+    /// Named in `#[php(sensitive(...))]`: PHP marks it
+    /// `#[\SensitiveParameter]`.
+    pub sensitive: bool,
 }
 
 #[derive(Debug)]
@@ -792,7 +800,7 @@ impl<'a> Args<'a> {
                 FnArg::Typed(PatType { attrs, pat, ty, .. }) => {
                     reject_php_attrs(
                         attrs,
-                        "function parameters; use `defaults` and `optional` on the function",
+                        "function parameters; use `defaults`, `optional` and `sensitive` on the function",
                     )?;
                     let syn::Pat::Ident(syn::PatIdent { ident, .. }) = &**pat else {
                         bail!(pat => "Unsupported argument.");
@@ -800,18 +808,35 @@ impl<'a> Args<'a> {
                     if result.typed.last().is_some_and(|arg| arg.variadic) {
                         bail!(pat => "A variadic parameter (`&[T]`) must be the last parameter.");
                     }
-
                     result.typed.push(TypedArg {
                         name: ident,
                         ty: (**ty).clone(),
                         default: defaults.remove(ident),
                         variadic: is_slice_ref(ty),
+                        sensitive: false,
                     });
                 }
             }
         }
         reject_unknown_defaults(defaults)?;
         Ok(result)
+    }
+
+    /// Marks the parameters `#[php(sensitive(...))]` lists, which PHP then
+    /// declares `#[\SensitiveParameter]`.
+    pub fn mark_sensitive(&mut self, list: &PathList) -> Result<()> {
+        for path in list.iter() {
+            let Some(name) = path.get_ident() else {
+                bail!(path => "`sensitive` takes parameter names, such as `sensitive(password)`");
+            };
+            match self.typed.iter_mut().find(|arg| arg.name == name) {
+                Some(arg) => arg.sensitive = true,
+                None => {
+                    bail!(name => "no parameter named `{name}`; `sensitive` names must match a parameter name")
+                }
+            }
+        }
+        Ok(())
     }
 
     fn position(&self, optional: &Ident) -> Result<usize> {
@@ -957,10 +982,12 @@ impl TypedArg<'_> {
             }
         });
         let variadic = self.variadic.then(|| quote! { .is_variadic() });
+        let sensitive = self.sensitive.then(|| quote! { .sensitive() });
         quote! {
             ::ext_php_rs::args::Arg::of::<#ty>(#name)
                 #default
                 #variadic
+                #sensitive
         }
     }
 

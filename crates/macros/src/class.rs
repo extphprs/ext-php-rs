@@ -57,8 +57,8 @@ impl FromMeta for ClassEntryAttribute {
     fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
         match item {
             syn::Meta::List(list) => {
-                // Try to parse as explicit form first: extends(ce = ..., stub = "...")
-                // by checking if it contains '='
+                // Try to parse as explicit form first: extends(ce = ..., stub =
+                // "...") by checking if it contains '='
                 let tokens_str = list.tokens.to_string();
                 if tokens_str.contains('=') {
                     // Parse as explicit form with named parameters
@@ -92,12 +92,14 @@ impl ToTokens for ClassEntryAttribute {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let token = match self {
             ClassEntryAttribute::Explicit { ce, stub } => {
-                // For explicit form, `ce` is expected to be a function like `ce::exception`
+                // For explicit form, `ce` is expected to be a function like
+                // `ce::exception`
                 quote! { (#ce, #stub) }
             }
             ClassEntryAttribute::Type(path) => {
-                // For a Rust type, generate a closure that calls get_metadata().ce()
-                // The closure can be coerced to a function pointer since it captures nothing
+                // For a Rust type, generate a closure that calls
+                // get_metadata().ce() The closure can be coerced to a function
+                // pointer since it captures nothing
                 quote! {
                     (
                         || <#path as ::ext_php_rs::class::RegisteredClass>::get_metadata().ce(),
@@ -233,8 +235,8 @@ fn generate_registered_class_impl(
         fields.iter().partition(|prop| !prop.is_static());
 
     // Generate instance property descriptors with getter/setter fn pointers.
-    // Each field property gets a pair of static functions and a PropertyDescriptor
-    // entry.
+    // Each field property gets a pair of static functions and a
+    // PropertyDescriptor entry.
     let field_prop_count = instance_props.len();
     let field_prop_data: Vec<(TokenStream, TokenStream)> = instance_props
         .iter()
@@ -300,8 +302,8 @@ fn generate_registered_class_impl(
         field_prop_data.iter().map(|(_, d)| d).collect();
 
     // Generate static properties (PHP-managed, no Rust handlers)
-    // We combine the base flags with Static flag using from_bits_retain which is
-    // const
+    // We combine the base flags with Static flag using from_bits_retain which
+    // is const
     let static_fields = static_props.iter().map(|prop| {
         let name = &prop.name;
         let base_flags = prop
@@ -330,8 +332,9 @@ fn generate_registered_class_impl(
     // Generate flags expression, combining user-provided flags with readonly if
     // specified. Note: ReadonlyClass is only available on PHP 8.2+, so we emit
     // a compile error if readonly is used on earlier PHP versions.
-    // The compile_error! is placed as a statement so the block still has a valid
-    // ClassFlags return type for type checking (even though compilation fails).
+    // The compile_error! is placed as a statement so the block still has a
+    // valid ClassFlags return type for type checking (even though compilation
+    // fails).
     let flags = match (flags, readonly) {
         (Some(flags), true) => {
             // User provided flags + readonly

@@ -362,7 +362,8 @@ pub enum Visibility {
 
 impl Visibility {
     /// Tokens for the matching variant of any `ext_php_rs::flags` bitflags
-    /// type that spells its visibility bits `Public`, `Protected` and `Private`.
+    /// type that spells its visibility bits `Public`, `Protected` and
+    /// `Private`.
     pub fn flag_tokens(self, flags_ty: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         let variant = match self {
             Visibility::Public => quote! { Public },

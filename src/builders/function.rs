@@ -104,6 +104,19 @@ impl<'a> FunctionBuilder<'a> {
         Self::new("__construct", handler)
     }
 
+    /// The function's name and the zero-based offsets of its arguments marked
+    /// [`sensitive`](Arg::sensitive), or `None` when it has none.
+    pub(crate) fn sensitive(&self) -> Option<(String, Vec<u32>)> {
+        let offsets: Vec<u32> = self
+            .args
+            .iter()
+            .zip(0u32..)
+            .filter(|(arg, _)| arg.sensitive)
+            .map(|(_, offset)| offset)
+            .collect();
+        (!offsets.is_empty()).then(|| (self.name.clone(), offsets))
+    }
+
     /// Adds an argument to the function.
     ///
     /// # Parameters

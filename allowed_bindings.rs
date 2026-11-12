@@ -68,6 +68,7 @@ bind! {
     zend_call_known_function_ex,
     zend_fetch_function_str,
     zend_hash_str_find_ptr_lc,
+    zend_add_attribute,
     zend_ce_argument_count_error,
     zend_ce_arithmetic_error,
     zend_ce_compile_error,

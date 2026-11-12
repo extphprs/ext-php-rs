@@ -5,7 +5,7 @@ use crate::constant::PhpConstAttribute;
 use crate::function::{Args, Function};
 use crate::helpers::{CleanPhpAttr, get_docs};
 use darling::FromAttributes;
-use darling::util::Flag;
+use darling::util::{Flag, PathList};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::{Expr, Ident, ItemTrait, Path, TraitItem, TraitItemConst, TraitItemFn, TypeParamBound};
@@ -316,6 +316,7 @@ pub struct PhpFunctionInterfaceAttribute {
     rename: PhpRename,
     defaults: HashMap<Ident, Expr>,
     optional: Option<Ident>,
+    sensitive: PathList,
     vis: Option<Visibility>,
     attrs: Vec<syn::Attribute>,
     getter: Flag,
@@ -343,6 +344,7 @@ fn parse_trait_item_fn(
     fn_item.attrs.clean_php();
 
     let mut args = Args::parse_from_fnargs(fn_item.sig.inputs.iter(), php_attr.defaults)?;
+    args.mark_sensitive(&php_attr.sensitive)?;
 
     let docs = get_docs(&php_attr.attrs)?;
 
