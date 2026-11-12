@@ -379,8 +379,8 @@ jobs:
           echo "${REPO_LINE}" | sudo tee "/etc/apt/sources.list.d/static-php${PHP_VERSION}.list" > /dev/null
           sudo apt update -y
           sudo apt install -y php-zts-cli php-zts-devel \
-            "frankenphp=${{ env.frankenphp }}+*" \
-            "frankenphp-debuginfo=${{ env.frankenphp }}+*" \
+            "frankenphp=${{ env.frankenphp }}+php${PHP_VERSION}*" \
+            "frankenphp-debuginfo=${{ env.frankenphp }}+php${PHP_VERSION}*" \
             php-zts-embed-debuginfo gdb
           {
             echo "PHP=/usr/bin/php-zts"
