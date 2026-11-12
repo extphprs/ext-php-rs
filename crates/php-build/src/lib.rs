@@ -227,7 +227,7 @@ pub enum ApiVersion {
     /// PHP 8.5
     Php85 = 2025_09_25,
     /// PHP 8.6
-    Php86 = 2026_09_24,
+    Php86 = 2026_11_12,
 }
 
 impl ApiVersion {
