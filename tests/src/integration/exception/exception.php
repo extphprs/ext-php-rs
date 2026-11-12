@@ -62,7 +62,9 @@ try {
 }
 
 // `#[php(sensitive(...))]` marks parameters `#[\SensitiveParameter]`, so traces hide their values.
-if (PHP_VERSION_ID >= 80200) {
+if (PHP_VERSION_ID >= 80_200) {
+    // Production php.ini drops trace arguments, which this checks.
+    // @mago-expect lint:no-ini-set
     ini_set('zend.exception_ignore_args', '0');
 
     try {
