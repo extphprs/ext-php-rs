@@ -206,8 +206,7 @@ impl Display for Arch {
     }
 }
 
-#[allow(clippy::inconsistent_digit_grouping)]
-const MAX_API_VERSION: u32 = 2026_11_12;
+const MAX_API_VERSION: u32 = 20_261_112;
 
 /// PHP API version enum.
 ///
@@ -352,19 +351,18 @@ pub fn emit_rerun_if_env_changed() {
 }
 
 #[cfg(test)]
-#[allow(clippy::inconsistent_digit_grouping)]
 mod tests {
-    use super::ApiVersion;
+    use super::{ApiVersion, MAX_API_VERSION};
 
     #[test]
     fn api_version_bounds() {
         let cases = [
-            (2025_09_25, Some(ApiVersion::Php85)),
-            (2026_09_23, Some(ApiVersion::Php85)),
-            (2026_09_24, Some(ApiVersion::Php86)),
-            (2026_11_12, Some(ApiVersion::Php86)),
-            (2026_11_13, None),
-            (2020_09_29, None),
+            (ApiVersion::Php85 as u32, Some(ApiVersion::Php85)),
+            (ApiVersion::Php86 as u32 - 1, Some(ApiVersion::Php85)),
+            (ApiVersion::Php86 as u32, Some(ApiVersion::Php86)),
+            (MAX_API_VERSION, Some(ApiVersion::Php86)),
+            (MAX_API_VERSION + 1, None),
+            (ApiVersion::Php80 as u32 - 1, None),
         ];
         for (api, expected) in cases {
             assert_eq!(ApiVersion::try_from(api).ok(), expected, "API {api}");
