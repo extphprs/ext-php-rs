@@ -1,0 +1,5 @@
+error: no parameter named `pasword`; `sensitive` names must match a parameter name
+ --> tests/ui/php_function_sensitive_unknown.rs:4:17
+  |
+4 | #[php(sensitive(pasword))]
+  |                 ^^^^^^^
