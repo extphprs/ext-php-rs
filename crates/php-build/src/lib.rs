@@ -206,6 +206,9 @@ impl Display for Arch {
     }
 }
 
+#[allow(clippy::inconsistent_digit_grouping)]
+const MAX_API_VERSION: u32 = 2026_11_12;
+
 /// PHP API version enum.
 ///
 /// This enum represents the supported PHP API versions and provides utilities
@@ -227,7 +230,7 @@ pub enum ApiVersion {
     /// PHP 8.5
     Php85 = 2025_09_25,
     /// PHP 8.6
-    Php86 = 2026_11_12,
+    Php86 = 2026_09_24,
 }
 
 impl ApiVersion {
@@ -314,11 +317,11 @@ impl TryFrom<u32> for ApiVersion {
             x if ((ApiVersion::Php85 as u32)..(ApiVersion::Php86 as u32)).contains(&x) => {
                 Ok(ApiVersion::Php85)
             }
-            x if (ApiVersion::Php86 as u32) == x => Ok(ApiVersion::Php86),
+            x if ((ApiVersion::Php86 as u32)..=MAX_API_VERSION).contains(&x) => {
+                Ok(ApiVersion::Php86)
+            }
             version => bail!(
-                "The current version of PHP is not supported. Current PHP API version: {}, requires a version up to {}",
-                version,
-                ApiVersion::max() as u32
+                "The current version of PHP is not supported. Current PHP API version: {version}, requires a version up to {MAX_API_VERSION}"
             ),
         }
     }
@@ -346,4 +349,25 @@ pub fn emit_check_cfg() {
 pub fn emit_rerun_if_env_changed() {
     println!("cargo:rerun-if-env-changed=PHP");
     println!("cargo:rerun-if-env-changed=PATH");
+}
+
+#[cfg(test)]
+#[allow(clippy::inconsistent_digit_grouping)]
+mod tests {
+    use super::ApiVersion;
+
+    #[test]
+    fn api_version_bounds() {
+        let cases = [
+            (2025_09_25, Some(ApiVersion::Php85)),
+            (2026_09_23, Some(ApiVersion::Php85)),
+            (2026_09_24, Some(ApiVersion::Php86)),
+            (2026_11_12, Some(ApiVersion::Php86)),
+            (2026_11_13, None),
+            (2020_09_29, None),
+        ];
+        for (api, expected) in cases {
+            assert_eq!(ApiVersion::try_from(api).ok(), expected, "API {api}");
+        }
+    }
 }
