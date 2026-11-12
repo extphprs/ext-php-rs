@@ -447,6 +447,24 @@ assert($original->name === 'original', 'Original name should be unchanged after 
 $result = TestCloneableClass::acceptCloneable($cloned);
 assert($result === 'accepted: 100 modified', 'Cloned object should be accepted as typed parameter');
 
+class TestCloneableChild extends TestCloneableClass
+{
+    public string $extra = 'child';
+    public array $tags = ['a', 'b'];
+}
+
+$child = new TestCloneableChild(7, 'child');
+$child->extra = 'changed';
+$childClone = clone $child;
+assert($childClone instanceof TestCloneableChild, 'A clone of a PHP subclass keeps the subclass');
+assert($childClone->value === 7 && $childClone->name === 'child', 'A subclass clone copies the Rust state');
+assert(
+    $childClone->extra === 'changed' && $childClone->tags === ['a', 'b'],
+    'A subclass clone copies its PHP properties'
+);
+$childClone->extra = 'clone';
+assert($child->extra === 'changed', 'The original subclass object is unchanged');
+
 $manual = new TestManualCloneClass();
 $manualClone = clone $manual;
 assert($manualClone->copies === 1, 'A hand-written Clone impl drives the clone handler');
