@@ -206,6 +206,8 @@ impl Display for Arch {
     }
 }
 
+const MAX_API_VERSION: u32 = 20_261_112;
+
 /// PHP API version enum.
 ///
 /// This enum represents the supported PHP API versions and provides utilities
@@ -314,11 +316,11 @@ impl TryFrom<u32> for ApiVersion {
             x if ((ApiVersion::Php85 as u32)..(ApiVersion::Php86 as u32)).contains(&x) => {
                 Ok(ApiVersion::Php85)
             }
-            x if (ApiVersion::Php86 as u32) == x => Ok(ApiVersion::Php86),
+            x if ((ApiVersion::Php86 as u32)..=MAX_API_VERSION).contains(&x) => {
+                Ok(ApiVersion::Php86)
+            }
             version => bail!(
-                "The current version of PHP is not supported. Current PHP API version: {}, requires a version up to {}",
-                version,
-                ApiVersion::max() as u32
+                "The current version of PHP is not supported. Current PHP API version: {version}, requires a version up to {MAX_API_VERSION}"
             ),
         }
     }
@@ -346,4 +348,24 @@ pub fn emit_check_cfg() {
 pub fn emit_rerun_if_env_changed() {
     println!("cargo:rerun-if-env-changed=PHP");
     println!("cargo:rerun-if-env-changed=PATH");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ApiVersion, MAX_API_VERSION};
+
+    #[test]
+    fn api_version_bounds() {
+        let cases = [
+            (ApiVersion::Php85 as u32, Some(ApiVersion::Php85)),
+            (ApiVersion::Php86 as u32 - 1, Some(ApiVersion::Php85)),
+            (ApiVersion::Php86 as u32, Some(ApiVersion::Php86)),
+            (MAX_API_VERSION, Some(ApiVersion::Php86)),
+            (MAX_API_VERSION + 1, None),
+            (ApiVersion::Php80 as u32 - 1, None),
+        ];
+        for (api, expected) in cases {
+            assert_eq!(ApiVersion::try_from(api).ok(), expected, "API {api}");
+        }
+    }
 }
