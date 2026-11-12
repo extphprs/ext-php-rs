@@ -176,7 +176,9 @@ impl ZendObjectHandlers {
 
         match cloned_val {
             Ok(Some(val)) => {
-                let mut new = ZendClassObject::<T>::new(val);
+                // A PHP subclass of `T` clones as itself, with its own property table.
+                let ce = unsafe { (*object).ce.as_ref() };
+                let mut new = unsafe { ZendClassObject::<T>::internal_new(Some(val), ce) };
                 unsafe { zend_objects_clone_members(&raw mut new.std, object) };
                 let raw = new.into_raw();
                 // SAFETY: `into_raw` yields a valid object the engine takes over.
