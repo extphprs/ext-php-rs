@@ -118,6 +118,56 @@ fn test_sapi() {
     }
 }
 
+#[test]
+fn test_default_sapi_error_formats_arguments() {
+    let _guard = SAPI_TEST_MUTEX.lock().unwrap();
+
+    let mut sapi = SapiBuilder::new("test", "Test")
+        .ub_write_function(output_tester)
+        .php_ini_ignore(1)
+        .build()
+        .unwrap();
+    let sapi = &raw mut sapi;
+    let module = get_module();
+
+    unsafe {
+        ext_php_rs_sapi_startup();
+    }
+    unsafe {
+        sapi_startup(sapi);
+    }
+    unsafe {
+        php_module_startup(sapi, module);
+    }
+
+    let result = unsafe { php_request_startup() };
+    assert_eq!(result, ZEND_RESULT_CODE_SUCCESS);
+
+    let _ = try_catch_first(|| Embed::eval("(function () { echo 'x'; header('X-Late: 1'); })()"));
+    let output = unsafe { (&raw const LAST_OUTPUT).as_ref() }
+        .cloned()
+        .unwrap_or_default();
+
+    unsafe {
+        php_request_shutdown(std::ptr::null_mut());
+    }
+    unsafe {
+        php_module_shutdown();
+    }
+    unsafe {
+        sapi_shutdown();
+    }
+    unsafe {
+        ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+    }
+
+    assert!(
+        output.contains("headers already sent by (output started at run:1)"),
+        "unexpected output: {output}"
+    );
+}
+
 /// Gives you a nice greeting!
 ///
 /// @param string $name Your name.

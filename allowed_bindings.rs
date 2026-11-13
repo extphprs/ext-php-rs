@@ -388,7 +388,7 @@ bind! {
     php_default_post_reader,
     php_default_treat_data,
     php_default_input_filter,
-    php_error,
+    zend_error,
     php_ini_builder,
     php_ini_builder_prepend,
     php_ini_builder_unquoted,

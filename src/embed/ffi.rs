@@ -22,6 +22,8 @@ unsafe extern "C" {
     pub fn ext_php_rs_sapi_per_thread_init();
     pub fn ext_php_rs_sapi_per_thread_shutdown();
 
+    #[deprecated(note = "use `ext_php_rs::ffi::zend_error` instead")]
+    #[link_name = "zend_error"]
     pub fn ext_php_rs_php_error(
         type_: ::std::os::raw::c_int,
         error_msg: *const ::std::os::raw::c_char,
