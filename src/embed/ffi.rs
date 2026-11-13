@@ -5,6 +5,7 @@
 
 #[cfg(php82)]
 use crate::ffi::php_ini_builder;
+use crate::ffi::{zend_result, zval};
 
 use std::ffi::{c_char, c_int, c_void};
 
@@ -16,6 +17,12 @@ unsafe extern "C" {
         func: unsafe extern "C" fn(*const c_void) -> *const c_void,
         ctx: *const c_void,
     ) -> *mut c_void;
+
+    pub fn ext_php_rs_eval_string(
+        str: *const c_char,
+        retval: *mut zval,
+        name: *const c_char,
+    ) -> zend_result;
 
     pub fn ext_php_rs_sapi_startup();
     pub fn ext_php_rs_sapi_shutdown();

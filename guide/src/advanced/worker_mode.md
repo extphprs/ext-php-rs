@@ -44,6 +44,22 @@ worker_reset_superglobals();
 9. php_module_shutdown() + sapi_shutdown()  -- once per process
 ```
 
+## Errors in a request
+
+`worker_request_shutdown()` removes the pending exception. For example,
+`exit()` and an uncaught exception keep an exception in the engine. The next
+request does not get this exception.
+
+Some errors make the engine not safe for the next request:
+
+- A fatal error, for example `trigger_error()` with `E_USER_ERROR`.
+- A memory limit error.
+
+After one of these errors, `worker_request_shutdown()` calls
+`php_request_shutdown()`. Then `worker_request_startup()` calls
+`php_request_startup()`. The engine removes all the classes and functions that
+the PHP scripts declared. You do not have to change the worker loop.
+
 ## ZTS and `PhpThreadGuard`
 
 When PHP is compiled with ZTS (Zend Thread Safety), each OS thread needs its
