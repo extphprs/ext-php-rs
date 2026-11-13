@@ -242,8 +242,7 @@ impl Install {
             "{}.tmp.{}",
             ext_dir
                 .extension()
-                .map(|e| e.to_string_lossy())
-                .unwrap_or_default(),
+                .map_or_default(|e| e.to_string_lossy()),
             std::process::id()
         ));
 
