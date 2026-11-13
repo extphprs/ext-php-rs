@@ -1,7 +1,6 @@
-use crate::embed::ext_php_rs_php_error;
 use crate::ffi::{
     gid_t, php_default_input_filter, php_default_post_reader, php_default_treat_data,
-    sapi_header_struct, sapi_headers_struct, uid_t,
+    sapi_header_struct, sapi_headers_struct, uid_t, zend_error,
 };
 use crate::types::Zval;
 use crate::{embed::SapiModule, error::Result};
@@ -176,6 +175,9 @@ impl SapiBuilder {
     }
 
     /// Sets the sapi error function for this SAPI
+    ///
+    /// If you do not set this function, the SAPI uses `zend_error`, as the
+    /// embed and CLI SAPIs of PHP do.
     ///
     /// # Parameters
     ///
@@ -389,7 +391,7 @@ impl SapiBuilder {
         }
 
         if self.module.sapi_error.is_none() {
-            self.module.sapi_error = Some(ext_php_rs_php_error);
+            self.module.sapi_error = Some(zend_error);
         }
 
         if self.module.default_post_reader.is_none() {
@@ -437,7 +439,11 @@ pub type SapiFlushFunc = extern "C" fn(*mut c_void);
 pub type SapiGetEnvFunc = extern "C" fn(name: *const c_char, name_length: usize) -> *mut c_char;
 
 /// A function to be called when PHP encounters an error
-pub type SapiErrorFunc = extern "C" fn(type_: c_int, error_msg: *const c_char, args: ...);
+///
+/// PHP gives the arguments of the `error_msg` format after `error_msg`. A Rust
+/// function with a C variable argument list must be `unsafe` (Rust 1.99 or
+/// later).
+pub type SapiErrorFunc = unsafe extern "C" fn(type_: c_int, error_msg: *const c_char, args: ...);
 
 /// A function to be called when PHP read the POST data
 pub type SapiReadPostFunc = extern "C" fn(buffer: *mut c_char, length: usize) -> usize;
@@ -514,9 +520,7 @@ mod test {
     extern "C" fn test_getenv(_name: *const c_char, _name_length: usize) -> *mut c_char {
         ptr::null_mut()
     }
-    // Note: C-variadic functions are unstable in Rust, so we can't test this
-    // properly extern "C" fn test_sapi_error(_type: c_int, _error_msg: *const
-    // c_char, _args: ...) {}
+    unsafe extern "C" fn test_sapi_error(_type: c_int, _error_msg: *const c_char, _args: ...) {}
     extern "C" fn test_send_header(_header: *mut sapi_header_struct, _server_context: *mut c_void) {
     }
     extern "C" fn test_send_headers(_sapi_headers: *mut sapi_headers_struct) -> c_int {
@@ -671,10 +675,19 @@ mod test {
         );
     }
 
-    // Note: Cannot test sapi_error_function because C-variadic functions are
-    // unstable in Rust The sapi_error field accepts a function with variadic
-    // arguments which cannot be created in stable Rust. However, the builder
-    // method itself works correctly.
+    #[test]
+    fn test_sapi_error_function() {
+        let sapi = SapiBuilder::new("test", "Test")
+            .sapi_error_function(test_sapi_error)
+            .build()
+            .map(CleanupGuard)
+            .expect("should build sapi module");
+
+        assert_eq!(
+            sapi.sapi_error.expect("should have sapi_error function") as *const () as usize,
+            test_sapi_error as *const () as usize
+        );
+    }
 
     #[test]
     fn test_send_header_function() {

@@ -36,7 +36,7 @@ RUN --mount=type=bind,target=/src,rw <<EOF
 set -e
 cargo clean
 cargo build --features observer
-cp target/debug/build/ext-php-rs-*/out/bindings.rs /docsrs_bindings.rs
+cp "$(find target/debug/build -path '*/out/bindings.rs')" /docsrs_bindings.rs
 rustfmt /docsrs_bindings.rs
 EOF
 ENTRYPOINT ["/generate.sh"]

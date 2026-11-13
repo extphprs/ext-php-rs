@@ -129,6 +129,28 @@ The builder places the SAPI's `name`, `pretty_name`, `executable_location` and
 `SapiBuilder`/`Sapi::build_module`). `ini_entries` is not touched: see the
 [INI builder](../ini-builder.md) chapter for who owns it.
 
+## Error handler
+
+`SapiBuilder` uses `zend_error` as the SAPI error handler, as the embed and
+CLI SAPIs of PHP do. PHP shows or logs the message with the `display_errors`
+and `log_errors` settings.
+
+To use a different handler, give it to `SapiBuilder::sapi_error_function`. The
+handler has a C variable argument list, thus it must be `unsafe` (Rust 1.99 or
+later). Use `VaList::next_arg` to read each argument of the format:
+
+```rust,ignore
+use std::ffi::{c_char, c_int};
+use ext_php_rs::builders::SapiBuilder;
+
+unsafe extern "C" fn on_error(_type: c_int, _format: *const c_char, _args: ...) {}
+
+let module = SapiBuilder::new("my-sapi", "My SAPI")
+    .sapi_error_function(on_error)
+    .build()
+    .expect("failed to build SAPI module");
+```
+
 ## Registering `$_SERVER` variables
 
 Override `register_server_variables` in the `Sapi` trait to populate
