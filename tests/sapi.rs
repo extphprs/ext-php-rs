@@ -19,8 +19,15 @@ use ext_php_rs::ffi::{
     ZEND_RESULT_CODE_SUCCESS, php_module_shutdown, php_module_startup, php_request_shutdown,
     php_request_startup, sapi_shutdown, sapi_startup,
 };
+use ext_php_rs::php_eval;
 use ext_php_rs::prelude::*;
+use ext_php_rs::types::ZendStr;
 use ext_php_rs::zend::try_catch_first;
+#[cfg(feature = "observer")]
+use ext_php_rs::{
+    types::Zval,
+    zend::{ExecuteData, FcallInfo, FcallObserver},
+};
 use std::ffi::c_char;
 use std::sync::Mutex;
 
@@ -178,9 +185,26 @@ pub fn hello_world(name: String) -> String {
     format!("Hello, {name}!")
 }
 
+#[cfg(feature = "observer")]
+struct ObserveAll;
+
+#[cfg(feature = "observer")]
+impl FcallObserver for ObserveAll {
+    fn should_observe(&self, _: &FcallInfo) -> bool {
+        true
+    }
+
+    fn begin(&self, _: &ExecuteData) {}
+
+    fn end(&self, _: &ExecuteData, _: Option<&Zval>) {}
+}
+
 #[php_module]
 pub fn module(module: ModuleBuilder) -> ModuleBuilder {
-    module.function(wrap_function!(hello_world))
+    let module = module.function(wrap_function!(hello_world));
+    #[cfg(feature = "observer")]
+    let module = module.fcall_observer(|| ObserveAll);
+    module
 }
 
 #[test]
@@ -572,6 +596,144 @@ fn test_worker_request_cycle() {
         ext_php_rs_sapi_shutdown();
         cleanup_sapi_allocations(sapi);
     }
+}
+
+#[test]
+fn test_worker_request_cycle_does_not_leak() {
+    let _guard = SAPI_TEST_MUTEX.lock().unwrap();
+
+    let mut sapi = SapiBuilder::new("test-worker", "Test Worker")
+        .ub_write_function(output_tester)
+        .build()
+        .unwrap();
+    let sapi = &raw mut sapi;
+    let module = get_module();
+
+    unsafe {
+        ext_php_rs_sapi_startup();
+        sapi_startup(sapi);
+        php_module_startup(sapi, module);
+    }
+    assert_eq!(unsafe { php_request_startup() }, ZEND_RESULT_CODE_SUCCESS);
+
+    let cycle = || {
+        worker_request_shutdown();
+        worker_request_startup().expect("worker startup failed");
+        worker_reset_superglobals();
+    };
+    let memory_usage = || {
+        try_catch_first(|| {
+            Embed::eval("memory_get_usage()")
+                .ok()
+                .and_then(|z| z.long())
+        })
+        .ok()
+        .flatten()
+    };
+
+    cycle();
+    let before = memory_usage();
+    for _ in 0..100 {
+        cycle();
+    }
+    let after = memory_usage();
+
+    unsafe {
+        php_request_shutdown(std::ptr::null_mut());
+        php_module_shutdown();
+        sapi_shutdown();
+        ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+    }
+
+    assert!(before.is_some());
+    assert_eq!(before, after);
+}
+
+const WORKER_HEALTH_CHECK: &str = "(function () {
+    $cycle = new stdClass();
+    $cycle->self = $cycle;
+    unset($cycle);
+    $GLOBALS['destructed'] = false;
+    $object = new class {
+        public function __destruct() { $GLOBALS['destructed'] = true; }
+    };
+    unset($object);
+    return (gc_collect_cycles() > 0 ? 'gc' : 'no gc')
+        . ', ' . ($GLOBALS['destructed'] ? 'destructor' : 'no destructor');
+})()";
+
+#[test]
+fn test_worker_recovers_after_failed_request() {
+    let _guard = SAPI_TEST_MUTEX.lock().unwrap();
+
+    let mut sapi = SapiBuilder::new("test-worker", "Test Worker")
+        .ub_write_function(output_tester)
+        .build()
+        .unwrap();
+    let sapi = &raw mut sapi;
+    let module = get_module();
+
+    unsafe {
+        ext_php_rs_sapi_startup();
+        sapi_startup(sapi);
+        php_module_startup(sapi, module);
+    }
+    assert_eq!(unsafe { php_request_startup() }, ZEND_RESULT_CODE_SUCCESS);
+
+    let failing_requests: [(&str, fn()); 6] = [
+        ("exit", || {
+            let _ = Embed::eval("(function () { exit(0); })()");
+        }),
+        ("uncaught exception", || {
+            let _ = Embed::eval("(function () { throw new RuntimeException('boom'); })()");
+        }),
+        ("memory limit in PHP", || {
+            let _ = Embed::eval(
+                "(function () { ini_set('memory_limit', '32M'); return str_repeat('x', 40 * 1024 * 1024); })()",
+            );
+        }),
+        ("memory limit in Rust", || {
+            let _ = Embed::eval("ini_set('memory_limit', '32M')");
+            drop(ZendStr::new(vec![b'x'; 40 * 1024 * 1024], false));
+        }),
+        ("fatal error", || {
+            let _ = Embed::eval("(function () { trigger_error('boom', E_USER_ERROR); })()");
+        }),
+        ("fatal error in php_eval", || {
+            let _ = php_eval::execute(
+                "<?php (function () { trigger_error('boom', E_USER_ERROR); })();",
+            );
+        }),
+    ];
+    let mut health = Vec::new();
+    for (script, request) in failing_requests {
+        let _ = try_catch_first(request);
+        worker_request_shutdown();
+        worker_request_startup().expect("worker startup failed");
+        worker_reset_superglobals();
+        let report = try_catch_first(|| {
+            Embed::eval(WORKER_HEALTH_CHECK)
+                .ok()
+                .and_then(|z| z.string())
+        });
+        health.push((script, report.ok().flatten()));
+    }
+
+    unsafe {
+        php_request_shutdown(std::ptr::null_mut());
+        php_module_shutdown();
+        sapi_shutdown();
+        ext_php_rs_sapi_shutdown();
+        cleanup_sapi_allocations(sapi);
+    }
+
+    assert!(
+        health
+            .iter()
+            .all(|(_, report)| report.as_deref() == Some("gc, destructor")),
+        "{health:#?}"
+    );
 }
 
 #[test]

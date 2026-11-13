@@ -151,14 +151,7 @@ void ext_php_rs_zend_execute(zend_op_array *op_array) {
   ZVAL_UNDEF(&local_retval);
 
   op_array->scope = zend_get_executed_scope();
-
-  zend_try {
-    zend_execute(op_array, &local_retval);
-  } zend_catch {
-    destroy_op_array(op_array);
-    efree(op_array);
-    zend_bailout();
-  } zend_end_try();
+  zend_execute(op_array, &local_retval);
 
   zval_ptr_dtor(&local_retval);
   zend_destroy_static_vars(op_array);

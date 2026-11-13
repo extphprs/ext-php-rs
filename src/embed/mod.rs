@@ -16,7 +16,7 @@ mod worker;
 use crate::boxed::ZBox;
 use crate::ffi::{
     _zend_file_handle__bindgen_ty_1, ZEND_RESULT_CODE_SUCCESS, php_execute_script,
-    zend_destroy_file_handle, zend_eval_string, zend_file_handle, zend_stream_init_filename,
+    zend_destroy_file_handle, zend_file_handle, zend_stream_init_filename,
 };
 use crate::types::{ZendObject, Zval};
 use crate::zend::{CatchError, CatchFrame, ExecutorGlobals, panic_wrapper, try_catch};
@@ -231,7 +231,7 @@ impl Embed {
         let mut result = Zval::new();
 
         let exec_result = try_catch(AssertUnwindSafe(|| unsafe {
-            zend_eval_string(
+            ext_php_rs_eval_string(
                 cstr.as_ptr().cast::<c_char>(),
                 &raw mut result,
                 c"run".as_ptr().cast(),

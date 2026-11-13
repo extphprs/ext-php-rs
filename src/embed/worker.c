@@ -3,8 +3,23 @@
 #include "SAPI.h"
 #include "php_main.h"
 #include "zend_compile.h"
+#include "zend_exceptions.h"
+
+static bool ext_php_rs_worker_needs_restart(void) {
+#ifdef ZEND_HAS_OOM
+  if (ZEND_HAS_OOM()) {
+    return true;
+  }
+#endif
+  return CG(unclean_shutdown);
+}
 
 void ext_php_rs_worker_request_shutdown(void) {
+  zend_clear_exception();
+  if (ext_php_rs_worker_needs_restart()) {
+    php_request_shutdown(NULL);
+    return;
+  }
   php_output_end_all();
   php_output_deactivate();
   sapi_deactivate_module();
@@ -12,6 +27,9 @@ void ext_php_rs_worker_request_shutdown(void) {
 }
 
 int ext_php_rs_worker_request_startup(void) {
+  if (EG(flags) & EG_FLAGS_IN_SHUTDOWN) {
+    return php_request_startup();
+  }
   php_output_activate();
   sapi_activate();
   zend_activate_auto_globals();
@@ -19,11 +37,11 @@ int ext_php_rs_worker_request_startup(void) {
 }
 
 void ext_php_rs_worker_reset_superglobals(void) {
-  zend_is_auto_global(zend_string_init_interned("_SERVER", sizeof("_SERVER") - 1, 0));
-  zend_is_auto_global(zend_string_init_interned("_GET", sizeof("_GET") - 1, 0));
-  zend_is_auto_global(zend_string_init_interned("_POST", sizeof("_POST") - 1, 0));
-  zend_is_auto_global(zend_string_init_interned("_COOKIE", sizeof("_COOKIE") - 1, 0));
-  zend_is_auto_global(zend_string_init_interned("_REQUEST", sizeof("_REQUEST") - 1, 0));
-  zend_is_auto_global(zend_string_init_interned("_ENV", sizeof("_ENV") - 1, 0));
-  zend_is_auto_global(zend_string_init_interned("_FILES", sizeof("_FILES") - 1, 0));
+  zend_is_auto_global_str(ZEND_STRL("_SERVER"));
+  zend_is_auto_global_str(ZEND_STRL("_GET"));
+  zend_is_auto_global_str(ZEND_STRL("_POST"));
+  zend_is_auto_global_str(ZEND_STRL("_COOKIE"));
+  zend_is_auto_global_str(ZEND_STRL("_REQUEST"));
+  zend_is_auto_global_str(ZEND_STRL("_ENV"));
+  zend_is_auto_global_str(ZEND_STRL("_FILES"));
 }

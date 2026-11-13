@@ -6,6 +6,8 @@
 
 void* ext_php_rs_embed_callback(int argc, char** argv, void* (*callback)(void *), void *ctx);
 
+zend_result ext_php_rs_eval_string(const char *str, zval *retval, const char *name);
+
 void ext_php_rs_sapi_startup();
 void ext_php_rs_sapi_shutdown();
 void ext_php_rs_sapi_per_thread_init();
