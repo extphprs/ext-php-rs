@@ -21,6 +21,8 @@ help: the trait `FromZval<'_>` is conditionally implemented for `std::option::Op
 note: required by a bound in `Arg::<'a>::of`
  --> src/args.rs
   |
+  | impl<'a> Arg<'a> {
+...
   |     pub fn of<T: FromZvalMut<'a>>(name: impl Into<String>) -> Self {
   |                  ^^^^^^^^^^^^^^^ required by this bound in `Arg::<'a>::of`
 

@@ -240,10 +240,7 @@ impl Install {
         // This prevents race conditions where a partially-written extension could be loaded.
         let temp_ext_path = ext_dir.with_extension(format!(
             "{}.tmp.{}",
-            ext_dir
-                .extension()
-                .map(|e| e.to_string_lossy())
-                .unwrap_or_default(),
+            ext_dir.extension().map_or_default(|e| e.to_string_lossy()),
             std::process::id()
         ));
 

@@ -199,7 +199,7 @@ jobs:
         with:
           # Pinned on purpose: trybuild snapshots depend on the rustc version.
           # Bump it together with `TRYBUILD=overwrite cargo test --test ui -- --ignored`.
-          toolchain: "1.98.1"
+          toolchain: "1.100.0"
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
         with:
