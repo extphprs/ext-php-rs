@@ -316,6 +316,7 @@ bind! {
     zend_hash_get_current_key_zval_ex,
     zend_hash_get_current_data_ex,
     zend_hash_move_backwards_ex,
+    zend_hash_internal_pointer_end_ex,
     zend_hash_key_type,
     zend_array_count,
     gc_possible_root,

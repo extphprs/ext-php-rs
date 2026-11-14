@@ -1277,6 +1277,9 @@ unsafe extern "C" {
     ) -> *mut zval;
 }
 unsafe extern "C" {
+    pub fn zend_hash_internal_pointer_end_ex(ht: *const HashTable, pos: *mut HashPosition);
+}
+unsafe extern "C" {
     pub fn _zend_new_array(size: u32) -> *mut HashTable;
 }
 unsafe extern "C" {

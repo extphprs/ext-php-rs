@@ -675,6 +675,9 @@ impl ZendHashTable {
     /// Returns an iterator over the key(s) and value contained inside the
     /// hashtable.
     ///
+    /// A string key that is not UTF-8 comes as [`ArrayKey::ZendString`]. All
+    /// other string keys come as [`ArrayKey::String`].
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -1054,5 +1057,109 @@ mod tests {
             assert_eq!(ht.get(&numeric_key).and_then(|v| v.str()), Some("value"));
             assert!(ht.has_key(&ArrayKey::from(&numeric_key)));
         });
+    }
+
+    #[test]
+    fn iter_yields_non_utf8_string_key_in_both_directions() {
+        let keys = Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.insert(&ZendStr::new([0xff], false), 1);
+            ht.iter()
+                .chain(ht.iter().rev())
+                .map(|(key, _)| match key {
+                    ArrayKey::ZendString(key) => key.as_bytes().to_vec(),
+                    _ => Vec::new(),
+                })
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(keys, [[0xff], [0xff]]);
+    }
+
+    #[test]
+    fn key_predicates_accept_non_utf8_string_key() {
+        let predicates = Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.insert(&ZendStr::new([0xff], false), 1);
+            Some((ht.has_sequential_keys(), ht.has_numerical_keys()))
+        });
+        assert_eq!(predicates, Some((false, false)));
+    }
+
+    fn reversed(ht: &ZendHashTable) -> Vec<(String, Option<i64>)> {
+        ht.iter()
+            .rev()
+            .map(|(key, value)| (key.to_string(), value.long()))
+            .collect()
+    }
+
+    #[test]
+    fn rev_iter_skips_removed_first_entry() {
+        let entries = Embed::run(|| {
+            let mut packed = ZendHashTable::new();
+            for value in [10, 20, 30] {
+                let _ = packed.push(value);
+            }
+            let _ = packed.remove_index(0);
+
+            let mut hash = ZendHashTable::new();
+            for (key, value) in [("a", 10), ("b", 20), ("c", 30)] {
+                let _ = hash.insert(key, value);
+            }
+            let _ = hash.remove("a");
+
+            [reversed(&packed), reversed(&hash)]
+        });
+        assert_eq!(
+            entries,
+            [
+                [("2".to_string(), Some(30)), ("1".to_string(), Some(20))],
+                [("c".to_string(), Some(30)), ("b".to_string(), Some(20))],
+            ]
+        );
+    }
+
+    #[test]
+    fn iter_size_counts_only_remaining_entries() {
+        let counts = Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            for value in [10, 20, 30] {
+                let _ = ht.push(value);
+            }
+            let mut iter = ht.iter();
+            iter.next();
+            Some((
+                iter.len(),
+                iter.size_hint(),
+                ht.iter().skip(1).count(),
+                ht.values().skip(1).count(),
+            ))
+        });
+        assert_eq!(counts, Some((2, (2, Some(2)), 2, 2)));
+    }
+
+    #[test]
+    fn iter_front_and_back_meet_in_the_middle() {
+        let keys = Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            for value in [10, 20, 30] {
+                let _ = ht.push(value);
+            }
+            let mut iter = ht.iter();
+            vec![
+                iter.next().map(|(key, _)| key.to_string()),
+                iter.next_back().map(|(key, _)| key.to_string()),
+                iter.next().map(|(key, _)| key.to_string()),
+                iter.next_back().map(|(key, _)| key.to_string()),
+            ]
+        });
+        assert_eq!(
+            keys,
+            [
+                Some("0".to_string()),
+                Some("2".to_string()),
+                Some("1".to_string()),
+                None
+            ]
+        );
     }
 }
