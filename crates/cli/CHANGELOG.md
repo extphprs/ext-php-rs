@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.3](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.2...cargo-php-v0.2.3) - 2026-11-14
+
+### Other
+- Support Rust 1.100 ([#844](https://github.com/extphprs/ext-php-rs/pull/844)) (by @ptondereau) [[#844](https://github.com/extphprs/ext-php-rs/issues/844)] 
 ## [0.2.2](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.1...cargo-php-v0.2.2) - 2026-11-01
 
 ### Fixed
