@@ -10,7 +10,8 @@ use crate::boxed::ZBox;
 use crate::{
     ffi::{
         HashPosition, zend_hash_get_current_data_ex, zend_hash_get_current_key_type_ex,
-        zend_hash_get_current_key_zval_ex, zend_hash_move_backwards_ex, zend_hash_move_forward_ex,
+        zend_hash_get_current_key_zval_ex, zend_hash_internal_pointer_end_ex,
+        zend_hash_move_backwards_ex, zend_hash_move_forward_ex,
     },
     types::Zval,
 };
@@ -47,11 +48,10 @@ impl<'a> Iter<'a> {
             .len()
             .try_into()
             .expect("Integer overflow in hashtable length");
-        let end_pos = if ht.nNumOfElements > 0 {
-            ht.nNumOfElements - 1
-        } else {
-            0
-        };
+        let mut end_pos = 0;
+        unsafe {
+            zend_hash_internal_pointer_end_ex(ptr::from_ref(ht).cast_mut(), &raw mut end_pos);
+        }
 
         Self {
             ht,
@@ -181,19 +181,20 @@ impl<'a> Iterator for Iter<'a> {
         Some((key, value))
     }
 
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = usize::try_from(self.end_num - self.current_num).unwrap_or(0);
+        (remaining, Some(remaining))
+    }
+
     fn count(self) -> usize
     where
         Self: Sized,
     {
-        self.ht.len()
+        self.len()
     }
 }
 
-impl ExactSizeIterator for Iter<'_> {
-    fn len(&self) -> usize {
-        self.ht.len()
-    }
-}
+impl ExactSizeIterator for Iter<'_> {}
 
 impl DoubleEndedIterator for Iter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -202,7 +203,10 @@ impl DoubleEndedIterator for Iter<'_> {
         }
 
         let key_type = unsafe {
-            zend_hash_get_current_key_type_ex(ptr::from_ref(self.ht).cast_mut(), &raw mut self.pos)
+            zend_hash_get_current_key_type_ex(
+                ptr::from_ref(self.ht).cast_mut(),
+                &raw mut self.end_pos,
+            )
         };
 
         cfg_if! {
@@ -229,11 +233,9 @@ impl DoubleEndedIterator for Iter<'_> {
             );
         }
         let value = unsafe {
-            &*zend_hash_get_current_data_ex(
-                ptr::from_ref(self.ht).cast_mut(),
-                &raw mut self.end_pos,
-            )
-        };
+            zend_hash_get_current_data_ex(ptr::from_ref(self.ht).cast_mut(), &raw mut self.end_pos)
+                .as_ref()
+        }?;
 
         // SAFETY: `key` was read from `self.ht` at `end_pos`.
         let key = match unsafe { Self::array_key(&key) } {
@@ -273,6 +275,10 @@ impl<'a> Iterator for Values<'a> {
         self.0.next().map(|(_, zval)| zval)
     }
 
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+
     fn count(self) -> usize
     where
         Self: Sized,
@@ -281,11 +287,7 @@ impl<'a> Iterator for Values<'a> {
     }
 }
 
-impl ExactSizeIterator for Values<'_> {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-}
+impl ExactSizeIterator for Values<'_> {}
 
 impl DoubleEndedIterator for Values<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
