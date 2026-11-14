@@ -70,6 +70,10 @@ pub fn read_array(arr: &ZendHashTable) {
 # fn main() {}
 ```
 
+A PHP string key can contain bytes that are not UTF-8. The iterator gives this
+key as `ArrayKey::ZendString`. It gives all other string keys as
+`ArrayKey::String`.
+
 ## Entry API
 
 The Entry API provides an ergonomic way to handle hash table operations where

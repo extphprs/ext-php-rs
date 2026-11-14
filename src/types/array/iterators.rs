@@ -8,7 +8,6 @@ use std::{
 use super::{ArrayKey, ZendHashTable};
 use crate::boxed::ZBox;
 use crate::{
-    convert::FromZval,
     ffi::{
         HashPosition, zend_hash_get_current_data_ex, zend_hash_get_current_key_type_ex,
         zend_hash_get_current_key_zval_ex, zend_hash_move_backwards_ex, zend_hash_move_forward_ex,
@@ -122,6 +121,23 @@ impl<'a> Iter<'a> {
 
         Some((key, value))
     }
+
+    /// # Safety
+    ///
+    /// `key` must be filled by `zend_hash_get_current_key_zval_ex` from the
+    /// iterated table, so a string key is the bucket's own `zend_string`,
+    /// which the table keeps alive for `'a`.
+    unsafe fn array_key(key: &Zval) -> Option<ArrayKey<'a>> {
+        if let Some(index) = key.long() {
+            return Some(ArrayKey::Long(index));
+        }
+        let key = key.zend_str()?;
+        Some(match key.as_str() {
+            Ok(key) => ArrayKey::String(key.to_owned()),
+            // SAFETY: the caller guarantees the table owns this string for `'a`.
+            Err(_) => ArrayKey::ZendString(unsafe { &*ptr::from_ref(key) }),
+        })
+    }
 }
 
 impl<'a> IntoIterator for &'a ZendHashTable {
@@ -156,11 +172,13 @@ impl<'a> Iterator for Iter<'a> {
 
     #[expect(
         clippy::expect_used,
-        reason = "a key read back from the engine is always a valid array key"
+        reason = "next_zval only yields long or string keys"
     )]
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_zval()
-            .map(|(k, v)| (ArrayKey::from_zval(&k).expect("Invalid array key!"), v))
+        let (key, value) = self.next_zval()?;
+        // SAFETY: `next_zval` reads `key` from `self.ht`.
+        let key = unsafe { Self::array_key(&key) }.expect("Invalid array key!");
+        Some((key, value))
     }
 
     fn count(self) -> usize
@@ -217,7 +235,8 @@ impl DoubleEndedIterator for Iter<'_> {
             )
         };
 
-        let key = match ArrayKey::from_zval(&key) {
+        // SAFETY: `key` was read from `self.ht` at `end_pos`.
+        let key = match unsafe { Self::array_key(&key) } {
             Some(key) => key,
             None => ArrayKey::Long(self.end_num),
         };

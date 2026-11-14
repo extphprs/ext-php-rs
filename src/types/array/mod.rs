@@ -675,6 +675,9 @@ impl ZendHashTable {
     /// Returns an iterator over the key(s) and value contained inside the
     /// hashtable.
     ///
+    /// A string key that is not UTF-8 comes as [`ArrayKey::ZendString`]. All
+    /// other string keys come as [`ArrayKey::String`].
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -1054,5 +1057,31 @@ mod tests {
             assert_eq!(ht.get(&numeric_key).and_then(|v| v.str()), Some("value"));
             assert!(ht.has_key(&ArrayKey::from(&numeric_key)));
         });
+    }
+
+    #[test]
+    fn iter_yields_non_utf8_string_key_in_both_directions() {
+        let keys = Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.insert(&ZendStr::new([0xff], false), 1);
+            ht.iter()
+                .chain(ht.iter().rev())
+                .map(|(key, _)| match key {
+                    ArrayKey::ZendString(key) => key.as_bytes().to_vec(),
+                    _ => Vec::new(),
+                })
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(keys, [[0xff], [0xff]]);
+    }
+
+    #[test]
+    fn key_predicates_accept_non_utf8_string_key() {
+        let predicates = Embed::run(|| {
+            let mut ht = ZendHashTable::new();
+            let _ = ht.insert(&ZendStr::new([0xff], false), 1);
+            Some((ht.has_sequential_keys(), ht.has_numerical_keys()))
+        });
+        assert_eq!(predicates, Some((false, false)));
     }
 }
