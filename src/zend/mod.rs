@@ -9,7 +9,7 @@ pub(crate) mod error_observer;
 mod ex;
 #[cfg(feature = "observer")]
 pub(crate) mod exception_observer;
-mod function;
+pub(crate) mod function;
 mod globals;
 mod handlers;
 mod headers;

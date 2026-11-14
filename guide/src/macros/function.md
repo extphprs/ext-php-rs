@@ -7,8 +7,8 @@ See the [list of types](../types/index.md) that are valid as parameter and
 return types. If the caller passes a value that the parameter type does not
 accept, the call throws a `TypeError`.
 
-A function accepts the `name`, `change_case`, `defaults` and `optional`
-options. PHP functions have no visibility, so `#[php(vis = "...")]` is a
+A function accepts the `name`, `change_case`, `defaults`, `optional` and
+`sensitive` options. PHP functions have no visibility, so `#[php(vis = "...")]` is a
 compile error on a function.
 
 ## Optional parameters
@@ -133,6 +133,35 @@ pub fn greet(name: String, age: Option<i32>, description: Option<String>) -> Str
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
     module.function(wrap_function!(greet))
+}
+# fn main() {}
+```
+
+## Sensitive parameters
+
+`#[php(sensitive(...))]` names parameters that PHP declares
+[`#[\SensitiveParameter]`](https://www.php.net/manual/en/class.sensitiveparameter.php),
+as it does for `password_hash()`'s password. When an exception is thrown,
+its trace holds a `SensitiveParameterValue` in place of the value, so a
+password or connection string does not reach logs or error trackers. Each name
+must be a parameter of the function. It has no effect before PHP 8.2, which
+introduced the attribute.
+
+```rust,no_run
+# #![cfg_attr(windows, feature(abi_vectorcall))]
+# extern crate ext_php_rs;
+use ext_php_rs::prelude::*;
+
+#[php_function]
+#[php(sensitive(password))]
+pub fn login(user: String, password: String) -> PhpResult<bool> {
+    let _ = password;
+    Err(PhpException::from_message(format!("Unknown user {user}")))
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module.function(wrap_function!(login))
 }
 # fn main() {}
 ```

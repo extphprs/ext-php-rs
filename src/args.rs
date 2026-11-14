@@ -21,12 +21,14 @@ pub type ArgInfoTables = Box<[Box<[ArgInfo]>]>;
 /// Represents an argument to a function.
 #[must_use]
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Arg<'a> {
     name: String,
     r#type: DataType,
     as_ref: bool,
     allow_null: bool,
     pub(crate) variadic: bool,
+    pub(crate) sensitive: bool,
     default_value: Option<String>,
     zval: Option<&'a mut Zval>,
     variadic_zvals: Vec<Option<&'a mut Zval>>,
@@ -46,6 +48,7 @@ impl<'a> Arg<'a> {
             as_ref: false,
             allow_null: false,
             variadic: false,
+            sensitive: false,
             default_value: None,
             zval: None,
             variadic_zvals: vec![],
@@ -65,6 +68,7 @@ impl<'a> Arg<'a> {
             as_ref: T::BY_REF,
             allow_null: T::NULLABLE,
             variadic: false,
+            sensitive: false,
             default_value: None,
             zval: None,
             variadic_zvals: vec![],
@@ -81,6 +85,14 @@ impl<'a> Arg<'a> {
     /// Sets the argument as variadic.
     pub fn is_variadic(mut self) -> Self {
         self.variadic = true;
+        self
+    }
+
+    /// Marks the argument `#[\SensitiveParameter]`: exception traces show a
+    /// `SensitiveParameterValue` in its place instead of the value. It has no
+    /// effect before PHP 8.2, which introduced the attribute.
+    pub fn sensitive(mut self) -> Self {
+        self.sensitive = true;
         self
     }
 

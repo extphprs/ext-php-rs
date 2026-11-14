@@ -14,6 +14,7 @@ use crate::{
     ffi::{zend_enum_add_case, zend_register_internal_enum},
     flags::{DataType, DataTypeExt, MethodFlags},
     types::{ZendStr, Zval},
+    zend::function::{SensitiveParameters, mark_sensitive},
     zend::{ClassEntry, ExecutorGlobals, FunctionEntry},
 };
 
@@ -132,7 +133,9 @@ impl EnumBuilder {
 
         let mut arg_info = Vec::with_capacity(self.methods.len());
         let mut methods = Vec::with_capacity(self.methods.len() + 1);
+        let mut sensitive = SensitiveParameters::new();
         for (method, flags) in self.methods {
+            sensitive.extend(method.sensitive());
             let (mut entry, args) = method.build()?;
             entry.add_flags(flags);
             methods.push(entry);
@@ -163,6 +166,7 @@ impl EnumBuilder {
         // `builtin_functions` for the last time.
         unsafe { free_registered_entries(entries) };
         unsafe { (*class).info.internal.builtin_functions = ptr::null() };
+        mark_sensitive(unsafe { &raw const (*class).function_table }, &sensitive);
 
         for case in self.cases {
             let name = ZendStr::new_interned(case.name, true);

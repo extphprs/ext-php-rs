@@ -3895,6 +3895,33 @@ unsafe extern "C" {
     pub static mut zend_ce_stringable: *mut zend_class_entry;
 }
 #[repr(C)]
+pub struct zend_attribute_arg {
+    pub name: *mut zend_string,
+    pub value: zval,
+}
+#[repr(C)]
+pub struct _zend_attribute {
+    pub name: *mut zend_string,
+    pub lcname: *mut zend_string,
+    pub validation_error: *mut zend_string,
+    pub flags: u32,
+    pub lineno: u32,
+    pub offset: u32,
+    pub argc: u32,
+    pub args: [zend_attribute_arg; 1usize],
+}
+pub type zend_attribute = _zend_attribute;
+unsafe extern "C" {
+    pub fn zend_add_attribute(
+        attributes: *mut *mut HashTable,
+        name: *mut zend_string,
+        argc: u32,
+        flags: u32,
+        offset: u32,
+        lineno: u32,
+    ) -> *mut zend_attribute;
+}
+#[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sapi_header_struct {
     pub header: *mut ::std::os::raw::c_char,
