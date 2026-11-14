@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.2.0...ext-php-rs-build-v0.2.1) - 2026-11-14
+
+### Fixed
+- *(php-build)* Accept every PHP 8.6 API version up to 20261112 (by @ptondereau)
 ## [0.2.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-build-v0.1.1...ext-php-rs-build-v0.2.0) - 2026-11-01
 
 ### Added

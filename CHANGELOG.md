@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## [0.16.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.4...ext-php-rs-v0.16.5) - 2026-11-14
+
+### Fixed
+- *(array)* Fix non-UTF-8 keys, reverse iteration and length of iterators ([#849](https://github.com/extphprs/ext-php-rs/pull/849)) (by @ptondereau) [[#849](https://github.com/extphprs/ext-php-rs/issues/849)] 
+- *(embed)* Reset engine state between worker requests ([#847](https://github.com/extphprs/ext-php-rs/pull/847)) (by @ptondereau) [[#847](https://github.com/extphprs/ext-php-rs/issues/847)] 
+- *(php-build)* Accept every PHP 8.6 API version up to 20261112 (by @ptondereau)
+- *(sapi)* Use zend_error as default sapi_error ([#846](https://github.com/extphprs/ext-php-rs/pull/846)) (by @ptondereau) [[#846](https://github.com/extphprs/ext-php-rs/issues/846)] 
+
+### Other
+- *(frankenphp)* Bump to 1.13.5 ([#842](https://github.com/extphprs/ext-php-rs/pull/842)) (by @ptondereau) [[#842](https://github.com/extphprs/ext-php-rs/issues/842)] 
+- Support Rust 1.100 ([#844](https://github.com/extphprs/ext-php-rs/pull/844)) (by @ptondereau) [[#844](https://github.com/extphprs/ext-php-rs/issues/844)] 
 ## [0.16.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.3...ext-php-rs-v0.16.4) - 2026-11-01
 
 ### Added
