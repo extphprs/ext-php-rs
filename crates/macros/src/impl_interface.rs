@@ -14,7 +14,7 @@ use quote::{format_ident, quote};
 use syn::{FnArg, ImplItem, ItemImpl, Pat, ReturnType};
 
 use crate::function::invalid_argument;
-use crate::interface::method_name_const;
+use crate::interface::{method_name_const, method_sensitive_const};
 use crate::parsing::{RenameRule, ident_to_php_name, reject_php_attrs};
 use crate::prelude::*;
 
@@ -96,6 +96,8 @@ pub fn parser(args: &PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStre
         let method_ident = &method.sig.ident;
         let name_const = method_name_const(method_ident);
         let php_name = quote! { <#interface_struct_path>::#name_const };
+        let sensitive_const = method_sensitive_const(method_ident);
+        let sensitive = quote! { <#interface_struct_path>::#sensitive_const };
 
         // Check if this is a static method (no self receiver)
         let has_self = method
@@ -108,6 +110,7 @@ pub fn parser(args: &PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStre
         // Generate the method builder
         let builder = generate_method_builder(
             &php_name,
+            &sensitive,
             struct_ty,
             method_ident,
             &method.sig.inputs,
@@ -156,6 +159,7 @@ pub fn parser(args: &PhpImplInterfaceArgs, input: &ItemImpl) -> Result<TokenStre
 #[allow(clippy::too_many_lines)]
 fn generate_method_builder(
     php_name: &TokenStream,
+    sensitive: &TokenStream,
     struct_ty: &syn::Type,
     method_ident: &syn::Ident,
     inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
@@ -163,16 +167,20 @@ fn generate_method_builder(
     is_static: bool,
 ) -> TokenStream {
     // Collect non-self arguments in order
-    let args: Vec<_> = inputs
-        .iter()
-        .filter_map(|arg| {
-            if let FnArg::Typed(pat_type) = arg
-                && let Pat::Ident(pat_ident) = &*pat_type.pat
-            {
-                return Some((&pat_ident.ident, &pat_type.ty));
-            }
-            None
+    let typed_args = inputs.iter().filter_map(|arg| match arg {
+        FnArg::Typed(pat_type) => Some(pat_type),
+        FnArg::Receiver(_) => None,
+    });
+    let positioned_args: Vec<_> = typed_args
+        .enumerate()
+        .filter_map(|(position, pat_type)| match &*pat_type.pat {
+            Pat::Ident(pat_ident) => Some((position, &pat_ident.ident, &pat_type.ty)),
+            _ => None,
         })
+        .collect();
+    let args: Vec<_> = positioned_args
+        .iter()
+        .map(|(_, name, ty)| (*name, *ty))
         .collect();
 
     // The required count follows each parameter's `FromZvalMut::NULLABLE`, so
@@ -219,12 +227,19 @@ fn generate_method_builder(
         .collect();
 
     // Generate .arg() calls for PHP reflection metadata (for FunctionBuilder)
-    let arg_builders: Vec<_> = args
+    let arg_builders: Vec<_> = positioned_args
         .iter()
-        .map(|(name, ty)| {
+        .map(|(position, name, ty)| {
             let php_name = ident_to_php_name(name);
             quote! {
-                .arg(::ext_php_rs::args::Arg::of::<#ty>(#php_name))
+                .arg({
+                    let arg = ::ext_php_rs::args::Arg::of::<#ty>(#php_name);
+                    if #sensitive.contains(&#position) {
+                        arg.sensitive()
+                    } else {
+                        arg
+                    }
+                })
             }
         })
         .collect();

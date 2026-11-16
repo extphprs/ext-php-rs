@@ -1,13 +1,14 @@
 //! Builder for creating functions and methods in PHP.
 
-use std::{fmt::Debug, os::raw::c_char, ptr};
+use std::{fmt::Debug, mem::MaybeUninit, os::raw::c_char, ptr};
 
 use crate::{
     convert::IntoZvalDyn,
     error::Result,
     ffi::{
-        HashTable, zend_call_known_function, zend_fetch_function_str, zend_function,
-        zend_function_entry, zend_hash_str_find_ptr_lc,
+        HashTable, ZEND_INTERNAL_FUNCTION, zend_call_known_function, zend_fetch_function_str,
+        zend_function, zend_function_entry, zend_hash_str_find_ptr_lc, zend_internal_function,
+        zend_op_array,
     },
     flags::{FunctionType, MethodFlags},
     types::Zval,
@@ -82,7 +83,7 @@ impl Function {
             if res.is_null() {
                 return None;
             }
-            Some(*res)
+            Some(copy_function(res))
         }
     }
 
@@ -101,7 +102,7 @@ impl Function {
                 if res.is_null() {
                     return None;
                 }
-                Some(*res)
+                Some(copy_function(res))
             },
         }
     }
@@ -162,6 +163,27 @@ impl Function {
     }
 }
 
+/// Copies the engine's function at `func`. The engine allocates an internal
+/// function with the size of `zend_internal_function` and a user function with
+/// the size of `zend_op_array`, so only that many bytes are read. The rest of
+/// the `zend_function` union stays zeroed.
+///
+/// # Safety
+///
+/// `func` must point to a function the engine registered.
+unsafe fn copy_function(func: *const zend_function) -> Function {
+    let size = if u32::from(unsafe { (*func).type_ }) == ZEND_INTERNAL_FUNCTION {
+        size_of::<zend_internal_function>()
+    } else {
+        size_of::<zend_op_array>()
+    };
+    let mut copy = MaybeUninit::<Function>::zeroed();
+    unsafe {
+        ptr::copy_nonoverlapping(func.cast::<u8>(), copy.as_mut_ptr().cast::<u8>(), size);
+        copy.assume_init()
+    }
+}
+
 /// Parameters to mark `#[\SensitiveParameter]`: a function's name and the
 /// zero-based offsets of its sensitive parameters.
 pub(crate) type SensitiveParameters = Vec<(String, Vec<u32>)>;
@@ -171,8 +193,9 @@ pub(crate) type SensitiveParameters = Vec<(String, Vec<u32>)>;
 /// for PHP's own functions, so exception traces hide their values. Names
 /// missing from `table` are skipped.
 ///
-/// It must run during module startup, after the functions are registered: the
-/// attributes are allocated persistently and never freed, like the functions.
+/// It must run during module startup, after the functions are registered. The
+/// attributes are allocated persistently, and the engine frees them with the
+/// functions.
 pub(crate) fn mark_sensitive(table: *const HashTable, functions: &SensitiveParameters) {
     #[cfg(php82)]
     {
@@ -181,19 +204,23 @@ pub(crate) fn mark_sensitive(table: *const HashTable, functions: &SensitiveParam
         /// `ZEND_ATTRIBUTE_PERSISTENT`, a macro bindgen does not see.
         const PERSISTENT: u32 = 1 << 0;
 
+        if functions.is_empty() {
+            return;
+        }
+        let mut attribute = ZendStr::new_interned("SensitiveParameter", true);
         for (name, offsets) in functions {
             let func = unsafe {
                 zend_hash_str_find_ptr_lc(table, name.as_ptr().cast::<c_char>(), name.len())
-                    .cast::<zend_function>()
-                    .as_mut()
-            };
-            let Some(func) = func else { continue };
+            }
+            .cast::<zend_function>();
+            if func.is_null() {
+                continue;
+            }
             for &offset in offsets {
-                let attribute = ZendStr::new_interned("SensitiveParameter", true).into_raw();
                 unsafe {
                     zend_add_attribute(
-                        &raw mut func.common.attributes,
-                        attribute,
+                        &raw mut (*func).common.attributes,
+                        &raw mut *attribute,
                         0,
                         PERSISTENT,
                         offset + 1,
@@ -205,4 +232,30 @@ pub(crate) fn mark_sensitive(table: *const HashTable, functions: &SensitiveParam
     }
     #[cfg(not(php82))]
     let _ = (table, functions);
+}
+
+#[cfg(test)]
+#[cfg(feature = "embed")]
+mod tests {
+    use super::*;
+    use crate::embed::Embed;
+
+    #[test]
+    fn calls_an_internal_function_found_by_name() {
+        let length = Embed::run(|| {
+            Function::try_from_function("strlen")
+                .and_then(|strlen| strlen.try_call(vec![&"hello"]).ok())
+                .and_then(|retval| retval.long())
+        });
+        assert_eq!(length, Some(5));
+    }
+
+    #[test]
+    fn finds_an_internal_method_by_name() {
+        let ty = Embed::run(|| {
+            Function::try_from_method("ArrayObject", "count")
+                .and_then(|count| count.function_type().ok())
+        });
+        assert_eq!(ty, Some(FunctionType::Internal));
+    }
 }

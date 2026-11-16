@@ -1023,10 +1023,10 @@ fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 ///
 /// ## Methods
 ///
-/// A trait method accepts the `name`, `change_case`, `defaults`, `optional` and
-/// `vis` options. Interfaces cannot declare property accessors or constructors,
-/// so `getter`, `setter` and `constructor` are compile errors here. See
-/// [`php_impl`](./impl.md#) for how each accepted option behaves.
+/// A trait method accepts the `name`, `change_case`, `defaults`, `optional`,
+/// `sensitive` and `vis` options. Interfaces cannot declare property accessors
+/// or constructors, so `getter`, `setter` and `constructor` are compile errors
+/// here. See [`php_impl`](./impl.md#) for how each accepted option behaves.
 ///
 /// ## Constants
 ///
@@ -1403,6 +1403,14 @@ fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 ///    declared for it. The trait's `change_method_case` and the `name` or
 ///    `change_case` of a trait method apply to the class too.
 ///    `#[php_impl_interface]` takes no arguments.
+///
+/// 5. **Sensitive parameters**: `#[php(sensitive(...))]` on a trait method also
+///    applies to the class method, so exception traces from the class hide the
+///    same arguments. The macro marks the argument at the same position, thus
+///    the parameter names in the `impl` can be different. A PHP class that
+///    implements the interface does not get the attribute, because PHP does not
+///    copy parameter attributes from an interface. Declare
+///    `#[\SensitiveParameter]` on its method.
 // END DOCS FROM interface.md
 #[proc_macro_attribute]
 pub fn php_interface(args: TokenStream, input: TokenStream) -> TokenStream {

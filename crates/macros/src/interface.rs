@@ -79,6 +79,7 @@ struct InterfaceData<'a> {
     supertrait_extends: Vec<SupertraitInterface>,
     methods: Vec<FnBuilder>,
     method_names: Vec<(Ident, String)>,
+    method_sensitive: Vec<(Ident, Vec<usize>)>,
     constants: Vec<Constant<'a>>,
     docs: Vec<String>,
 }
@@ -88,6 +89,14 @@ struct InterfaceData<'a> {
 /// sides register the method under one name.
 pub fn method_name_const(ident: &Ident) -> Ident {
     format_ident!("__php_method_{}", ident_to_php_name(ident))
+}
+
+/// Name of the associated constant on the interface struct that lists the
+/// positions, among the typed parameters of the trait method `ident`, of the
+/// parameters named in `#[php(sensitive(...))]`. `#[php_impl_interface]` reads
+/// it, so the implementing method hides the same arguments in traces.
+pub fn method_sensitive_const(ident: &Ident) -> Ident {
+    format_ident!("__php_sensitive_{}", ident_to_php_name(ident))
 }
 
 impl ToTokens for InterfaceData<'_> {
@@ -108,12 +117,21 @@ impl ToTokens for InterfaceData<'_> {
                 pub const #const_ident: &'static str = #name;
             }
         });
+        let sensitive_consts = self.method_sensitive.iter().map(|(ident, positions)| {
+            let const_ident = method_sensitive_const(ident);
+            quote! {
+                #[doc(hidden)]
+                #[allow(non_upper_case_globals)]
+                pub const #const_ident: &'static [usize] = &[#(#positions),*];
+            }
+        });
 
         quote! {
             pub struct #interface_name;
 
             impl #interface_name {
                 #(#name_consts)*
+                #(#sensitive_consts)*
             }
 
             impl ::ext_php_rs::class::RegisteredClass for #interface_name {
@@ -247,6 +265,7 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
             supertrait_extends,
             methods: Vec::default(),
             method_names: Vec::default(),
+            method_sensitive: Vec::default(),
             constants: Vec::default(),
             docs,
         };
@@ -256,12 +275,14 @@ impl<'a> Parse<'a, InterfaceData<'a>> for ItemTrait {
         for item in &mut self.items {
             match item {
                 TraitItem::Fn(f) => {
-                    let (method, name) = parse_trait_item_fn(f, attrs.change_method_case)?;
+                    let (method, name, sensitive) =
+                        parse_trait_item_fn(f, attrs.change_method_case)?;
                     if let Err(earlier) = method_names.insert(&name) {
                         bail!(f.sig.ident => "PHP method `{name}` is already declared as `{earlier}` in this interface. PHP method names ignore case. Rename one of them with `#[php(name = \"...\")]`.");
                     }
                     data.methods.push(method);
                     data.method_names.push((f.sig.ident.clone(), name));
+                    data.method_sensitive.push((f.sig.ident.clone(), sensitive));
                 }
                 TraitItem::Const(c) => {
                     let span = c.ident.span();
@@ -327,7 +348,7 @@ pub struct PhpFunctionInterfaceAttribute {
 fn parse_trait_item_fn(
     fn_item: &mut TraitItemFn,
     change_case: Option<RenameRule>,
-) -> Result<(FnBuilder, String)> {
+) -> Result<(FnBuilder, String, Vec<usize>)> {
     if fn_item.default.is_some() {
         bail!(fn_item => "Interface methods cannot have a default implementation.");
     }
@@ -345,6 +366,13 @@ fn parse_trait_item_fn(
 
     let mut args = Args::parse_from_fnargs(fn_item.sig.inputs.iter(), php_attr.defaults)?;
     args.mark_sensitive(&php_attr.sensitive)?;
+    let sensitive = args
+        .typed
+        .iter()
+        .enumerate()
+        .filter(|(_, arg)| arg.sensitive)
+        .map(|(position, _)| position)
+        .collect();
 
     let docs = get_docs(&php_attr.attrs)?;
 
@@ -379,6 +407,7 @@ fn parse_trait_item_fn(
             modifiers,
         },
         method_name,
+        sensitive,
     ))
 }
 

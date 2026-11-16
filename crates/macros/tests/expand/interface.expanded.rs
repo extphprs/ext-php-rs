@@ -14,6 +14,9 @@ impl PhpInterfaceMyInterface {
     #[doc(hidden)]
     #[allow(non_upper_case_globals)]
     pub const __php_method_my_method: &'static str = "myMethod";
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_sensitive_my_method: &'static [usize] = &[];
 }
 impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface {
     const CLASS_NAME: &'static str = "MyInterface";
@@ -186,6 +189,15 @@ impl PhpInterfaceMyInterface2 {
     #[doc(hidden)]
     #[allow(non_upper_case_globals)]
     pub const __php_method_static_method: &'static str = "STATIC_METHOD";
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_sensitive_my_method: &'static [usize] = &[];
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_sensitive_anotherMethod: &'static [usize] = &[];
+    #[doc(hidden)]
+    #[allow(non_upper_case_globals)]
+    pub const __php_sensitive_static_method: &'static [usize] = &[];
 }
 impl ::ext_php_rs::class::RegisteredClass for PhpInterfaceMyInterface2 {
     const CLASS_NAME: &'static str = "MyInterface2";
@@ -656,7 +668,16 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyImpl> {
                                         handler
                                     },
                                 )
-                                .arg(::ext_php_rs::args::Arg::of::<i32>("arg"))
+                                .arg({
+                                    let arg = ::ext_php_rs::args::Arg::of::<i32>("arg");
+                                    if <PhpInterfaceMyInterface>::__php_sensitive_my_method
+                                        .contains(&0usize)
+                                    {
+                                        arg.sensitive()
+                                    } else {
+                                        arg
+                                    }
+                                })
                                 .required_args(__REQUIRED)
                                 .returns(
                                     <String as ::ext_php_rs::convert::IntoZval>::TYPE,
