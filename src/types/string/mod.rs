@@ -14,7 +14,7 @@ use std::{
     ptr, slice,
 };
 
-use parking_lot::{Mutex, const_mutex};
+use parking_lot::Mutex;
 
 use crate::{
     boxed::{ZBox, ZBoxable},
@@ -45,7 +45,7 @@ pub type ZendStr = zend_string;
 // contested when PHP is compiled with ZTS, so an empty mutex is used to ensure
 // no collisions occur on the Rust side. Not much we can do about collisions
 // on the PHP side, but some safety is better than none.
-static INTERNED_LOCK: Mutex<()> = const_mutex(());
+static INTERNED_LOCK: Mutex<()> = Mutex::new(());
 
 // Clippy complains about there being no `is_empty` function when implementing
 // on the alias `ZendStr` :( <https://github.com/rust-lang/rust-clippy/issues/7702>

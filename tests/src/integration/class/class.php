@@ -491,11 +491,11 @@ class TestUncloneableChild extends TestUncloneableClass
 
 assert(
     uncloneable_message(new TestUncloneableClass('base'))
-        === 'Trying to clone an uncloneable object of class TestUncloneableClass'
+    === 'Trying to clone an uncloneable object of class TestUncloneableClass'
 );
 assert(
     uncloneable_message(new TestUncloneableChild('child'))
-        === 'Trying to clone an uncloneable object of class TestUncloneableChild'
+    === 'Trying to clone an uncloneable object of class TestUncloneableChild'
 );
 $anonymous = new class('anonymous') extends TestUncloneableClass {};
 assert(str_starts_with(

@@ -920,14 +920,14 @@ pub(crate) mod lock {
 /// this is only effective on the Rust side.
 #[cfg(php_zts)]
 pub(crate) mod lock {
-    use parking_lot::{RwLock, const_rwlock};
+    use parking_lot::RwLock;
     use std::sync::Arc;
 
     thread_local! {
-        pub(crate) static GLOBALS_LOCK: Arc<RwLock<()>> =  Arc::new(const_rwlock(()));
-        pub(crate) static PROCESS_GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new( const_rwlock(()) );
-        pub(crate) static SAPI_GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new( const_rwlock(()) );
-        pub(crate) static FILE_GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new( const_rwlock(()) );
+        pub(crate) static GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new(RwLock::new(()));
+        pub(crate) static PROCESS_GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new(RwLock::new(()));
+        pub(crate) static SAPI_GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new(RwLock::new(()));
+        pub(crate) static FILE_GLOBALS_LOCK: Arc<RwLock<()>> = Arc::new(RwLock::new(()));
     }
 }
 
