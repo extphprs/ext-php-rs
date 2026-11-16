@@ -156,10 +156,6 @@ impl ZendObjectHandlers {
         unsafe { zend_object_std_dtor(object) };
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "the formatted message is built from a class name and contains no NUL byte"
-    )]
     unsafe extern "C" fn clone_obj<T: RegisteredClass>(object: *mut ZendObject) -> *mut ZendObject {
         // PHP will call OBJ_RELEASE on the returned pointer if an exception
         // is thrown, so we must NEVER return the original object. Always
@@ -185,12 +181,17 @@ impl ZendObjectHandlers {
                 unsafe { &raw mut (*raw).std }
             }
             Ok(None) => {
-                let msg = CString::new(format!(
-                    "Trying to clone an uncloneable object of class {}",
-                    T::CLASS_NAME
-                ))
-                .expect("Failed to create error message");
-                unsafe { zend_throw_error(ptr::null_mut(), msg.as_ptr()) };
+                // Like `ZEND_CLONE`, name the object's own class, which for a PHP
+                // subclass of `T` is the subclass. The name goes to `%s` as is: an
+                // anonymous class name contains a NUL byte, so it can't be a CString.
+                let name = unsafe { (*object).get_class_entry().name };
+                unsafe {
+                    zend_throw_error(
+                        ptr::null_mut(),
+                        c"Trying to clone an uncloneable object of class %s".as_ptr(),
+                        (*name).val.as_ptr(),
+                    );
+                }
                 Self::released_placeholder::<T>()
             }
             Err(panic) => {

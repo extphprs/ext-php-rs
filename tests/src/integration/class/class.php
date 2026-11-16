@@ -473,6 +473,36 @@ assert($manual->copies === 0);
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
 
+// The error names the object's own class, as ZEND_CLONE does, including a PHP
+// subclass and an anonymous class (whose name holds a NUL byte).
+function uncloneable_message(object $object): string
+{
+    try {
+        clone $object;
+    } catch (\Error $e) {
+        return $e->getMessage();
+    }
+    throw new Exception('Cloning an uncloneable object should throw', 255);
+}
+
+class TestUncloneableChild extends TestUncloneableClass
+{
+}
+
+assert(
+    uncloneable_message(new TestUncloneableClass('base'))
+        === 'Trying to clone an uncloneable object of class TestUncloneableClass'
+);
+assert(
+    uncloneable_message(new TestUncloneableChild('child'))
+        === 'Trying to clone an uncloneable object of class TestUncloneableChild'
+);
+$anonymous = new class('anonymous') extends TestUncloneableClass {};
+assert(str_starts_with(
+    uncloneable_message($anonymous),
+    'Trying to clone an uncloneable object of class TestUncloneableClass@anonymous'
+));
+
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should
 // hit the cache_slot fast path and return the same correct value.
