@@ -171,8 +171,9 @@ pub(crate) type SensitiveParameters = Vec<(String, Vec<u32>)>;
 /// for PHP's own functions, so exception traces hide their values. Names
 /// missing from `table` are skipped.
 ///
-/// It must run during module startup, after the functions are registered: the
-/// attributes are allocated persistently and never freed, like the functions.
+/// It must run during module startup, after the functions are registered. The
+/// attributes are allocated persistently, and the engine frees them with the
+/// functions.
 pub(crate) fn mark_sensitive(table: *const HashTable, functions: &SensitiveParameters) {
     #[cfg(php82)]
     {
@@ -181,19 +182,23 @@ pub(crate) fn mark_sensitive(table: *const HashTable, functions: &SensitiveParam
         /// `ZEND_ATTRIBUTE_PERSISTENT`, a macro bindgen does not see.
         const PERSISTENT: u32 = 1 << 0;
 
+        if functions.is_empty() {
+            return;
+        }
+        let mut attribute = ZendStr::new_interned("SensitiveParameter", true);
         for (name, offsets) in functions {
             let func = unsafe {
                 zend_hash_str_find_ptr_lc(table, name.as_ptr().cast::<c_char>(), name.len())
-                    .cast::<zend_function>()
-                    .as_mut()
-            };
-            let Some(func) = func else { continue };
+            }
+            .cast::<zend_function>();
+            if func.is_null() {
+                continue;
+            }
             for &offset in offsets {
-                let attribute = ZendStr::new_interned("SensitiveParameter", true).into_raw();
                 unsafe {
                     zend_add_attribute(
-                        &raw mut func.common.attributes,
-                        attribute,
+                        &raw mut (*func).common.attributes,
+                        &raw mut *attribute,
                         0,
                         PERSISTENT,
                         offset + 1,
