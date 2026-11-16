@@ -447,6 +447,24 @@ assert($original->name === 'original', 'Original name should be unchanged after 
 $result = TestCloneableClass::acceptCloneable($cloned);
 assert($result === 'accepted: 100 modified', 'Cloned object should be accepted as typed parameter');
 
+class TestCloneableChild extends TestCloneableClass
+{
+    public string $extra = 'child';
+    public array $tags = ['a', 'b'];
+}
+
+$child = new TestCloneableChild(7, 'child');
+$child->extra = 'changed';
+$childClone = clone $child;
+assert($childClone instanceof TestCloneableChild, 'A clone of a PHP subclass keeps the subclass');
+assert($childClone->value === 7 && $childClone->name === 'child', 'A subclass clone copies the Rust state');
+assert(
+    $childClone->extra === 'changed' && $childClone->tags === ['a', 'b'],
+    'A subclass clone copies its PHP properties'
+);
+$childClone->extra = 'clone';
+assert($child->extra === 'changed', 'The original subclass object is unchanged');
+
 $manual = new TestManualCloneClass();
 $manualClone = clone $manual;
 assert($manualClone->copies === 1, 'A hand-written Clone impl drives the clone handler');
@@ -454,6 +472,36 @@ assert($manual->copies === 0);
 
 $uncloneable = new TestUncloneableClass('test');
 assert_exception_thrown(fn() => clone $uncloneable, 'Cloning uncloneable class should throw');
+
+// The error names the object's own class, as ZEND_CLONE does, including a PHP
+// subclass and an anonymous class (whose name holds a NUL byte).
+function uncloneable_message(object $object): string
+{
+    try {
+        clone $object;
+    } catch (\Error $e) {
+        return $e->getMessage();
+    }
+    throw new Exception('Cloning an uncloneable object should throw', 255);
+}
+
+class TestUncloneableChild extends TestUncloneableClass
+{
+}
+
+assert(
+    uncloneable_message(new TestUncloneableClass('base'))
+        === 'Trying to clone an uncloneable object of class TestUncloneableClass'
+);
+assert(
+    uncloneable_message(new TestUncloneableChild('child'))
+        === 'Trying to clone an uncloneable object of class TestUncloneableChild'
+);
+$anonymous = new class('anonymous') extends TestUncloneableClass {};
+assert(str_starts_with(
+    uncloneable_message($anonymous),
+    'Trying to clone an uncloneable object of class TestUncloneableClass@anonymous'
+));
 
 // Test cache_slot: repeated property access in a tight loop.
 // After the first access resolves via find_property, subsequent accesses should

@@ -110,7 +110,10 @@ impl<T: RegisteredClass> ZendClassObject<T> {
         clippy::expect_used,
         reason = "the Zend allocator aborts the process on OOM, so the pointer is never null"
     )]
-    unsafe fn internal_new(val: Option<T>, ce: Option<&'static ClassEntry>) -> ZBox<Self> {
+    pub(crate) unsafe fn internal_new(
+        val: Option<T>,
+        ce: Option<&'static ClassEntry>,
+    ) -> ZBox<Self> {
         let size = mem::size_of::<ZendClassObject<T>>();
         let meta = T::get_metadata();
         let ce = ptr::from_ref(ce.unwrap_or_else(|| meta.ce())).cast_mut();
