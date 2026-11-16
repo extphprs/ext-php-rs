@@ -36,6 +36,26 @@ pub fn throw_over_pending_exception(call: ZendCallable) {
 }
 
 #[php_function]
+#[php(sensitive(password))]
+pub fn throw_with_password(user: String, password: String) -> PhpResult<()> {
+    let _ = (user, password);
+    Err(PhpException::from_message("bad credentials".into()))
+}
+
+#[php_class]
+#[php(name = "Test\\TestCredentials")]
+pub struct TestCredentials;
+
+#[php_impl]
+impl TestCredentials {
+    #[php(sensitive(secret))]
+    pub fn __construct(secret: String) -> PhpResult<Self> {
+        let _ = secret;
+        Err(PhpException::from_message("bad secret".into()))
+    }
+}
+
+#[php_function]
 pub fn throw_non_object() -> PhpResult<()> {
     ext_php_rs::exception::throw_object(Zval::new())?;
 
@@ -55,6 +75,8 @@ pub fn throw_nul_message() {
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .class::<TestException>()
+        .class::<TestCredentials>()
+        .function(wrap_function!(throw_with_password))
         .function(wrap_function!(throw_default_exception))
         .function(wrap_function!(throw_custom_exception))
         .function(wrap_function!(call_throwing_callable))

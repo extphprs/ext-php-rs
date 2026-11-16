@@ -60,3 +60,33 @@ try {
     assert(get_class($e) === \Error::class, get_class($e));
     assert(str_contains($e->getMessage(), 'original message: before\\0after'), $e->getMessage());
 }
+
+// `#[php(sensitive(...))]` marks parameters `#[\SensitiveParameter]`, so traces hide their values.
+if (PHP_VERSION_ID >= 80_200) {
+    // Production php.ini drops trace arguments, which this checks.
+    // @mago-expect lint:no-ini-set
+    ini_set('zend.exception_ignore_args', '0');
+
+    try {
+        throw_with_password('admin', 'hunter2');
+        assert(false, 'throw_with_password should throw');
+    } catch (\Exception $e) {
+        $args = $e->getTrace()[0]['args'];
+        assert($args[0] === 'admin', 'An unmarked argument is kept');
+        assert($args[1] instanceof \SensitiveParameterValue, 'A sensitive function argument is hidden');
+        assert($args[1]->getValue() === 'hunter2');
+        assert(!str_contains($e->getTraceAsString(), 'hunter2'), $e->getTraceAsString());
+    }
+
+    try {
+        new Test\TestCredentials('s3cret');
+        assert(false, 'the constructor should throw');
+    } catch (\Exception $e) {
+        $args = $e->getTrace()[0]['args'];
+        assert($args[0] instanceof \SensitiveParameterValue, 'A sensitive method argument is hidden');
+        assert(!str_contains($e->getTraceAsString(), 's3cret'), $e->getTraceAsString());
+    }
+
+    $parameters = ( new \ReflectionMethod(Test\TestCredentials::class, '__construct') )->getParameters();
+    assert($parameters[0]->getAttributes(\SensitiveParameter::class) !== [], 'Reflection sees the attribute');
+}

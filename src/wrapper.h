@@ -36,6 +36,7 @@
 #include "zend_exceptions.h"
 #include "zend_inheritance.h"
 #include "zend_interfaces.h"
+#include "zend_attributes.h"
 #include "php_variables.h"
 #include "zend_ini.h"
 #ifdef EXT_PHP_RS_OBSERVER

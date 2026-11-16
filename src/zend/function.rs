@@ -6,8 +6,8 @@ use crate::{
     convert::IntoZvalDyn,
     error::Result,
     ffi::{
-        zend_call_known_function, zend_fetch_function_str, zend_function, zend_function_entry,
-        zend_hash_str_find_ptr_lc,
+        HashTable, zend_call_known_function, zend_fetch_function_str, zend_function,
+        zend_function_entry, zend_hash_str_find_ptr_lc,
     },
     flags::{FunctionType, MethodFlags},
     types::Zval,
@@ -160,4 +160,49 @@ impl Function {
 
         Ok(retval)
     }
+}
+
+/// Parameters to mark `#[\SensitiveParameter]`: a function's name and the
+/// zero-based offsets of its sensitive parameters.
+pub(crate) type SensitiveParameters = Vec<(String, Vec<u32>)>;
+
+/// Marks each listed parameter of the functions in `table` (a class's or the
+/// engine's function table) `#[\SensitiveParameter]`, as `gen_stub.php` does
+/// for PHP's own functions, so exception traces hide their values. Names
+/// missing from `table` are skipped.
+///
+/// It must run during module startup, after the functions are registered: the
+/// attributes are allocated persistently and never freed, like the functions.
+pub(crate) fn mark_sensitive(table: *const HashTable, functions: &SensitiveParameters) {
+    #[cfg(php82)]
+    {
+        use crate::{ffi::zend_add_attribute, types::ZendStr};
+
+        /// `ZEND_ATTRIBUTE_PERSISTENT`, a macro bindgen does not see.
+        const PERSISTENT: u32 = 1 << 0;
+
+        for (name, offsets) in functions {
+            let func = unsafe {
+                zend_hash_str_find_ptr_lc(table, name.as_ptr().cast::<c_char>(), name.len())
+                    .cast::<zend_function>()
+                    .as_mut()
+            };
+            let Some(func) = func else { continue };
+            for &offset in offsets {
+                let attribute = ZendStr::new_interned("SensitiveParameter", true).into_raw();
+                unsafe {
+                    zend_add_attribute(
+                        &raw mut func.common.attributes,
+                        attribute,
+                        0,
+                        PERSISTENT,
+                        offset + 1,
+                        0,
+                    );
+                }
+            }
+        }
+    }
+    #[cfg(not(php82))]
+    let _ = (table, functions);
 }
