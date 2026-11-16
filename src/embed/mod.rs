@@ -20,7 +20,7 @@ use crate::ffi::{
 };
 use crate::types::{ZendObject, Zval};
 use crate::zend::{CatchError, CatchFrame, ExecutorGlobals, panic_wrapper, try_catch};
-use parking_lot::{RwLock, const_rwlock};
+use parking_lot::RwLock;
 use std::ffi::{CString, NulError, c_char, c_void};
 use std::panic::{AssertUnwindSafe, UnwindSafe, resume_unwind};
 use std::path::Path;
@@ -72,7 +72,7 @@ impl EmbedError {
     }
 }
 
-static RUN_FN_LOCK: RwLock<()> = const_rwlock(());
+static RUN_FN_LOCK: RwLock<()> = RwLock::new(());
 
 impl Embed {
     /// Run a php script from a file

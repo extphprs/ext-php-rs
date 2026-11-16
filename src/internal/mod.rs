@@ -1,5 +1,5 @@
 //! Internal, public functions that are called from downstream extensions.
-use parking_lot::{Mutex, const_mutex};
+use parking_lot::Mutex;
 
 use crate::builders::ModuleStartup;
 
@@ -13,7 +13,7 @@ pub type ModuleStartupMutex = Mutex<Option<ModuleStartup>>;
 /// The initialisation value for [`ModuleStartupMutex`]. By default the mutex
 /// contains [`None`].
 #[allow(clippy::declare_interior_mutable_const)]
-pub const MODULE_STARTUP_INIT: ModuleStartupMutex = const_mutex(None);
+pub const MODULE_STARTUP_INIT: ModuleStartupMutex = Mutex::new(None);
 
 /// Called by startup functions registered with the [`#[php_startup]`] macro.
 /// Initializes all classes that are defined by ext-php-rs (i.e. `Closure`).
