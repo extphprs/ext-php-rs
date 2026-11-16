@@ -326,6 +326,33 @@ impl RenamedGreeting for RenamedGreeter {
     }
 }
 
+#[php_interface]
+#[php(name = "ExtPhpRs\\Interface\\Authenticator")]
+#[allow(dead_code)]
+pub trait Authenticator {
+    #[php(sensitive(password))]
+    fn login(&self, user: String, password: String) -> PhpResult<()>;
+}
+
+#[php_class]
+#[php(name = "ExtPhpRs\\Interface\\RejectingAuthenticator")]
+pub struct RejectingAuthenticator;
+
+#[php_impl]
+impl RejectingAuthenticator {
+    pub fn __construct() -> Self {
+        Self
+    }
+}
+
+#[php_impl_interface]
+impl Authenticator for RejectingAuthenticator {
+    fn login(&self, user: String, secret: String) -> PhpResult<()> {
+        let _ = (user, secret);
+        Err(PhpException::from_message("bad credentials".into()))
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
         .interface::<PhpInterfaceEmptyObjectTrait>()
@@ -333,6 +360,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .interface::<PhpInterfaceChildInterface>()
         .interface::<PhpInterfaceOptionalGreeting>()
         .interface::<PhpInterfaceRenamedGreeting>()
+        .interface::<PhpInterfaceAuthenticator>()
         // Iterator examples for issue #308
         .class::<RangeIterator>()
         .class::<MapIterator>()
@@ -341,6 +369,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<Greeter>()
         .class::<OptionalGreeter>()
         .class::<RenamedGreeter>()
+        .class::<RejectingAuthenticator>()
 }
 
 #[cfg(test)]

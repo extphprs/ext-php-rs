@@ -216,3 +216,21 @@ $greeter = new ExtPhpRs\Interface\RenamedGreeter();
 assert($greeter instanceof ExtPhpRs\Interface\RenamedGreeting);
 assert($greeter->greet_loudly() === 'HELLO');
 assert($greeter->customGreeting() === 'custom');
+
+if (PHP_VERSION_ID >= 80_200) {
+    // @mago-expect lint:no-ini-set
+    ini_set('zend.exception_ignore_args', '0');
+
+    try {
+        ( new ExtPhpRs\Interface\RejectingAuthenticator() )->login('admin', 'hunter2');
+        assert(false, 'login should throw');
+    } catch (\Exception $e) {
+        $args = $e->getTrace()[0]['args'];
+        assert($args[0] === 'admin', 'An unmarked argument is kept');
+        assert(
+            $args[1] instanceof \SensitiveParameterValue,
+            'An interface implementation hides the sensitive argument'
+        );
+        assert(!str_contains($e->getTraceAsString(), 'hunter2'), $e->getTraceAsString());
+    }
+}
