@@ -69,6 +69,12 @@ impl<T: RegisteredClass> ZendClassObject<T> {
         Self::internal_new(None, ce)
     }
 
+    /// Creates a new [`ZendClassObject`] of type `T` holding `val`, as an
+    /// object of `ce`: `T`'s own class, or a PHP subclass of it.
+    pub(crate) fn new_in(val: T, ce: Option<&'static ClassEntry>) -> ZBox<Self> {
+        Self::internal_new(Some(val), ce)
+    }
+
     #[expect(
         clippy::expect_used,
         reason = "the Zend allocator aborts the process on OOM, so the pointer is never null"

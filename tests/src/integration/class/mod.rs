@@ -938,6 +938,49 @@ fn typed_properties(
         ))
 }
 
+/// A class with no constructor whose value has a default: like a PHP class
+/// without a constructor, it declares none, and `new` (of it or of a PHP
+/// subclass) creates an object initialized from `Default`.
+#[php_class]
+#[derive(Default, Clone)]
+pub struct TestNoConstructor {
+    count: i64,
+}
+
+#[php_impl]
+impl TestNoConstructor {
+    pub fn increment(&mut self) -> i64 {
+        self.count += 1;
+        self.count
+    }
+}
+
+/// An abstract class with no constructor whose value has a default: PHP
+/// subclasses need no constructor of their own.
+#[php_class]
+#[php(flags = ext_php_rs::flags::ClassFlags::Abstract)]
+#[derive(Default)]
+pub struct TestNoConstructorAbstract;
+
+#[php_impl]
+impl TestNoConstructorAbstract {
+    #[php(abstract)]
+    pub fn name(&self) -> String {
+        unimplemented!()
+    }
+
+    pub fn greet(&self) -> &'static str {
+        "hello from the abstract class"
+    }
+}
+
+/// A class with no constructor and no default value: the object could not be
+/// initialized, so `new` still throws.
+#[php_class]
+pub struct TestNoConstructorNoDefault {
+    _value: String,
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -969,6 +1012,9 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestPropSemantics>()
         .class::<TestPropReentry>()
         .class::<TestTypedProperties>()
+        .class::<TestNoConstructor>()
+        .class::<TestNoConstructorAbstract>()
+        .class::<TestNoConstructorNoDefault>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
         .function(wrap_function!(throw_class_object_exception_with_prop))
@@ -1007,6 +1053,13 @@ mod tests {
     fn typed_properties() {
         assert!(crate::integration::test::run_php(
             "class/typed_properties.php"
+        ));
+    }
+
+    #[test]
+    fn class_without_constructor() {
+        assert!(crate::integration::test::run_php(
+            "class/no_constructor.php"
         ));
     }
 

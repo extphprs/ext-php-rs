@@ -320,7 +320,9 @@ impl ClassBuilder {
             // Without default initialization, accessing properties on uninitialized
             // objects would panic.
             if let Some(instance) = T::default_init() {
-                let obj = ZendClassObject::<T>::new(instance).into_raw();
+                // `ce` is `T`'s class or a PHP subclass of it: the object is one
+                // of the class `new` names.
+                let obj = ZendClassObject::<T>::new_in(instance, unsafe { ce.as_ref() }).into_raw();
                 // SAFETY: `into_raw` yields a valid, exclusively owned object that
                 // the engine takes over.
                 return unsafe { (*obj).get_mut_zend_obj() };
@@ -372,8 +374,11 @@ impl ClassBuilder {
         self.object_override = Some(create_object::<T>);
         let is_interface = T::FLAGS.contains(ClassFlags::Interface);
 
-        // For interfaces: only add __construct if explicitly declared
-        // For classes: always add __construct (PHP needs it for object creation)
+        // For interfaces: only add __construct if explicitly declared.
+        // For classes: a declared constructor; else none when `T` has a default
+        // value, as a PHP class without a constructor declares none (objects are
+        // created initialized from it, see `create_object`); else one that throws,
+        // since the object could not be initialized.
         if let Some(ConstructorMeta {
             build_fn, flags, ..
         }) = T::constructor()
@@ -385,8 +390,7 @@ impl ClassBuilder {
             };
             let visibility = flags.unwrap_or(MethodFlags::Public);
             self.method(build_fn(func), visibility)
-        } else if is_interface {
-            // Don't add default constructor for interfaces
+        } else if is_interface || T::default_init().is_some() {
             self
         } else {
             // Add default constructor for classes
