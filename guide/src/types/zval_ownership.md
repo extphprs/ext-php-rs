@@ -85,8 +85,8 @@ increment($x);
 Both types are `#[repr(transparent)]` newtypes over `&mut Zval` with zero
 runtime overhead. The difference is one constant on their `FromZvalMut`
 implementation: `PhpRef` sets `BY_REF = true`, `Separated` keeps the default
-`false`. The macro emits `Arg::of::<T>(name)`, which reads that constant, so a
-type alias of `PhpRef` is also passed by reference.
+`false`. The macro reads that constant when it makes the argument, so PHP also
+passes a type alias of `PhpRef` by reference.
 
 The `Zval::array_mut()` method already implements PHP's `SEPARATE_ARRAY()`
 semantics — it duplicates the underlying hashtable when the refcount is greater
