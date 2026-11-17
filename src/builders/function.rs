@@ -31,6 +31,9 @@ pub struct FunctionBuilder<'a> {
     pub(crate) args: Vec<Arg<'a>>,
     n_req: Option<usize>,
     pub(crate) retval: Option<DataType>,
+    /// The other members of a union return type, see
+    /// [`FunctionBuilder::or_returns`].
+    ret_union: Vec<DataType>,
     ret_as_ref: bool,
     pub(crate) ret_as_null: bool,
     pub(crate) docs: DocComments,
@@ -66,6 +69,7 @@ impl<'a> FunctionBuilder<'a> {
             args: vec![],
             n_req: None,
             retval: None,
+            ret_union: Vec::new(),
             ret_as_ref: false,
             ret_as_null: false,
             docs: &[],
@@ -87,6 +91,7 @@ impl<'a> FunctionBuilder<'a> {
             args: vec![],
             n_req: None,
             retval: None,
+            ret_union: Vec::new(),
             ret_as_ref: false,
             ret_as_null: false,
             docs: &[],
@@ -137,6 +142,22 @@ impl<'a> FunctionBuilder<'a> {
     /// [`required_count`](crate::args::required_count).
     pub fn required_args(mut self, count: usize) -> Self {
         self.n_req = Some(count);
+        self
+    }
+
+    /// Adds `type_` to the return type set with [`FunctionBuilder::returns`],
+    /// making it a union: `.returns(DataType::Long, false, false)
+    /// .or_returns(DataType::Double)` declares `: int|float`. The types are
+    /// those [`Arg::or`](crate::args::Arg::or) accepts; any other, or a union
+    /// without [`FunctionBuilder::returns`], fails [`FunctionBuilder::build`]
+    /// with [`Error::InvalidUnionType`].
+    ///
+    /// Debug builds of PHP check an internal function's return value against
+    /// its declared type and assert on a mismatch: the handler must return a
+    /// value of the union (`null` only when it holds `null`), including when
+    /// it throws on bad input.
+    pub fn or_returns(mut self, type_: DataType) -> Self {
+        self.ret_union.push(type_);
         self
     }
 
@@ -202,8 +223,22 @@ impl<'a> FunctionBuilder<'a> {
             name: n_req as *const _,
             type_: match self.retval {
                 Some(retval) => {
-                    ZendType::empty_from_type(retval, self.ret_as_ref, false, self.ret_as_null)
-                        .ok_or(Error::ZvalConversion(retval))?
+                    let mut type_ =
+                        ZendType::empty_from_type(retval, self.ret_as_ref, false, self.ret_as_null)
+                            .ok_or(Error::ZvalConversion(retval))?;
+                    ZendType::add_union(
+                        &mut type_,
+                        &format!("{}()", self.name),
+                        retval,
+                        &self.ret_union,
+                    )?;
+                    type_
+                }
+                None if !self.ret_union.is_empty() => {
+                    return Err(Error::InvalidUnionType(format!(
+                        "{}(): or_returns without a return type to join",
+                        self.name
+                    )));
                 }
                 None => ZendType::empty(false, false),
             },
@@ -260,5 +295,32 @@ pub(crate) unsafe fn free_registered_entries(entries: *mut [FunctionEntry]) {
         if !entry.fname.is_null() {
             drop(unsafe { CString::from_raw(entry.fname.cast_mut()) });
         }
+    }
+}
+
+#[cfg(test)]
+mod union_tests {
+    use super::*;
+    use crate::test::test_function;
+
+    #[test]
+    fn or_returns_without_a_return_type_is_refused() {
+        let built = FunctionBuilder::new("f", test_function)
+            .or_returns(DataType::Long)
+            .build();
+        assert!(matches!(built, Err(Error::InvalidUnionType(message)) if message.contains("f()")));
+    }
+
+    #[test]
+    fn a_union_return_type_ors_the_members() {
+        let (_, info) = FunctionBuilder::new("f", test_function)
+            .returns(DataType::Long, false, false)
+            .or_returns(DataType::Double)
+            .build()
+            .expect("a union of scalar types");
+        assert_eq!(
+            info[0].type_.type_mask,
+            (1 << crate::ffi::IS_LONG) | (1 << crate::ffi::IS_DOUBLE)
+        );
     }
 }
