@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.4...ext-php-rs-derive-v0.12.5) - 2026-11-16
+
+### Added
+- *(macros)* Mark parameters #[\SensitiveParameter] with #[php(sensitive(...))] ([#840](https://github.com/extphprs/ext-php-rs/pull/840)) (by @ChiragAgg5k) [[#840](https://github.com/extphprs/ext-php-rs/issues/840)] [[#839](https://github.com/extphprs/ext-php-rs/issues/839)] 
+
+### Fixed
+- *(macros)* Hide sensitive arguments in #[php_impl_interface] methods ([#850](https://github.com/extphprs/ext-php-rs/pull/850)) (by @ptondereau) [[#850](https://github.com/extphprs/ext-php-rs/issues/850)] 
 ## [0.12.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.3...ext-php-rs-derive-v0.12.4) - 2026-11-01
 
 ### Added

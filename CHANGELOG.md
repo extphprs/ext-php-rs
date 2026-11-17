@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## [0.16.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.4...ext-php-rs-v0.16.5) - 2026-11-16
+
+### Added
+- *(macros)* Mark parameters #[\SensitiveParameter] with #[php(sensitive(...))] ([#840](https://github.com/extphprs/ext-php-rs/pull/840)) (by @ChiragAgg5k) [[#840](https://github.com/extphprs/ext-php-rs/issues/840)] [[#839](https://github.com/extphprs/ext-php-rs/issues/839)] 
+
+### Fixed
+- *(array)* Fix non-UTF-8 keys, reverse iteration and length of iterators ([#849](https://github.com/extphprs/ext-php-rs/pull/849)) (by @ptondereau) [[#849](https://github.com/extphprs/ext-php-rs/issues/849)] 
+- *(class)* Clone a PHP subclass with its own class entry ([#838](https://github.com/extphprs/ext-php-rs/pull/838)) (by @ChiragAgg5k) [[#838](https://github.com/extphprs/ext-php-rs/issues/838)] [[#837](https://github.com/extphprs/ext-php-rs/issues/837)] 
+- *(embed)* Reset engine state between worker requests ([#847](https://github.com/extphprs/ext-php-rs/pull/847)) (by @ptondereau) [[#847](https://github.com/extphprs/ext-php-rs/issues/847)] 
+- *(macros)* Hide sensitive arguments in #[php_impl_interface] methods ([#850](https://github.com/extphprs/ext-php-rs/pull/850)) (by @ptondereau) [[#850](https://github.com/extphprs/ext-php-rs/issues/850)] 
+- *(php-build)* Accept every PHP 8.6 API version up to 20261112 (by @ptondereau)
+- *(sapi)* Use zend_error as default sapi_error ([#846](https://github.com/extphprs/ext-php-rs/pull/846)) (by @ptondereau) [[#846](https://github.com/extphprs/ext-php-rs/issues/846)] 
+
+### Other
+- *(deps)* Update parking_lot to 0.13 ([#851](https://github.com/extphprs/ext-php-rs/pull/851)) (by @ptondereau) [[#851](https://github.com/extphprs/ext-php-rs/issues/851)] 
+- *(deps)* Update smartstring requirement from 1 to 2 ([#836](https://github.com/extphprs/ext-php-rs/pull/836)) (by @dependabot[bot]) [[#836](https://github.com/extphprs/ext-php-rs/issues/836)] 
+- *(frankenphp)* Bump to 1.13.5 ([#842](https://github.com/extphprs/ext-php-rs/pull/842)) (by @ptondereau) [[#842](https://github.com/extphprs/ext-php-rs/issues/842)] 
+- Support Rust 1.100 ([#844](https://github.com/extphprs/ext-php-rs/pull/844)) (by @ptondereau) [[#844](https://github.com/extphprs/ext-php-rs/issues/844)] 
 ## [0.16.4](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.3...ext-php-rs-v0.16.4) - 2026-11-01
 
 ### Added
