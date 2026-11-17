@@ -13,7 +13,7 @@ env:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   lint:
@@ -42,7 +42,7 @@ jobs:
           git show-ref
           curl -sSfL https://github.com/convco/convco/releases/latest/download/convco-x86_64-unknown-linux-musl.tar.gz | tar -xz --strip-components=1 convco-x86_64-unknown-linux-musl/convco
           chmod +x convco
-          ./convco check refs/remotes/origin/master..HEAD
+          ./convco check refs/remotes/origin/main..HEAD
           rm convco
       - name: Setup PHP
         uses: shivammathur/setup-php@v2

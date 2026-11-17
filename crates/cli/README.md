@@ -192,5 +192,5 @@ Licensed under either of
 
 at your option.
 
-[LICENSE_APACHE]: https://github.com/extphprs/ext-php-rs/blob/master/LICENSE_APACHE
-[LICENSE_MIT]: https://github.com/extphprs/ext-php-rs/blob/master/LICENSE_MIT
+[LICENSE_APACHE]: https://github.com/extphprs/ext-php-rs/blob/main/LICENSE_APACHE
+[LICENSE_MIT]: https://github.com/extphprs/ext-php-rs/blob/main/LICENSE_MIT
