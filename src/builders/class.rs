@@ -211,8 +211,8 @@ impl ClassBuilder {
     ///
     /// # Errors
     ///
-    /// [`ClassBuilder::build`] fails when `prop.ty` is `None`, or names a type
-    /// a property cannot have (`void`, `callable`, ...).
+    /// [`ClassBuilder::register`] fails when `prop.ty` is `None`, or names a
+    /// type a property cannot have (`void`, `callable`, ...).
     pub fn typed_property(mut self, prop: ClassProperty) -> Self {
         self.properties.push(prop);
         self.typed_properties.push(true);
