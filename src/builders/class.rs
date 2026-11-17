@@ -14,7 +14,8 @@ use crate::{
     error::{Error, Result},
     exception::PhpException,
     ffi::{
-        zend_declare_class_constant_ex, zend_declare_property, zend_do_implement_interface,
+        _ZEND_TYPE_NAME_BIT, _ZEND_TYPE_NULLABLE_BIT, zend_declare_class_constant_ex,
+        zend_declare_property, zend_declare_typed_property, zend_do_implement_interface,
         zend_hash_str_find_ptr_lc, zend_register_internal_class_ex,
         zend_register_internal_interface,
     },
@@ -110,6 +111,9 @@ pub struct ClassBuilder {
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
     pub(crate) properties: Vec<ClassProperty>,
+    /// Whether each entry of `properties` is declared with its type, see
+    /// [`ClassBuilder::typed_property`]. An entry past its end is untyped.
+    typed_properties: Vec<bool>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry, ArgInfoTables)>,
     pub(crate) docs: DocComments,
@@ -133,6 +137,7 @@ impl ClassBuilder {
             methods: vec![],
             object_override: None,
             properties: vec![],
+            typed_properties: vec![],
             constants: vec![],
             register: None,
             docs: &[],
@@ -187,6 +192,30 @@ impl ClassBuilder {
     /// * `prop` - The property metadata to add to the class.
     pub fn property(mut self, prop: ClassProperty) -> Self {
         self.properties.push(prop);
+        self.typed_properties.push(false);
+        self
+    }
+
+    /// Adds a typed property to the class, declared as PHP declares
+    /// `protected int $count = 0;`: the engine enforces `prop.ty` (and
+    /// `prop.nullable`) on every write, and reflection reports the type.
+    ///
+    /// `prop.ty` is a scalar type, `mixed`, or a class (`DataType::Object`
+    /// with a class name). Without a default the property starts
+    /// uninitialized, as an untyped default never does: reading it before a
+    /// write throws PHP's `Error`, and `unset()` returns it to that state. A
+    /// default must be a value of the type.
+    ///
+    /// [`ClassBuilder::property`] declares a property without a type; its
+    /// `ty` only shapes the generated stubs.
+    ///
+    /// # Errors
+    ///
+    /// [`ClassBuilder::build`] fails when `prop.ty` is `None`, or names a type
+    /// a property cannot have (`void`, `callable`, ...).
+    pub fn typed_property(mut self, prop: ClassProperty) -> Self {
+        self.properties.push(prop);
+        self.typed_properties.push(true);
         self
     }
 
@@ -512,7 +541,11 @@ impl ClassBuilder {
             unsafe { zend_do_implement_interface(class, ptr::from_ref(interface).cast_mut()) };
         }
 
-        for prop in self.properties {
+        for (i, prop) in self.properties.into_iter().enumerate() {
+            if self.typed_properties.get(i).copied().unwrap_or(false) {
+                declare_typed_property(class, prop)?;
+                continue;
+            }
             let mut default_zval = match prop.default {
                 Some(f) => f()?,
                 None => Zval::new(),
@@ -560,6 +593,62 @@ impl ClassBuilder {
 
         Ok(())
     }
+}
+
+/// Declares `prop` on `class` with its type, see
+/// [`ClassBuilder::typed_property`].
+fn declare_typed_property(class: &mut ClassEntry, prop: ClassProperty) -> Result<()> {
+    let invalid = || Error::InvalidPropertyType {
+        property: prop.name.clone(),
+    };
+    let ty = prop.ty.ok_or_else(invalid)?;
+    if matches!(
+        ty,
+        DataType::Void | DataType::Callable | DataType::Undef | DataType::Reference | DataType::Ptr
+    ) {
+        return Err(invalid());
+    }
+    let nullable = prop.nullable && !matches!(ty, DataType::Mixed | DataType::Null);
+    // A property type names its class with an interned `zend_string`, where
+    // argument info takes a C string.
+    let zend_type = match ty.class_name() {
+        Some(class_name) => {
+            let name = ZendStr::new_interned(class_name, true);
+            let mut mask = _ZEND_TYPE_NAME_BIT;
+            if nullable {
+                mask |= _ZEND_TYPE_NULLABLE_BIT;
+            }
+            crate::zend::ZendType {
+                ptr: ManuallyDrop::new(name).as_ptr().cast_mut().cast(),
+                type_mask: mask,
+            }
+        }
+        None => crate::zend::ZendType::empty_from_type(ty, false, false, nullable)
+            .ok_or_else(invalid)?,
+    };
+    let mut default = if let Some(f) = prop.default {
+        f()?
+    } else {
+        // `IS_UNDEF`: the property starts uninitialized.
+        let mut undef = Zval::new();
+        undef.u1.type_info = 0;
+        undef
+    };
+    let name = ZendStr::new_interned(&prop.name, true);
+    // The engine takes the default with `ZVAL_COPY_VALUE`, as for
+    // `zend_declare_property` above, and keeps the interned name and type.
+    unsafe {
+        zend_declare_typed_property(
+            class,
+            name.as_ptr().cast_mut(),
+            &raw mut default,
+            prop.flags.bits().try_into()?,
+            ptr::null_mut(),
+            zend_type,
+        );
+    }
+    std::mem::forget(default);
+    Ok(())
 }
 
 #[cfg(test)]

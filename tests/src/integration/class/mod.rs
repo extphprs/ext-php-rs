@@ -862,6 +862,72 @@ impl TestConstFlagsProp {
     }
 }
 
+/// A class whose properties are declared with types, through
+/// `ClassBuilder::typed_property`, as PHP declares them.
+#[php_class]
+#[php(modifier = typed_properties)]
+pub struct TestTypedProperties;
+
+#[php_impl]
+impl TestTypedProperties {
+    pub fn __construct() -> Self {
+        Self
+    }
+}
+
+fn typed_properties(
+    builder: ext_php_rs::builders::ClassBuilder,
+) -> ext_php_rs::builders::ClassBuilder {
+    use ext_php_rs::builders::ClassProperty;
+    use ext_php_rs::flags::{DataType, PropertyFlags};
+
+    let typed = |name: &str, flags, ty, nullable, default: Option<Zval>| ClassProperty {
+        name: name.into(),
+        flags,
+        default: default.map(|value| {
+            Box::new(move || Ok(value)) as Box<dyn FnOnce() -> ext_php_rs::error::Result<Zval>>
+        }),
+        docs: &[],
+        ty: Some(ty),
+        nullable,
+        readonly: false,
+        default_stub: None,
+    };
+    let mut zero = Zval::new();
+    zero.set_long(0);
+    let mut ratio = Zval::new();
+    ratio.set_double(1.5);
+    builder
+        .typed_property(typed(
+            "count",
+            PropertyFlags::Protected,
+            DataType::Long,
+            false,
+            Some(zero),
+        ))
+        .typed_property(typed(
+            "label",
+            PropertyFlags::Public,
+            DataType::String,
+            true,
+            None,
+        ))
+        .typed_property(typed(
+            "items",
+            PropertyFlags::Public,
+            DataType::Object("ArrayObject".into()),
+            false,
+            None,
+        ))
+        .typed_property(typed(
+            "ratio",
+            PropertyFlags::Public,
+            DataType::Double,
+            false,
+            Some(ratio),
+        ))
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
         .class::<TestClass>()
@@ -892,6 +958,7 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestOptionalProp>()
         .class::<TestPropSemantics>()
         .class::<TestPropReentry>()
+        .class::<TestTypedProperties>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
         .function(wrap_function!(throw_class_object_exception_with_prop))
@@ -923,6 +990,13 @@ mod tests {
     fn prop_semantics_route_through_rust() {
         assert!(crate::integration::test::run_php(
             "class/prop_semantics.php"
+        ));
+    }
+
+    #[test]
+    fn typed_properties() {
+        assert!(crate::integration::test::run_php(
+            "class/typed_properties.php"
         ));
     }
 

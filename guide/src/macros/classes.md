@@ -71,6 +71,46 @@ These operations throw an `Error`:
 If a PHP subclass declares the property again with hooks, PHP uses the Rust
 getter and setter, not the hooks.
 
+### Typed properties
+
+A property PHP stores itself, rather than in the Rust struct, can be declared
+with a type, as `protected int $count = 0;` declares one in PHP. Add it with
+`ClassBuilder::typed_property` from the class's `modifier` function: the engine
+enforces the type on every write (coercing in weak mode), reflection reports it,
+and without a default the property starts uninitialized. PHP subclasses read and
+write it like any declared property.
+
+```rust,ignore
+use ext_php_rs::builders::{ClassBuilder, ClassProperty};
+use ext_php_rs::flags::{DataType, PropertyFlags};
+use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
+
+#[php_class]
+#[php(modifier = counter_properties)]
+pub struct Counter;
+
+fn counter_properties(builder: ClassBuilder) -> ClassBuilder {
+    builder.typed_property(ClassProperty {
+        name: "count".into(),
+        flags: PropertyFlags::Protected,
+        default: Some(Box::new(|| {
+            let mut zero = Zval::new();
+            zero.set_long(0);
+            Ok(zero)
+        })),
+        docs: &[],
+        ty: Some(DataType::Long),
+        nullable: false,
+        readonly: false,
+        default_stub: Some("0".into()),
+    })
+}
+```
+
+`ClassBuilder::property` declares a property without a type; its `ty` only
+shapes the generated stubs.
+
 ## Access to the Rust Value
 
 The object keeps its Rust value in a borrow cell. Each method borrows the value
