@@ -17,6 +17,7 @@ use crate::{
     describe::DocComments,
     exception::PhpException,
     flags::{ClassFlags, ConstantFlags, MethodFlags, PropertyFlags},
+    gc::GcRoots,
     internal::property::PropertyDescriptor,
     zend::{ClassEntry, ExecuteData, ZendObjectHandlers},
 };
@@ -129,18 +130,41 @@ pub trait RegisteredClass: Sized + 'static {
         None
     }
 
-    /// Returns a clone of this object for PHP's `clone` operator.
+    /// The function that copies the Rust value for PHP's `clone` operator.
     ///
-    /// When PHP executes `clone $obj`, this method is called to produce a copy
-    /// of the Rust data. For types that derive `Clone`, the `#[php_class]` macro
-    /// generates an implementation returning `Some(self.clone())`. Types that
-    /// don't implement `Clone` use the default (returns `None`), which causes
-    /// PHP to throw an error when attempting to clone.
+    /// The `#[php_class]` macro returns `Some(<Self as Clone>::clone)` for
+    /// types that implement `Clone`. When it is [`None`], the class has no
+    /// clone handler, like the uncloneable classes of PHP: `clone` throws an
+    /// `Error` and `ReflectionClass::isCloneable()` returns `false`.
     #[must_use]
-    fn clone_obj(&self) -> Option<Self> {
+    fn clone_fn() -> Option<fn(&Self) -> Self> {
         None
     }
+
+    /// Reports the PHP values held in the Rust fields of this object to the
+    /// cycle collector.
+    ///
+    /// The [`macro@crate::php_class`] macro generates it: it calls
+    /// [`GcTrace::gc_trace`] one time for each field whose type implements
+    /// [`GcTrace`]. The default reports nothing.
+    ///
+    /// [`GcTrace`]: crate::gc::GcTrace
+    /// [`GcTrace::gc_trace`]: crate::gc::GcTrace::gc_trace
+    fn gc_trace(&self, _roots: &mut GcRoots) {}
 }
+
+/// A [`RegisteredClass`] whose PHP objects hold a Rust value of this type.
+///
+/// The [`macro@crate::php_class`] macro implements it. The PHP objects of a
+/// `#[php_enum]` or `#[php_interface]` type hold no Rust value, so these types
+/// do not implement it. Only a `PhpClass` type can be a `&T`, `&mut T`,
+/// `ClassRef<T>` or `ClassRefMut<T>` parameter.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a `#[php_class]`",
+    label = "the PHP objects of `{Self}` hold no Rust value",
+    note = "a `#[php_enum]` parameter takes the enum by value, for example `suit: Suit`"
+)]
+pub trait PhpClass: RegisteredClass {}
 
 /// Stores metadata about a classes Rust constructor, including the function
 /// pointer and the arguments of the function.
