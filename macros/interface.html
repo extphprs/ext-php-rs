@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -190,8 +190,8 @@ available cases.</p>
 <p>The macro itself takes no arguments: <code>#[php_interface(name = "Foo")]</code> is a
 compile error. Put the options in <code>#[php(...)]</code> on the trait.</p>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
-<p>A trait method accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code> and
-<code>vis</code> options. Interfaces cannot declare property accessors or constructors, so
+<p>A trait method accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code>,
+<code>sensitive</code> and <code>vis</code> options. Interfaces cannot declare property accessors or constructors, so
 <code>getter</code>, <code>setter</code> and <code>constructor</code> are compile errors here. See
 <a href="./impl.html#"><code>php_impl</code></a> for how each accepted option behaves.</p>
 <h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
@@ -507,6 +507,14 @@ final binary is linked.</p>
 <p><strong>Method names</strong>: Each method gets the PHP name that <code>#[php_interface]</code> declared
 for it. The trait’s <code>change_method_case</code> and the <code>name</code> or <code>change_case</code> of a
 trait method apply to the class too. <code>#[php_impl_interface]</code> takes no arguments.</p>
+</li>
+<li>
+<p><strong>Sensitive parameters</strong>: <code>#[php(sensitive(...))]</code> on a trait method also
+applies to the class method, so exception traces from the class hide the
+same arguments. The macro marks the argument at the same position, thus the
+parameter names in the <code>impl</code> can be different. A PHP class that implements
+the interface does not get the attribute, because PHP does not copy parameter
+attributes from an interface. Declare <code>#[\SensitiveParameter]</code> on its method.</p>
 </li>
 </ol>
 

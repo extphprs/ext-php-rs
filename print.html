@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-31a31a08.js"></script>
@@ -1189,6 +1189,9 @@ pub fn read_array(arr: &amp;ZendHashTable) {
     }
 }
 <span class="boring">fn main() {}</span></code></pre>
+<p>A PHP string key can contain bytes that are not UTF-8. The iterator gives this
+key as <code>ArrayKey::ZendString</code>. It gives all other string keys as
+<code>ArrayKey::String</code>.</p>
 <h2 id="entry-api"><a class="header" href="#entry-api">Entry API</a></h2>
 <p>The Entry API provides an ergonomic way to handle hash table operations where
 you need to conditionally insert or update values based on whether a key already
@@ -2167,8 +2170,8 @@ should not be used on class methods - see the <code>#[php_impl]</code> macro for
 <p>See the <a href="#types">list of types</a> that are valid as parameter and
 return types. If the caller passes a value that the parameter type does not
 accept, the call throws a <code>TypeError</code>.</p>
-<p>A function accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code> and <code>optional</code>
-options. PHP functions have no visibility, so <code>#[php(vis = "...")]</code> is a
+<p>A function accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code> and
+<code>sensitive</code> options. PHP functions have no visibility, so <code>#[php(vis = "...")]</code> is a
 compile error on a function.</p>
 <h2 id="optional-parameters"><a class="header" href="#optional-parameters">Optional parameters</a></h2>
 <p>An <code>Option&lt;T&gt;</code> parameter accepts <code>null</code> and can be omitted. The macro reads this
@@ -2279,6 +2282,30 @@ pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(greet))
 }
 <span class="boring">fn main() {}</span></code></pre>
+<h2 id="sensitive-parameters"><a class="header" href="#sensitive-parameters">Sensitive parameters</a></h2>
+<p><code>#[php(sensitive(...))]</code> names parameters that PHP declares
+<a href="https://www.php.net/manual/en/class.sensitiveparameter.php"><code>#[\SensitiveParameter]</code></a>,
+as it does for <code>password_hash()</code>’s password. When an exception is thrown,
+its trace holds a <code>SensitiveParameterValue</code> in place of the value, so a
+password or connection string does not reach logs or error trackers. Each name
+must be a parameter of the function. It has no effect before PHP 8.2, which
+introduced the attribute.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_function]
+#[php(sensitive(password))]
+pub fn login(user: String, password: String) -&gt; PhpResult&lt;bool&gt; {
+    let _ = password;
+    Err(PhpException::from_message(format!("Unknown user {user}")))
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.function(wrap_function!(login))
+}
+<span class="boring">fn main() {}</span></code></pre>
 <h2 id="variadic-functions"><a class="header" href="#variadic-functions">Variadic Functions</a></h2>
 <p>A slice parameter <code>&amp;[T]</code> in last position is variadic, the equivalent of the PHP
 <code>...$args</code> syntax. <code>T</code> is any argument type: <code>&amp;[&amp;Zval]</code> receives the raw values,
@@ -2359,8 +2386,8 @@ available cases.</p>
 <p>The macro itself takes no arguments: <code>#[php_interface(name = "Foo")]</code> is a
 compile error. Put the options in <code>#[php(...)]</code> on the trait.</p>
 <h2 id="methods"><a class="header" href="#methods">Methods</a></h2>
-<p>A trait method accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code> and
-<code>vis</code> options. Interfaces cannot declare property accessors or constructors, so
+<p>A trait method accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code>,
+<code>sensitive</code> and <code>vis</code> options. Interfaces cannot declare property accessors or constructors, so
 <code>getter</code>, <code>setter</code> and <code>constructor</code> are compile errors here. See
 <a href="#"><code>php_impl</code></a> for how each accepted option behaves.</p>
 <h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
@@ -2676,6 +2703,14 @@ final binary is linked.</p>
 <p><strong>Method names</strong>: Each method gets the PHP name that <code>#[php_interface]</code> declared
 for it. The trait’s <code>change_method_case</code> and the <code>name</code> or <code>change_case</code> of a
 trait method apply to the class too. <code>#[php_impl_interface]</code> takes no arguments.</p>
+</li>
+<li>
+<p><strong>Sensitive parameters</strong>: <code>#[php(sensitive(...))]</code> on a trait method also
+applies to the class method, so exception traces from the class hide the
+same arguments. The macro marks the argument at the same position, thus the
+parameter names in the <code>impl</code> can be different. A PHP class that implements
+the interface does not get the attribute, because PHP does not copy parameter
+attributes from an interface. Declare <code>#[\SensitiveParameter]</code> on its method.</p>
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -3182,7 +3217,7 @@ pub struct MaybeReadonlyClass {
 <ul>
 <li><code>find_php()</code> - Locates the PHP executable (respects the <code>PHP</code> env var)</li>
 <li><code>PHPInfo::get()</code> - Runs <code>php -i</code> and parses the output</li>
-<li><code>ApiVersion</code> - Enum representing PHP versions (Php80, Php81, Php82, etc.)</li>
+<li><code>ApiVersion</code> - Enum for the PHP versions (Php80, Php81, Php82, etc.). It is <code>#[non_exhaustive]</code>, so a <code>match</code> on it must have a <code>_</code> arm.</li>
 <li><code>emit_php_cfg_flags()</code> - Emits <code>cargo:rustc-cfg=phpXX</code> for all supported versions</li>
 <li><code>emit_check_cfg()</code> - Emits check-cfg to avoid unknown cfg warnings</li>
 </ul>
@@ -3407,6 +3442,9 @@ Each key must name a parameter.</li>
 <li><code>#[php(optional = i)]</code> - Sets the first optional parameter. Note that this also sets
 the remaining parameters as optional, so each of them must be an <code>Option&lt;T&gt;</code>
 or have a default. Otherwise the build fails.</li>
+<li><code>#[php(sensitive(password))]</code> - Declares the named parameter(s)
+<code>#[\SensitiveParameter]</code>, so exception traces hide their values. See
+<a href="#sensitive-parameters">sensitive parameters</a>.</li>
 <li><code>#[php(vis = "public")]</code>, <code>#[php(vis = "protected")]</code> and <code>#[php(vis = "private")]</code> - Sets the visibility of the
 method.</li>
 <li><code>#[php(name = "method_name")]</code> - Renames the PHP method to a different identifier,
@@ -5662,6 +5700,22 @@ value (<code>sapi_module = *sf</code>), so a local variable is enough: keep it a
 (call it at most once, and only on a module built by
 <code>SapiBuilder</code>/<code>Sapi::build_module</code>). <code>ini_entries</code> is not touched: see the
 <a href="ini-builder.html">INI builder</a> chapter for who owns it.</p>
+<h2 id="error-handler"><a class="header" href="#error-handler">Error handler</a></h2>
+<p><code>SapiBuilder</code> uses <code>zend_error</code> as the SAPI error handler, as the embed and
+CLI SAPIs of PHP do. PHP shows or logs the message with the <code>display_errors</code>
+and <code>log_errors</code> settings.</p>
+<p>To use a different handler, give it to <code>SapiBuilder::sapi_error_function</code>. The
+handler has a C variable argument list, thus it must be <code>unsafe</code> (Rust 1.99 or
+later). Use <code>VaList::next_arg</code> to read each argument of the format:</p>
+<pre><code class="language-rust ignore">use std::ffi::{c_char, c_int};
+use ext_php_rs::builders::SapiBuilder;
+
+unsafe extern "C" fn on_error(_type: c_int, _format: *const c_char, _args: ...) {}
+
+let module = SapiBuilder::new("my-sapi", "My SAPI")
+    .sapi_error_function(on_error)
+    .build()
+    .expect("failed to build SAPI module");</code></pre>
 <h2 id="registering-_server-variables"><a class="header" href="#registering-_server-variables">Registering <code>$_SERVER</code> variables</a></h2>
 <p>Override <code>register_server_variables</code> in the <code>Sapi</code> trait to populate
 <code>$_SERVER</code>:</p>
@@ -5948,6 +6002,19 @@ worker_reset_superglobals();</code></pre>
 8. php_request_shutdown()                   -- final cleanup
 9. php_module_shutdown() + sapi_shutdown()  -- once per process
 </code></pre>
+<h2 id="errors-in-a-request"><a class="header" href="#errors-in-a-request">Errors in a request</a></h2>
+<p><code>worker_request_shutdown()</code> removes the pending exception. For example,
+<code>exit()</code> and an uncaught exception keep an exception in the engine. The next
+request does not get this exception.</p>
+<p>Some errors make the engine not safe for the next request:</p>
+<ul>
+<li>A fatal error, for example <code>trigger_error()</code> with <code>E_USER_ERROR</code>.</li>
+<li>A memory limit error.</li>
+</ul>
+<p>After one of these errors, <code>worker_request_shutdown()</code> calls
+<code>php_request_shutdown()</code>. Then <code>worker_request_startup()</code> calls
+<code>php_request_startup()</code>. The engine removes all the classes and functions that
+the PHP scripts declared. You do not have to change the worker loop.</p>
 <h2 id="zts-and-phpthreadguard"><a class="header" href="#zts-and-phpthreadguard">ZTS and <code>PhpThreadGuard</code></a></h2>
 <p>When PHP is compiled with ZTS (Zend Thread Safety), each OS thread needs its
 own thread-local storage. Use <code>PhpThreadGuard</code> to manage this automatically:</p>

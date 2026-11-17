@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -286,6 +286,22 @@ value (<code>sapi_module = *sf</code>), so a local variable is enough: keep it a
 (call it at most once, and only on a module built by
 <code>SapiBuilder</code>/<code>Sapi::build_module</code>). <code>ini_entries</code> is not touched: see the
 <a href="../ini-builder.html">INI builder</a> chapter for who owns it.</p>
+<h2 id="error-handler"><a class="header" href="#error-handler">Error handler</a></h2>
+<p><code>SapiBuilder</code> uses <code>zend_error</code> as the SAPI error handler, as the embed and
+CLI SAPIs of PHP do. PHP shows or logs the message with the <code>display_errors</code>
+and <code>log_errors</code> settings.</p>
+<p>To use a different handler, give it to <code>SapiBuilder::sapi_error_function</code>. The
+handler has a C variable argument list, thus it must be <code>unsafe</code> (Rust 1.99 or
+later). Use <code>VaList::next_arg</code> to read each argument of the format:</p>
+<pre><code class="language-rust ignore">use std::ffi::{c_char, c_int};
+use ext_php_rs::builders::SapiBuilder;
+
+unsafe extern "C" fn on_error(_type: c_int, _format: *const c_char, _args: ...) {}
+
+let module = SapiBuilder::new("my-sapi", "My SAPI")
+    .sapi_error_function(on_error)
+    .build()
+    .expect("failed to build SAPI module");</code></pre>
 <h2 id="registering-_server-variables"><a class="header" href="#registering-_server-variables">Registering <code>$_SERVER</code> variables</a></h2>
 <p>Override <code>register_server_variables</code> in the <code>Sapi</code> trait to populate
 <code>$_SERVER</code>:</p>

@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -208,6 +208,19 @@ worker_reset_superglobals();</code></pre>
 8. php_request_shutdown()                   -- final cleanup
 9. php_module_shutdown() + sapi_shutdown()  -- once per process
 </code></pre>
+<h2 id="errors-in-a-request"><a class="header" href="#errors-in-a-request">Errors in a request</a></h2>
+<p><code>worker_request_shutdown()</code> removes the pending exception. For example,
+<code>exit()</code> and an uncaught exception keep an exception in the engine. The next
+request does not get this exception.</p>
+<p>Some errors make the engine not safe for the next request:</p>
+<ul>
+<li>A fatal error, for example <code>trigger_error()</code> with <code>E_USER_ERROR</code>.</li>
+<li>A memory limit error.</li>
+</ul>
+<p>After one of these errors, <code>worker_request_shutdown()</code> calls
+<code>php_request_shutdown()</code>. Then <code>worker_request_startup()</code> calls
+<code>php_request_startup()</code>. The engine removes all the classes and functions that
+the PHP scripts declared. You do not have to change the worker loop.</p>
 <h2 id="zts-and-phpthreadguard"><a class="header" href="#zts-and-phpthreadguard">ZTS and <code>PhpThreadGuard</code></a></h2>
 <p>When PHP is compiled with ZTS (Zend Thread Safety), each OS thread needs its
 own thread-local storage. Use <code>PhpThreadGuard</code> to manage this automatically:</p>

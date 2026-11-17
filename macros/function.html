@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -179,8 +179,8 @@ should not be used on class methods - see the <code>#[php_impl]</code> macro for
 <p>See the <a href="../types/index.html">list of types</a> that are valid as parameter and
 return types. If the caller passes a value that the parameter type does not
 accept, the call throws a <code>TypeError</code>.</p>
-<p>A function accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code> and <code>optional</code>
-options. PHP functions have no visibility, so <code>#[php(vis = "...")]</code> is a
+<p>A function accepts the <code>name</code>, <code>change_case</code>, <code>defaults</code>, <code>optional</code> and
+<code>sensitive</code> options. PHP functions have no visibility, so <code>#[php(vis = "...")]</code> is a
 compile error on a function.</p>
 <h2 id="optional-parameters"><a class="header" href="#optional-parameters">Optional parameters</a></h2>
 <p>An <code>Option&lt;T&gt;</code> parameter accepts <code>null</code> and can be omitted. The macro reads this
@@ -289,6 +289,30 @@ pub fn greet(name: String, age: Option&lt;i32&gt;, description: Option&lt;String
 #[php_module]
 pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
     module.function(wrap_function!(greet))
+}
+<span class="boring">fn main() {}</span></code></pre>
+<h2 id="sensitive-parameters"><a class="header" href="#sensitive-parameters">Sensitive parameters</a></h2>
+<p><code>#[php(sensitive(...))]</code> names parameters that PHP declares
+<a href="https://www.php.net/manual/en/class.sensitiveparameter.php"><code>#[\SensitiveParameter]</code></a>,
+as it does for <code>password_hash()</code>’s password. When an exception is thrown,
+its trace holds a <code>SensitiveParameterValue</code> in place of the value, so a
+password or connection string does not reach logs or error trackers. Each name
+must be a parameter of the function. It has no effect before PHP 8.2, which
+introduced the attribute.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![cfg_attr(windows, feature(abi_vectorcall))]
+</span><span class="boring">extern crate ext_php_rs;
+</span>use ext_php_rs::prelude::*;
+
+#[php_function]
+#[php(sensitive(password))]
+pub fn login(user: String, password: String) -&gt; PhpResult&lt;bool&gt; {
+    let _ = password;
+    Err(PhpException::from_message(format!("Unknown user {user}")))
+}
+
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -&gt; ModuleBuilder {
+    module.function(wrap_function!(login))
 }
 <span class="boring">fn main() {}</span></code></pre>
 <h2 id="variadic-functions"><a class="header" href="#variadic-functions">Variadic Functions</a></h2>

@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -676,7 +676,7 @@ pub struct MaybeReadonlyClass {
 <ul>
 <li><code>find_php()</code> - Locates the PHP executable (respects the <code>PHP</code> env var)</li>
 <li><code>PHPInfo::get()</code> - Runs <code>php -i</code> and parses the output</li>
-<li><code>ApiVersion</code> - Enum representing PHP versions (Php80, Php81, Php82, etc.)</li>
+<li><code>ApiVersion</code> - Enum for the PHP versions (Php80, Php81, Php82, etc.). It is <code>#[non_exhaustive]</code>, so a <code>match</code> on it must have a <code>_</code> arm.</li>
 <li><code>emit_php_cfg_flags()</code> - Emits <code>cargo:rustc-cfg=phpXX</code> for all supported versions</li>
 <li><code>emit_check_cfg()</code> - Emits check-cfg to avoid unknown cfg warnings</li>
 </ul>

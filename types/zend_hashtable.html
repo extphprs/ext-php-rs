@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -239,6 +239,9 @@ pub fn read_array(arr: &amp;ZendHashTable) {
     }
 }
 <span class="boring">fn main() {}</span></code></pre>
+<p>A PHP string key can contain bytes that are not UTF-8. The iterator gives this
+key as <code>ArrayKey::ZendString</code>. It gives all other string keys as
+<code>ArrayKey::String</code>.</p>
 <h2 id="entry-api"><a class="header" href="#entry-api">Entry API</a></h2>
 <p>The Entry API provides an ergonomic way to handle hash table operations where
 you need to conditionally insert or update values based on whether a key already

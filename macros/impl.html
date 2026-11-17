@@ -34,7 +34,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8cebfd59.js";
+            window.path_to_searchindex_js = "../searchindex-d15c0087.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-31a31a08.js"></script>
@@ -211,6 +211,9 @@ Each key must name a parameter.</li>
 <li><code>#[php(optional = i)]</code> - Sets the first optional parameter. Note that this also sets
 the remaining parameters as optional, so each of them must be an <code>Option&lt;T&gt;</code>
 or have a default. Otherwise the build fails.</li>
+<li><code>#[php(sensitive(password))]</code> - Declares the named parameter(s)
+<code>#[\SensitiveParameter]</code>, so exception traces hide their values. See
+<a href="./function.html#sensitive-parameters">sensitive parameters</a>.</li>
 <li><code>#[php(vis = "public")]</code>, <code>#[php(vis = "protected")]</code> and <code>#[php(vis = "private")]</code> - Sets the visibility of the
 method.</li>
 <li><code>#[php(name = "method_name")]</code> - Renames the PHP method to a different identifier,
