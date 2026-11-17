@@ -472,6 +472,10 @@ assert($childClone->clones === 1 && $child->clones === 0, 'A subclass clone call
 $childClone->extra = 'clone';
 assert($child->extra === 'changed', 'The original subclass object is unchanged');
 
+$boxed = TestCloneableClass::cloneBoxed(TestCloneableChild::class);
+assert($boxed instanceof TestCloneableChild, 'A Rust clone of a PHP subclass keeps the subclass');
+assert($boxed->value === 7 && $boxed->tags === ['a', 'b'], 'A Rust clone copies the subclass properties');
+
 $manual = new TestManualCloneClass();
 $manualClone = clone $manual;
 assert($manualClone->copies === 1, 'A hand-written Clone impl drives the clone handler');

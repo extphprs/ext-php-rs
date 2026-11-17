@@ -1,10 +1,11 @@
 #![allow(clippy::unused_self)]
 use ext_php_rs::{
+    boxed::ZBox,
     class::RegisteredClass,
     convert::IntoZval,
     prelude::*,
     types::{ZendClassObject, Zval},
-    zend::ce,
+    zend::{ClassEntry, ce},
 };
 
 #[cfg(php84)]
@@ -769,6 +770,17 @@ impl TestCloneableClass {
 
     pub fn accept_cloneable(obj: ClassRef<TestCloneableClass>) -> String {
         format!("accepted: {} {}", obj.value, obj.name)
+    }
+
+    pub fn clone_boxed(class: &str) -> Option<ZBox<ZendClassObject<TestCloneableClass>>> {
+        let object = ZendClassObject::new_uninit(Some(ClassEntry::try_find(class)?));
+        object
+            .initialize(Self {
+                value: 7,
+                name: "boxed".to_owned(),
+            })
+            .ok()?;
+        Some(object.clone())
     }
 }
 
