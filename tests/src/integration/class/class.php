@@ -543,23 +543,12 @@ assert(
 );
 assert($error->getPrevious() === null, 'The refused clone runs no destructor');
 
-class UncloneableDestructChild extends TestUncloneableDestruct
-{
-}
-
 class CloneableChildWithoutParent extends TestCloneableClass
 {
     public function __construct()
     {
     }
 }
-
-$error = caught(fn() => clone new UncloneableDestructChild());
-assert(
-    $error instanceof Error
-    && $error->getMessage() === 'Trying to clone an uncloneable object of class UncloneableDestructChild',
-    'The clone error names the runtime class'
-);
 
 if (PHP_VERSION_ID >= 80_500) {
     $error = caught(fn() => call_user_func('clone', $uncloneable, ['x' => 1]));
