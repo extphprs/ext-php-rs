@@ -1,6 +1,7 @@
 use std::{ffi::c_void, ptr};
 
 use crate::{
+    error::{Error, Result},
     ffi::{
         _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT, IS_ARRAY,
         IS_DOUBLE, IS_ITERABLE, IS_LONG, IS_MIXED, IS_OBJECT, IS_STRING, MAY_BE_ANY, MAY_BE_BOOL,
@@ -166,6 +167,39 @@ impl ZendType {
             | DataType::Mixed
             | DataType::Ptr => return None,
         })
+    }
+
+    /// Adds the `union` members to `type_`, built from `first`, so it declares
+    /// `first|union...`. `first` and each member are one of the types of
+    /// [`ZendType::scalar_type_mask`], or `null` for a member, which makes the
+    /// type nullable; a class type would need a type list, and every other type
+    /// (`iterable`, `resource`, `void`, `mixed`, ...) cannot be a union member.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidUnionType`] naming `declaration` (the parameter or
+    /// function) when `first` or a member is not such a type.
+    pub(crate) fn add_union(
+        type_: &mut Self,
+        declaration: &str,
+        first: DataType,
+        union: &[DataType],
+    ) -> Result<()> {
+        if union.is_empty() {
+            return Ok(());
+        }
+        let refused =
+            |ty: DataType| Error::InvalidUnionType(format!("{declaration}: {ty} in a union"));
+        if Self::scalar_type_mask(first).is_none() {
+            return Err(refused(first));
+        }
+        for &member in union {
+            type_.type_mask |= match member {
+                DataType::Null => _ZEND_TYPE_NULLABLE_BIT,
+                _ => Self::scalar_type_mask(member).ok_or_else(|| refused(member))?,
+            };
+        }
+        Ok(())
     }
 
     /// Calculates the internal flags of the type.
