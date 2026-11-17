@@ -451,6 +451,12 @@ class TestCloneableChild extends TestCloneableClass
 {
     public string $extra = 'child';
     public array $tags = ['a', 'b'];
+    public int $clones = 0;
+
+    public function __clone()
+    {
+        $this->clones++;
+    }
 }
 
 $child = new TestCloneableChild(7, 'child');
@@ -462,6 +468,7 @@ assert(
     $childClone->extra === 'changed' && $childClone->tags === ['a', 'b'],
     'A subclass clone copies its PHP properties'
 );
+assert($childClone->clones === 1 && $child->clones === 0, 'A subclass clone calls its __clone');
 $childClone->extra = 'clone';
 assert($child->extra === 'changed', 'The original subclass object is unchanged');
 

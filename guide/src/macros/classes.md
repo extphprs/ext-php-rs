@@ -870,6 +870,9 @@ $copy->fontSize = 16.0;
 echo $style->fontSize;  // 12.0 — original is unchanged
 ```
 
+The clone of a PHP subclass has the class of the subclass. PHP copies the
+properties of the subclass and calls its `__clone` method.
+
 A class whose struct does not implement `Clone` has no clone handler, like the
 uncloneable classes of PHP. `clone` throws an `Error` that names the class of
 the object, and `ReflectionClass::isCloneable()` returns `false`:
