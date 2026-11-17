@@ -10,7 +10,7 @@ body:
     attributes:
       label: Code of Conduct
       options:
-        - label: "I have read and agree to the [code of conduct](https://github.com/extphprs/ext-php-rs/blob/master/CODE_OF_CONDUCT.md)"
+        - label: "I have read and agree to the [code of conduct](https://github.com/extphprs/ext-php-rs/blob/main/CODE_OF_CONDUCT.md)"
           required: true
   - type: textarea
     attributes:
