@@ -668,7 +668,10 @@ mod tests {
 
     #[test]
     fn union_members_cover_every_data_type() {
-        use crate::ffi::{_ZEND_TYPE_NULLABLE_BIT, IS_ARRAY, IS_OBJECT, IS_STRING, MAY_BE_BOOL};
+        use crate::ffi::{
+            _ZEND_TYPE_NULLABLE_BIT, IS_ARRAY, IS_DOUBLE, IS_LONG, IS_OBJECT, IS_STRING,
+            MAY_BE_BOOL,
+        };
 
         // Only the scalar types and `null` can join a union: `resource` and
         // `undef` gave masks that crash `ReflectionType::__toString`,
@@ -698,19 +701,27 @@ mod tests {
             (DataType::Ptr, None),
         ];
         for (member, mask) in cases {
-            let info = Arg::new("value", DataType::Long).or(member).as_arg_info(false);
+            let info = Arg::new("value", DataType::Long)
+                .or(member)
+                .as_arg_info(false);
             match (info, mask) {
                 (Ok(info), Some(mask)) => {
                     assert_eq!(info.type_.type_mask, mask, "{member:?}");
                     unsafe { drop(CString::from_raw(info.name.cast_mut())) };
                 }
                 (Err(Error::InvalidUnionType(_)), None) => {}
-                (info, mask) => panic!("{member:?}: {:?} for {mask:?}", info.map(|i| i.type_.type_mask)),
+                (info, mask) => panic!(
+                    "{member:?}: {:?} for {mask:?}",
+                    info.map(|i| i.type_.type_mask)
+                ),
             }
         }
         // The first type is checked too.
         let arg = Arg::new("value", DataType::Resource).or(DataType::Long);
-        assert!(matches!(arg.as_arg_info(false), Err(Error::InvalidUnionType(_))));
+        assert!(matches!(
+            arg.as_arg_info(false),
+            Err(Error::InvalidUnionType(_))
+        ));
     }
 
     #[test]
