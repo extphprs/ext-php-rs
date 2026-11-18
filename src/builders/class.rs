@@ -14,14 +14,15 @@ use crate::{
     error::{Error, Result},
     exception::PhpException,
     ffi::{
-        zend_declare_class_constant_ex, zend_declare_property, zend_do_implement_interface,
-        zend_hash_str_find_ptr_lc, zend_register_internal_class_ex,
+        _ZEND_TYPE_NAME_BIT, _ZEND_TYPE_NULLABLE_BIT, IS_DOUBLE, IS_LONG, IS_UNDEF, MAY_BE_ANY,
+        zend_declare_class_constant_ex, zend_declare_property, zend_declare_typed_property,
+        zend_do_implement_interface, zend_hash_str_find_ptr_lc, zend_register_internal_class_ex,
         zend_register_internal_interface,
     },
     flags::{ClassFlags, ConstantFlags, DataType, MethodFlags, PropertyFlags},
     types::{ZendClassObject, ZendObject, ZendStr, Zval},
     zend::function::{SensitiveParameters, mark_sensitive},
-    zend::{ClassEntry, CompilerGlobals, ExecuteData, ExecutorGlobals, FunctionEntry},
+    zend::{ClassEntry, CompilerGlobals, ExecuteData, ExecutorGlobals, FunctionEntry, ZendType},
     zend_fastcall,
 };
 
@@ -110,6 +111,9 @@ pub struct ClassBuilder {
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
     pub(crate) properties: Vec<ClassProperty>,
+    /// Properties declared with their type, see
+    /// [`ClassBuilder::typed_property`].
+    pub(crate) typed_properties: Vec<ClassProperty>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry, ArgInfoTables)>,
     pub(crate) docs: DocComments,
@@ -133,6 +137,7 @@ impl ClassBuilder {
             methods: vec![],
             object_override: None,
             properties: vec![],
+            typed_properties: vec![],
             constants: vec![],
             register: None,
             docs: &[],
@@ -187,6 +192,34 @@ impl ClassBuilder {
     /// * `prop` - The property metadata to add to the class.
     pub fn property(mut self, prop: ClassProperty) -> Self {
         self.properties.push(prop);
+        self
+    }
+
+    /// Adds a typed property to the class, declared as PHP declares
+    /// `protected int $count = 0;`: the engine enforces `prop.ty` (and
+    /// `prop.nullable`) on every write, and reflection reports the type.
+    ///
+    /// `prop.ty` is a scalar type, `mixed`, or a class (`DataType::Object`
+    /// with a class name). Without a default the property starts
+    /// uninitialized, as an untyped default never does: reading it before a
+    /// write throws PHP's `Error`, and `unset()` returns it to that state. A
+    /// default must be a value of the type.
+    ///
+    /// `prop.readonly` must be `false`, and the class must not be a readonly
+    /// class (PHP 8.2): the engine would declare the property writable, where
+    /// PHP declares it `readonly`.
+    ///
+    /// [`ClassBuilder::property`] declares a property without a type; its
+    /// `ty` only shapes the generated stubs.
+    ///
+    /// # Errors
+    ///
+    /// [`ClassBuilder::register`] fails with [`Error::InvalidPropertyType`]
+    /// when `prop.ty` is `None` or names a type a property cannot have
+    /// (`iterable`, `resource`, `callable`, ...), when the default is not a
+    /// value of the type, or when the property would have to be readonly.
+    pub fn typed_property(mut self, prop: ClassProperty) -> Self {
+        self.typed_properties.push(prop);
         self
     }
 
@@ -398,8 +431,13 @@ impl ClassBuilder {
     /// Checks that no two properties, methods or constants of the class share
     /// a PHP name. Methods are compared ignoring ASCII case, like the engine.
     fn validate(&self) -> Result<()> {
-        if let Some(name) = first_duplicate(self.properties.iter().map(|p| p.name.as_str()), false)
-        {
+        if let Some(name) = first_duplicate(
+            self.properties
+                .iter()
+                .chain(&self.typed_properties)
+                .map(|p| p.name.as_str()),
+            false,
+        ) {
             return Err(Error::DuplicateProperty {
                 property: format!("{}::${name}", self.name),
             });
@@ -415,6 +453,21 @@ impl ClassBuilder {
                 constant: format!("{}::{name}", self.name),
             });
         }
+        #[cfg(php82)]
+        let readonly_class = self.ce.ce_flags & ClassFlags::ReadonlyClass.bits() != 0;
+        #[cfg(not(php82))]
+        let readonly_class = false;
+        for prop in &self.typed_properties {
+            let typed = prop
+                .ty
+                .and_then(|ty| property_type_mask(ty, prop.nullable))
+                .is_some();
+            if !typed || prop.readonly || readonly_class {
+                return Err(Error::InvalidPropertyType {
+                    property: format!("{}::${}", self.name, prop.name),
+                });
+            }
+        }
         Ok(())
     }
 
@@ -426,6 +479,8 @@ impl ClassBuilder {
     ///   [`Error::DuplicateConstant`] - If two members share a PHP name.
     /// * [`Error::DuplicateClass`] - If a class with this name, ignoring ASCII
     ///   case, is already registered.
+    /// * [`Error::InvalidPropertyType`] - If a typed property has no type a
+    ///   property can have, or a default that is not a value of its type.
     /// * [`Error::InvalidPointer`] - If the class could not be registered.
     /// * [`Error::InvalidCString`] - If the class name is not a valid C string.
     /// * [`Error::IntegerOverflow`] - If the property flags are not valid.
@@ -528,6 +583,10 @@ impl ClassBuilder {
             }
         }
 
+        for prop in self.typed_properties {
+            declare_typed_property(class, &self.name, prop)?;
+        }
+
         for (name, value, _, _, flags) in self.constants {
             // The constants table keeps the interned key; releasing an interned
             // string is a no-op, so dropping the `ZBox` afterwards is sound.
@@ -562,11 +621,267 @@ impl ClassBuilder {
     }
 }
 
+/// The type mask of a property declared with `ty`, or `None` when a property
+/// cannot have that type.
+///
+/// An allowlist: the types of [`ZendType::scalar_type_mask`], `mixed`, and a
+/// class (`DataType::Object` with a name, whose mask holds
+/// `_ZEND_TYPE_NAME_BIT` and needs the name as the type's pointer).
+/// `nullable` adds `null`, except to `mixed`, which holds it already.
+/// `iterable` is refused: a property cannot use the `_ZEND_TYPE_ITERABLE_BIT`
+/// arginfo carries, which only `zend_register_functions` expands into
+/// `Traversable|array`.
+pub(crate) fn property_type_mask(ty: DataType, nullable: bool) -> Option<u32> {
+    let nullable = if nullable { _ZEND_TYPE_NULLABLE_BIT } else { 0 };
+    let mask = match ty {
+        DataType::Mixed => return Some(MAY_BE_ANY),
+        DataType::Object(_) if ty.class_name().is_some() => _ZEND_TYPE_NAME_BIT,
+        _ => ZendType::scalar_type_mask(ty)?,
+    };
+    Some(mask | nullable)
+}
+
+/// How a default value of type code `code` fits a property whose type is
+/// `mask`, as `zend_is_valid_default_value` decides.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum DefaultFit {
+    /// A value of the type, or no default (`IS_UNDEF`).
+    Fits,
+    /// An `int` where the type holds `float`: the default becomes a float.
+    ToDouble,
+    /// Refused.
+    Refused,
+}
+
+pub(crate) fn default_fit(mask: u32, code: u32) -> DefaultFit {
+    if code == IS_UNDEF || (code < 32 && mask & (1 << code) != 0) {
+        DefaultFit::Fits
+    } else if mask & (1 << IS_DOUBLE) != 0 && code == IS_LONG {
+        DefaultFit::ToDouble
+    } else {
+        DefaultFit::Refused
+    }
+}
+
+/// Declares `prop` on `class` (named `class_name`) with its type, see
+/// [`ClassBuilder::typed_property`].
+fn declare_typed_property(
+    class: &mut ClassEntry,
+    class_name: &str,
+    prop: ClassProperty,
+) -> Result<()> {
+    let invalid = || Error::InvalidPropertyType {
+        property: format!("{class_name}::${}", prop.name),
+    };
+    let ty = prop.ty.ok_or_else(invalid)?;
+    let mask = property_type_mask(ty, prop.nullable).ok_or_else(invalid)?;
+    // A property type names its class with an interned `zend_string`, where
+    // argument info takes a C string.
+    let type_ptr = match ty.class_name() {
+        Some(name) => ManuallyDrop::new(ZendStr::new_interned(name, true))
+            .as_ptr()
+            .cast_mut()
+            .cast(),
+        None => ptr::null_mut(),
+    };
+    let mut default = if let Some(f) = prop.default {
+        f()?
+    } else {
+        // `IS_UNDEF`: the property starts uninitialized.
+        let mut undef = Zval::new();
+        undef.u1.type_info = IS_UNDEF;
+        undef
+    };
+    // SAFETY: the low byte of `type_info` is the zval's type code, whichever
+    // member of the union was written.
+    let code = unsafe { default.u1.type_info } & 0xff;
+    match default_fit(mask, code) {
+        DefaultFit::Fits => {}
+        DefaultFit::ToDouble => {
+            let long = default.long().ok_or_else(invalid)?;
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "PHP converts an int default to float the same way"
+            )]
+            default.set_double(long as f64);
+        }
+        DefaultFit::Refused => return Err(invalid()),
+    }
+    let name = ZendStr::new_interned(&prop.name, true);
+    // The engine takes the default with `ZVAL_COPY_VALUE`, as for
+    // `zend_declare_property` above, and keeps the interned name and type.
+    unsafe {
+        zend_declare_typed_property(
+            class,
+            name.as_ptr().cast_mut(),
+            &raw mut default,
+            prop.flags.bits().try_into()?,
+            ptr::null_mut(),
+            ZendType {
+                ptr: type_ptr,
+                type_mask: mask,
+            },
+        );
+    }
+    std::mem::forget(default);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::ffi::{IS_ARRAY, IS_FALSE, IS_NULL, IS_OBJECT, IS_STRING, IS_TRUE, MAY_BE_BOOL};
     use crate::test::test_function;
 
     use super::*;
+
+    fn typed(name: &str, ty: DataType, nullable: bool) -> ClassProperty {
+        ClassProperty {
+            name: name.into(),
+            flags: PropertyFlags::Public,
+            default: None,
+            docs: &[],
+            ty: Some(ty),
+            nullable,
+            readonly: false,
+            default_stub: None,
+        }
+    }
+
+    #[test]
+    fn property_type_mask_covers_every_data_type() {
+        let null = _ZEND_TYPE_NULLABLE_BIT;
+        let cases = [
+            (DataType::Undef, None),
+            (DataType::Null, None),
+            (DataType::False, None),
+            (DataType::True, None),
+            (DataType::Long, Some(1 << IS_LONG)),
+            (DataType::Double, Some(1 << IS_DOUBLE)),
+            (DataType::String, Some(1 << IS_STRING)),
+            (DataType::Array, Some(1 << IS_ARRAY)),
+            (DataType::Iterable, None),
+            (DataType::Object("".into()), Some(1 << IS_OBJECT)),
+            (DataType::Object("Foo".into()), Some(_ZEND_TYPE_NAME_BIT)),
+            (DataType::Resource, None),
+            (DataType::Reference, None),
+            (DataType::Callable, None),
+            (DataType::ConstantExpression, None),
+            (DataType::Indirect, None),
+            (DataType::Void, None),
+            (DataType::Mixed, Some(MAY_BE_ANY)),
+            (DataType::Bool, Some(MAY_BE_BOOL)),
+            (DataType::Ptr, None),
+        ];
+        for (ty, mask) in cases {
+            assert_eq!(property_type_mask(ty, false), mask, "{ty:?}");
+            let nullable = match ty {
+                DataType::Mixed => mask,
+                _ => mask.map(|m| m | null),
+            };
+            assert_eq!(property_type_mask(ty, true), nullable, "?{ty:?}");
+        }
+    }
+
+    #[test]
+    fn validate_refuses_a_typed_property_without_a_property_type() {
+        // `iterable` refused arrays and segfaulted on the TypeError, `resource`
+        // and a constant expression segfaulted `ReflectionType::__toString`,
+        // and `Indirect` became `callable`.
+        for ty in [
+            DataType::Iterable,
+            DataType::Resource,
+            DataType::ConstantExpression,
+            DataType::Indirect,
+            DataType::Callable,
+            DataType::Void,
+        ] {
+            let class = ClassBuilder::new("Foo").typed_property(typed("a", ty, false));
+            assert!(
+                matches!(
+                    class.validate(),
+                    Err(Error::InvalidPropertyType { property }) if property == "Foo::$a"
+                ),
+                "{ty:?}"
+            );
+        }
+        let mut missing = typed("a", DataType::Long, false);
+        missing.ty = None;
+        assert!(
+            ClassBuilder::new("Foo")
+                .typed_property(missing)
+                .validate()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn validate_accepts_property_types() {
+        let class = ClassBuilder::new("Foo")
+            .typed_property(typed("a", DataType::Long, false))
+            .typed_property(typed("b", DataType::String, true))
+            .typed_property(typed("c", DataType::Object("ArrayObject".into()), false))
+            .typed_property(typed("d", DataType::Mixed, true))
+            // An untyped property's `ty` only shapes stubs.
+            .property(typed("e", DataType::Iterable, false));
+        assert!(class.validate().is_ok());
+    }
+
+    #[test]
+    fn default_fit_as_zend_is_valid_default_value() {
+        let mask = |ty, nullable| property_type_mask(ty, nullable).expect("a property type");
+        let float = mask(DataType::Double, false);
+        assert_eq!(default_fit(float, IS_LONG), DefaultFit::ToDouble);
+        assert_eq!(default_fit(float, IS_DOUBLE), DefaultFit::Fits);
+        let string = mask(DataType::String, false);
+        assert_eq!(default_fit(string, IS_LONG), DefaultFit::Refused);
+        let int = mask(DataType::Long, false);
+        assert_eq!(default_fit(int, IS_DOUBLE), DefaultFit::Refused);
+        assert_eq!(default_fit(int, IS_NULL), DefaultFit::Refused);
+        assert_eq!(default_fit(int, IS_UNDEF), DefaultFit::Fits);
+        let nullable_int = mask(DataType::Long, true);
+        assert_eq!(default_fit(nullable_int, IS_NULL), DefaultFit::Fits);
+        let class = mask(DataType::Object("Foo".into()), false);
+        assert_eq!(default_fit(class, IS_LONG), DefaultFit::Refused);
+        assert_eq!(default_fit(class, IS_OBJECT), DefaultFit::Refused);
+        let boolean = mask(DataType::Bool, false);
+        assert_eq!(default_fit(boolean, IS_TRUE), DefaultFit::Fits);
+        assert_eq!(default_fit(boolean, IS_FALSE), DefaultFit::Fits);
+    }
+
+    #[test]
+    fn validate_refuses_readonly_typed_properties() {
+        let mut readonly = typed("a", DataType::Long, false);
+        readonly.readonly = true;
+        assert!(matches!(
+            ClassBuilder::new("Foo").typed_property(readonly).validate(),
+            Err(Error::InvalidPropertyType { property }) if property == "Foo::$a"
+        ));
+    }
+
+    #[test]
+    #[cfg(php82)]
+    fn validate_refuses_typed_properties_on_a_readonly_class() {
+        // The engine does not make a readonly class's typed properties
+        // readonly, as PHP's compiler does.
+        let class = ClassBuilder::new("Foo")
+            .flags(ClassFlags::ReadonlyClass)
+            .typed_property(typed("a", DataType::Long, false));
+        assert!(matches!(
+            class.validate(),
+            Err(Error::InvalidPropertyType { property }) if property == "Foo::$a"
+        ));
+    }
+
+    #[test]
+    fn validate_refuses_a_typed_property_repeating_an_untyped_one() {
+        let class = ClassBuilder::new("Foo")
+            .property(typed("a", DataType::Long, false))
+            .typed_property(typed("a", DataType::Long, false));
+        assert!(matches!(
+            class.validate(),
+            Err(Error::DuplicateProperty { property }) if property == "Foo::$a"
+        ));
+    }
 
     #[test]
     #[allow(unpredictable_function_pointer_comparisons)]
