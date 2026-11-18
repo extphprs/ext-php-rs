@@ -169,13 +169,16 @@ pattern in PHP.
 
 ### Constructors
 
-A class without a constructor declares none when its type implements `Default`,
-as a PHP class without a constructor does: `new`, on the class or on a PHP
-subclass, creates an object initialized with `Default::default()`, and
-`ReflectionClass::getConstructor()` returns `null`. Without `Default`, a class
-without a constructor is not constructable from PHP (its `__construct` throws,
-since the object could not be initialized). It can only be returned from a Rust
-function to PHP.
+By default, if a class does not have a constructor, it is not constructable from
+PHP. It can only be returned from a Rust function to PHP.
+
+With `#[php(no_constructor)]` on a struct that implements `Default`, the class
+declares no constructor instead, as a PHP class without one: `new`, on the class
+or on a PHP subclass, creates an object initialized with `Default::default()`,
+and `ReflectionClass::getConstructor()` returns `null`. An exception class
+extending `\Exception` inherits `Exception::__construct`. Under a Rust class that
+declares a constructor, the class keeps the one that throws, since the parent's
+would run on an object of another type.
 
 Constructors are Rust methods which can take any amount of parameters and
 returns either `Self` or `Result<Self, E>`, where `E: Into<PhpException>`. When

@@ -45,6 +45,13 @@ pub trait RegisteredClass: Sized + 'static {
     /// PHP flags applied to the class.
     const FLAGS: ClassFlags = ClassFlags::empty();
 
+    /// Whether the class declares no constructor when it has none of its own,
+    /// set by `#[php(no_constructor)]`: `new` then creates an object
+    /// initialized with `Default::default()`, as for a PHP class without a
+    /// constructor. Otherwise a class without a constructor gets one that
+    /// throws.
+    const NO_CONSTRUCTOR: bool = false;
+
     /// Doc comments for the class.
     const DOC_COMMENTS: DocComments = &[];
 

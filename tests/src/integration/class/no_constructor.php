@@ -67,12 +67,25 @@ try {
     assert(str_contains($e->getMessage(), 'Cannot instantiate abstract class'), $e->getMessage());
 }
 
-// Without a default value the object could not be initialized, so the class
-// keeps a constructor that throws.
-assert(( new ReflectionClass(TestNoConstructorNoDefault::class) )->getConstructor() !== null);
+// Without `#[php(no_constructor)]`, a class with a default value keeps the
+// constructor that throws.
+assert(( new ReflectionClass(TestNoConstructorNotOptedIn::class) )->getConstructor() !== null);
 try {
-    new TestNoConstructorNoDefault();
-    assert(false, 'a class without a default value cannot be instantiated');
+    new TestNoConstructorNotOptedIn();
+    assert(false, 'a class that did not opt in cannot be instantiated');
 } catch (Exception $e) {
     assert($e->getMessage() === 'You cannot instantiate this class from PHP.', $e->getMessage());
 }
+
+// Under a Rust class with a constructor, the class keeps the constructor that
+// throws: inheriting the parent's would run it on an object of another type.
+$runs = TestConstructingBase::runs();
+new TestConstructingBase();
+assert(TestConstructingBase::runs() === ( $runs + 1 ));
+try {
+    new TestNoConstructorChild();
+    assert(false, 'the Rust parent constructor must not be inherited');
+} catch (Exception $e) {
+    assert($e->getMessage() === 'You cannot instantiate this class from PHP.', $e->getMessage());
+}
+assert(TestConstructingBase::runs() === ( $runs + 1 ), 'the parent constructor did not run');
