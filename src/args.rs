@@ -29,6 +29,14 @@ pub struct Arg<'a> {
     allow_null: bool,
     pub(crate) variadic: bool,
     pub(crate) sensitive: bool,
+    /// Declared without a type, see [`Arg::untyped`].
+    untyped: bool,
+    /// The other members of a union type, see [`Arg::or`].
+    #[expect(
+        clippy::box_collection,
+        reason = "`Arg` travels in `Result::Err` (`consume`): a thin pointer keeps it under `result_large_err`"
+    )]
+    union: Option<Box<Vec<DataType>>>,
     default_value: Option<String>,
     zval: Option<&'a mut Zval>,
     variadic_zvals: Vec<Option<&'a mut Zval>>,
@@ -45,6 +53,8 @@ impl<'a> Arg<'a> {
         Arg {
             name: name.into(),
             r#type,
+            untyped: false,
+            union: None,
             as_ref: false,
             allow_null: false,
             variadic: false,
@@ -78,10 +88,44 @@ impl<'a> Arg<'a> {
             allow_null,
             variadic: false,
             sensitive: false,
+            untyped: false,
+            union: None,
             default_value: None,
             zval: None,
             variadic_zvals: vec![],
         }
+    }
+
+    /// Creates an argument declared without a type, as PHP declares
+    /// `function f($value)`: reflection reports no type, and a method that
+    /// overrides it may declare its parameter with any type or none.
+    ///
+    /// The Rust side still converts the value as its own type, usually
+    /// `&Zval`.
+    pub fn untyped<T: Into<String>>(name: T) -> Self {
+        Self {
+            untyped: true,
+            ..Self::new(name, DataType::Mixed)
+        }
+    }
+
+    /// Adds `r#type` to the argument's type, making it a union:
+    /// `Arg::new("value", DataType::Long).or(DataType::Double)` declares
+    /// `int|float $value`.
+    ///
+    /// The argument's type and every member are `bool`, `int`, `float`,
+    /// `string`, `array` or `object`, and a member can also be `null`. Any
+    /// other type (a class, `iterable`, `resource`, `mixed`, ...), or a union
+    /// on an [`Arg::untyped`] argument, fails
+    /// [`FunctionBuilder::build`](crate::builders::FunctionBuilder::build) with
+    /// [`Error::InvalidUnionType`].
+    ///
+    /// The type is what reflection and PHP's inheritance checks see: release
+    /// builds of PHP do not check an internal function's arguments against
+    /// it, so the handler receives what the caller passed and must check it.
+    pub fn or(mut self, r#type: DataType) -> Self {
+        self.union.get_or_insert_with(Box::default).push(r#type);
+        self
     }
 
     /// Sets the argument as a reference.
@@ -225,15 +269,25 @@ impl<'a> Arg<'a> {
             None if optional && self.allow_null && !self.variadic => Some("null"),
             None => None,
         };
+        let union = self.union.as_deref().map_or(&[][..], Vec::as_slice);
+        let declaration = format!("parameter ${}", self.name);
+        let type_ = if self.untyped {
+            if !union.is_empty() {
+                return Err(Error::InvalidUnionType(format!(
+                    "{declaration}: an untyped parameter has no type to join"
+                )));
+            }
+            ZendType::empty(self.as_ref, self.variadic)
+        } else {
+            let mut type_ =
+                ZendType::empty_from_type(self.r#type, self.as_ref, self.variadic, self.allow_null)
+                    .ok_or(Error::ZvalConversion(self.r#type))?;
+            ZendType::add_union(&mut type_, &declaration, self.r#type, union)?;
+            type_
+        };
         Ok(ArgInfo {
             name: CString::new(self.name.as_str())?.into_raw(),
-            type_: ZendType::empty_from_type(
-                self.r#type,
-                self.as_ref,
-                self.variadic,
-                self.allow_null,
-            )
-            .ok_or(Error::ZvalConversion(self.r#type))?,
+            type_,
             default_value: match default_value {
                 Some(val) => CString::new(val)?.into_raw(),
                 None => ptr::null(),
@@ -246,7 +300,7 @@ impl From<Arg<'_>> for Parameter {
     fn from(val: Arg<'_>) -> Self {
         Parameter {
             name: val.name.into(),
-            ty: Some(val.r#type).into(),
+            ty: if val.untyped { None } else { Some(val.r#type) }.into(),
             nullable: val.allow_null,
             variadic: val.variadic,
             default: val.default_value.map(abi::RString::from).into(),
@@ -572,6 +626,112 @@ mod tests {
     }
 
     // TODO: Test the callable case
+
+    #[test]
+    fn untyped_arg_has_no_type_bits() {
+        let info = Arg::untyped("value").as_arg_info(false).unwrap();
+        assert_eq!(info.type_.type_mask, 0);
+        assert!(info.type_.ptr.is_null());
+        unsafe { drop(CString::from_raw(info.name.cast_mut())) };
+    }
+
+    #[test]
+    fn union_arg_ors_the_type_bits() {
+        use crate::ffi::{_ZEND_TYPE_NULLABLE_BIT, IS_DOUBLE, IS_LONG};
+
+        let info = Arg::new("value", DataType::Long)
+            .or(DataType::Double)
+            .as_arg_info(false)
+            .unwrap();
+        assert_eq!(info.type_.type_mask, (1 << IS_LONG) | (1 << IS_DOUBLE));
+        unsafe { drop(CString::from_raw(info.name.cast_mut())) };
+
+        let info = Arg::new("value", DataType::Long)
+            .or(DataType::Null)
+            .as_arg_info(false)
+            .unwrap();
+        assert_eq!(
+            info.type_.type_mask,
+            (1 << IS_LONG) | _ZEND_TYPE_NULLABLE_BIT
+        );
+        unsafe { drop(CString::from_raw(info.name.cast_mut())) };
+    }
+
+    #[test]
+    fn union_with_a_class_type_is_refused() {
+        let arg = Arg::new("value", DataType::Long).or(DataType::Object("Foo".into()));
+        assert!(matches!(
+            arg.as_arg_info(false),
+            Err(Error::InvalidUnionType(_))
+        ));
+    }
+
+    #[test]
+    fn union_members_cover_every_data_type() {
+        use crate::ffi::{
+            _ZEND_TYPE_NULLABLE_BIT, IS_ARRAY, IS_DOUBLE, IS_LONG, IS_OBJECT, IS_STRING,
+            MAY_BE_BOOL,
+        };
+
+        // Only the scalar types and `null` can join a union: `resource` and
+        // `undef` gave masks that crash `ReflectionType::__toString`,
+        // `reference` and `ptr` stray bits, `void` and `mixed` types PHP forbids
+        // in a union, and `iterable` a bit only arginfo of its own can carry.
+        let int = 1 << IS_LONG;
+        let cases = [
+            (DataType::Undef, None),
+            (DataType::Null, Some(int | _ZEND_TYPE_NULLABLE_BIT)),
+            (DataType::False, None),
+            (DataType::True, None),
+            (DataType::Long, Some(int)),
+            (DataType::Double, Some(int | (1 << IS_DOUBLE))),
+            (DataType::String, Some(int | (1 << IS_STRING))),
+            (DataType::Array, Some(int | (1 << IS_ARRAY))),
+            (DataType::Iterable, None),
+            (DataType::Object("".into()), Some(int | (1 << IS_OBJECT))),
+            (DataType::Object("Foo".into()), None),
+            (DataType::Resource, None),
+            (DataType::Reference, None),
+            (DataType::Callable, None),
+            (DataType::ConstantExpression, None),
+            (DataType::Indirect, None),
+            (DataType::Void, None),
+            (DataType::Mixed, None),
+            (DataType::Bool, Some(int | MAY_BE_BOOL)),
+            (DataType::Ptr, None),
+        ];
+        for (member, mask) in cases {
+            let info = Arg::new("value", DataType::Long)
+                .or(member)
+                .as_arg_info(false);
+            match (info, mask) {
+                (Ok(info), Some(mask)) => {
+                    assert_eq!(info.type_.type_mask, mask, "{member:?}");
+                    unsafe { drop(CString::from_raw(info.name.cast_mut())) };
+                }
+                (Err(Error::InvalidUnionType(_)), None) => {}
+                (info, mask) => panic!(
+                    "{member:?}: {:?} for {mask:?}",
+                    info.map(|i| i.type_.type_mask)
+                ),
+            }
+        }
+        // The first type is checked too.
+        let arg = Arg::new("value", DataType::Resource).or(DataType::Long);
+        assert!(matches!(
+            arg.as_arg_info(false),
+            Err(Error::InvalidUnionType(_))
+        ));
+    }
+
+    #[test]
+    fn untyped_arg_with_a_union_is_refused() {
+        let arg = Arg::untyped("value").or(DataType::Long);
+        assert!(matches!(
+            arg.as_arg_info(false),
+            Err(Error::InvalidUnionType(message)) if message.contains("$value")
+        ));
+    }
 
     #[test]
     #[cfg(feature = "embed")]

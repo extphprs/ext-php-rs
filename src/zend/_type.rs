@@ -1,9 +1,11 @@
 use std::{ffi::c_void, ptr};
 
 use crate::{
+    error::{Error, Result},
     ffi::{
-        _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT,
-        IS_ITERABLE, IS_MIXED, MAY_BE_ANY, MAY_BE_BOOL, zend_type,
+        _IS_BOOL, _ZEND_IS_VARIADIC_BIT, _ZEND_SEND_MODE_SHIFT, _ZEND_TYPE_NULLABLE_BIT, IS_ARRAY,
+        IS_DOUBLE, IS_ITERABLE, IS_LONG, IS_MIXED, IS_OBJECT, IS_STRING, MAY_BE_ANY, MAY_BE_BOOL,
+        zend_type,
     },
     flags::{DataType, DataTypeExt},
 };
@@ -136,6 +138,70 @@ impl ZendType {
         }
     }
 
+    /// The type mask of `ty` when it is one of the types every declaration can
+    /// hold as such: `bool`, `int`, `float`, `string`, `array` and `object`
+    /// (a `DataType::Object` without a class name). `None` for every other
+    /// type, which a caller allows (`mixed`, a class, ...) or refuses on its
+    /// own terms.
+    #[must_use]
+    pub(crate) fn scalar_type_mask(ty: DataType) -> Option<u32> {
+        Some(match ty {
+            DataType::Bool => MAY_BE_BOOL,
+            DataType::Long => 1 << IS_LONG,
+            DataType::Double => 1 << IS_DOUBLE,
+            DataType::String => 1 << IS_STRING,
+            DataType::Array => 1 << IS_ARRAY,
+            DataType::Object(_) if ty.class_name().is_none() => 1 << IS_OBJECT,
+            DataType::Object(_)
+            | DataType::Undef
+            | DataType::Null
+            | DataType::False
+            | DataType::True
+            | DataType::Iterable
+            | DataType::Resource
+            | DataType::Reference
+            | DataType::Callable
+            | DataType::ConstantExpression
+            | DataType::Indirect
+            | DataType::Void
+            | DataType::Mixed
+            | DataType::Ptr => return None,
+        })
+    }
+
+    /// Adds the `union` members to `type_`, built from `first`, so it declares
+    /// `first|union...`. `first` and each member are one of the types of
+    /// [`ZendType::scalar_type_mask`], or `null` for a member, which makes the
+    /// type nullable; a class type would need a type list, and every other type
+    /// (`iterable`, `resource`, `void`, `mixed`, ...) cannot be a union member.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidUnionType`] naming `declaration` (the parameter or
+    /// function) when `first` or a member is not such a type.
+    pub(crate) fn add_union(
+        type_: &mut Self,
+        declaration: &str,
+        first: DataType,
+        union: &[DataType],
+    ) -> Result<()> {
+        if union.is_empty() {
+            return Ok(());
+        }
+        let refused =
+            |ty: DataType| Error::InvalidUnionType(format!("{declaration}: {ty} in a union"));
+        if Self::scalar_type_mask(first).is_none() {
+            return Err(refused(first));
+        }
+        for &member in union {
+            type_.type_mask |= match member {
+                DataType::Null => _ZEND_TYPE_NULLABLE_BIT,
+                _ => Self::scalar_type_mask(member).ok_or_else(|| refused(member))?,
+            };
+        }
+        Ok(())
+    }
+
     /// Calculates the internal flags of the type.
     /// Translation of of the `_ZEND_ARG_INFO_FLAGS` macro from
     /// `zend_API.h:110`.
@@ -183,5 +249,39 @@ impl ZendType {
         } else {
             0
         }) | Self::arg_info_flags(pass_by_ref, is_variadic)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scalar_type_mask_covers_every_data_type() {
+        let cases = [
+            (DataType::Undef, None),
+            (DataType::Null, None),
+            (DataType::False, None),
+            (DataType::True, None),
+            (DataType::Long, Some(1 << IS_LONG)),
+            (DataType::Double, Some(1 << IS_DOUBLE)),
+            (DataType::String, Some(1 << IS_STRING)),
+            (DataType::Array, Some(1 << IS_ARRAY)),
+            (DataType::Iterable, None),
+            (DataType::Object("".into()), Some(1 << IS_OBJECT)),
+            (DataType::Object("Foo".into()), None),
+            (DataType::Resource, None),
+            (DataType::Reference, None),
+            (DataType::Callable, None),
+            (DataType::ConstantExpression, None),
+            (DataType::Indirect, None),
+            (DataType::Void, None),
+            (DataType::Mixed, None),
+            (DataType::Bool, Some(MAY_BE_BOOL)),
+            (DataType::Ptr, None),
+        ];
+        for (ty, mask) in cases {
+            assert_eq!(ZendType::scalar_type_mask(ty), mask, "{ty:?}");
+        }
     }
 }

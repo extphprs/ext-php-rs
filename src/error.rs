@@ -105,6 +105,18 @@ pub enum Error {
         /// Name of the property that was looked up.
         property: String,
     },
+    /// A union type PHP cannot declare: a member that is not a scalar type or
+    /// `null`, or a union without a type to join (an untyped argument, a
+    /// return type never set).
+    #[error("invalid union type: {0}")]
+    InvalidUnionType(String),
+    /// A typed property was declared without a type, or with one a property
+    /// cannot have (`void`, `callable`, ...).
+    #[error("property `{property}` has no type a property can be declared with")]
+    InvalidPropertyType {
+        /// Name of the property.
+        property: String,
+    },
     /// The enum has no case matching the given name or discriminant.
     #[error("enum has no case matching `{case}`")]
     InvalidEnumCase {

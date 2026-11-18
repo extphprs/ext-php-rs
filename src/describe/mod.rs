@@ -117,6 +117,7 @@ impl From<ClassBuilder> for Class {
             properties: val
                 .properties
                 .into_iter()
+                .chain(val.typed_properties)
                 .map(Property::from)
                 .collect::<StdVec<_>>()
                 .into(),
