@@ -14,8 +14,8 @@ use crate::{
     error::{Error, Result},
     exception::PhpException,
     ffi::{
-        zend_declare_class_constant_ex, zend_declare_property, zend_do_implement_interface,
-        zend_hash_str_find_ptr_lc, zend_register_internal_class_ex,
+        ZEND_INTERNAL_FUNCTION, zend_declare_class_constant_ex, zend_declare_property,
+        zend_do_implement_interface, zend_hash_str_find_ptr_lc, zend_register_internal_class_ex,
         zend_register_internal_interface,
     },
     flags::{ClassFlags, ConstantFlags, DataType, MethodFlags, PropertyFlags},
@@ -110,6 +110,10 @@ pub struct ClassBuilder {
     pub(crate) methods: Vec<(FunctionBuilder<'static>, MethodFlags)>,
     object_override: Option<unsafe extern "C" fn(class_type: *mut ClassEntry) -> *mut ZendObject>,
     pub(crate) properties: Vec<ClassProperty>,
+    /// The throwing constructor of a `#[php(no_constructor)]` class, added by
+    /// [`ClassBuilder::register`] when the parent is a Rust class declaring a
+    /// constructor: inherited, it would run on an object of another type.
+    unless_parent_constructs: Option<FunctionBuilder<'static>>,
     pub(crate) constants: Vec<ConstantEntry>,
     register: Option<fn(&'static mut ClassEntry, ArgInfoTables)>,
     pub(crate) docs: DocComments,
@@ -133,6 +137,7 @@ impl ClassBuilder {
             methods: vec![],
             object_override: None,
             properties: vec![],
+            unless_parent_constructs: None,
             constants: vec![],
             register: None,
             docs: &[],
@@ -287,7 +292,9 @@ impl ClassBuilder {
             // Without default initialization, accessing properties on uninitialized
             // objects would panic.
             if let Some(instance) = T::default_init() {
-                let obj = ZendClassObject::<T>::new(instance).into_raw();
+                // `ce` is `T`'s class or a PHP subclass of it: the object is one
+                // of the class `new` names.
+                let obj = ZendClassObject::<T>::new_in(instance, unsafe { ce.as_ref() }).into_raw();
                 // SAFETY: `into_raw` yields a valid, exclusively owned object that
                 // the engine takes over.
                 return unsafe { (*obj).get_mut_zend_obj() };
@@ -339,8 +346,11 @@ impl ClassBuilder {
         self.object_override = Some(create_object::<T>);
         let is_interface = T::FLAGS.contains(ClassFlags::Interface);
 
-        // For interfaces: only add __construct if explicitly declared
-        // For classes: always add __construct (PHP needs it for object creation)
+        // For interfaces: only add __construct if explicitly declared.
+        // For classes: a declared constructor; else, with `NO_CONSTRUCTOR`, none
+        // (objects are created initialized from `Default`, see `create_object`),
+        // unless a Rust parent declares one (see `register`); else one that
+        // throws, since the object could not be initialized.
         if let Some(ConstructorMeta {
             build_fn, flags, ..
         }) = T::constructor()
@@ -353,7 +363,10 @@ impl ClassBuilder {
             let visibility = flags.unwrap_or(MethodFlags::Public);
             self.method(build_fn(func), visibility)
         } else if is_interface {
-            // Don't add default constructor for interfaces
+            self
+        } else if T::NO_CONSTRUCTOR {
+            self.unless_parent_constructs =
+                Some(FunctionBuilder::new("__construct", constructor::<T>));
             self
         } else {
             // Add default constructor for classes
@@ -445,6 +458,18 @@ impl ClassBuilder {
         ensure_class_name_free(&self.name)?;
 
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
+
+        // A `#[php(no_constructor)]` class under a Rust class that declares a
+        // constructor would inherit it, and the parent's constructor would run
+        // on an object of another Rust type: the class keeps the one that throws.
+        if let Some(constructor) = self.unless_parent_constructs.take()
+            && self
+                .extends
+                .as_ref()
+                .is_some_and(|(parent, _)| constructs_in_this_module(parent()))
+        {
+            self.methods.push((constructor, MethodFlags::Public));
+        }
 
         let mut arg_info = Vec::with_capacity(self.methods.len());
         let mut methods = Vec::with_capacity(self.methods.len() + 1);
@@ -560,6 +585,19 @@ impl ClassBuilder {
 
         Ok(())
     }
+}
+
+/// Whether `class` declares a constructor registered by the module being
+/// started: a Rust class of this extension, whose constructor initializes an
+/// object of its own Rust type.
+fn constructs_in_this_module(class: &ClassEntry) -> bool {
+    // SAFETY: a registered class's constructor is a live function of the
+    // engine's function table, and `type_` tells which member of the union
+    // holds it.
+    unsafe { class.constructor.as_ref() }.is_some_and(|constructor| unsafe {
+        u32::from(constructor.type_) == ZEND_INTERNAL_FUNCTION
+            && constructor.internal_function.module == ExecutorGlobals::get().current_module
+    })
 }
 
 #[cfg(test)]

@@ -24,6 +24,9 @@ pub struct StructAttributes {
     /// Readonly classes have all properties implicitly readonly.
     #[darling(rename = "readonly")]
     readonly: Flag,
+    /// Whether the class declares no constructor when it has none of its own
+    /// (`#[php(no_constructor)]`); the struct must implement `Default`.
+    no_constructor: Flag,
     extends: Option<ClassEntryAttribute>,
     #[darling(multiple)]
     implements: Vec<ClassEntryAttribute>,
@@ -138,6 +141,7 @@ pub fn parser(mut input: ItemStruct) -> Result<TokenStream> {
         &fields,
         attr.flags.as_ref(),
         attr.readonly.is_present(),
+        attr.no_constructor.is_present(),
         &docs,
         &gc_trace,
     );
@@ -228,6 +232,7 @@ fn generate_registered_class_impl(
     fields: &[Property],
     flags: Option<&syn::Expr>,
     readonly: bool,
+    no_constructor: bool,
     docs: &[String],
     gc_trace: &TokenStream,
 ) -> TokenStream {
@@ -387,11 +392,29 @@ fn generate_registered_class_impl(
         quote! { None }
     };
 
+    // `#[php(no_constructor)]` needs `Default`: objects are initialized from
+    // it.
+    let (no_constructor_const, no_constructor_check) = if no_constructor {
+        (
+            quote! { const NO_CONSTRUCTOR: bool = true; },
+            quote! {
+                const _: fn() = || {
+                    fn requires_default<T: ::std::default::Default>() {}
+                    requires_default::<#ident>();
+                };
+            },
+        )
+    } else {
+        (quote! {}, quote! {})
+    };
+
     let implements = implements.iter().map(|imp| {
         quote! { #imp }
     });
 
     quote! {
+        #no_constructor_check
+
         impl ::ext_php_rs::class::RegisteredClass for #ident {
             const CLASS_NAME: &'static str = #class_name;
             const BUILDER_MODIFIER: ::std::option::Option<
@@ -404,6 +427,7 @@ fn generate_registered_class_impl(
                 #(#implements,)*
             ];
             const FLAGS: ::ext_php_rs::flags::ClassFlags = #flags;
+            #no_constructor_const
             const DOC_COMMENTS: &'static [&'static str] = &[
                 #docs
             ];
