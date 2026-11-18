@@ -1902,7 +1902,8 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// parse parameters. This applies automatically — no configuration needed.
 ///
 /// The same fast path is used for class methods defined with `#[php_impl]`,
-/// including instance methods (`&self`, `&mut self`) and static methods.
+/// including instance methods (`&self`, `&mut self`), static methods and
+/// constructors.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -1922,6 +1923,9 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// ```rust,ignore
 /// #[php_impl]
 /// impl MyClass {
+///     // Fast path: constructors
+///     pub fn __construct(n: i32) -> Self { /* ... */ }
+///
 ///     // Fast path: static methods
 ///     pub fn create(n: i32) -> Self { /* ... */ }
 ///
@@ -2187,8 +2191,8 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// [`php_function`] macro first. The primary difference between functions and
 /// methods is they are bounded by their class object.
 ///
-/// Both instance and static methods benefit from the same zero-allocation fast
-/// path as standalone functions. See the
+/// Instance methods, static methods and constructors benefit from the same
+/// zero-allocation fast path as standalone functions. See the
 /// [Performance](./function.md#performance) section for details.
 ///
 /// Class methods can take a `&self` or `&mut self` parameter. They cannot take

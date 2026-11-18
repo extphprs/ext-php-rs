@@ -88,6 +88,20 @@ assert(construction_error(static fn() => new DefaultedConstructor('a', [])) === 
 assert(construction_error(static fn() => new DefaultedConstructor([])) === TypeError::class);
 
 try {
+    new DefaultedConstructor();
+    assert(false, 'a missing required argument must throw');
+} catch (ArgumentCountError $error) {
+    assert($error->getMessage() === 'DefaultedConstructor::__construct() expects at least 1 argument, 0 given');
+}
+
+try {
+    new DefaultedConstructor('a', 1, 'b', 'c');
+    assert(false, 'an argument past the last parameter must throw');
+} catch (ArgumentCountError $error) {
+    assert($error->getMessage() === 'DefaultedConstructor::__construct() expects at most 3 arguments, 4 given');
+}
+
+try {
     new DefaultedConstructor('a', null);
     assert(false, 'null for a defaulted parameter that is not nullable must throw');
 } catch (TypeError $error) {

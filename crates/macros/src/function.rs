@@ -503,10 +503,16 @@ impl<'a> Function<'a> {
         }
     }
 
+    /// Whether a parameter is variadic. A variadic parameter rules out the
+    /// zero-alloc fast path, for a constructor as for a function or method.
+    fn has_variadic(&self) -> bool {
+        self.args.typed.iter().any(|arg| arg.variadic)
+    }
+
     /// Whether this function is eligible for the zero-alloc fast path.
     /// Requires: no variadic parameters.
     fn is_fast_path_eligible(&self, call_type: &CallType) -> bool {
-        let no_variadic = !self.args.typed.iter().any(|arg| arg.variadic);
+        let no_variadic = !self.has_variadic();
         let supported_call_type = matches!(
             call_type,
             CallType::Function
@@ -755,7 +761,7 @@ impl<'a> Function<'a> {
         // Without a variadic parameter the arguments are read straight from the
         // call frame, as a method's are: `ArgParser` allocates a name and
         // formats a default for every parameter on every `new`.
-        let body = if self.args.typed.iter().any(|arg| arg.variadic) {
+        let body = if self.has_variadic() {
             let arg_declarations = self
                 .args
                 .typed
