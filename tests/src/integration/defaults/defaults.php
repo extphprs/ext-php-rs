@@ -73,6 +73,8 @@ function construction_error(Closure $construct): string
     try {
         $construct();
     } catch (Throwable $error) {
+        assert($error->getPrevious() === null);
+
         return $error::class;
     }
 
@@ -84,3 +86,10 @@ assert(construction_error(static fn() => new DefaultedConstructor('a', 1, 'b', '
 assert(construction_error(static fn() => new DefaultedConstructor('a', null)) === TypeError::class);
 assert(construction_error(static fn() => new DefaultedConstructor('a', [])) === TypeError::class);
 assert(construction_error(static fn() => new DefaultedConstructor([])) === TypeError::class);
+
+try {
+    new DefaultedConstructor('a', null);
+    assert(false, 'null for a defaulted parameter that is not nullable must throw');
+} catch (TypeError $error) {
+    assert($error->getMessage() === 'Argument `$times` must not be null');
+}

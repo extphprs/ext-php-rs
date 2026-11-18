@@ -749,28 +749,6 @@ impl<'a> Function<'a> {
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
         let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
-        let arg_declarations = self
-            .args
-            .typed
-            .iter()
-            .map(TypedArg::arg_declaration)
-            .collect::<Vec<_>>();
-        let holder_declarations = self
-            .args
-            .typed
-            .iter()
-            .filter_map(TypedArg::holder_declaration)
-            .collect::<Vec<_>>();
-        let variadic_bindings = self
-            .args
-            .typed
-            .iter()
-            .filter_map(TypedArg::variadic_binding);
-        let arg_accessors = self.args.typed.iter().map(|arg| {
-            arg.accessor(
-                |e| quote! { return ::ext_php_rs::class::ConstructorResult::Exception(#e); },
-            )
-        });
         let docs = &self.docs;
         let flags = visibility.option_tokens();
 
@@ -778,6 +756,28 @@ impl<'a> Function<'a> {
         // call frame, as a method's are: `ArgParser` allocates a name and
         // formats a default for every parameter on every `new`.
         let body = if self.args.typed.iter().any(|arg| arg.variadic) {
+            let arg_declarations = self
+                .args
+                .typed
+                .iter()
+                .map(TypedArg::arg_declaration)
+                .collect::<Vec<_>>();
+            let holder_declarations = self
+                .args
+                .typed
+                .iter()
+                .filter_map(TypedArg::holder_declaration)
+                .collect::<Vec<_>>();
+            let variadic_bindings = self
+                .args
+                .typed
+                .iter()
+                .filter_map(TypedArg::variadic_binding);
+            let arg_accessors = self.args.typed.iter().map(|arg| {
+                arg.accessor(
+                    |e| quote! { return ::ext_php_rs::class::ConstructorResult::Exception(#e); },
+                )
+            });
             quote! {
                 #(#arg_declarations)*
                 #(#holder_declarations)*
