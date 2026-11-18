@@ -938,10 +938,11 @@ fn typed_properties(
         ))
 }
 
-/// A class with no constructor whose value has a default: like a PHP class
-/// without a constructor, it declares none, and `new` (of it or of a PHP
-/// subclass) creates an object initialized from `Default`.
+/// A `#[php(no_constructor)]` class: like a PHP class without a constructor,
+/// it declares none, and `new` (of it or of a PHP subclass) creates an object
+/// initialized from `Default`.
 #[php_class]
+#[php(no_constructor)]
 #[derive(Default, Clone)]
 pub struct TestNoConstructor {
     count: i64,
@@ -955,10 +956,11 @@ impl TestNoConstructor {
     }
 }
 
-/// An abstract class with no constructor whose value has a default: PHP
-/// subclasses need no constructor of their own.
+/// An abstract `#[php(no_constructor)]` class: PHP subclasses need no
+/// constructor of their own.
 #[php_class]
 #[php(flags = ext_php_rs::flags::ClassFlags::Abstract)]
+#[php(no_constructor)]
 #[derive(Default)]
 pub struct TestNoConstructorAbstract;
 
@@ -974,12 +976,38 @@ impl TestNoConstructorAbstract {
     }
 }
 
-/// A class with no constructor and no default value: the object could not be
-/// initialized, so `new` still throws.
+/// A class with no constructor and a default value, without the opt-in: it
+/// keeps the constructor that throws.
 #[php_class]
-pub struct TestNoConstructorNoDefault {
-    _value: String,
+#[derive(Default)]
+pub struct TestNoConstructorNotOptedIn;
+
+static CONSTRUCTING_BASE_RUNS: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+/// A Rust class with a constructor, counting its runs.
+#[php_class]
+pub struct TestConstructingBase;
+
+#[php_impl]
+impl TestConstructingBase {
+    pub fn __construct() -> Self {
+        CONSTRUCTING_BASE_RUNS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self
+    }
+
+    pub fn runs() -> i64 {
+        CONSTRUCTING_BASE_RUNS.load(std::sync::atomic::Ordering::SeqCst)
+    }
 }
+
+/// A `#[php(no_constructor)]` class under a Rust class with a constructor:
+/// inheriting it would run the parent's constructor on an object of another
+/// Rust type, so it keeps the constructor that throws.
+#[php_class]
+#[php(extends(TestConstructingBase))]
+#[php(no_constructor)]
+#[derive(Default)]
+pub struct TestNoConstructorChild;
 
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     let builder = builder
@@ -1014,7 +1042,9 @@ pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
         .class::<TestTypedProperties>()
         .class::<TestNoConstructor>()
         .class::<TestNoConstructorAbstract>()
-        .class::<TestNoConstructorNoDefault>()
+        .class::<TestNoConstructorNotOptedIn>()
+        .class::<TestConstructingBase>()
+        .class::<TestNoConstructorChild>()
         .function(wrap_function!(test_class))
         .function(wrap_function!(throw_exception))
         .function(wrap_function!(throw_class_object_exception_with_prop))
