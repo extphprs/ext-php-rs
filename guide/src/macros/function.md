@@ -203,7 +203,8 @@ arguments directly from the PHP call frame, matching how native C extensions
 parse parameters. This applies automatically — no configuration needed.
 
 The same fast path is used for class methods defined with `#[php_impl]`,
-including instance methods (`&self`, `&mut self`) and static methods.
+including instance methods (`&self`, `&mut self`), static methods and
+constructors.
 
 ```rust,no_run
 # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -223,6 +224,9 @@ pub fn also_fast(haystack: &str, offset: i64) -> i64 { offset }
 ```rust,ignore
 #[php_impl]
 impl MyClass {
+    // Fast path: constructors
+    pub fn __construct(n: i32) -> Self { /* ... */ }
+
     // Fast path: static methods
     pub fn create(n: i32) -> Self { /* ... */ }
 

@@ -503,10 +503,16 @@ impl<'a> Function<'a> {
         }
     }
 
+    /// Whether a parameter is variadic. A variadic parameter rules out the
+    /// zero-alloc fast path, for a constructor as for a function or method.
+    fn has_variadic(&self) -> bool {
+        self.args.typed.iter().any(|arg| arg.variadic)
+    }
+
     /// Whether this function is eligible for the zero-alloc fast path.
     /// Requires: no variadic parameters.
     fn is_fast_path_eligible(&self, call_type: &CallType) -> bool {
-        let no_variadic = !self.args.typed.iter().any(|arg| arg.variadic);
+        let no_variadic = !self.has_variadic();
         let supported_call_type = matches!(
             call_type,
             CallType::Function
@@ -526,7 +532,10 @@ impl<'a> Function<'a> {
     /// reads zvals directly from the call frame via pointer arithmetic
     /// and converts with `FromZvalMut` inline. Matches the pattern used by
     /// PHP's `ZEND_PARSE_PARAMETERS_START`/`END` C macros.
-    fn build_fast_arg_binding(i: usize, arg: &TypedArg<'_>) -> TokenStream {
+    ///
+    /// `bail` leaves the handler once an exception is thrown: `return;` in a
+    /// function or method, the argument error in a constructor.
+    fn build_fast_arg_binding(i: usize, arg: &TypedArg<'_>, bail: &TokenStream) -> TokenStream {
         let name = arg.name;
         let ty = arg.clean_ty();
         let zval_ident = format_ident!("__zval_{}", i);
@@ -554,7 +563,7 @@ impl<'a> Function<'a> {
                         0,
                         ::ext_php_rs::zend::ce::type_error(),
                     ).throw();
-                    return;
+                    #bail
                 }
             }
         });
@@ -565,13 +574,13 @@ impl<'a> Function<'a> {
             #holder_declaration
             let #name: #ty = if #i < __REQUIRED || __num_args > #i {
                 let #zval_ident = unsafe { ex.zend_call_arg(#i) };
-                let Some(#zval_ident) = #zval_ident else { return; };
+                let Some(#zval_ident) = #zval_ident else { #bail };
                 #reject_null
                 match #extract {
                     Ok(value) => value,
                     Err(error) => {
                         ::ext_php_rs::internal::argument::argument_error(#php_name, &error).throw();
-                        return;
+                        #bail
                     }
                 }
             } else {
@@ -579,14 +588,14 @@ impl<'a> Function<'a> {
                     Some(value) => value,
                     None => {
                         #invalid.throw();
-                        return;
+                        #bail
                     }
                 }
             };
         }
     }
 
-    fn build_fast_count_check(max_num_args: usize) -> TokenStream {
+    fn build_fast_count_check(max_num_args: usize, bail: &TokenStream) -> TokenStream {
         let max_u32 = u32::try_from(max_num_args).expect("too many args");
 
         quote! {
@@ -598,7 +607,7 @@ impl<'a> Function<'a> {
                         #max_u32,
                     );
                 };
-                return;
+                #bail
             }
         }
     }
@@ -608,14 +617,15 @@ impl<'a> Function<'a> {
         let max_num_args = self.args.typed.len();
 
         // Arg count validation (matches zend_wrong_parameters_count_error)
-        let count_check = Self::build_fast_count_check(max_num_args);
+        let bail = quote! { return; };
+        let count_check = Self::build_fast_count_check(max_num_args, &bail);
 
         let arg_bindings: Vec<TokenStream> = self
             .args
             .typed
             .iter()
             .enumerate()
-            .map(|(i, arg)| Self::build_fast_arg_binding(i, arg))
+            .map(|(i, arg)| Self::build_fast_arg_binding(i, arg, &bail))
             .collect();
 
         let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
@@ -745,47 +755,71 @@ impl<'a> Function<'a> {
             .map(TypedArg::arg_builder)
             .collect::<Vec<_>>();
         let arg_names: Vec<_> = self.args.typed.iter().map(|arg| arg.name).collect();
-        let arg_declarations = self
-            .args
-            .typed
-            .iter()
-            .map(TypedArg::arg_declaration)
-            .collect::<Vec<_>>();
-        let holder_declarations = self
-            .args
-            .typed
-            .iter()
-            .filter_map(TypedArg::holder_declaration)
-            .collect::<Vec<_>>();
-        let variadic_bindings = self
-            .args
-            .typed
-            .iter()
-            .filter_map(TypedArg::variadic_binding);
-        let arg_accessors = self.args.typed.iter().map(|arg| {
-            arg.accessor(
-                |e| quote! { return ::ext_php_rs::class::ConstructorResult::Exception(#e); },
-            )
-        });
         let docs = &self.docs;
         let flags = visibility.option_tokens();
+
+        // Without a variadic parameter the arguments are read straight from the
+        // call frame, as a method's are: `ArgParser` allocates a name and
+        // formats a default for every parameter on every `new`.
+        let body = if self.has_variadic() {
+            let arg_declarations = self
+                .args
+                .typed
+                .iter()
+                .map(TypedArg::arg_declaration)
+                .collect::<Vec<_>>();
+            let holder_declarations = self
+                .args
+                .typed
+                .iter()
+                .filter_map(TypedArg::holder_declaration)
+                .collect::<Vec<_>>();
+            let variadic_bindings = self
+                .args
+                .typed
+                .iter()
+                .filter_map(TypedArg::variadic_binding);
+            let arg_accessors = self.args.typed.iter().map(|arg| {
+                arg.accessor(
+                    |e| quote! { return ::ext_php_rs::class::ConstructorResult::Exception(#e); },
+                )
+            });
+            quote! {
+                #(#arg_declarations)*
+                #(#holder_declarations)*
+                let parse = ex.parser()
+                    #(.arg(&mut #arg_names))*
+                    .required_args(__REQUIRED)
+                    .parse();
+                if parse.is_err() {
+                    return ::ext_php_rs::class::ConstructorResult::ArgError;
+                }
+                #(#variadic_bindings)*
+                #class::#ident(#({#arg_accessors}),*).into()
+            }
+        } else {
+            let bail = quote! { return ::ext_php_rs::class::ConstructorResult::ArgError; };
+            let count_check = Self::build_fast_count_check(self.args.typed.len(), &bail);
+            let arg_bindings = self
+                .args
+                .typed
+                .iter()
+                .enumerate()
+                .map(|(i, arg)| Self::build_fast_arg_binding(i, arg, &bail));
+            quote! {
+                #count_check
+                #(#arg_bindings)*
+                #class::#ident(#(#arg_names),*).into()
+            }
+        };
 
         quote! {{
             #required
             ::ext_php_rs::class::ConstructorMeta {
                 constructor: {
+                    #[allow(clippy::used_underscore_binding)]
                     fn inner(ex: &mut ::ext_php_rs::zend::ExecuteData) -> ::ext_php_rs::class::ConstructorResult<#class> {
-                        #(#arg_declarations)*
-                        #(#holder_declarations)*
-                        let parse = ex.parser()
-                            #(.arg(&mut #arg_names))*
-                            .required_args(__REQUIRED)
-                            .parse();
-                        if parse.is_err() {
-                            return ::ext_php_rs::class::ConstructorResult::ArgError;
-                        }
-                        #(#variadic_bindings)*
-                        #class::#ident(#({#arg_accessors}),*).into()
+                        #body
                     }
                     inner
                 },

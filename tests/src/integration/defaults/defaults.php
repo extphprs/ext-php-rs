@@ -60,3 +60,50 @@ $args = new OptionalArgs('a');
 assert($args->repeat() === 'aa');
 assert($args->repeat(2, 3) === 'aaaaaa');
 assert(( new OptionalArgs('a', 'b') )->pick(1) === 'abSome(1)None');
+
+// A constructor takes its defaults and refuses a wrong call as a method does.
+assert(( new DefaultedConstructor('ab') )->label() === 'abab');
+assert(( new DefaultedConstructor('ab', 1) )->label() === 'ab');
+assert(( new DefaultedConstructor('ab', 3, '!') )->label() === 'ababab!');
+assert(( new DefaultedConstructor('ab', suffix: '!') )->label() === 'abab!');
+assert(( new DefaultedConstructor('ab', 1, null) )->label() === 'ab');
+
+function construction_error(Closure $construct): string
+{
+    try {
+        $construct();
+    } catch (Throwable $error) {
+        assert($error->getPrevious() === null);
+
+        return $error::class;
+    }
+
+    return 'none';
+}
+
+assert(construction_error(static fn() => new DefaultedConstructor()) === ArgumentCountError::class);
+assert(construction_error(static fn() => new DefaultedConstructor('a', 1, 'b', 'c')) === ArgumentCountError::class);
+assert(construction_error(static fn() => new DefaultedConstructor('a', null)) === TypeError::class);
+assert(construction_error(static fn() => new DefaultedConstructor('a', [])) === TypeError::class);
+assert(construction_error(static fn() => new DefaultedConstructor([])) === TypeError::class);
+
+try {
+    new DefaultedConstructor();
+    assert(false, 'a missing required argument must throw');
+} catch (ArgumentCountError $error) {
+    assert($error->getMessage() === 'DefaultedConstructor::__construct() expects at least 1 argument, 0 given');
+}
+
+try {
+    new DefaultedConstructor('a', 1, 'b', 'c');
+    assert(false, 'an argument past the last parameter must throw');
+} catch (ArgumentCountError $error) {
+    assert($error->getMessage() === 'DefaultedConstructor::__construct() expects at most 3 arguments, 4 given');
+}
+
+try {
+    new DefaultedConstructor('a', null);
+    assert(false, 'null for a defaulted parameter that is not nullable must throw');
+} catch (TypeError $error) {
+    assert($error->getMessage() === 'Argument `$times` must not be null');
+}

@@ -143,6 +143,10 @@ impl ::ext_php_rs::convert::IntoZval for MyClass {
     }
 }
 impl MyClass {
+    pub fn __construct(first: i64, second: i64) -> Self {
+        let _ = (first, second);
+        Self {}
+    }
     pub fn get_first(&self) -> i64 {
         1
     }
@@ -316,7 +320,144 @@ for ::ext_php_rs::internal::class::PhpClassImplCollector<MyClass> {
     fn get_constructor(
         self,
     ) -> ::std::option::Option<::ext_php_rs::class::ConstructorMeta<MyClass>> {
-        ::std::option::Option::None
+        ::std::option::Option::Some({
+            const __REQUIRED: usize = ::ext_php_rs::args::required_count(
+                &[
+                    ::ext_php_rs::internal::argument::nullable::<i64, _>() || false,
+                    ::ext_php_rs::internal::argument::nullable::<i64, _>() || true,
+                ],
+            );
+            ::ext_php_rs::class::ConstructorMeta {
+                constructor: {
+                    #[allow(clippy::used_underscore_binding)]
+                    fn inner(
+                        ex: &mut ::ext_php_rs::zend::ExecuteData,
+                    ) -> ::ext_php_rs::class::ConstructorResult<MyClass> {
+                        let __num_args = unsafe { ex.This.u2.num_args } as usize;
+                        if !(__REQUIRED..=2usize).contains(&__num_args) {
+                            unsafe {
+                                ::ext_php_rs::ffi::zend_wrong_parameters_count_error(
+                                    __REQUIRED.try_into().unwrap_or(u32::MAX),
+                                    2u32,
+                                );
+                            };
+                            return ::ext_php_rs::class::ConstructorResult::ArgError;
+                        }
+                        #[allow(non_snake_case)]
+                        let mut __holder_first = ::ext_php_rs::internal::argument::holder::<
+                            i64,
+                            _,
+                        >();
+                        let first: i64 = if 0usize < __REQUIRED || __num_args > 0usize {
+                            let __zval_0 = unsafe { ex.zend_call_arg(0usize) };
+                            let Some(__zval_0) = __zval_0 else {
+                                return ::ext_php_rs::class::ConstructorResult::ArgError;
+                            };
+                            match ::ext_php_rs::internal::argument::extract::<
+                                i64,
+                                _,
+                            >(__zval_0.dereference_mut(), &mut __holder_first) {
+                                Ok(value) => value,
+                                Err(error) => {
+                                    ::ext_php_rs::internal::argument::argument_error(
+                                            "first",
+                                            &error,
+                                        )
+                                        .throw();
+                                    return ::ext_php_rs::class::ConstructorResult::ArgError;
+                                }
+                            }
+                        } else {
+                            match ::ext_php_rs::internal::argument::missing::<i64, _>() {
+                                Some(value) => value,
+                                None => {
+                                    ::ext_php_rs::exception::PhpException::new(
+                                            "Invalid value given for argument `first`.".into(),
+                                            0,
+                                            ::ext_php_rs::zend::ce::type_error(),
+                                        )
+                                        .throw();
+                                    return ::ext_php_rs::class::ConstructorResult::ArgError;
+                                }
+                            }
+                        };
+                        #[allow(non_snake_case)]
+                        let mut __holder_second = ::ext_php_rs::internal::argument::holder::<
+                            i64,
+                            _,
+                        >();
+                        let second: i64 = if 1usize < __REQUIRED || __num_args > 1usize {
+                            let __zval_1 = unsafe { ex.zend_call_arg(1usize) };
+                            let Some(__zval_1) = __zval_1 else {
+                                return ::ext_php_rs::class::ConstructorResult::ArgError;
+                            };
+                            if !::ext_php_rs::internal::argument::nullable::<i64, _>()
+                                && __zval_1.is_null()
+                            {
+                                ::ext_php_rs::exception::PhpException::new(
+                                        "Argument `$second` must not be null".into(),
+                                        0,
+                                        ::ext_php_rs::zend::ce::type_error(),
+                                    )
+                                    .throw();
+                                return ::ext_php_rs::class::ConstructorResult::ArgError;
+                            }
+                            match ::ext_php_rs::internal::argument::extract::<
+                                i64,
+                                _,
+                            >(__zval_1.dereference_mut(), &mut __holder_second) {
+                                Ok(value) => value,
+                                Err(error) => {
+                                    ::ext_php_rs::internal::argument::argument_error(
+                                            "second",
+                                            &error,
+                                        )
+                                        .throw();
+                                    return ::ext_php_rs::class::ConstructorResult::ArgError;
+                                }
+                            }
+                        } else {
+                            match ::std::option::Option::Some((2).into()) {
+                                Some(value) => value,
+                                None => {
+                                    ::ext_php_rs::exception::PhpException::new(
+                                            "Invalid value given for argument `second`.".into(),
+                                            0,
+                                            ::ext_php_rs::zend::ce::type_error(),
+                                        )
+                                        .throw();
+                                    return ::ext_php_rs::class::ConstructorResult::ArgError;
+                                }
+                            }
+                        };
+                        MyClass::__construct(first, second).into()
+                    }
+                    inner
+                },
+                build_fn: {
+                    fn inner(
+                        func: ::ext_php_rs::builders::FunctionBuilder,
+                    ) -> ::ext_php_rs::builders::FunctionBuilder {
+                        func.docs(&[])
+                            .arg(
+                                ::ext_php_rs::internal::argument::arg::<i64, _>("first"),
+                            )
+                            .arg(
+                                ::ext_php_rs::internal::argument::arg::<i64, _>("second")
+                                    .default({
+                                        let __default: i64 = (2).into();
+                                        ::ext_php_rs::convert::StubLiteral::stub_literal(&__default)
+                                    }),
+                            )
+                            .required_args(__REQUIRED)
+                    }
+                    inner
+                },
+                flags: ::std::option::Option::Some(
+                    ::ext_php_rs::flags::MethodFlags::Public,
+                ),
+            }
+        })
     }
     fn get_constants(
         self,

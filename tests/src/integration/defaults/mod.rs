@@ -76,8 +76,31 @@ impl OptionalArgs {
     }
 }
 
+/// A constructor whose arguments are read from the call frame: a default, an
+/// omitted `Option` and the errors of a wrong call.
+#[php_class]
+pub struct DefaultedConstructor {
+    label: String,
+}
+
+#[php_impl]
+impl DefaultedConstructor {
+    #[php(defaults(times = 2, suffix = None))]
+    pub fn __construct(text: String, times: i64, suffix: Option<String>) -> Self {
+        let repeated = text.repeat(usize::try_from(times).unwrap_or(0));
+        Self {
+            label: format!("{repeated}{}", suffix.unwrap_or_default()),
+        }
+    }
+
+    pub fn label(&self) -> String {
+        self.label.clone()
+    }
+}
+
 pub fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
     builder
+        .class::<DefaultedConstructor>()
         .class::<OptionalArgs>()
         .function(wrap_function!(test_defaults_str))
         .function(wrap_function!(test_defaults_float))
