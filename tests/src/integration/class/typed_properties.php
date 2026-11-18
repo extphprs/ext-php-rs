@@ -22,7 +22,12 @@ $ratio = $class->getProperty('ratio');
 assert((string) $ratio->getType() === 'float');
 assert($ratio->getDefaultValue() === 1.5);
 
+// An int default on a float property is a float, as PHP converts it.
+$scale = $class->getProperty('scale');
+assert($scale->getDefaultValue() === 2.0, var_export($scale->getDefaultValue(), true));
+
 $object = new TestTypedProperties();
+assert($object->scale === 2.0, var_export($object->scale, true));
 
 // Uninitialized until written, as in PHP.
 assert(!isset($object->label));

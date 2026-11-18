@@ -108,6 +108,13 @@ fn counter_properties(builder: ClassBuilder) -> ClassBuilder {
 }
 ```
 
+A property type is `bool`, `int`, `float`, `string`, `array`, `object`, `mixed`
+or a class, nullable or not; `iterable`, `resource`, `callable` and the other
+`DataType`s are refused. A default must be a value of the type (an `int`
+default of a `float` property becomes a float). Readonly typed properties, and
+typed properties of a readonly class, are not supported yet. Registration fails
+with `Error::InvalidPropertyType` otherwise.
+
 `ClassBuilder::property` declares a property without a type; its `ty` only
 shapes the generated stubs.
 

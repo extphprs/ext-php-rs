@@ -897,6 +897,8 @@ fn typed_properties(
     zero.set_long(0);
     let mut ratio = Zval::new();
     ratio.set_double(1.5);
+    let mut two = Zval::new();
+    two.set_long(2);
     builder
         .typed_property(typed(
             "count",
@@ -925,6 +927,14 @@ fn typed_properties(
             DataType::Double,
             false,
             Some(ratio),
+        ))
+        // An int default on a float property is converted, as PHP does.
+        .typed_property(typed(
+            "scale",
+            PropertyFlags::Public,
+            DataType::Double,
+            false,
+            Some(two),
         ))
 }
 
