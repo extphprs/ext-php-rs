@@ -313,11 +313,13 @@ mod union_tests {
 
     #[test]
     fn a_union_return_type_ors_the_members() {
-        let (_, info) = FunctionBuilder::new("f", test_function)
+        let (entry, info) = FunctionBuilder::new("f", test_function)
             .returns(DataType::Long, false, false)
             .or_returns(DataType::Double)
             .build()
             .expect("a union of scalar types");
+        // `build` hands the name to the engine; nothing registers it here.
+        drop(unsafe { std::ffi::CString::from_raw(entry.fname.cast_mut()) });
         assert_eq!(
             info[0].type_.type_mask,
             (1 << crate::ffi::IS_LONG) | (1 << crate::ffi::IS_DOUBLE)
