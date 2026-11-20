@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## [0.17.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.5...ext-php-rs-v0.17.0) - 2026-11-20
+
+### BREAKING CHANGES
+
+- *(class)* [**breaking**] Collect cycles through Rust fields behind a borrow-checked payload ([#824](https://github.com/extphprs/ext-php-rs/pull/824)) (by @ptondereau) [[#824](https://github.com/extphprs/ext-php-rs/issues/824)] 
+
+### Added
+- *(class)* Declare typed properties with `ClassBuilder::typed_property` ([#856](https://github.com/extphprs/ext-php-rs/pull/856)) (by @ChiragAgg5k) [[#856](https://github.com/extphprs/ext-php-rs/issues/856)] 
+
+### Fixed
+- *(bindings)* Generate the bindings with the builtin headers of the loaded libclang's version ([#861](https://github.com/extphprs/ext-php-rs/pull/861)) (by @danog) [[#861](https://github.com/extphprs/ext-php-rs/issues/861)] 
+- Add proper agentic instructions. ([#859](https://github.com/extphprs/ext-php-rs/pull/859)) (by @danog) [[#859](https://github.com/extphprs/ext-php-rs/issues/859)] 
+
+### Other
+- *(macro)* Read constructor arguments from the call frame ([#858](https://github.com/extphprs/ext-php-rs/pull/858)) (by @loks0n) [[#858](https://github.com/extphprs/ext-php-rs/issues/858)] 
+- Test with PHP 8.6 everywhere, and generate the docs.rs bindings with it ([#860](https://github.com/extphprs/ext-php-rs/pull/860)) (by @danog) [[#860](https://github.com/extphprs/ext-php-rs/issues/860)] 
+- Switch default branch from master to main ([#852](https://github.com/extphprs/ext-php-rs/pull/852)) (by @ptondereau) [[#852](https://github.com/extphprs/ext-php-rs/issues/852)] 
 ## [0.16.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.4...ext-php-rs-v0.16.5) - 2026-11-16
 
 ### Added
