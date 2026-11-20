@@ -12,7 +12,7 @@ concurrency:
 
 env:
   clang: "17"
-  php_version: "8.4"
+  php_version: "8.6"
 
 jobs:
   benchmarks:
