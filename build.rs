@@ -92,8 +92,36 @@ fn build_embed(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
+/// Points bindgen at the `clang` of the loaded libclang's version, unless `CLANG_PATH` is set.
+///
+/// bindgen takes clang's builtin headers (`stddef.h`, the x86 intrinsics) from the `clang` it
+/// finds through `CLANG_PATH`, `llvm-config` or `PATH`, whatever the version of the libclang that
+/// parses them. With several LLVM versions installed, libclang 22 can get clang 21's
+/// `xmmintrin.h`, whose builtins it lacks, and the bindings fail to generate.
+fn use_clang_of_libclang() {
+    if env::var_os("CLANG_PATH").is_some() {
+        return;
+    }
+    let Some((major, _)) = bindgen::clang_version().parsed else {
+        return;
+    };
+    let exe = env::consts::EXE_SUFFIX;
+    let mut candidates = vec![PathBuf::from(format!(
+        "/usr/lib/llvm-{major}/bin/clang{exe}"
+    ))];
+    if let Some(path) = env::var_os("PATH") {
+        candidates
+            .extend(env::split_paths(&path).map(|dir| dir.join(format!("clang-{major}{exe}"))));
+    }
+    if let Some(clang) = candidates.into_iter().find(|clang| clang.is_file()) {
+        // SAFETY: the build script runs no other thread that could read the environment.
+        unsafe { env::set_var("CLANG_PATH", clang) };
+    }
+}
+
 /// Generates bindings to the Zend API.
 fn generate_bindings(defines: &[(&str, &str)], includes: &[PathBuf]) -> Result<String> {
+    use_clang_of_libclang();
     let mut bindgen = bindgen::Builder::default();
 
     #[cfg(feature = "embed")]
@@ -229,6 +257,7 @@ fn main() -> Result<()> {
         "PHP",
         "PHP_CONFIG",
         "PATH",
+        "CLANG_PATH",
         "EXT_PHP_RS_ALLOWED_BINDINGS",
         "EXT_PHP_RS_STATIC_EXT",
     ] {

@@ -221,6 +221,24 @@ jobs:
           echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-17/bin/llvm-config" >> $GITHUB_ENV
       - name: Run compile-fail fixtures
         run: cargo test --test ui -- --ignored
+  build-runner-llvm:
+    # With the runner image's own LLVM, none selected: ubuntu-latest has several (20, 21 and 22), and
+    # the bindings must be generated with the builtin headers of the libclang that parses them.
+    name: Build with the runner's LLVM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.6"
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Build
+        run: cargo build -p ext-php-rs
   test-embed:
     name: Test with embed (${{ matrix.label }})
     runs-on: ubuntu-latest
