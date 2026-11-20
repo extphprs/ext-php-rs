@@ -17,7 +17,7 @@ on:
 
 env:
   clang: "17"
-  php_version: "8.5"
+  php_version: "8.6"
 
 jobs:
   release-plz-release:

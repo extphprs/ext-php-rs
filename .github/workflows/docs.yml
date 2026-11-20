@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest"]
-        php: ["8.2"]
+        php: ["8.6"]
         clang: ["17"]
         mdbook: ["latest"]
     permissions:

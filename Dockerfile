@@ -1,5 +1,5 @@
 FROM rust:latest AS base
-ARG PHP_VERSION=8.5
+ARG PHP_VERSION=8.6
 WORKDIR /tmp
 RUN <<EOF
 set -e

@@ -521,9 +521,9 @@ pub const IS_INDIRECT: u32 = 12;
 pub const IS_PTR: u32 = 13;
 pub const _IS_BOOL: u32 = 18;
 pub const Z_TYPE_FLAGS_SHIFT: u32 = 8;
+pub const GC_IMMUTABLE: u32 = 64;
 pub const GC_FLAGS_MASK: u32 = 1008;
 pub const GC_FLAGS_SHIFT: u32 = 0;
-pub const GC_IMMUTABLE: u32 = 64;
 pub const IS_TYPE_REFCOUNTED: u32 = 1;
 pub const IS_TYPE_COLLECTABLE: u32 = 2;
 pub const IS_INTERNED_STRING_EX: u32 = 6;
@@ -604,13 +604,10 @@ pub const ZEND_ACC_HEAP_RT_CACHE: u32 = 67108864;
 pub const ZEND_ACC_STRICT_TYPES: u32 = 2147483648;
 pub const BP_VAR_R: u32 = 0;
 pub const BP_VAR_IS: u32 = 3;
-pub const ZEND_INTERNAL_FUNCTION: u32 = 1;
-pub const ZEND_USER_FUNCTION: u32 = 2;
-pub const ZEND_EVAL_CODE: u32 = 4;
 pub const ZEND_ISEMPTY: u32 = 1;
 pub const _ZEND_SEND_MODE_SHIFT: u32 = 25;
 pub const _ZEND_IS_VARIADIC_BIT: u32 = 134217728;
-pub const ZEND_MODULE_API_NO: u32 = 20250925;
+pub const ZEND_MODULE_API_NO: u32 = 20261112;
 pub const USING_ZTS: u32 = 0;
 pub const MODULE_PERSISTENT: u32 = 1;
 pub const MODULE_TEMPORARY: u32 = 2;
@@ -765,10 +762,18 @@ impl _IO_FILE {
 pub type zend_long = i64;
 pub type zend_ulong = u64;
 pub type zend_off_t = i64;
-pub const ZEND_RESULT_CODE_SUCCESS: ZEND_RESULT_CODE = 0;
-pub const ZEND_RESULT_CODE_FAILURE: ZEND_RESULT_CODE = -1;
-pub type ZEND_RESULT_CODE = ::std::os::raw::c_int;
-pub use self::ZEND_RESULT_CODE as zend_result;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zend_atomic_bool_s {
+    pub value: bool,
+}
+pub type zend_atomic_bool = zend_atomic_bool_s;
+unsafe extern "C" {
+    pub fn zend_atomic_bool_store(obj: *mut zend_atomic_bool, desired: bool);
+}
+pub const zend_result_SUCCESS: zend_result = 0;
+pub const zend_result_FAILURE: zend_result = -1;
+pub type zend_result = ::std::os::raw::c_int;
 pub type zend_object_handlers = _zend_object_handlers;
 pub type zend_class_entry = _zend_class_entry;
 pub type zend_function = _zend_function;
@@ -1086,86 +1091,94 @@ pub const _zend_known_string_id_ZEND_STR_TYPE: _zend_known_string_id = 5;
 pub const _zend_known_string_id_ZEND_STR_OBJECT_OPERATOR: _zend_known_string_id = 6;
 pub const _zend_known_string_id_ZEND_STR_PAAMAYIM_NEKUDOTAYIM: _zend_known_string_id = 7;
 pub const _zend_known_string_id_ZEND_STR_ARGS: _zend_known_string_id = 8;
-pub const _zend_known_string_id_ZEND_STR_UNKNOWN: _zend_known_string_id = 9;
-pub const _zend_known_string_id_ZEND_STR_UNKNOWN_CAPITALIZED: _zend_known_string_id = 10;
-pub const _zend_known_string_id_ZEND_STR_EXIT: _zend_known_string_id = 11;
-pub const _zend_known_string_id_ZEND_STR_CLONE: _zend_known_string_id = 12;
-pub const _zend_known_string_id_ZEND_STR_EVAL: _zend_known_string_id = 13;
-pub const _zend_known_string_id_ZEND_STR_INCLUDE: _zend_known_string_id = 14;
-pub const _zend_known_string_id_ZEND_STR_REQUIRE: _zend_known_string_id = 15;
-pub const _zend_known_string_id_ZEND_STR_INCLUDE_ONCE: _zend_known_string_id = 16;
-pub const _zend_known_string_id_ZEND_STR_REQUIRE_ONCE: _zend_known_string_id = 17;
-pub const _zend_known_string_id_ZEND_STR_SCALAR: _zend_known_string_id = 18;
-pub const _zend_known_string_id_ZEND_STR_ERROR_REPORTING: _zend_known_string_id = 19;
-pub const _zend_known_string_id_ZEND_STR_STATIC: _zend_known_string_id = 20;
-pub const _zend_known_string_id_ZEND_STR_THIS: _zend_known_string_id = 21;
-pub const _zend_known_string_id_ZEND_STR_VALUE: _zend_known_string_id = 22;
-pub const _zend_known_string_id_ZEND_STR_KEY: _zend_known_string_id = 23;
-pub const _zend_known_string_id_ZEND_STR_MAGIC_INVOKE: _zend_known_string_id = 24;
-pub const _zend_known_string_id_ZEND_STR_PREVIOUS: _zend_known_string_id = 25;
-pub const _zend_known_string_id_ZEND_STR_CODE: _zend_known_string_id = 26;
-pub const _zend_known_string_id_ZEND_STR_MESSAGE: _zend_known_string_id = 27;
-pub const _zend_known_string_id_ZEND_STR_SEVERITY: _zend_known_string_id = 28;
-pub const _zend_known_string_id_ZEND_STR_STRING: _zend_known_string_id = 29;
-pub const _zend_known_string_id_ZEND_STR_TRACE: _zend_known_string_id = 30;
-pub const _zend_known_string_id_ZEND_STR_SCHEME: _zend_known_string_id = 31;
-pub const _zend_known_string_id_ZEND_STR_HOST: _zend_known_string_id = 32;
-pub const _zend_known_string_id_ZEND_STR_PORT: _zend_known_string_id = 33;
-pub const _zend_known_string_id_ZEND_STR_USER: _zend_known_string_id = 34;
-pub const _zend_known_string_id_ZEND_STR_USERNAME: _zend_known_string_id = 35;
-pub const _zend_known_string_id_ZEND_STR_PASS: _zend_known_string_id = 36;
-pub const _zend_known_string_id_ZEND_STR_PASSWORD: _zend_known_string_id = 37;
-pub const _zend_known_string_id_ZEND_STR_PATH: _zend_known_string_id = 38;
-pub const _zend_known_string_id_ZEND_STR_QUERY: _zend_known_string_id = 39;
-pub const _zend_known_string_id_ZEND_STR_FRAGMENT: _zend_known_string_id = 40;
-pub const _zend_known_string_id_ZEND_STR_NULL: _zend_known_string_id = 41;
-pub const _zend_known_string_id_ZEND_STR_BOOLEAN: _zend_known_string_id = 42;
-pub const _zend_known_string_id_ZEND_STR_INTEGER: _zend_known_string_id = 43;
-pub const _zend_known_string_id_ZEND_STR_DOUBLE: _zend_known_string_id = 44;
-pub const _zend_known_string_id_ZEND_STR_ARRAY: _zend_known_string_id = 45;
-pub const _zend_known_string_id_ZEND_STR_RESOURCE: _zend_known_string_id = 46;
-pub const _zend_known_string_id_ZEND_STR_CLOSED_RESOURCE: _zend_known_string_id = 47;
-pub const _zend_known_string_id_ZEND_STR_NAME: _zend_known_string_id = 48;
-pub const _zend_known_string_id_ZEND_STR_ARGV: _zend_known_string_id = 49;
-pub const _zend_known_string_id_ZEND_STR_ARGC: _zend_known_string_id = 50;
-pub const _zend_known_string_id_ZEND_STR_ARRAY_CAPITALIZED: _zend_known_string_id = 51;
-pub const _zend_known_string_id_ZEND_STR_BOOL: _zend_known_string_id = 52;
-pub const _zend_known_string_id_ZEND_STR_INT: _zend_known_string_id = 53;
-pub const _zend_known_string_id_ZEND_STR_FLOAT: _zend_known_string_id = 54;
-pub const _zend_known_string_id_ZEND_STR_CALLABLE: _zend_known_string_id = 55;
-pub const _zend_known_string_id_ZEND_STR_ITERABLE: _zend_known_string_id = 56;
-pub const _zend_known_string_id_ZEND_STR_VOID: _zend_known_string_id = 57;
-pub const _zend_known_string_id_ZEND_STR_NEVER: _zend_known_string_id = 58;
-pub const _zend_known_string_id_ZEND_STR_FALSE: _zend_known_string_id = 59;
-pub const _zend_known_string_id_ZEND_STR_TRUE: _zend_known_string_id = 60;
-pub const _zend_known_string_id_ZEND_STR_NULL_LOWERCASE: _zend_known_string_id = 61;
-pub const _zend_known_string_id_ZEND_STR_MIXED: _zend_known_string_id = 62;
-pub const _zend_known_string_id_ZEND_STR_TRAVERSABLE: _zend_known_string_id = 63;
-pub const _zend_known_string_id_ZEND_STR_SELF: _zend_known_string_id = 64;
-pub const _zend_known_string_id_ZEND_STR_PARENT: _zend_known_string_id = 65;
-pub const _zend_known_string_id_ZEND_STR_SLEEP: _zend_known_string_id = 66;
-pub const _zend_known_string_id_ZEND_STR_WAKEUP: _zend_known_string_id = 67;
-pub const _zend_known_string_id_ZEND_STR_CASES: _zend_known_string_id = 68;
-pub const _zend_known_string_id_ZEND_STR_FROM: _zend_known_string_id = 69;
-pub const _zend_known_string_id_ZEND_STR_TRYFROM: _zend_known_string_id = 70;
-pub const _zend_known_string_id_ZEND_STR_TRYFROM_LOWERCASE: _zend_known_string_id = 71;
-pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_SERVER: _zend_known_string_id = 72;
-pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_ENV: _zend_known_string_id = 73;
-pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_REQUEST: _zend_known_string_id = 74;
-pub const _zend_known_string_id_ZEND_STR_COUNT: _zend_known_string_id = 75;
-pub const _zend_known_string_id_ZEND_STR_SENSITIVEPARAMETER: _zend_known_string_id = 76;
-pub const _zend_known_string_id_ZEND_STR_CONST_EXPR_PLACEHOLDER: _zend_known_string_id = 77;
-pub const _zend_known_string_id_ZEND_STR_DEPRECATED_CAPITALIZED: _zend_known_string_id = 78;
-pub const _zend_known_string_id_ZEND_STR_SINCE: _zend_known_string_id = 79;
-pub const _zend_known_string_id_ZEND_STR_GET: _zend_known_string_id = 80;
-pub const _zend_known_string_id_ZEND_STR_SET: _zend_known_string_id = 81;
-pub const _zend_known_string_id_ZEND_STR_8_DOT_0: _zend_known_string_id = 82;
-pub const _zend_known_string_id_ZEND_STR_8_DOT_1: _zend_known_string_id = 83;
-pub const _zend_known_string_id_ZEND_STR_8_DOT_2: _zend_known_string_id = 84;
-pub const _zend_known_string_id_ZEND_STR_8_DOT_3: _zend_known_string_id = 85;
-pub const _zend_known_string_id_ZEND_STR_8_DOT_4: _zend_known_string_id = 86;
-pub const _zend_known_string_id_ZEND_STR_8_DOT_5: _zend_known_string_id = 87;
-pub const _zend_known_string_id_ZEND_STR_LAST_KNOWN: _zend_known_string_id = 88;
+pub const _zend_known_string_id_ZEND_STR_ARGUMENTS: _zend_known_string_id = 9;
+pub const _zend_known_string_id_ZEND_STR_UNKNOWN: _zend_known_string_id = 10;
+pub const _zend_known_string_id_ZEND_STR_UNKNOWN_CAPITALIZED: _zend_known_string_id = 11;
+pub const _zend_known_string_id_ZEND_STR_EXIT: _zend_known_string_id = 12;
+pub const _zend_known_string_id_ZEND_STR_CLONE: _zend_known_string_id = 13;
+pub const _zend_known_string_id_ZEND_STR_EVAL: _zend_known_string_id = 14;
+pub const _zend_known_string_id_ZEND_STR_INCLUDE: _zend_known_string_id = 15;
+pub const _zend_known_string_id_ZEND_STR_REQUIRE: _zend_known_string_id = 16;
+pub const _zend_known_string_id_ZEND_STR_INCLUDE_ONCE: _zend_known_string_id = 17;
+pub const _zend_known_string_id_ZEND_STR_REQUIRE_ONCE: _zend_known_string_id = 18;
+pub const _zend_known_string_id_ZEND_STR_SCALAR: _zend_known_string_id = 19;
+pub const _zend_known_string_id_ZEND_STR_ERROR_REPORTING: _zend_known_string_id = 20;
+pub const _zend_known_string_id_ZEND_STR_STATIC: _zend_known_string_id = 21;
+pub const _zend_known_string_id_ZEND_STR_THIS: _zend_known_string_id = 22;
+pub const _zend_known_string_id_ZEND_STR_VALUE: _zend_known_string_id = 23;
+pub const _zend_known_string_id_ZEND_STR_KEY: _zend_known_string_id = 24;
+pub const _zend_known_string_id_ZEND_STR_MAGIC_INVOKE: _zend_known_string_id = 25;
+pub const _zend_known_string_id_ZEND_STR_PREVIOUS: _zend_known_string_id = 26;
+pub const _zend_known_string_id_ZEND_STR_CODE: _zend_known_string_id = 27;
+pub const _zend_known_string_id_ZEND_STR_MESSAGE: _zend_known_string_id = 28;
+pub const _zend_known_string_id_ZEND_STR_SEVERITY: _zend_known_string_id = 29;
+pub const _zend_known_string_id_ZEND_STR_STRING: _zend_known_string_id = 30;
+pub const _zend_known_string_id_ZEND_STR_TRACE: _zend_known_string_id = 31;
+pub const _zend_known_string_id_ZEND_STR_SCHEME: _zend_known_string_id = 32;
+pub const _zend_known_string_id_ZEND_STR_HOST: _zend_known_string_id = 33;
+pub const _zend_known_string_id_ZEND_STR_PORT: _zend_known_string_id = 34;
+pub const _zend_known_string_id_ZEND_STR_USER: _zend_known_string_id = 35;
+pub const _zend_known_string_id_ZEND_STR_USERNAME: _zend_known_string_id = 36;
+pub const _zend_known_string_id_ZEND_STR_PASS: _zend_known_string_id = 37;
+pub const _zend_known_string_id_ZEND_STR_PASSWORD: _zend_known_string_id = 38;
+pub const _zend_known_string_id_ZEND_STR_PATH: _zend_known_string_id = 39;
+pub const _zend_known_string_id_ZEND_STR_QUERY: _zend_known_string_id = 40;
+pub const _zend_known_string_id_ZEND_STR_FRAGMENT: _zend_known_string_id = 41;
+pub const _zend_known_string_id_ZEND_STR_NULL: _zend_known_string_id = 42;
+pub const _zend_known_string_id_ZEND_STR_BOOLEAN: _zend_known_string_id = 43;
+pub const _zend_known_string_id_ZEND_STR_INTEGER: _zend_known_string_id = 44;
+pub const _zend_known_string_id_ZEND_STR_DOUBLE: _zend_known_string_id = 45;
+pub const _zend_known_string_id_ZEND_STR_ARRAY: _zend_known_string_id = 46;
+pub const _zend_known_string_id_ZEND_STR_RESOURCE: _zend_known_string_id = 47;
+pub const _zend_known_string_id_ZEND_STR_CLOSED_RESOURCE: _zend_known_string_id = 48;
+pub const _zend_known_string_id_ZEND_STR_NAME: _zend_known_string_id = 49;
+pub const _zend_known_string_id_ZEND_STR_ARGV: _zend_known_string_id = 50;
+pub const _zend_known_string_id_ZEND_STR_ARGC: _zend_known_string_id = 51;
+pub const _zend_known_string_id_ZEND_STR_ARRAY_CAPITALIZED: _zend_known_string_id = 52;
+pub const _zend_known_string_id_ZEND_STR_BOOL: _zend_known_string_id = 53;
+pub const _zend_known_string_id_ZEND_STR_INT: _zend_known_string_id = 54;
+pub const _zend_known_string_id_ZEND_STR_FLOAT: _zend_known_string_id = 55;
+pub const _zend_known_string_id_ZEND_STR_CALLABLE: _zend_known_string_id = 56;
+pub const _zend_known_string_id_ZEND_STR_ITERABLE: _zend_known_string_id = 57;
+pub const _zend_known_string_id_ZEND_STR_VOID: _zend_known_string_id = 58;
+pub const _zend_known_string_id_ZEND_STR_NEVER: _zend_known_string_id = 59;
+pub const _zend_known_string_id_ZEND_STR_FALSE: _zend_known_string_id = 60;
+pub const _zend_known_string_id_ZEND_STR_TRUE: _zend_known_string_id = 61;
+pub const _zend_known_string_id_ZEND_STR_NULL_LOWERCASE: _zend_known_string_id = 62;
+pub const _zend_known_string_id_ZEND_STR_MIXED: _zend_known_string_id = 63;
+pub const _zend_known_string_id_ZEND_STR_TRAVERSABLE: _zend_known_string_id = 64;
+pub const _zend_known_string_id_ZEND_STR_SELF: _zend_known_string_id = 65;
+pub const _zend_known_string_id_ZEND_STR_PARENT: _zend_known_string_id = 66;
+pub const _zend_known_string_id_ZEND_STR_SLEEP: _zend_known_string_id = 67;
+pub const _zend_known_string_id_ZEND_STR_WAKEUP: _zend_known_string_id = 68;
+pub const _zend_known_string_id_ZEND_STR_CASES: _zend_known_string_id = 69;
+pub const _zend_known_string_id_ZEND_STR_FROM: _zend_known_string_id = 70;
+pub const _zend_known_string_id_ZEND_STR_TRYFROM: _zend_known_string_id = 71;
+pub const _zend_known_string_id_ZEND_STR_TRYFROM_LOWERCASE: _zend_known_string_id = 72;
+pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_SERVER: _zend_known_string_id = 73;
+pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_ENV: _zend_known_string_id = 74;
+pub const _zend_known_string_id_ZEND_STR_AUTOGLOBAL_REQUEST: _zend_known_string_id = 75;
+pub const _zend_known_string_id_ZEND_STR_COUNT: _zend_known_string_id = 76;
+pub const _zend_known_string_id_ZEND_STR_FUNC_NUM_ARGS: _zend_known_string_id = 77;
+pub const _zend_known_string_id_ZEND_STR_FUNC_GET_ARGS: _zend_known_string_id = 78;
+pub const _zend_known_string_id_ZEND_STR_ASSERT: _zend_known_string_id = 79;
+pub const _zend_known_string_id_ZEND_STR_CALL_USER_FUNC: _zend_known_string_id = 80;
+pub const _zend_known_string_id_ZEND_STR_ARRAY_SLICE: _zend_known_string_id = 81;
+pub const _zend_known_string_id_ZEND_STR_SENSITIVEPARAMETER: _zend_known_string_id = 82;
+pub const _zend_known_string_id_ZEND_STR_CONST_EXPR_PLACEHOLDER: _zend_known_string_id = 83;
+pub const _zend_known_string_id_ZEND_STR_DEPRECATED_CAPITALIZED: _zend_known_string_id = 84;
+pub const _zend_known_string_id_ZEND_STR_SINCE: _zend_known_string_id = 85;
+pub const _zend_known_string_id_ZEND_STR_NODISCARD: _zend_known_string_id = 86;
+pub const _zend_known_string_id_ZEND_STR_GET: _zend_known_string_id = 87;
+pub const _zend_known_string_id_ZEND_STR_SET: _zend_known_string_id = 88;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_0: _zend_known_string_id = 89;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_1: _zend_known_string_id = 90;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_2: _zend_known_string_id = 91;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_3: _zend_known_string_id = 92;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_4: _zend_known_string_id = 93;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_5: _zend_known_string_id = 94;
+pub const _zend_known_string_id_ZEND_STR_8_DOT_6: _zend_known_string_id = 95;
+pub const _zend_known_string_id_ZEND_STR_LAST_KNOWN: _zend_known_string_id = 96;
 pub type _zend_known_string_id = ::std::os::raw::c_uint;
 pub const zend_hash_key_type_HASH_KEY_IS_STRING: zend_hash_key_type = 1;
 pub const zend_hash_key_type_HASH_KEY_IS_LONG: zend_hash_key_type = 2;
@@ -1521,15 +1534,17 @@ pub struct _zend_inheritance_cache_entry {
     pub warnings: *mut *mut zend_error_info,
     pub traits_and_interfaces: [*mut zend_class_entry; 1usize],
 }
+pub type zend_class_type = u8;
 #[repr(C)]
 pub struct _zend_class_entry {
-    pub type_: ::std::os::raw::c_char,
+    pub type_: zend_class_type,
     pub name: *mut zend_string,
     pub __bindgen_anon_1: _zend_class_entry__bindgen_ty_1,
-    pub refcount: ::std::os::raw::c_int,
+    pub refcount: u32,
     pub ce_flags: u32,
+    pub ce_flags2: u32,
     pub default_properties_count: ::std::os::raw::c_int,
-    pub default_static_members_count: ::std::os::raw::c_int,
+    pub default_static_members_count: u32,
     pub default_properties_table: *mut zval,
     pub default_static_members_table: *mut zval,
     pub static_members_table__ptr: *mut zval,
@@ -1841,7 +1856,7 @@ pub type zend_object_do_operation_t = ::std::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_object_handlers {
-    pub offset: ::std::os::raw::c_int,
+    pub offset: usize,
     pub free_obj: zend_object_free_obj_t,
     pub dtor_obj: zend_object_dtor_obj_t,
     pub clone_obj: zend_object_clone_obj_t,
@@ -2026,8 +2041,8 @@ pub struct _zend_oparray_context {
     pub prev: *mut _zend_oparray_context,
     pub op_array: *mut zend_op_array,
     pub opcodes_size: u32,
-    pub vars_size: ::std::os::raw::c_int,
-    pub literals_size: ::std::os::raw::c_int,
+    pub vars_size: u32,
+    pub literals_size: u32,
     pub fast_call_var: u32,
     pub try_catch_offset: u32,
     pub current_brk_cont: ::std::os::raw::c_int,
@@ -2037,6 +2052,7 @@ pub struct _zend_oparray_context {
     pub active_property_info_name: *mut zend_string,
     pub active_property_hook_kind: zend_property_hook_kind,
     pub in_jmp_frameless_branch: bool,
+    pub in_finally: bool,
     pub has_assigned_to_http_response_header: bool,
 }
 pub type zend_oparray_context = _zend_oparray_context;
@@ -2062,6 +2078,7 @@ pub struct _zend_class_constant {
     pub type_: zend_type,
 }
 pub type zend_class_constant = _zend_class_constant;
+pub type zend_function_type = u8;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_internal_arg_info {
@@ -2076,12 +2093,13 @@ pub struct _zend_arg_info {
     pub name: *mut zend_string,
     pub type_: zend_type,
     pub default_value: *mut zend_string,
+    pub doc_comment: *mut zend_string,
 }
 pub type zend_arg_info = _zend_arg_info;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_op_array {
-    pub type_: u8,
+    pub type_: zend_function_type,
     pub arg_flags: [u8; 3usize],
     pub fn_flags: u32,
     pub function_name: *mut zend_string,
@@ -2094,8 +2112,9 @@ pub struct _zend_op_array {
     pub run_time_cache__ptr: *mut *mut ::std::os::raw::c_void,
     pub doc_comment: *mut zend_string,
     pub T: u32,
+    pub fn_flags2: u32,
     pub prop_info: *const zend_property_info,
-    pub cache_size: ::std::os::raw::c_int,
+    pub cache_size: u32,
     pub last_var: ::std::os::raw::c_int,
     pub last: u32,
     pub opcodes: *mut zend_op,
@@ -2103,14 +2122,14 @@ pub struct _zend_op_array {
     pub static_variables: *mut HashTable,
     pub vars: *mut *mut zend_string,
     pub refcount: *mut u32,
-    pub last_live_range: ::std::os::raw::c_int,
-    pub last_try_catch: ::std::os::raw::c_int,
+    pub last_live_range: u32,
+    pub last_try_catch: u32,
     pub live_range: *mut zend_live_range,
     pub try_catch_array: *mut zend_try_catch_element,
     pub filename: *mut zend_string,
     pub line_start: u32,
     pub line_end: u32,
-    pub last_literal: ::std::os::raw::c_int,
+    pub last_literal: u32,
     pub num_dynamic_func_defs: u32,
     pub literals: *mut zval,
     pub dynamic_func_defs: *mut *mut zend_op_array,
@@ -2122,39 +2141,7 @@ pub type zif_handler = ::std::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _zend_internal_function {
-    pub type_: u8,
-    pub arg_flags: [u8; 3usize],
-    pub fn_flags: u32,
-    pub function_name: *mut zend_string,
-    pub scope: *mut zend_class_entry,
-    pub prototype: *mut zend_function,
-    pub num_args: u32,
-    pub required_num_args: u32,
-    pub arg_info: *mut zend_internal_arg_info,
-    pub attributes: *mut HashTable,
-    pub run_time_cache__ptr: *mut *mut ::std::os::raw::c_void,
-    pub doc_comment: *mut zend_string,
-    pub T: u32,
-    pub prop_info: *const zend_property_info,
-    pub handler: zif_handler,
-    pub module: *mut _zend_module_entry,
-    pub frameless_function_infos: *const zend_frameless_function_info,
-    pub reserved: [*mut ::std::os::raw::c_void; 6usize],
-}
-pub type zend_internal_function = _zend_internal_function;
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union _zend_function {
-    pub type_: u8,
-    pub quick_arg_flags: u32,
-    pub common: _zend_function__bindgen_ty_1,
-    pub op_array: zend_op_array,
-    pub internal_function: zend_internal_function,
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct _zend_function__bindgen_ty_1 {
-    pub type_: u8,
+    pub type_: zend_function_type,
     pub arg_flags: [u8; 3usize],
     pub fn_flags: u32,
     pub function_name: *mut zend_string,
@@ -2167,6 +2154,40 @@ pub struct _zend_function__bindgen_ty_1 {
     pub run_time_cache__ptr: *mut *mut ::std::os::raw::c_void,
     pub doc_comment: *mut zend_string,
     pub T: u32,
+    pub fn_flags2: u32,
+    pub prop_info: *const zend_property_info,
+    pub handler: zif_handler,
+    pub module: *mut _zend_module_entry,
+    pub frameless_function_infos: *const zend_frameless_function_info,
+    pub reserved: [*mut ::std::os::raw::c_void; 6usize],
+}
+pub type zend_internal_function = _zend_internal_function;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union _zend_function {
+    pub type_: zend_function_type,
+    pub quick_arg_flags: u32,
+    pub common: _zend_function__bindgen_ty_1,
+    pub op_array: zend_op_array,
+    pub internal_function: zend_internal_function,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _zend_function__bindgen_ty_1 {
+    pub type_: zend_function_type,
+    pub arg_flags: [u8; 3usize],
+    pub fn_flags: u32,
+    pub function_name: *mut zend_string,
+    pub scope: *mut zend_class_entry,
+    pub prototype: *mut zend_function,
+    pub num_args: u32,
+    pub required_num_args: u32,
+    pub arg_info: *mut zend_arg_info,
+    pub attributes: *mut HashTable,
+    pub run_time_cache__ptr: *mut *mut ::std::os::raw::c_void,
+    pub doc_comment: *mut zend_string,
+    pub T: u32,
+    pub fn_flags2: u32,
     pub prop_info: *const zend_property_info,
 }
 #[repr(C)]
@@ -2197,7 +2218,7 @@ pub struct _zend_compiler_globals {
     pub loop_var_stack: zend_stack,
     pub active_class_entry: *mut zend_class_entry,
     pub compiled_filename: *mut zend_string,
-    pub zend_lineno: ::std::os::raw::c_int,
+    pub zend_lineno: u32,
     pub active_op_array: *mut zend_op_array,
     pub function_table: *mut HashTable,
     pub class_table: *mut HashTable,
@@ -2243,21 +2264,18 @@ pub struct _zend_compiler_globals {
     pub internal_run_time_cache: *mut ::std::os::raw::c_void,
     pub internal_run_time_cache_size: u32,
     pub short_circuiting_opnums: zend_stack,
+    pub __bindgen_anon_1: _zend_compiler_globals__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union _zend_compiler_globals__bindgen_ty_1 {
+    pub padding: [u64; 8usize],
 }
 unsafe extern "C" {
     pub static mut compiler_globals: _zend_compiler_globals;
 }
 unsafe extern "C" {
     pub static mut executor_globals: zend_executor_globals;
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct zend_atomic_bool_s {
-    pub value: bool,
-}
-pub type zend_atomic_bool = zend_atomic_bool_s;
-unsafe extern "C" {
-    pub fn zend_atomic_bool_store(obj: *mut zend_atomic_bool, desired: bool);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2275,7 +2293,7 @@ unsafe extern "C" {
     pub fn zend_objects_new(ce: *mut zend_class_entry) -> *mut zend_object;
 }
 unsafe extern "C" {
-    pub fn zend_objects_clone_members(new_object: *mut zend_object, old_object: *mut zend_object);
+    pub fn zend_objects_clone_members(new_object: *mut zend_object, old_object: *const zend_object);
 }
 unsafe extern "C" {
     pub fn zend_object_std_dtor(object: *mut zend_object);
@@ -2322,6 +2340,13 @@ pub const zend_memoize_mode_ZEND_MEMOIZE_COMPILE: zend_memoize_mode = 1;
 pub const zend_memoize_mode_ZEND_MEMOIZE_FETCH: zend_memoize_mode = 2;
 pub type zend_memoize_mode = ::std::os::raw::c_uint;
 #[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zend_err_buf {
+    pub size: u32,
+    pub capacity: u32,
+    pub errors: *mut *mut zend_error_info,
+}
+#[repr(C)]
 pub struct _zend_executor_globals {
     pub uninitialized_zval: zval,
     pub error_zval: zval,
@@ -2346,7 +2371,7 @@ pub struct _zend_executor_globals {
     pub fake_scope: *const zend_class_entry,
     pub jit_trace_num: u32,
     pub current_observed_frame: *mut zend_execute_data,
-    pub ticks_count: ::std::os::raw::c_int,
+    pub ticks_count: u32,
     pub precision: zend_long,
     pub persistent_constants_count: u32,
     pub persistent_functions_count: u32,
@@ -2355,7 +2380,7 @@ pub struct _zend_executor_globals {
     pub full_tables_cleanup: bool,
     pub vm_interrupt: zend_atomic_bool,
     pub timed_out: zend_atomic_bool,
-    pub in_autoload: *mut HashTable,
+    pub autoload_current_classnames: HashTable,
     pub hard_timeout: zend_long,
     pub stack_base: *mut ::std::os::raw::c_void,
     pub stack_limit: *mut ::std::os::raw::c_void,
@@ -2378,7 +2403,6 @@ pub struct _zend_executor_globals {
     pub objects_store: zend_objects_store,
     pub lazy_objects_store: zend_lazy_objects_store,
     pub exception: *mut zend_object,
-    pub prev_exception: *mut zend_object,
     pub opline_before_exception: *const zend_op,
     pub exception_op: [zend_op; 3usize],
     pub current_module: *mut _zend_module_entry,
@@ -2400,16 +2424,28 @@ pub struct _zend_executor_globals {
     pub active_fiber: *mut zend_fiber,
     pub fiber_stack_size: usize,
     pub record_errors: bool,
-    pub num_errors: u32,
-    pub errors: *mut *mut zend_error_info,
+    pub errors: zend_err_buf,
     pub filename_override: *mut zend_string,
     pub lineno_override: zend_long,
     pub call_stack: zend_call_stack,
     pub max_allowed_stack_size: zend_long,
     pub reserved_stack_size: zend_ulong,
     pub strtod_state: zend_strtod_state,
+    pub callable_convert_cache: HashTable,
+    pub partial_function_application_cache: HashTable,
+    pub lambda_cache: zend_stack,
+    pub vm_stack_page_cache: zend_vm_stack,
+    pub vm_stack_page_cache_count: u32,
+    pub fiber_vm_stack_page_cache: zend_vm_stack,
+    pub fiber_vm_stack_page_cache_count: u32,
     pub reserved: [*mut ::std::os::raw::c_void; 6usize],
     pub delayed_oom: zend_oom_info,
+    pub __bindgen_anon_1: _zend_executor_globals__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union _zend_executor_globals__bindgen_ty_1 {
+    pub padding: [u64; 8usize],
 }
 pub const _zend_compile_position_ZEND_COMPILE_POSITION_AT_SHEBANG: _zend_compile_position = 0;
 pub const _zend_compile_position_ZEND_COMPILE_POSITION_AT_OPEN_TAG: _zend_compile_position = 1;
@@ -2580,7 +2616,7 @@ pub struct _zend_function_entry {
     pub handler: zif_handler,
     pub arg_info: *const _zend_internal_arg_info,
     pub num_args: u32,
-    pub flags: u32,
+    pub flags: u64,
     pub frameless_function_infos: *const zend_frameless_function_info,
     pub doc_comment: *const ::std::os::raw::c_char,
 }
@@ -2593,6 +2629,7 @@ pub struct _zend_fcall_info {
     pub params: *mut zval,
     pub object: *mut zend_object,
     pub param_count: u32,
+    pub consumed_args: u32,
     pub named_params: *mut HashTable,
 }
 #[repr(C)]
@@ -2612,30 +2649,23 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zend_register_internal_class_ex(
-        class_entry: *mut zend_class_entry,
+        class_entry: *const zend_class_entry,
         parent_ce: *mut zend_class_entry,
     ) -> *mut zend_class_entry;
 }
 unsafe extern "C" {
     pub fn zend_register_internal_interface(
-        orig_class_entry: *mut zend_class_entry,
+        orig_class_entry: *const zend_class_entry,
     ) -> *mut zend_class_entry;
 }
 unsafe extern "C" {
     pub fn zend_is_callable_ex(
-        callable: *mut zval,
+        callable: *const zval,
         object: *mut zend_object,
         check_flags: u32,
         callable_name: *mut *mut zend_string,
         fcc: *mut zend_fcall_info_cache,
         error: *mut *mut ::std::os::raw::c_char,
-    ) -> bool;
-}
-unsafe extern "C" {
-    pub fn zend_is_callable(
-        callable: *mut zval,
-        check_flags: u32,
-        callable_name: *mut *mut zend_string,
     ) -> bool;
 }
 unsafe extern "C" {
@@ -2676,7 +2706,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zend_read_property(
-        scope: *mut zend_class_entry,
+        scope: *const zend_class_entry,
         object: *mut zend_object,
         name: *const ::std::os::raw::c_char,
         name_length: usize,
@@ -2706,7 +2736,7 @@ unsafe extern "C" {
     ) -> zend_result;
 }
 unsafe extern "C" {
-    pub fn zend_call_known_function(
+    pub fn zend_call_known_function_ex(
         fn_: *mut zend_function,
         object: *mut zend_object,
         called_scope: *mut zend_class_entry,
@@ -2714,6 +2744,7 @@ unsafe extern "C" {
         param_count: u32,
         params: *mut zval,
         named_params: *mut HashTable,
+        consumed_args: u32,
     );
 }
 unsafe extern "C" {
@@ -2749,11 +2780,13 @@ pub const _zend_expected_type_Z_EXPECTED_ARRAY_OR_STRING: _zend_expected_type = 
 pub const _zend_expected_type_Z_EXPECTED_ARRAY_OR_STRING_OR_NULL: _zend_expected_type = 27;
 pub const _zend_expected_type_Z_EXPECTED_STRING_OR_LONG: _zend_expected_type = 28;
 pub const _zend_expected_type_Z_EXPECTED_STRING_OR_LONG_OR_NULL: _zend_expected_type = 29;
-pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_CLASS_NAME: _zend_expected_type = 30;
-pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_CLASS_NAME_OR_NULL: _zend_expected_type = 31;
-pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING: _zend_expected_type = 32;
-pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING_OR_NULL: _zend_expected_type = 33;
-pub const _zend_expected_type_Z_EXPECTED_LAST: _zend_expected_type = 34;
+pub const _zend_expected_type_Z_EXPECTED_CLASS_NAME: _zend_expected_type = 30;
+pub const _zend_expected_type_Z_EXPECTED_CLASS_NAME_OR_NULL: _zend_expected_type = 31;
+pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_CLASS_NAME: _zend_expected_type = 32;
+pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_CLASS_NAME_OR_NULL: _zend_expected_type = 33;
+pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING: _zend_expected_type = 34;
+pub const _zend_expected_type_Z_EXPECTED_OBJECT_OR_STRING_OR_NULL: _zend_expected_type = 35;
+pub const _zend_expected_type_Z_EXPECTED_LAST: _zend_expected_type = 36;
 pub type _zend_expected_type = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn zend_wrong_parameters_count_error(min_num_args: u32, max_num_args: u32);
@@ -2880,13 +2913,6 @@ pub type php_output_handler_context_func_t = ::std::option::Option<
     ) -> zend_result,
 >;
 #[repr(C)]
-pub struct _php_output_handler_user_func_t {
-    pub fci: zend_fcall_info,
-    pub fcc: zend_fcall_info_cache,
-    pub zoh: zval,
-}
-pub type php_output_handler_user_func_t = _php_output_handler_user_func_t;
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct _php_output_handler {
     pub name: *mut zend_string,
@@ -2901,7 +2927,7 @@ pub struct _php_output_handler {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union _php_output_handler__bindgen_ty_1 {
-    pub user: *mut php_output_handler_user_func_t,
+    pub user_fcc: *mut zend_fcall_info_cache,
     pub internal: php_output_handler_context_func_t,
 }
 pub type php_output_handler = _php_output_handler;
@@ -2996,6 +3022,11 @@ pub const php_stream_filter_status_t_PSFS_ERR_FATAL: php_stream_filter_status_t 
 pub const php_stream_filter_status_t_PSFS_FEED_ME: php_stream_filter_status_t = 1;
 pub const php_stream_filter_status_t_PSFS_PASS_ON: php_stream_filter_status_t = 2;
 pub type php_stream_filter_status_t = ::std::os::raw::c_uint;
+pub const php_stream_filter_seekable_t_PSFS_SEEKABLE_NEVER: php_stream_filter_seekable_t = 0;
+pub const php_stream_filter_seekable_t_PSFS_SEEKABLE_START: php_stream_filter_seekable_t = 1;
+pub const php_stream_filter_seekable_t_PSFS_SEEKABLE_CHECK: php_stream_filter_seekable_t = 2;
+pub const php_stream_filter_seekable_t_PSFS_SEEKABLE_ALWAYS: php_stream_filter_seekable_t = 3;
+pub type php_stream_filter_seekable_t = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _php_stream_filter_ops {
@@ -3009,6 +3040,14 @@ pub struct _php_stream_filter_ops {
             flags: ::std::os::raw::c_int,
         ) -> php_stream_filter_status_t,
     >,
+    pub seek: ::std::option::Option<
+        unsafe extern "C" fn(
+            stream: *mut php_stream,
+            thisfilter: *mut php_stream_filter,
+            offset: zend_off_t,
+            whence: ::std::os::raw::c_int,
+        ) -> zend_result,
+    >,
     pub dtor: ::std::option::Option<unsafe extern "C" fn(thisfilter: *mut php_stream_filter)>,
     pub label: *const ::std::os::raw::c_char,
 }
@@ -3018,6 +3057,7 @@ pub type php_stream_filter_ops = _php_stream_filter_ops;
 pub struct _php_stream_filter_chain {
     pub head: *mut php_stream_filter,
     pub tail: *mut php_stream_filter,
+    pub num_filters: zend_long,
     pub stream: *mut php_stream,
 }
 pub type php_stream_filter_chain = _php_stream_filter_chain;
@@ -3027,7 +3067,9 @@ pub struct _php_stream_filter {
     pub abstract_: zval,
     pub next: *mut php_stream_filter,
     pub prev: *mut php_stream_filter,
-    pub is_persistent: ::std::os::raw::c_int,
+    pub read_seekable: php_stream_filter_seekable_t,
+    pub write_seekable: php_stream_filter_seekable_t,
+    pub is_persistent: bool,
     pub chain: *mut php_stream_filter_chain,
     pub buffer: php_stream_bucket_brigade,
     pub res: *mut zend_resource,
@@ -3229,6 +3271,8 @@ pub struct _php_stream {
     pub open_filename: *const ::std::os::raw::c_char,
     pub open_lineno: u32,
     pub enclosing_stream: *mut _php_stream,
+    pub error_list: *mut zend_llist,
+    pub poll_watchers: *mut HashTable,
 }
 impl _php_stream {
     #[inline]
@@ -3560,6 +3604,203 @@ impl _php_stream {
         __bindgen_bitfield_unit
     }
 }
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_None: zend_enum_StreamErrorCode = 1;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_Generic: zend_enum_StreamErrorCode =
+    2;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ReadFailed:
+    zend_enum_StreamErrorCode = 3;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_WriteFailed:
+    zend_enum_StreamErrorCode = 4;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_SeekFailed:
+    zend_enum_StreamErrorCode = 5;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_SeekNotSupported:
+    zend_enum_StreamErrorCode = 6;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_FlushFailed:
+    zend_enum_StreamErrorCode = 7;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_TruncateFailed:
+    zend_enum_StreamErrorCode = 8;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ConnectFailed:
+    zend_enum_StreamErrorCode = 9;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_BindFailed:
+    zend_enum_StreamErrorCode = 10;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ListenFailed:
+    zend_enum_StreamErrorCode = 11;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_AcceptFailed:
+    zend_enum_StreamErrorCode = 12;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NotWritable:
+    zend_enum_StreamErrorCode = 13;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NotReadable:
+    zend_enum_StreamErrorCode = 14;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_Disabled: zend_enum_StreamErrorCode =
+    15;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NotFound: zend_enum_StreamErrorCode =
+    16;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_PermissionDenied:
+    zend_enum_StreamErrorCode = 17;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_AlreadyExists:
+    zend_enum_StreamErrorCode = 18;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidPath:
+    zend_enum_StreamErrorCode = 19;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_PathTooLong:
+    zend_enum_StreamErrorCode = 20;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_OpenFailed:
+    zend_enum_StreamErrorCode = 21;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_CreateFailed:
+    zend_enum_StreamErrorCode = 22;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_DupFailed: zend_enum_StreamErrorCode =
+    23;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_UnlinkFailed:
+    zend_enum_StreamErrorCode = 24;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_RenameFailed:
+    zend_enum_StreamErrorCode = 25;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_MkdirFailed:
+    zend_enum_StreamErrorCode = 26;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_RmdirFailed:
+    zend_enum_StreamErrorCode = 27;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_StatFailed:
+    zend_enum_StreamErrorCode = 28;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_MetaFailed:
+    zend_enum_StreamErrorCode = 29;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ChmodFailed:
+    zend_enum_StreamErrorCode = 30;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ChownFailed:
+    zend_enum_StreamErrorCode = 31;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_CopyFailed:
+    zend_enum_StreamErrorCode = 32;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_TouchFailed:
+    zend_enum_StreamErrorCode = 33;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidMode:
+    zend_enum_StreamErrorCode = 34;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidMeta:
+    zend_enum_StreamErrorCode = 35;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ModeNotSupported:
+    zend_enum_StreamErrorCode = 36;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_Readonly: zend_enum_StreamErrorCode =
+    37;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_RecursionDetected:
+    zend_enum_StreamErrorCode = 38;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NotImplemented:
+    zend_enum_StreamErrorCode = 39;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NoOpener: zend_enum_StreamErrorCode =
+    40;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_PersistentNotSupported:
+    zend_enum_StreamErrorCode = 41;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_WrapperNotFound:
+    zend_enum_StreamErrorCode = 42;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_WrapperDisabled:
+    zend_enum_StreamErrorCode = 43;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ProtocolUnsupported:
+    zend_enum_StreamErrorCode = 44;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_WrapperRegistrationFailed:
+    zend_enum_StreamErrorCode = 45;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_WrapperUnregistrationFailed:
+    zend_enum_StreamErrorCode = 46;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_WrapperRestorationFailed:
+    zend_enum_StreamErrorCode = 47;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_FilterNotFound:
+    zend_enum_StreamErrorCode = 48;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_FilterFailed:
+    zend_enum_StreamErrorCode = 49;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_CastFailed:
+    zend_enum_StreamErrorCode = 50;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_CastNotSupported:
+    zend_enum_StreamErrorCode = 51;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_MakeSeekableFailed:
+    zend_enum_StreamErrorCode = 52;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_BufferedDataLost:
+    zend_enum_StreamErrorCode = 53;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NetworkSendFailed:
+    zend_enum_StreamErrorCode = 54;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_NetworkRecvFailed:
+    zend_enum_StreamErrorCode = 55;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_SslNotSupported:
+    zend_enum_StreamErrorCode = 56;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ResumptionFailed:
+    zend_enum_StreamErrorCode = 57;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_SocketPathTooLong:
+    zend_enum_StreamErrorCode = 58;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_OobNotSupported:
+    zend_enum_StreamErrorCode = 59;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ProtocolError:
+    zend_enum_StreamErrorCode = 60;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidUrl:
+    zend_enum_StreamErrorCode = 61;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidResponse:
+    zend_enum_StreamErrorCode = 62;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidHeader:
+    zend_enum_StreamErrorCode = 63;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidParam:
+    zend_enum_StreamErrorCode = 64;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_RedirectLimit:
+    zend_enum_StreamErrorCode = 65;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_AuthFailed:
+    zend_enum_StreamErrorCode = 66;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_TimeOut: zend_enum_StreamErrorCode =
+    67;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_ArchivingFailed:
+    zend_enum_StreamErrorCode = 68;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_EncodingFailed:
+    zend_enum_StreamErrorCode = 69;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_DecodingFailed:
+    zend_enum_StreamErrorCode = 70;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_InvalidFormat:
+    zend_enum_StreamErrorCode = 71;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_AllocationFailed:
+    zend_enum_StreamErrorCode = 72;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_TemporaryFileFailed:
+    zend_enum_StreamErrorCode = 73;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_LockFailed:
+    zend_enum_StreamErrorCode = 74;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_LockNotSupported:
+    zend_enum_StreamErrorCode = 75;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_UserspaceNotImplemented:
+    zend_enum_StreamErrorCode = 76;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_UserspaceInvalidReturn:
+    zend_enum_StreamErrorCode = 77;
+pub const zend_enum_StreamErrorCode_ZEND_ENUM_StreamErrorCode_UserspaceCallFailed:
+    zend_enum_StreamErrorCode = 78;
+pub type zend_enum_StreamErrorCode = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _php_stream_error_entry {
+    pub message: *mut zend_string,
+    pub code: zend_enum_StreamErrorCode,
+    pub wrapper_name: *mut ::std::os::raw::c_char,
+    pub docref: *mut ::std::os::raw::c_char,
+    pub severity: ::std::os::raw::c_int,
+    pub terminating: bool,
+    pub next: *mut _php_stream_error_entry,
+}
+pub type php_stream_error_entry = _php_stream_error_entry;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _php_stream_error_operation {
+    pub first_error: *mut php_stream_error_entry,
+    pub last_error: *mut php_stream_error_entry,
+    pub error_count: u32,
+}
+pub type php_stream_error_operation = _php_stream_error_operation;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct _php_stream_stored_error {
+    pub first_error: *mut php_stream_error_entry,
+    pub error_count: u32,
+    pub next: *mut _php_stream_stored_error,
+}
+pub type php_stream_stored_error = _php_stream_stored_error;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct php_stream_error_state {
+    pub current_operation: *mut php_stream_error_operation,
+    pub operation_depth: u32,
+    pub operation_floor: u32,
+    pub refused_operations: u32,
+    pub stored_errors: *mut php_stream_stored_error,
+    pub stored_count: u32,
+    pub operation_pool: [php_stream_error_operation; 8usize],
+    pub overflow_operations: *mut php_stream_error_operation,
+    pub overflow_capacity: u32,
+}
 unsafe extern "C" {
     pub static mut php_stream_stdio_ops: php_stream_ops;
 }
@@ -3598,25 +3839,26 @@ pub struct _php_core_globals {
     pub enable_dl: bool,
     pub display_errors: u8,
     pub display_startup_errors: bool,
+    pub error_include_args: bool,
     pub log_errors: bool,
     pub ignore_repeated_errors: bool,
     pub ignore_repeated_source: bool,
     pub report_memleaks: bool,
-    pub output_handler: *mut ::std::os::raw::c_char,
-    pub unserialize_callback_func: *mut ::std::os::raw::c_char,
+    pub output_handler: *mut zend_string,
+    pub unserialize_callback_func: *mut zend_string,
     pub serialize_precision: zend_long,
     pub memory_limit: zend_long,
     pub max_memory_limit: zend_long,
     pub max_input_time: zend_long,
-    pub error_log: *mut ::std::os::raw::c_char,
-    pub doc_root: *mut ::std::os::raw::c_char,
+    pub error_log: *mut zend_string,
+    pub doc_root: *mut zend_string,
     pub user_dir: *mut ::std::os::raw::c_char,
     pub include_path: *mut ::std::os::raw::c_char,
     pub open_basedir: *mut ::std::os::raw::c_char,
     pub open_basedir_modified: bool,
     pub extension_dir: *mut ::std::os::raw::c_char,
     pub php_binary: *mut ::std::os::raw::c_char,
-    pub sys_temp_dir: *mut ::std::os::raw::c_char,
+    pub sys_temp_dir: *mut zend_string,
     pub upload_tmp_dir: *mut ::std::os::raw::c_char,
     pub upload_max_filesize: zend_long,
     pub error_append_string: *mut ::std::os::raw::c_char,
@@ -3650,7 +3892,7 @@ pub struct _php_core_globals {
     pub enable_post_data_reading: bool,
     pub report_zend_debug: bool,
     pub last_error_type: ::std::os::raw::c_int,
-    pub last_error_lineno: ::std::os::raw::c_int,
+    pub last_error_lineno: u32,
     pub last_error_message: *mut zend_string,
     pub last_error_file: *mut zend_string,
     pub php_sys_temp_dir: *mut ::std::os::raw::c_char,
@@ -3733,7 +3975,7 @@ pub struct _zend_ini_entry {
     pub module_number: ::std::os::raw::c_int,
     pub modifiable: u8,
     pub orig_modifiable: u8,
-    pub modified: u8,
+    pub modified: bool,
     pub def: *const zend_ini_entry_def,
 }
 unsafe extern "C" {
@@ -3785,13 +4027,14 @@ pub struct php_file_globals {
     pub def_chunk_size: usize,
     pub auto_detect_line_endings: bool,
     pub default_socket_timeout: zend_long,
-    pub user_agent: *mut ::std::os::raw::c_char,
-    pub from_address: *mut ::std::os::raw::c_char,
+    pub user_agent: *mut zend_string,
+    pub from_address: *mut zend_string,
     pub user_stream_current_filename: *const ::std::os::raw::c_char,
     pub default_context: *mut php_stream_context,
     pub stream_wrappers: *mut HashTable,
     pub stream_filters: *mut HashTable,
-    pub wrapper_errors: *mut HashTable,
+    pub wrapper_logged_errors: *mut HashTable,
+    pub stream_error_state: php_stream_error_state,
     pub pclose_wait: ::std::os::raw::c_int,
     pub tmp_host_info: hostent,
     pub tmp_host_buf: *mut ::std::os::raw::c_char,
@@ -3804,6 +4047,7 @@ unsafe extern "C" {
     pub fn zend_enum_new(
         result: *mut zval,
         ce: *mut zend_class_entry,
+        case_id: ::std::os::raw::c_int,
         case_name: *mut zend_string,
         backing_value_zv: *mut zval,
     ) -> *mut zend_object;
@@ -3977,8 +4221,7 @@ pub struct sapi_request_info {
     pub auth_password: *mut ::std::os::raw::c_char,
     pub auth_digest: *mut ::std::os::raw::c_char,
     pub argv0: *mut ::std::os::raw::c_char,
-    pub current_user: *mut ::std::os::raw::c_char,
-    pub current_user_length: ::std::os::raw::c_int,
+    pub current_user: *mut zend_string,
     pub argc: ::std::os::raw::c_int,
     pub argv: *mut *mut ::std::os::raw::c_char,
     pub proto_num: ::std::os::raw::c_int,
@@ -4001,19 +4244,18 @@ pub struct _sapi_globals_struct {
     pub request_info: sapi_request_info,
     pub sapi_headers: sapi_headers_struct,
     pub read_post_bytes: i64,
-    pub post_read: ::std::os::raw::c_uchar,
-    pub headers_sent: ::std::os::raw::c_uchar,
+    pub post_read: bool,
+    pub headers_sent: bool,
+    pub sapi_started: bool,
+    pub options: ::std::os::raw::c_int,
     pub global_stat: zend_stat_t,
     pub default_mimetype: *mut ::std::os::raw::c_char,
     pub default_charset: *mut ::std::os::raw::c_char,
     pub rfc1867_uploaded_files: *mut HashTable,
     pub post_max_size: zend_long,
-    pub options: ::std::os::raw::c_int,
-    pub sapi_started: bool,
     pub global_request_time: f64,
     pub known_post_content_types: HashTable,
-    pub callback_func: zval,
-    pub fci_cache: zend_fcall_info_cache,
+    pub send_header_fcc: zend_fcall_info_cache,
     pub request_parse_body_context: sapi_request_parse_body_context,
 }
 pub type sapi_globals_struct = _sapi_globals_struct;
@@ -4056,10 +4298,8 @@ pub const sapi_header_op_enum_SAPI_HEADER_DELETE_ALL: sapi_header_op_enum = 4;
 pub const sapi_header_op_enum_SAPI_HEADER_SET_STATUS: sapi_header_op_enum = 5;
 pub type sapi_header_op_enum = ::std::os::raw::c_uint;
 unsafe extern "C" {
-    pub fn sapi_header_op(
-        op: sapi_header_op_enum,
-        arg: *mut ::std::os::raw::c_void,
-    ) -> ::std::os::raw::c_int;
+    pub fn sapi_header_op(op: sapi_header_op_enum, arg: *mut ::std::os::raw::c_void)
+        -> zend_result;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

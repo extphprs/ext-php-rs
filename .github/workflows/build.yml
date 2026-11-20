@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       clang: "17"
-      php_version: "8.4"
+      php_version: "8.6"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -103,9 +103,6 @@ jobs:
           # ext-php-rs requires nightly Rust when on Windows.
           - os: windows-latest
             rust: stable
-          # windows.php.net ships no devel pack for the 8.6 nightly.
-          - os: windows-latest
-            php: "8.6"
           - os: macos-latest
             clang: "21"
           - os: ubuntu-latest
@@ -190,7 +187,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.4"
+          php-version: "8.6"
         env:
           phpts: nts
           debug: true
@@ -236,7 +233,7 @@ jobs:
             label: TS
     env:
       clang: "17"
-      php_version: "8.5"
+      php_version: "8.6"
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -429,7 +426,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       clang: "17"
-      php_version: "8.5"
+      php_version: "8.6"
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -504,10 +501,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php: ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6-rc"]
+        php: ["8.1", "8.2", "8.3", "8.4", "8.5"]
         phpts: [["-zts", "TS"], ["", "NTS"]]
         include:
-          - php: "8.6-rc"
+          # docker-library's 8.6 images are ZTS only, without a -zts tag.
+          - php: "8.6"
+            phpts: ["", "TS"]
             alpine: "3.23"
             llvm: "21"
     env:
