@@ -9,7 +9,7 @@ use crate::{
     ffi::zend_throw_exception_object,
     flags::ClassFlags,
     types::{ZendStr, Zval},
-    zend::{ClassEntry, ExecutorGlobals, ce},
+    zend::{BailoutGuard, ClassEntry, ExecutorGlobals, ce},
 };
 
 /// Result type with the error variant as a [`PhpException`].
@@ -108,19 +108,25 @@ impl PhpException {
     /// PHP rather than to the Rust caller, which sits inside an `extern "C"`
     /// frame with no way to propagate it.
     pub fn throw(self) {
+        // Zend can bail out while it builds the exception, which skips this
+        // frame's destructors: the guards free the strings in `try_catch` instead.
+        let mut exception = BailoutGuard::new(self);
         if ExecutorGlobals::has_exception() {
             return;
         }
 
-        let result = match self.object {
+        let result = match exception.object.take() {
             Some(object) => throw_object(object),
-            None => throw_with_code(self.ex, self.code, &self.message),
+            None => throw_with_code(exception.ex, exception.code, &exception.message),
         };
 
         if let Err(err) = result {
-            let class = self.ex.name().unwrap_or_default();
-            let message = self.message.replace('\0', "\\0");
-            let fallback = format!("cannot throw {class}: {err}; original message: {message}");
+            let class = exception.ex.name().unwrap_or_default();
+            let message = BailoutGuard::new(exception.message.replace('\0', "\\0"));
+            let fallback = BailoutGuard::new(format!(
+                "cannot throw {class}: {err}; original message: {}",
+                *message
+            ));
             let _ = throw_with_code(ce::error(), 0, &fallback);
         }
     }
