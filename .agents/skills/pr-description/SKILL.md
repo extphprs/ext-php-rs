@@ -65,6 +65,8 @@ Fixes #1234
 - **One sentence** naming the bug or the feature, as the extension author or the PHP
   user sees it (a wrong value, a missing exception, a crash, a leak, an API that
   didn't exist), not the implementation.
+- **At most two sentences** of prose in the whole description, each in its own
+  paragraph with a blank line between them. Detail goes in the commits.
 - A **Before** block: the Rust declaration and the PHP script of a test of the PR that
   asserts the fix (see below), with trailing `// result` comments on the lines whose
   result matters: the value, `// TypeError: <message>`, `// segfault`,
@@ -78,15 +80,17 @@ Fixes #1234
 - **No PHP example possible** (CI, build, bindings, tooling, performance): one plain
   line, e.g. "Builds against PHP 8.6.0RC7, whose API number is 20261112." Numbers only
   if they *are* the fix ("`new` on a class with a constructor takes 0.37 s instead of
-  0.70 s for 5M objects"), with the benchmark that measured them.
+  0.70 s for 5M objects"), with the benchmark that measured them. Several numbers go
+  in a Markdown table under the sentence, not in prose.
 - **Breaking change:** one line saying what breaks and that the migration guide covers
   it, with a link to the guide section.
 - Keep closing keywords for issues the PR fixes (`Fixes #1234`) on their own line at
   the end of `## Description`, so GitHub links and closes them.
 - Leave out: background and motivation, design notes, the implementation walk-through,
   "stacked on / combines …", measurements that aren't the point, review follow-ups,
-  test lists, "not run locally" notes, changelog prose, and any AI attribution (no
-  "Generated with" footer).
+  test lists, "not run locally" notes, changelog prose, references to files that
+  aren't in the repository (local notes, plans), and any AI attribution (no
+  "Generated with" footer, no `Co-Authored-By` trailer in the commits).
 
 ## Every example is a test that asserts the fix
 

@@ -1,6 +1,6 @@
 ---
 name: zend-memory
-description: Use when changing or reviewing code that owns, borrows or frees PHP memory in ext-php-rs (Zval, ZBox/ZBoxable, ZendStr, ZendHashTable, ZendObject, ZendClassObject, refcounts, shallow_clone, persistent vs request memory, IntoZval/FromZval), the Rust value of a #[php_class] (borrow cells, ClassRef/ClassRefMut, payloads), the cycle collector (GcTrace, get_gc), MINIT tables, or when debugging a segfault, use-after-free, double free or leak, including ASan, LSan, valgrind and debug-PHP runs.
+description: Use when changing or reviewing code that owns, borrows or frees PHP memory in ext-php-rs (Zval, ZBox/ZBoxable, ZendStr, ZendHashTable, ZendObject, ZendClassObject, refcounts, shallow_clone, persistent vs request memory, IntoZval/FromZval), the Rust value of a #[php_class] (borrow cells, ClassRef/ClassRefMut, payloads), the cycle collector (GcTrace, get_gc), MINIT tables, or when debugging a segfault, use-after-free, double free or leak, including ASan, LSan, valgrind and debug-PHP runs, a crash only CI shows, PHP output handlers, or memory-checking a downstream extension against a branch.
 ---
 
 # Zend memory, ownership and the cycle collector
@@ -80,6 +80,19 @@ description: Use when changing or reviewing code that owns, borrows or frees PHP
   time, including while a method holds the value mutably. They must not panic or
   double-borrow; the collector does not read a value that is mutably borrowed.
 
+## Output handlers (`src/zend/output.rs`)
+
+- A running handler's input (`context->in`) is its own buffer. Output written from
+  the callback appends to it and can `erealloc` it, so detach the buffer for the call.
+- A non-write `ob_*` call inside a handler reaches `php_output_lock_error`, which runs
+  `php_output_deactivate()` (frees every handler) before `E_ERROR`. If the callback
+  catches that bailout, the trampoline must not touch the handler and must re-raise.
+- `context->out` must be engine-owned (`free = 1`) when the handler returns:
+  `php_output_header()` runs the `header_register_callback()` function before
+  `ub_write`, and its output re-enters the same handler. In Embed, clear
+  `headers_sent` and `request_info.no_headers` through `SapiGlobals::get_mut()` to
+  reach that path.
+
 ## The cycle collector
 
 - A cycle is collected only if every object in it reports the values it holds.
@@ -122,9 +135,35 @@ description: Use when changing or reviewing code that owns, borrows or frees PHP
   `nix develop .#asan` sets these variables and provides an ASan-instrumented
   debug PHP with embed. This job covers the library's unit tests and
   `module_tests`, not class, enum or INI registration (MINIT can't run inside Embed's
-  request): for those, load the extension into that ASan PHP as a cdylib.
+  request): for those, load the extension into that ASan PHP as a cdylib:
+
+  ```sh
+  RUSTFLAGS="-Zsanitizer=address -Zexternal-clangrt -Clink-arg=-Wl,--allow-shlib-undefined" \
+    cargo build -Zbuild-std --target x86_64-unknown-linux-gnu -p tests
+  ZEND_DONT_UNLOAD_MODULES=1 php -d extension=target/x86_64-unknown-linux-gnu/debug/libtests.so script.php
+  ```
+
+  `-Zexternal-clangrt` leaves `__asan_*` undefined in the `.so`, and the instrumented
+  `php` provides them. Without `ZEND_DONT_UNLOAD_MODULES=1`, PHP unloads the `.so`
+  before the leak check and every frame shows `<unknown module>`.
+  `ASAN_OPTIONS=fast_unwind_on_malloc=0:malloc_context_size=30` gives full stacks. To
+  tell a per-call leak from a one-time one, run the script with two iteration counts
+  and compare.
 - **LSan suppressions** are only for leaks that are by design (PHP's own persistent
   allocations at embed shutdown, tests that bail out on purpose). A real leak is fixed,
   never suppressed.
+- **A crash only in CI's embed job**: the runner's PHP loads its preinstalled PECL
+  extensions (xdebug with observers, apcu, redis, …) into the embed SAPI, and the nix
+  shells load none. Reproduce in `docker run ubuntu:26.04` with the sury repository,
+  `php8.5-cli php8.5-dev libphp8.5-embed php8.5-xdebug` and CI's test command, then
+  gdb. Locally, an `FcallObserver` that observes every call, in the `.#asan` lane,
+  shows the same class of bug.
+- **A downstream extension against a branch**: the `.#asan` PHP has core only (no dom
+  or tokenizer), so Pest can't run there. Run PHPT or plain scripts under ASan, and
+  Pest under `.#debug`. From another repository, set `LSAN_OPTIONS` with the absolute
+  path of `.lsan-suppressions.txt`. Valgrind on the nix PHP needs
+  `--trace-children=yes` (the `php` binary is a wrapper) and `-d pcre.jit=0` (PCRE JIT
+  code floods the report). Run the base branch the same way before you blame the
+  change: timing-sensitive tests fail under valgrind there too.
 - macOS: ASan works for Rust code (`-Zsanitizer=address` on nightly), but there is no
   instrumented PHP and no nix shell; run the detector jobs on Linux or rely on CI.

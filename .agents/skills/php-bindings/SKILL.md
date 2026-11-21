@@ -1,6 +1,6 @@
 ---
 name: php-bindings
-description: Use when ext-php-rs needs a Zend symbol it doesn't bind yet, when editing allowed_bindings.rs, src/wrapper.c/.h or src/ffi.rs, when regenerating docsrs_bindings.rs (tools/update_bindings.sh), when code must differ between PHP versions, ZTS/NTS or debug builds (php81…php86, php_zts, php_debug cfgs), when adding support for a new PHP version or API number (crates/php-build ApiVersion), or for build.rs, Windows (windows_build.rs, vectorcall, devel packs) and static-linking build problems.
+description: Use when ext-php-rs needs a Zend symbol it doesn't bind yet, when editing allowed_bindings.rs, src/wrapper.c/.h or src/ffi.rs, when regenerating docsrs_bindings.rs (tools/update_bindings.sh), when code must differ between PHP versions, ZTS/NTS or debug builds (php81…php86, php_zts, php_debug cfgs), when adding support for a new PHP version or API number (crates/php-build ApiVersion), or for build.rs, Windows (windows_build.rs, vectorcall, devel packs) and static-linking build problems, or an `undefined symbol` from `cargo php stubs`.
 ---
 
 # Bindings, PHP versions and the build script
@@ -40,8 +40,17 @@ description: Use when ext-php-rs needs a Zend symbol it doesn't bind yet, when e
    the result. The lefthook `bindings` job runs it when `allowed_bindings.rs` is
    staged. Never edit `docsrs_bindings.rs` by hand; the docs.rs build of a symbol that
    is missing there fails.
+   The regeneration also picks up upstream changes to symbols already listed (new
+   fields in `zend_executor_globals`, …). Commit the whole file: the `docsrs bindings`
+   workflow reruns the script and fails on any diff.
 4. Rust code that uses a symbol only some PHP versions have is gated with the version
    cfgs (below), in the bindings and at each use.
+5. `cargo php stubs` loads the extension without PHP: `crates/cli/src/main.rs`
+   defines a null stub for each name in `allowed_bindings.rs`, and real allocator
+   stubs (`_emalloc`, `_femalloc`, …). A PHP patch release can make a Zend inline that
+   `src/wrapper.c` uses reference a new symbol, and `stubs_snapshot` then fails with
+   `undefined symbol: <name>`. Find that inline in the php-src headers and add a real
+   stub next to `_emalloc`.
 
 Never declare a Zend function in a private `extern "C"` block or hard-code a struct
 layout to avoid the allowlist: the layout differs across versions, ZTS and platforms,
@@ -61,7 +70,10 @@ and bindgen is what keeps it right.
 - New cfgs must be declared through `ext_php_rs_build::emit_check_cfg()`; crates
   that use them (like `tests/`) declare them in `[lints.rust] unexpected_cfgs`.
 - `EXT_PHP_RS_STATIC_EXT=1` builds for static linking into the PHP binary (guide
-  `advanced/static_linking.md`); CI only compile-checks it.
+  `advanced/static_linking.md`); CI only compile-checks it. `cargo test` can't work in
+  that mode: `wrapper.c` then references `_tsrm_ls_cache`, which a prebuilt `libphp`
+  doesn't export, so test executables fail to link. A functional check needs the
+  two-pass php-src build of the guide.
 
 ## Supporting a new PHP version
 
@@ -79,13 +91,26 @@ to 20261112" (#841). The usual set of changes:
 - `windows_build.rs` if the devel pack name or URL scheme changed;
 - CI: the PHP version in the `build.yml` matrix (with the exclusions for releases that
   have no Windows devel pack yet), `.github/action/musl/Dockerfile` and the musl
-  matrix, the nix `php8x` shells in `flake.nix`;
+  matrix, the nix `php8x` shells in `flake.nix` (while nixpkgs lags behind, override
+  `version` and `phpSrc` with the php-src tag, as `php86Pkg` does);
+- the docs.rs bindings and the `DOCS_RS` cfgs in `build.rs`, only at GA:
+  `tools/update_bindings.sh` downloads php.net releases, not RCs;
 - the guide pages that list version-specific behaviour. `README.md` only states the
   minimum ("PHP 8.1 or later"), which changes when the oldest version is dropped
   (with `min_api_version` in `build.rs`).
 
 Run the version's build in a matching environment (nix `.#php86`, docker, or CI);
 then let the full CI matrix run.
+
+## Engine traps
+
+- At MINIT, `EG(class_table)` is still null: `init_executor()` sets it at request
+  startup. Look classes up in `CG(class_table)`, as `src/builders/class.rs` does. A
+  second internal class with the same name silently replaces the first
+  (`zend_hash_update_ptr`).
+- Read the php-src code of a status getter before you trust it.
+  `php_output_get_status()` masks out `PHP_OUTPUT_ACTIVATED` on PHP 8.1 to 8.5, so
+  `ext_php_rs_output_activated()` in `src/wrapper.c` reads `OG(flags)` itself.
 
 ## Windows
 

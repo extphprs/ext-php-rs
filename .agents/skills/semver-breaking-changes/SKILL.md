@@ -49,6 +49,10 @@ turn undefined behaviour or a crash into an error, internal (`pub(crate)`,
 `#[doc(hidden)]`) changes. A fix that changes observable behaviour users may rely on is
 still breaking: when in doubt, treat it as breaking and ask.
 
+A major bump of an optional, feature-gated dependency whose types appear in public
+impls (`smartstring` 2 for `IntoZval`/`FromZval`) ships in the current line as
+`chore(deps): …`, without `!`. Say the downstream impact in one line at most.
+
 ## 2. Check it
 
 - cargo-semver-checks (install with `cargo install cargo-semver-checks --locked`):
@@ -65,6 +69,10 @@ still breaking: when in doubt, treat it as breaking and ask.
   `Error` and `BorrowError` are), so later additions don't break.
 - Keep `struct` literals that users write compiling: put new state somewhere private
   rather than adding a public field (precedent: #856 kept `ClassProperty`'s fields).
+- Before you add or widen a variant of `DataType`, or a type stored in `Error`, check
+  the size asserts in `src/error.rs` and `src/internal/property.rs`: `DataType` must
+  stay within 24 bytes. A `repr(C, u8)` enum nested in another costs 8 bytes of
+  padding per level on 64-bit.
 
 ## 4. Write the migration guide
 
@@ -100,3 +108,9 @@ ABI-stable (see the crate's description): a change that an already-installed
 `cargo-php` can't read is breaking for both crates. A break in one crate's public API
 is a break for that crate, even if `ext-php-rs` re-exports nothing of it: the `!` and
 the guide still apply. release-plz bumps the dependants together.
+
+A new workspace crate needs a crates.io Trusted Publisher for `master.yml` before its
+first release: `master.yml` calls `release-plz.yml`, and crates.io matches the calling
+workflow. Without it, the release fails with `403 … access token is not valid for
+crate <name>` after the other crates are published. A rerun of the failed job skips
+the docs deploy: run `gh workflow run docs.yml --ref main`.

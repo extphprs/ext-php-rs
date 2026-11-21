@@ -32,10 +32,21 @@ description: Use when changing or reviewing the ext-php-rs procedural macros (cr
   `#[php_impl_interface]`, which builds methods separately.
 - **Errors point at the user's code.** Use `syn::Error::new_spanned`/`bail!` with the
   offending tokens, never `panic!` or a span-less error. Each new error gets a trybuild
-  case.
+  case. Generated code whose trait bounds depend on the user's type is
+  `quote_spanned!` on that type, so rustc reports an unmet bound on the parameter, not
+  on the attribute.
 - **Generated code is hygienic.** Refer to the runtime crate as
   `::ext_php_rs::…`, to std as `::std::…`/`::core::…`, and never rely on what the
   user imported. Generated items that users don't name are `#[doc(hidden)]`.
+- **Module-entry code runs without the Zend heap.** What the macros evaluate while
+  `get_module` builds the module (names, docs, default values for stubs) runs before
+  PHP's heap exists in embed and static builds: `run_php_embed` calls `get_module()`
+  before `Embed::run`. Use Rust or libc allocations only, never `emalloc`
+  (`StubLiteral` renders defaults in pure Rust). The spawned `php` lanes never show it.
+- **Run the lanes the NTS matrix skips** before pushing a macro change: the tests
+  crate under embed (`cargo test -p tests --lib --features
+  closure,embed,anyhow,observer,smartstring,indexmap -- --test-threads=1`) and the
+  ASan lane (skill `zend-memory`).
 - **PHP-visible output is API.** PHP names (casing rules in `parsing.rs`), arginfo
   types, defaults, flags and stubs are what PHP code sees; a change to them is a
   breaking change (skill `semver-breaking-changes`).
@@ -44,14 +55,20 @@ description: Use when changing or reviewing the ext-php-rs procedural macros (cr
   that the generated shape can't avoid, with a reason.
 - **Hot paths.** The generated handler runs on every PHP call. Don't allocate or format
   per call (names, default values) when it can be done once at registration;
-  `benches/` measures this (see `benches/README.md`).
+  `benches/` measures this (see `benches/README.md`). To count instructions per call,
+  build `benches/ext` with `CARGO_PROFILE_RELEASE_DEBUG=line-tables-only`, run
+  `valgrind --tool=callgrind --trace-children=yes php -n -dextension=<lib>
+  benches/<script>.php 100000`, subtract an empty script's count and divide by the
+  call count.
 
 ## Snapshots
 
 - **Expansion snapshots**: `crates/macros/tests/expand/<name>.rs` with its
   `<name>.expanded.rs`, checked by `tests/macrotest_expand.rs` (needs `cargo-expand`;
   runs only on nightly, never on Windows):
-  `cargo +nightly test --test macrotest_expand`. A missing `.expanded.rs` is written
+  `cargo +nightly test --test macrotest_expand`. In nix, the nightly shell is `.#asan`,
+  whose sanitizer `RUSTFLAGS` break proc-macro loading: `nix develop .#asan -c env -u
+  RUSTFLAGS -u CFLAGS -u LDFLAGS cargo test --test macrotest_expand`. A missing `.expanded.rs` is written
   on the first run; `MACROTEST=overwrite` rewrites existing ones. **Read the diff of
   every changed `.expanded.rs` before committing it**: it is the review of what the
   macro now generates. A refactor that should not change output must leave them
@@ -77,7 +94,14 @@ description: Use when changing or reviewing the ext-php-rs procedural macros (cr
   `tools/update_lib_docs.sh` (needs the nightly toolchain for its rustfmt pass; the
   lefthook pre-commit job runs it when either side is staged). Never edit the copy in
   `lib.rs`.
+- The script's final rustfmt pass follows `mod` declarations and rewraps comments in
+  other macro files (`class.rs`, `impl_interface.rs`, `parsing.rs`, `zval.rs`).
+  Restore them and commit only `lib.rs`. The `macro docs` workflow reruns the script
+  and fails on any diff in `lib.rs`.
 - A new `#[php(...)]` option is documented on the macro's guide page, with a Rust
   example and the PHP that shows its effect.
 - The copy turns `rust,no_run` into `rust,no_run,ignore`, so guide examples are only
   compiled by skeptic (`guide_tests`), not as rustdoc tests of the macros crate.
+  skeptic links what it finds in `target/`: E0464 after builds with other feature sets
+  needs `cargo clean -p ext-php-rs`, E0514 after a toolchain bump needs a full
+  `cargo clean`.
