@@ -27,6 +27,9 @@ These rules come first, before every other rule here:
   owns them (its "chore: release" PR).
 - Then poll `gh pr checks <n> --repo extphprs/ext-php-rs`. For `gh run list`,
   `--commit <sha>` is reliable; `--branch` sometimes returns stale runs.
+- Read a failed job's full log with
+  `gh api repos/extphprs/ext-php-rs/actions/jobs/<id>/logs`: `gh run view --log` can
+  cut it.
 - **Description:** follow skill `pr-description`. The repository's PR template
   (Description + Checklist) stays.
 - **Breaking change:** follow skill `semver-breaking-changes` (`!` in the title, a
@@ -58,6 +61,8 @@ Never hide an issue instead of fixing it:
 - no hand edits to `docsrs_bindings.rs`, and no new `extern "C"` block or hard-coded
   struct offset to reach a Zend symbol that `allowed_bindings.rs` should list;
 - no disabling a mago rule, a typos word or a lefthook job, and no `--no-verify`;
+- no pinning a CI runner image (`ubuntu-24.04`) to dodge a break on `ubuntu-latest`:
+  fix the step, and try it in `docker run ubuntu:<version>` first;
 - no changing fixtures or PHP test scripts to dodge behaviour.
 
 Fix the root cause in the code, in the bindings, or upstream. If a proper fix is out of
@@ -76,6 +81,10 @@ reach, say so and ask. List any workaround explicitly in the report.
   path with `DOCS_RS= cargo build` after `cargo clean`.
 - Rust version: the crate uses edition 2024. Windows needs nightly
   (`abi_vectorcall`), see the `#![cfg_attr(windows, feature(abi_vectorcall))]` lines.
+- CI's clippy job uses the newest stable toolchain. A nix shell's clippy can be older
+  and miss new lints, and `rustup run stable` in the shell still runs the shell's
+  `cargo-clippy`. Put `$(rustup run stable rustc --print sysroot)/bin` first on `PATH`
+  and check `cargo clippy --version`.
 
 ## Tests
 
@@ -110,12 +119,27 @@ reach, say so and ask. List any workaround explicitly in the report.
   goes there and `php` loads a stale or missing library from `target/`.
 - Class, enum and INI registration only run at MINIT, which never runs inside `Embed`'s
   request: test them through the cdylib (`run_php`), not only through embed.
+- `Embed::run` returns `R::default()` when PHP bails out, and the rest of the closure
+  doesn't run, so assertions inside it are skipped. Return the value out of the
+  closure and assert outside it.
+- `Embed::eval` compiles `return <code>;`: a statement list is a parse error or stops
+  after the first statement. Wrap statements in an IIFE
+  (`(function () { echo 'x'; header('X: 1'); })()`), and load class declarations from
+  a fixture with `Embed::run_script`.
+- A lib unit test that creates or drops a `Zval` needs `#[cfg(feature = "embed")]`:
+  dropping a `Zval` links `zval_ptr_dtor` and `_efree`, and without `embed` libphp
+  isn't linked (rust-lld fails on Linux and musl, macOS hides it). This is a link
+  requirement, not a way to skip a test. Before pushing new lib tests, run CI's
+  `cargo test --release --workspace --features closure,anyhow,runtime,observer`.
 - New macro behaviour gets an expansion test in `crates/macros/tests/expand/` and, for
   every new error, a trybuild case in `tests/ui/` (skill `proc-macros`).
 - Guide code blocks are compiled by skeptic (`guide_tests`): `rust,no_run` blocks must
   compile, `rust,ignore` blocks are not checked.
 - PHP test scripts are formatted and linted with mago (`mago.toml`). Some rules are off
-  on purpose there; read the reason before you write around one.
+  on purpose there; read the reason before you write around one. Run it as CI does, on
+  the whole tree and with no path arguments (a path argument skips files and hides
+  warnings): `mago format --check && mago lint --minimum-fail-level=warning`, with the
+  version pinned in `flake.nix` and `build.yml` (the nix shell's `mago`).
 
 ## Code style
 
@@ -131,10 +155,14 @@ reach, say so and ask. List any workaround explicitly in the report.
   when the invariant isn't obvious.
 - Public items need doc comments (`missing_docs` is on). Rustdoc must build with
   `-D warnings`.
+- `rustfmt.toml` sets `wrap_comments`, so `cargo fmt` can rewrap comments in files you
+  didn't edit. Check `git diff --stat` and restore those files before committing.
 - Documentation (`guide/`, rustdoc): more examples, less text. Show behaviour with a
   Rust declaration and the PHP that uses it, whose lines end in their result
   (`// int(3)`, `// TypeError`, `// no error`), and keep the prose around it short.
   Check each result on the branch before writing it.
+  Write that prose in simple English: sentences of 25 words or fewer, active voice,
+  simple tenses, one word for one meaning, no semicolons.
 - The macro docs in `crates/macros/src/lib.rs` are a copy of `guide/src/macros/*.md`
   between `// BEGIN DOCS FROM` / `// END DOCS FROM` markers. Edit the guide, then run
   `tools/update_lib_docs.sh` (needs the nightly toolchain for rustfmt). Never edit the
@@ -177,6 +205,7 @@ reach, say so and ask. List any workaround explicitly in the report.
 - All worktrees of this repository share one stash list. Never use `git stash` there,
   and never pop or drop entries you didn't create. To compare with and without a
   change, use `git diff > f.patch` + `git apply -R`, or a second worktree.
+  Never a reverse `sed`: it also rewrites other lines that match.
 - Put scratch worktrees and scratch crates under `/tmp` (on macOS it is
   `/private/tmp`) or the session scratchpad. `/tmp` may be wiped on reboot, so don't
   keep anything there that must survive.
@@ -185,5 +214,15 @@ reach, say so and ask. List any workaround explicitly in the report.
   `CARGO_TARGET_DIR` when you run integration tests (see Tests).
 
 ## Issues
+
+When you get an issue, or someone else's PR, check `main` first:
+
+1. Reproduce it on an up-to-date `main` (`git fetch origin`, then a worktree of
+   `origin/main`). For a PR, run its new tests there: if they pass on `main`, the bug
+   is already fixed.
+2. Look for work in progress: `gh pr list --repo extphprs/ext-php-rs --state all
+   --search "<keywords>"`, and the PRs linked from the issue.
+
+Report what you find before you write any code.
 
 Avoid opening GitHub issues that do not provide a linked fix: always open a linked PR with a fix for the issue, unless it's an issue related to a big architectural question or any other *major* change requiring further discussion before implementation, or any other non-directly-actionable issue.  
