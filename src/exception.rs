@@ -112,16 +112,31 @@ impl PhpException {
             return;
         }
 
-        let result = match self.object {
+        // The engine can bail out of every call below, and a bailout skips this
+        // frame's destructors. So the Rust strings are copied to the Zend heap and
+        // dropped first. The Zend allocator frees its copies at request shutdown.
+        let Self {
+            message,
+            code,
+            ex,
+            object,
+        } = self;
+        let zend_message = ZendStr::new(&message, false);
+        drop(message);
+
+        let result = match object {
             Some(object) => throw_object(object),
-            None => throw_with_code(self.ex, self.code, &self.message),
+            None => throw_zend_str(ex, code, &zend_message),
         };
 
         if let Err(err) = result {
-            let class = self.ex.name().unwrap_or_default();
-            let message = self.message.replace('\0', "\\0");
+            let class = ex.name().unwrap_or_default();
+            let message = String::from_utf8_lossy(zend_message.as_bytes()).replace('\0', "\\0");
             let fallback = format!("cannot throw {class}: {err}; original message: {message}");
-            let _ = throw_with_code(ce::error(), 0, &fallback);
+            drop(message);
+            let zend_fallback = ZendStr::new(&fallback, false);
+            drop(fallback);
+            let _ = throw_zend_str(ce::error(), 0, &zend_fallback);
         }
     }
 }
@@ -199,6 +214,11 @@ pub fn throw(ex: &ClassEntry, message: &str) -> Result<()> {
 /// throw_with_code(ce::compile_error(), 123, "This is a CompileError.");
 /// ```
 pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> {
+    throw_zend_str(ex, code, &ZendStr::new(message, false))
+}
+
+/// Throws an exception whose message is already on the Zend heap.
+fn throw_zend_str(ex: &ClassEntry, code: i32, message: &ZendStr) -> Result<()> {
     let flags = ex.flags();
 
     // Can't throw an interface or abstract class.
@@ -206,7 +226,6 @@ pub fn throw_with_code(ex: &ClassEntry, code: i32, message: &str) -> Result<()> 
         return Err(Error::InvalidException(flags));
     }
 
-    let message = ZendStr::new(message, false);
     let message_ptr = message.as_c_str()?.as_ptr();
 
     // SAFETY: We are given a reference to a `ClassEntry` therefore when we cast it
