@@ -484,6 +484,20 @@ impl ClassBuilder {
         Ok(())
     }
 
+    /// A `#[php(no_constructor)]` class under a Rust class that declares a
+    /// constructor would inherit it, and the parent's constructor would run on
+    /// an object of another Rust type: the class keeps the one that throws.
+    fn keep_throwing_constructor(&mut self) {
+        if let Some(constructor) = self.unless_parent_constructs.take()
+            && self
+                .extends
+                .as_ref()
+                .is_some_and(|(parent, _)| constructs_in_this_module(parent()))
+        {
+            self.methods.push((constructor, MethodFlags::Public));
+        }
+    }
+
     /// Builds and registers the class.
     ///
     /// # Errors
@@ -514,17 +528,7 @@ impl ClassBuilder {
 
         self.ce.name = ZendStr::new_interned(&self.name, true).into_raw();
 
-        // A `#[php(no_constructor)]` class under a Rust class that declares a
-        // constructor would inherit it, and the parent's constructor would run
-        // on an object of another Rust type: the class keeps the one that throws.
-        if let Some(constructor) = self.unless_parent_constructs.take()
-            && self
-                .extends
-                .as_ref()
-                .is_some_and(|(parent, _)| constructs_in_this_module(parent()))
-        {
-            self.methods.push((constructor, MethodFlags::Public));
-        }
+        self.keep_throwing_constructor();
 
         let mut arg_info = Vec::with_capacity(self.methods.len());
         let mut methods = Vec::with_capacity(self.methods.len() + 1);
