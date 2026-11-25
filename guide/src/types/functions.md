@@ -26,3 +26,40 @@ pub fn test_method() -> () {
 
 # fn main() {}
 ```
+
+## Untyped and union parameter types
+
+`#[php_function]` declares each parameter with the PHP type of its Rust type.
+A function built with `FunctionBuilder` can also declare a parameter without a
+type, as `function f($value)` does, with `Arg::untyped`, and a union of scalar
+types with `Arg::or`. A return type becomes a union with
+`FunctionBuilder::or_returns`. Reflection reports these types, and PHP's
+inheritance checks compare a method's overrides against them.
+
+```rust,ignore
+use ext_php_rs::args::Arg;
+use ext_php_rs::builders::FunctionBuilder;
+use ext_php_rs::flags::DataType;
+
+// function check($value) {}
+let check = FunctionBuilder::new("check", check_handler).arg(Arg::untyped("value"));
+
+// function twice(int|float $value): int|float {}
+let twice = FunctionBuilder::new("twice", twice_handler)
+    .arg(Arg::new("value", DataType::Long).or(DataType::Double))
+    .returns(DataType::Long, false, false)
+    .or_returns(DataType::Double);
+```
+
+A union joins `bool`, `int`, `float`, `string`, `array`, `object` and `null`;
+any other type (a class, `iterable`, `resource`, `mixed`, ...), a union on an
+untyped argument, or `or_returns` without `returns` fails `FunctionBuilder::build`
+with `Error::InvalidUnionType`. The handler's type, `FunctionHandler`, is
+exported from `ext_php_rs::builders`.
+
+These types are what reflection and inheritance checks see. Release builds of
+PHP do not check an internal function's arguments against them: the handler
+receives whatever the caller passed and must check it itself. Debug builds of
+PHP do check the return value against the declared return type and assert on a
+mismatch, so a handler declared `: int|float` must not return `null`, even on
+bad input.
