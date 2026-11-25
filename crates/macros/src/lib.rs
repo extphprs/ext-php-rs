@@ -44,6 +44,10 @@ extern crate proc_macro;
 ///   readonly class are implicitly readonly.
 /// - `flags` - Sets class flags using `ClassFlags`, e.g. `#[php(flags =
 ///   ClassFlags::Final)]` for a final class.
+/// - `no_constructor` - A class without a constructor declares none, rather
+///   than one that throws: `new` creates an object initialized with
+///   `Default::default()`. The struct must implement `Default`. See
+///   [Constructors](./impl.md#constructors).
 /// - `#[php(extends(...))]` - Sets the parent class of the class. Can only be
 ///   used once. Two forms are supported:
 ///   - Simple type form: `#[php(extends(MyBaseClass))]` - For Rust-defined
@@ -182,10 +186,9 @@ extern crate proc_macro;
 /// - `Option<&Foo>` and `Option<&mut Foo>` also accept `null`.
 ///
 /// The borrow starts before the function body and stops when the function
-/// returns. The rules of [Access to the Rust Value](#access-to-the-rust-value)
-/// apply during the call. If two parameters, or the object of the method and a
-/// parameter, get the same object and the borrows conflict, PHP throws an
-/// `Error`.
+/// returns. The rules of [Access to the Rust Value](#access-to-the-rust-value) apply during
+/// the call. If two parameters, or the object of the method and a parameter,
+/// get the same object and the borrows conflict, PHP throws an `Error`.
 ///
 /// The borrow guards `ClassRef<Foo>` and `ClassRefMut<Foo>` are also parameter
 /// types. A variadic parameter must use them, for example `&[ClassRef<Foo>]`.
@@ -1329,8 +1332,8 @@ fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// - `#[php(change_constant_case = "snake_case")]` - Renames the constant to
 ///   snake case.
 ///
-/// See the [`name` and `change_case`](./php.md#name-and-change_case) section
-/// for a list of all available cases.
+/// See the [`name` and `change_case`](./php.md#name-and-change_case) section for a list of all
+/// available cases.
 ///
 /// The macro itself takes no arguments: `#[php_interface(name = "Foo")]` is a
 /// compile error. Put the options in `#[php(...)]` on the trait.
@@ -1581,8 +1584,8 @@ fn php_enum_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 /// - Use `#[php(implements(ce = ...))]` on `#[php_class]` for built-in PHP
 ///   interfaces like `Iterator`, `ArrayAccess`, `Countable`, etc.
 ///
-/// See the [Classes documentation](./classes.md#implementing-an-interface) for
-/// examples of implementing built-in interfaces.
+/// See the [Classes documentation](./classes.md#implementing-an-interface) for examples
+/// of implementing built-in interfaces.
 ///
 /// ## Cross-Crate Support
 ///
@@ -1918,10 +1921,9 @@ fn php_interface_internal(args: TokenStream2, input: TokenStream2) -> TokenStrea
 /// values, `&[i64]` receives converted integers. If one of the values cannot be
 /// converted into `T`, the call throws a `TypeError`. If one of the values is a
 /// class object whose Rust value is borrowed or not initialized, the call
-/// throws an `Error`, see [Class Arguments](./classes.md#class-arguments). A
-/// variadic parameter that is not the last parameter is a compile error. The
-/// slice must be spelled in the signature; a type alias that hides the slice is
-/// not detected.
+/// throws an `Error`, see [Class Arguments](./classes.md#class-arguments). A variadic parameter that is
+/// not the last parameter is a compile error. The slice must be spelled in the
+/// signature; a type alias that hides the slice is not detected.
 ///
 /// ```rust,no_run,ignore
 /// # #![cfg_attr(windows, feature(abi_vectorcall))]
@@ -2098,10 +2100,9 @@ fn php_const_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 {
 ///
 /// The function is renamed to `get_module` if you have used another name. The
 /// macro also exports a crate-prefixed `<crate_name>_get_module` alias, used
-/// when [statically linking the extension into
-/// php-src](../advanced/static_linking.md). Building with
-/// `EXT_PHP_RS_STATIC_EXT=1` removes the unmangled `get_module` export (the
-/// function itself stays callable from Rust) so a statically linked
+/// when [statically linking the extension into php-src](../advanced/static_linking.md).
+/// Building with `EXT_PHP_RS_STATIC_EXT=1` removes the unmangled `get_module`
+/// export (the function itself stays callable from Rust) so a statically linked
 /// extension cannot collide with another extension exporting `get_module`.
 /// Dynamic builds (`extension=` / `dl()`) must not set the variable.
 ///
@@ -2214,8 +2215,7 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// If you do not want a function exported to PHP, you should place it in a
 /// separate `impl` block.
 ///
-/// If you want to use async Rust, use `#[php_async_impl]`, instead: see [here
-/// &raquo;](./async_impl.md) for more info.
+/// If you want to use async Rust, use `#[php_async_impl]`, instead: see [here &raquo;](./async_impl.md) for more info.
 ///
 /// ## Options
 ///
@@ -2229,8 +2229,8 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// - `#[php(change_constant_case = "snake_case")]` - Renames the constant to
 ///   snake case.
 ///
-/// See the [`name` and `change_case`](./php.md#name-and-change_case) section
-/// for a list of all available cases.
+/// See the [`name` and `change_case`](./php.md#name-and-change_case) section for a list of all
+/// available cases.
 ///
 /// ## Methods
 ///
@@ -2239,8 +2239,8 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// methods is they are bounded by their class object.
 ///
 /// Instance methods, static methods and constructors benefit from the same
-/// zero-allocation fast path as standalone functions. See the
-/// [Performance](./function.md#performance) section for details.
+/// zero-allocation fast path as standalone functions. See the [Performance](./function.md#performance)
+/// section for details.
 ///
 /// Class methods can take a `&self` or `&mut self` parameter. They cannot take
 /// a consuming `self` parameter. Static methods can omit this `self` parameter.
@@ -2249,8 +2249,8 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 /// the self parameter. The parameter must have the name `self_`. Borrow the
 /// Rust value with `self_.try_borrow()` or `self_.try_borrow_mut()`. You can
 /// also return `self_` to return `$this`. A `&mut ZendClassObject<Self>`
-/// parameter does not compile. Refer to [Access to the Rust
-/// Value](./classes.md#access-to-the-rust-value) for the borrow rules.
+/// parameter does not compile. Refer to [Access to the Rust Value](./classes.md#access-to-the-rust-value)
+/// for the borrow rules.
 ///
 /// The rest of the options are passed as separate attributes:
 ///
@@ -2382,6 +2382,15 @@ fn php_module_internal(args: TokenStream2, input: TokenStream2) -> TokenStream2 
 ///
 /// By default, if a class does not have a constructor, it is not constructable
 /// from PHP. It can only be returned from a Rust function to PHP.
+///
+/// With `#[php(no_constructor)]` on a struct that implements `Default`, the
+/// class declares no constructor instead, as a PHP class without one: `new`, on
+/// the class or on a PHP subclass, creates an object initialized with
+/// `Default::default()`, and `ReflectionClass::getConstructor()` returns
+/// `null`. An exception class extending `\Exception` inherits
+/// `Exception::__construct`. Under a Rust class that declares a constructor,
+/// the class keeps the one that throws, since the parent's would run on an
+/// object of another type.
 ///
 /// Constructors are Rust methods which can take any amount of parameters and
 /// returns either `Self` or `Result<Self, E>`, where `E: Into<PhpException>`.

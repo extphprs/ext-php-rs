@@ -17,6 +17,9 @@ placed underneath the `#[php_class]` attribute.
   readonly class are implicitly readonly.
 - `flags` - Sets class flags using `ClassFlags`, e.g.
   `#[php(flags = ClassFlags::Final)]` for a final class.
+- `no_constructor` - A class without a constructor declares none, rather than one
+  that throws: `new` creates an object initialized with `Default::default()`. The
+  struct must implement `Default`. See [Constructors](./impl.md#constructors).
 - `#[php(extends(...))]` - Sets the parent class of the class. Can only be used once.
   Two forms are supported:
   - Simple type form: `#[php(extends(MyBaseClass))]` - For Rust-defined classes that implement `RegisteredClass`.
