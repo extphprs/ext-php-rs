@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.5...ext-php-rs-derive-v0.13.0) - 2026-11-25
+
+### BREAKING CHANGES
+
+- *(class)* [**breaking**] Opt-in constructor-less classes with `#[php(no_constructor)]` ([#855](https://github.com/extphprs/ext-php-rs/pull/855)) (by @ChiragAgg5k) [[#855](https://github.com/extphprs/ext-php-rs/issues/855)] 
+> a `#[php_class]` that implements `Default` and declares no
+constructor is now constructable from PHP with `new`.
+- *(class)* [**breaking**] Collect cycles through Rust fields behind a borrow-checked payload ([#824](https://github.com/extphprs/ext-php-rs/pull/824)) (by @ptondereau) [[#824](https://github.com/extphprs/ext-php-rs/issues/824)] 
+
+### Added
+- *(class)* Declare typed properties with `ClassBuilder::typed_property` ([#856](https://github.com/extphprs/ext-php-rs/pull/856)) (by @ChiragAgg5k) [[#856](https://github.com/extphprs/ext-php-rs/issues/856)] 
+
+### Other
+- *(macro)* Read constructor arguments from the call frame ([#858](https://github.com/extphprs/ext-php-rs/pull/858)) (by @loks0n) [[#858](https://github.com/extphprs/ext-php-rs/issues/858)] 
+- Switch default branch from master to main ([#852](https://github.com/extphprs/ext-php-rs/pull/852)) (by @ptondereau) [[#852](https://github.com/extphprs/ext-php-rs/issues/852)] 
 ## [0.12.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-derive-v0.12.4...ext-php-rs-derive-v0.12.5) - 2026-11-16
 
 ### Added

@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.4](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.3...cargo-php-v0.2.4) - 2026-11-25
+
+### Other
+- Switch default branch from master to main ([#852](https://github.com/extphprs/ext-php-rs/pull/852)) (by @ptondereau) [[#852](https://github.com/extphprs/ext-php-rs/issues/852)] 
 ## [0.2.3](https://github.com/extphprs/ext-php-rs/compare/cargo-php-v0.2.2...cargo-php-v0.2.3) - 2026-11-16
 
 ### Other
