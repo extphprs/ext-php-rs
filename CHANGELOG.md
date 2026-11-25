@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## [0.17.0](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.5...ext-php-rs-v0.17.0) - 2026-11-25
+
+### BREAKING CHANGES
+
+- *(class)* [**breaking**] Opt-in constructor-less classes with `#[php(no_constructor)]` ([#855](https://github.com/extphprs/ext-php-rs/pull/855)) (by @ChiragAgg5k) [[#855](https://github.com/extphprs/ext-php-rs/issues/855)] 
+> a `#[php_class]` that implements `Default` and declares no
+constructor is now constructable from PHP with `new`.
+- *(class)* [**breaking**] Collect cycles through Rust fields behind a borrow-checked payload ([#824](https://github.com/extphprs/ext-php-rs/pull/824)) (by @ptondereau) [[#824](https://github.com/extphprs/ext-php-rs/issues/824)] 
+
+### Added
+- *(args)* Declare untyped and union parameter and return types ([#857](https://github.com/extphprs/ext-php-rs/pull/857)) (by @ChiragAgg5k) [[#857](https://github.com/extphprs/ext-php-rs/issues/857)] 
+- *(class)* Declare typed properties with `ClassBuilder::typed_property` ([#856](https://github.com/extphprs/ext-php-rs/pull/856)) (by @ChiragAgg5k) [[#856](https://github.com/extphprs/ext-php-rs/issues/856)] 
+
+### Fixed
+- *(bailout)* Free a PhpException's strings when Zend bails out while throwing it ([#863](https://github.com/extphprs/ext-php-rs/pull/863)) (by @phcorp) [[#863](https://github.com/extphprs/ext-php-rs/issues/863)] 
+- *(bindings)* Generate the bindings with the builtin headers of the loaded libclang's version ([#861](https://github.com/extphprs/ext-php-rs/pull/861)) (by @danog) [[#861](https://github.com/extphprs/ext-php-rs/issues/861)] 
+- Add proper agentic instructions. ([#859](https://github.com/extphprs/ext-php-rs/pull/859)) (by @danog) [[#859](https://github.com/extphprs/ext-php-rs/issues/859)] 
+
+### Other
+- *(macro)* Read constructor arguments from the call frame ([#858](https://github.com/extphprs/ext-php-rs/pull/858)) (by @loks0n) [[#858](https://github.com/extphprs/ext-php-rs/issues/858)] 
+- Add build, test, CI and triage practices to the agent instructions ([#864](https://github.com/extphprs/ext-php-rs/pull/864)) (by @ptondereau) [[#864](https://github.com/extphprs/ext-php-rs/issues/864)] 
+- Test with PHP 8.6 everywhere, and generate the docs.rs bindings with it ([#860](https://github.com/extphprs/ext-php-rs/pull/860)) (by @danog) [[#860](https://github.com/extphprs/ext-php-rs/issues/860)] 
+- Switch default branch from master to main ([#852](https://github.com/extphprs/ext-php-rs/pull/852)) (by @ptondereau) [[#852](https://github.com/extphprs/ext-php-rs/issues/852)] 
 ## [0.16.5](https://github.com/extphprs/ext-php-rs/compare/ext-php-rs-v0.16.4...ext-php-rs-v0.16.5) - 2026-11-16
 
 ### Added
